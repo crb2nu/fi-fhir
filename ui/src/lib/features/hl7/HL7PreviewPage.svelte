@@ -915,7 +915,15 @@
   })();
 
   onMount(() => {
+    // Load a sample into the editor when the active sample *changes*. The
+    // store re-emits on every samples update (a rename, tags, a removal of
+    // another sample), and reloading then would overwrite the editor without
+    // asking. Picking a row still loads it through the inbox's select event.
+    let loadedSampleId: string | null = null;
     const unsub = activeSample.subscribe((s) => {
+      const id = s?.id ?? null;
+      if (id === loadedSampleId) return;
+      loadedSampleId = id;
       if (s) loadSample(s);
     });
     let lastNavigationSequence = 0;

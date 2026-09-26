@@ -18,6 +18,8 @@
   } from '$lib/ui/primitives';
   import type { SelectOption } from '$lib/ui/primitives';
   import Eraser from '@lucide/svelte/icons/eraser';
+  import Pencil from '@lucide/svelte/icons/pencil';
+  import X from '@lucide/svelte/icons/x';
   import Files from '@lucide/svelte/icons/files';
   import InboxIcon from '@lucide/svelte/icons/inbox';
   import Save from '@lucide/svelte/icons/save';
@@ -26,7 +28,7 @@
   import Upload from '@lucide/svelte/icons/upload';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, tick } from 'svelte';
 
   export let samples: readonly HL7Sample[];
   export let activeId: string | null;
@@ -69,8 +71,12 @@
   let fileInputEl: HTMLInputElement | null = null;
   let isDragging = false;
 
-  // Details pane: edits to the active sample's metadata.
+  // Details pane: edits one sample's metadata. It follows the active sample
+  // unless a row's "Edit sample" picked another one; that never loads the
+  // sample into the editor.
+  let editingId: string | null = null;
   let editKey = '';
+  let editNameEl: HTMLDivElement | null = null;
   let editName = '';
   let editSource = '';
   let editFeed = '';
@@ -239,14 +245,14 @@
   }
 
   function saveEdit(): void {
-    if (!activeSample) return;
+    if (!detailSample) return;
     const name = editName.trim();
     const source = editSource.trim();
     if (!name || !source) return;
     const feed = editFeed.trim();
     const tags = parseTags(editTags);
     dispatch('updateMeta', {
-      id: activeSample.id,
+      id: detailSample.id,
       name,
       source,
       feed,
@@ -256,7 +262,19 @@
 
   function openSample(id: string): void {
     if (disabled) return;
+    editingId = null;
     dispatch('select', { id });
+  }
+
+  function editSample(event: MouseEvent, id: string): void {
+    // The row loads its sample on click; editing metadata must not.
+    event.preventDefault();
+    editingId = id;
+    void tick().then(() => editNameEl?.querySelector('input')?.focus());
+  }
+
+  function stopEditing(): void {
+    editingId = null;
   }
 
   function removeSample(event: MouseEvent, id: string): void {
@@ -316,20 +334,23 @@
     if (kept.length !== selectedIds.size) selectedIds = new Set(kept);
   }
 
-  $: activeSample = samples.find((s) => s.id === activeId) ?? null;
+  // A sample picked for editing that has since been removed releases the pane.
+  $: if (editingId && !samples.some((s) => s.id === editingId)) editingId = null;
+  $: detailSample = samples.find((s) => s.id === (editingId ?? activeId)) ?? null;
+  $: detailIsActive = detailSample !== null && detailSample.id === activeId;
   $: {
-    const key = metaKey(activeSample);
+    const key = metaKey(detailSample);
     if (key !== editKey) {
       editKey = key;
-      resetEdit(activeSample);
+      resetEdit(detailSample);
     }
   }
   $: editDirty =
-    activeSample !== null &&
-    (editName !== activeSample.name ||
-      editSource !== activeSample.source ||
-      editFeed !== (activeSample.feed ?? '') ||
-      parseTags(editTags).join(',') !== (activeSample.tags ?? []).join(','));
+    detailSample !== null &&
+    (editName !== detailSample.name ||
+      editSource !== detailSample.source ||
+      editFeed !== (detailSample.feed ?? '') ||
+      parseTags(editTags).join(',') !== (detailSample.tags ?? []).join(','));
   $: editValid = editName.trim().length > 0 && editSource.trim().length > 0;
 </script>
 
@@ -383,6 +404,9 @@
             {disabled}
           />
         </div>
+        {#if filter.trim()}
+          <Button variant="ghost" onclick={() => (filter = '')} {disabled}>Clear filter</Button>
+        {/if}
         <span class="count text-mono">{filtered.length}/{samples.length}</span>
       {/if}
     {/snippet}
@@ -447,11 +471,16 @@
               <Th width="112px">Tags</Th>
               <Th width="92px">Redaction</Th>
               <Th width="52px" numeric>Segs</Th>
-              <Th width="40px"><span class="sr-only">Actions</span></Th>
+              <Th width="76px"><span class="sr-only">Actions</span></Th>
             </tr>
           {/snippet}
           {#each filtered as s (s.id)}
-            <Tr selectable selected={activeId === s.id} onselect={() => openSample(s.id)}>
+            <Tr
+              selectable
+              selected={activeId === s.id}
+              class={editingId === s.id && activeId !== s.id ? 'is-editing' : undefined}
+              onselect={() => openSample(s.id)}
+            >
               <Td>
                 <input
                   class="check"
@@ -477,7 +506,15 @@
                 {/if}
               </Td>
               <Td numeric value={segmentCount(s.raw)} />
-              <Td>
+              <Td class="row-actions">
+                <IconButton
+                  icon={Pencil}
+                  label="Edit sample"
+                  title={`Edit ${s.name} without loading it`}
+                  pressed={editingId === s.id ? true : undefined}
+                  onclick={(e) => editSample(e, s.id)}
+                  {disabled}
+                />
                 <IconButton
                   icon={Trash2}
                   label={`Remove ${s.name}`}
@@ -492,39 +529,47 @@
     {/if}
   </Panel>
 
-  {#if activeSample}
+  {#if detailSample}
     <Panel aria-label="Selected sample">
       {#snippet header()}
-        <h3 class="details-title" title={activeSample?.name}>{activeSample?.name}</h3>
-        {#if activeSample?.messageType}
-          <Badge mono>{activeSample.messageType}</Badge>
+        <h3 class="details-title" title={detailSample?.name}>{detailSample?.name}</h3>
+        {#if detailSample?.messageType}
+          <Badge mono>{detailSample.messageType}</Badge>
         {/if}
-        {#if activeSample?.version}
-          <Badge mono>{activeSample.version}</Badge>
+        {#if detailSample?.version}
+          <Badge mono>{detailSample.version}</Badge>
+        {/if}
+        {#if !detailIsActive}
+          <Badge title="Editing metadata only; the editor still holds the active sample">Not loaded</Badge>
         {/if}
       {/snippet}
       {#snippet actions()}
-        <Button variant="ghost" onclick={() => resetEdit(activeSample)} disabled={disabled || !editDirty}>
+        <Button variant="ghost" onclick={() => resetEdit(detailSample)} disabled={disabled || !editDirty}>
           Revert
         </Button>
         <Button onclick={saveEdit} disabled={disabled || !editDirty || !editValid}>Save changes</Button>
+        {#if !detailIsActive}
+          <IconButton icon={X} label="Stop editing" onclick={stopEditing} />
+        {/if}
       {/snippet}
 
       <div class="details">
         <KeyValue
           columns={2}
           items={[
-            { key: 'Control id', value: activeSample.controlId, mono: true, truncate: true },
-            { key: 'Saved', value: new Date(activeSample.createdAt).toLocaleString(), mono: true },
-            { key: 'Segments', value: segmentCount(activeSample.raw), mono: true },
-            { key: 'Size', value: formatSize(activeSample.raw), mono: true },
-            { key: 'Redaction', value: redactionLabel(activeSample.redactionMode) }
+            { key: 'Control id', value: detailSample.controlId, mono: true, truncate: true },
+            { key: 'Saved', value: new Date(detailSample.createdAt).toLocaleString(), mono: true },
+            { key: 'Segments', value: segmentCount(detailSample.raw), mono: true },
+            { key: 'Size', value: formatSize(detailSample.raw), mono: true },
+            { key: 'Redaction', value: redactionLabel(detailSample.redactionMode) }
           ]}
         />
         <div class="form-grid" role="group" aria-label="Edit sample metadata">
-          <Field label="Name" required>
-            <Input bind:value={editName} {disabled} />
-          </Field>
+          <div bind:this={editNameEl}>
+            <Field label="Name" required>
+              <Input bind:value={editName} {disabled} />
+            </Field>
+          </div>
           <Field label="Source" required>
             <Input mono bind:value={editSource} {disabled} />
           </Field>
@@ -658,6 +703,15 @@
 
   .inbox :global(.samples-table) {
     max-height: 320px;
+  }
+
+  /* The row whose metadata is open in the details pane without being loaded. */
+  .inbox :global(tr.is-editing > td) {
+    background: var(--color-bg-hover);
+  }
+
+  .inbox :global(td.row-actions) {
+    padding-right: var(--space-1);
   }
 
   .check {
