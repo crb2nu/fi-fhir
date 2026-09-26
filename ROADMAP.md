@@ -34,10 +34,19 @@ processes, with negative controls. The production deployment grants every IDE
 identity the operator bundle and runs the Integration Session workspace with
 SSE streaming on (2026-09-26).
 
-This update records repository state through merge `3c0a19171` on 2026-09-26.
+The Mapping Studio was redesigned on 2026-09-26 (`.loom/37`): a design
+system of neutral tokens and shared primitives, a single-row shell with
+access and connection in the status bar, and every route rebuilt as a
+toolbar over tables with details panes. No surface shows simulated data.
+`test:ui-e2e` now captures every route at 1440×900 as review evidence and
+fails if the retired marketing copy returns.
+
+This update records repository state through merge `38d87a5aa` on 2026-09-26.
+[Pipeline 29328](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29328)
+built and deployed the redesigned UI (`v0.1.29328`, merge `4480af9ab`);
 [Pipeline 29194](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29194)
-is the `main` pipeline for that merge, including the browser smoke gate, the
-offline official validator, live HAPI FHIR read-back, Kafka/Redis,
+is the last `main` pipeline that built the API image, including the browser
+smoke gate, the offline official validator, live HAPI FHIR read-back, Kafka/Redis,
 PostgreSQL/MinIO, and two-replica tests. These are internal GitLab records.
 Production activation and release certification remain separate decisions;
 this documentation update does not assert a new clinical-runtime deployment.
@@ -186,6 +195,50 @@ lane was launched; none was in the trusted-network path itself.
   CHANGELOG block, the decision entry, and `ci/test-ui-e2e.yml` running when
   its own definition changes.
 
+## Delivered — IDE design uplift (2026-09-26)
+
+Spec: `.loom/37-ide-design-uplift-execution-specs.md`
+([MR !232](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/232)).
+The brief was that the Mapping Studio "looks like a toy". The evidence was
+1440×900 screenshots of every route in production: four navigation layers
+above the content, marketing copy, simulated alerts on the home page, and
+gradients, glows, pills and cards where records belonged. The direction is
+calm, dense and precise; every lane attached before/after screenshots and was
+reviewed screenshots first, then diff.
+
+- [x] **U-0 design system** — dark-first neutral tokens with one accent
+  reserved for focus, selection and primary actions; 13 px UI type, 4 px
+  grid, 28 px controls, 36 px toolbars; primitives in `ui/src/lib/ui/primitives/`
+  (Button, IconButton, Tabs, Badge, Panel, Toolbar, Table, Field/Input/Select/
+  Textarea, EmptyState, KeyValue, Popover, Icon), Lucide icons, a dev-only
+  `/design` gallery and `ui/docs/DESIGN.md`. Merged in
+  [MR !233](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/233).
+- [x] **U-1 shell** — one 40 px header with the five-stage control, a
+  breadcrumb and Commands; access and connection live in the status bar (the
+  credential strip and journey band are gone, the bearer entry is a centred
+  dialog); document types with no editor removed; a layout saved on Operator
+  restores. Merged in
+  [MR !235](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/235).
+- [x] **U-2 home, events, operator** — Home is Recent, Integrations, Health and
+  Alerts on real sources; the simulated observability fallback is deleted, so
+  no surface can show invented alerts; Events and Operator are toolbars over
+  tables with details panes. Merged in
+  [MR !236](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/236).
+- [x] **U-3 intake, workflows, profiles, terminology** — HL7 intake is
+  editor-first with one status line; workflows, profiles and terminology are
+  toolbars over tables with details panes. Review found a failed preview
+  invisible with the session engine on and a lost per-row sample edit; both
+  fixed before merge. Merged in
+  [MR !234](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/234).
+- [x] **U-4 visual evidence in the gate** — `test:ui-e2e` captures 1440×900
+  PNGs of every route as job artifacts and fails if the retired marketing copy
+  returns; no pixel goldens. Merged in
+  [MR !237](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/237).
+- [x] **Production** — UI `v0.1.29328` verified from the LAN at 1440×900 on
+  every route, including an HL7 Preview on the session engine.
+- [x] **Close-out (`docs/ide-uplift-close-out`)** — this roadmap, one
+  CHANGELOG block and the worklog entry.
+
 ## Now
 
 - [ ] **Stale capabilities in an open tab** — a tab reads `/api/auth/status`
@@ -194,20 +247,41 @@ lane was launched; none was in the trusted-network path itself.
   a session mutation is refused with "legacy integration execution is
   unavailable" and after credential entry; until then, reload the tab
   (documented in `INTEGRATION-SESSIONS.md`).
-- [ ] **Copilot: enable the backend LLM in production** — the IDE now says
-  "No LLM is configured for this deployment" because the runtime enables LLM
+- [ ] **Copilot: enable the backend LLM in production** — the IDE says "No
+  LLM is configured for this deployment" because the runtime enables LLM
   features only with `FI_FHIR_LLM_ENABLED=true`, and the in-cluster LiteLLM
   refuses keyless calls (401) while `fi-fhir-api` carries no `LLM_API_KEY`.
-  LiteLLM runs without a database, so a scoped virtual key cannot be minted;
-  the cluster's existing pattern (langgraph-agents) copies the gateway key
-  into the consumer's SOPS secret. Decide between that and giving LiteLLM a
-  database for scoped keys, then: SOPS secret `k3s/fi-fhir/secrets/llm-v1.yaml`,
-  `LLM_API_KEY` from it, `FI_FHIR_LLM_ENABLED=true`; verify
+  The chosen route is scoped LiteLLM virtual keys declared in GitOps
+  (platform/gitops `.loom/30-implementation-plan-litellm-scoped-keys.md`,
+  MR 815): a dedicated LiteLLM database, keys declared once as labelled SOPS
+  secrets in each consumer namespace and reconciled by the LiteLLM manager,
+  fi-fhir first. Implementation waits on an owner decision (it writes shared
+  platform resources and secrets). Then verify
   `capabilities.llm.configured: true` and `copilot-llm-state` = ready.
-- [ ] **Operator-plane availability as a capability** — the IDE cannot yet
-  tell "the control plane is not configured"
+- [ ] **Operator-plane and terminology-store availability as capabilities** —
+  the IDE cannot yet tell "the control plane is not configured"
   (`FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED` unset) from "this identity is
-  forbidden"; both read as a refusal. Add it to the contract.
+  forbidden"; both read as a refusal. Terminology without a mapping store
+  shows only "GraphQL request failed" and an error toast, because the API's
+  reason ("terminology mapping store not configured") does not reach the UI.
+  Add both to the status contract and say so on the page; then give the
+  `test:ui-e2e` operator-bundle stack a mapping store so its Terminology
+  capture shows a real Browse view.
+- [ ] **Events browser reads the legacy store** — `/events` Browse, Patient
+  Timeline and Statistics query `graphql_events`, which `serve` never writes
+  (only the test-only legacy `submitMessage` path does); durable admissions
+  land in `integration_canonical_events`. The views show honest empty states
+  on every real deployment until durable admissions feed them.
+- [ ] **IDE polish follow-ups from the design uplift** — `TabItem.badge` on
+  the `Tabs` primitive so the bottom panel drops its own tablist; one palette
+  registry so HL7 intake's palette also lists the workspace commands; finish
+  or remove the split workspace (its second pane cannot show a route);
+  restyle `ConfirmModal` and `WarningList.svelte`; count the workflow draft in
+  Problems only once it differs from the default (opening Workflows shows
+  "Problems 3" for an untouched draft); the workflow builder's baseline hides
+  divergence when `yamlToDraft` drops nested action config; `PID-3[0].1`
+  resolves empty for the built-in sample; the Health panel's UI build tag
+  uses `CI_PIPELINE_IID` while the image tag uses `CI_PIPELINE_ID`.
 - [ ] **Budgets 2 and 3** — budget 2 needs a one-hour, two-replica run at the
   declared 250 msg/s (the single-process harness cannot certify it); budget 3
   needs a 1-GiB batch-import workload reading cgroup RSS on runner 8. The
