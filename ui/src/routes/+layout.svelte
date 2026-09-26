@@ -5,7 +5,9 @@
   import { initTheme } from '$lib/theme/theme';
   import { IDEShell } from '$lib/ui/ide';
   import { connectionState, start, stop } from '$lib/stores/connectionStore';
-  import GraphQLCredentialGate from '$lib/graphql/GraphQLCredentialGate.svelte';
+  import GraphQLCredentialGate, {
+    type AccessSession
+  } from '$lib/graphql/GraphQLCredentialGate.svelte';
   import { purgeLegacyHL7BrowserStorage } from '$lib/features/hl7/samples/legacyStorage';
 
   // Import global design tokens and base styles
@@ -13,6 +15,12 @@
   import '$lib/styles/base.css';
 
   let credentialReady = false;
+  let access: AccessSession | null = null;
+  let gate: GraphQLCredentialGate | undefined;
+
+  function clearAccess(): void {
+    void gate?.clearCredential();
+  }
 
   // Dev-only primitives gallery renders bare (no credential gate, no shell) so
   // it can be screenshotted; in production builds this is constant-false.
@@ -46,10 +54,10 @@
   <slot />
 {:else}
   <div class="credential-layout">
-    <GraphQLCredentialGate bind:authenticated={credentialReady} />
+    <GraphQLCredentialGate bind:this={gate} bind:authenticated={credentialReady} bind:access />
     {#if credentialReady}
       <div class="ide-frame">
-        <IDEShell connectionState={$connectionState}>
+        <IDEShell connectionState={$connectionState} {access} onClearAccess={clearAccess}>
           <slot />
         </IDEShell>
       </div>

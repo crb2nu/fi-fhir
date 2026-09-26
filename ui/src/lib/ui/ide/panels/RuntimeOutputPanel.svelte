@@ -7,8 +7,9 @@
     type StreamRoot
   } from '$lib/graphql/streamAvailability';
   import { EventStreamDocument, WorkflowEventsDocument } from '$lib/gen/graphql';
-  import Badge from '$lib/ui/Badge.svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import Eraser from '@lucide/svelte/icons/eraser';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import { Badge, Button } from '$lib/ui/primitives';
   import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
   import { workflowDraft } from '$lib/features/workflows/workflowStore';
   import { debugSession } from '$lib/features/debug/debugStore';
@@ -34,7 +35,7 @@
   let entryCount = 0;
   let latestTimestamp: string | null = null;
   let statusLabel = 'Idle';
-  let statusVariant: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info' = 'default';
+  let statusVariant: 'neutral' | 'success' | 'danger' | 'info' = 'neutral';
   let feedLabel = 'Event stream';
   let stateMessage = 'Live output will appear here as workflow or event stream messages arrive.';
 
@@ -153,7 +154,7 @@
         ? 'success'
         : $runtimeOutputState.status === 'connecting'
           ? 'info'
-          : 'default';
+          : 'neutral';
   $: feedLabel = $runtimeOutputState.feedKind === 'workflow' ? 'Workflow feed' : 'Event stream';
   $: stateMessage =
     $runtimeOutputState.error
@@ -188,48 +189,41 @@
     />
   {:else}
   <div class="header">
-    <div class="header-copy">
-      <p class="eyebrow">Operational console</p>
-      <div class="status-row" role="status" aria-live="polite">
-        <div class="status">
-          <span
-            class="indicator"
-            class:connected={$runtimeOutputState.connected}
-            class:error={$runtimeOutputState.status === 'error'}
-          ></span>
-          <div class="status-copy">
-            <div class="status-title">{ $runtimeOutputState.feedLabel }</div>
-            <div class="status-text">{stateMessage}</div>
-          </div>
-        </div>
-
-        <Badge variant={statusVariant} size="sm" pill>{statusLabel}</Badge>
-      </div>
+    <div class="status-row" role="status" aria-live="polite">
+      <span
+        class="indicator"
+        class:connected={$runtimeOutputState.connected}
+        class:error={$runtimeOutputState.status === 'error'}
+        aria-hidden="true"
+      ></span>
+      <span class="status-title">{ $runtimeOutputState.feedLabel }</span>
+      <Badge tone={statusVariant} dot>{statusLabel}</Badge>
+      <span class="status-text">{stateMessage}</span>
     </div>
 
-    <div class="metrics" aria-label="Runtime output summary">
+    <dl class="metrics" aria-label="Runtime output summary">
       <div class="metric">
-        <span class="metric-label">Entries</span>
-        <span class="metric-value">{entryCount}</span>
+        <dt>Entries</dt>
+        <dd>{entryCount}</dd>
       </div>
       <div class="metric">
-        <span class="metric-label">Latest</span>
-        <span class="metric-value">{latestTimestamp ? formatRuntimeOutputTimestamp(latestTimestamp) : '—'}</span>
+        <dt>Latest</dt>
+        <dd>{latestTimestamp ? formatRuntimeOutputTimestamp(latestTimestamp) : '—'}</dd>
       </div>
       <div class="metric">
-        <span class="metric-label">Feed</span>
-        <span class="metric-value">{feedLabel}</span>
+        <dt>Feed</dt>
+        <dd class="feed">{feedLabel}</dd>
       </div>
-    </div>
-  </div>
+    </dl>
 
-  <div class="actions">
-      <Button variant="secondary" on:click={clearEntries}>Clear feed</Button>
-      <Button variant="secondary" on:click={reconnect}>Reconnect</Button>
+    <div class="actions">
+      <Button variant="ghost" icon={Eraser} onclick={clearEntries}>Clear feed</Button>
+      <Button variant="ghost" icon={RefreshCw} onclick={reconnect}>Reconnect</Button>
+    </div>
   </div>
 
   {#if $runtimeOutputState.entries.length === 0}
-    <div class="empty">
+    <p class="empty">
       {#if $runtimeOutputState.error}
         The console is disconnected. Try reconnecting once the backend is healthy.
       {:else if $runtimeOutputState.status === 'connected'}
@@ -237,7 +231,7 @@
       {:else}
         Live output will appear here as workflow events or stream events arrive.
       {/if}
-    </div>
+    </p>
   {:else}
     <div class="entry-list" role="list" aria-label="Runtime output entries">
       {#each $runtimeOutputState.entries as entry (entry.id)}
@@ -246,13 +240,21 @@
           class:session-match={entry.sessionId && entry.sessionId === $runtimeOutputState.activeSessionId}
           role="listitem"
         >
-          <div class="entry-head">
-            <span class="time mono">{formatRuntimeOutputTimestamp(entry.timestamp)}</span>
-            <span class="severity" class:warning={entry.severity === 'warning'} class:error={entry.severity === 'error'}>
-              {entry.severity}
-            </span>
-            <span class="kind">{entry.kind === 'workflow' ? 'Workflow' : 'Event stream'}</span>
-            {#if entry.sessionId}
+          <span class="time mono">{formatRuntimeOutputTimestamp(entry.timestamp)}</span>
+          <span class="severity" class:warning={entry.severity === 'warning'} class:error={entry.severity === 'error'}>
+            {entry.severity}
+          </span>
+          <span class="kind">{entry.kind === 'workflow' ? 'Workflow' : 'Event stream'}</span>
+          <span class="entry-text">
+            <span class="entry-title">{entry.title}</span>
+            <span class="entry-message">{entry.message}</span>
+            {#if entry.details.length > 0}
+              <span class="details">{entry.details.join(' • ')}</span>
+            {/if}
+          </span>
+          <span class="source mono">{entry.source}</span>
+          {#if entry.sessionId}
+            <span class="jumps">
               <button
                 type="button"
                 class="jump-btn"
@@ -265,18 +267,8 @@
                 on:click={() => dispatch('navigate', { panel: 'trace' })}
                 title="Jump to Trace"
               >Trace</button>
-            {/if}
-          </div>
-
-          <div class="entry-title">{entry.title}</div>
-          <div class="entry-message">{entry.message}</div>
-
-          <div class="entry-meta">
-            <span class="source mono">{entry.source}</span>
-            {#if entry.details.length > 0}
-              <span class="details">{entry.details.join(' • ')}</span>
-            {/if}
-          </div>
+            </span>
+          {/if}
         </article>
       {/each}
     </div>
@@ -287,66 +279,19 @@
 <style>
   .panel {
     display: grid;
-    gap: var(--space-3);
-  }
-
-  .header {
-    display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.8fr);
-    gap: var(--space-3);
-    align-items: start;
-  }
-
-  .header-copy {
-    display: grid;
     gap: var(--space-2);
+    font-size: var(--text-ui);
   }
 
-  .eyebrow {
-    margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-size: var(--text-2xs);
-    font-weight: var(--font-bold);
-    color: var(--color-text-tertiary);
+  /* One header row: feed status, counts, actions. */
+  .header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
   }
 
   .status-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  .metrics {
-    display: grid;
-    gap: 10px;
-    padding: var(--space-3);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-surface);
-  }
-
-  .metric {
-    display: grid;
-    gap: 3px;
-  }
-
-  .metric-label {
-    font-size: var(--text-2xs);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: var(--font-bold);
-    color: var(--color-text-tertiary);
-  }
-
-  .metric-value {
-    color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-  }
-
-  .status {
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -354,84 +299,172 @@
   }
 
   .indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: var(--color-border-strong);
+    width: 6px;
+    height: 6px;
+    flex: 0 0 auto;
+    border-radius: var(--radius-full);
+    background: var(--color-text-muted);
   }
 
   .indicator.connected {
-    background: var(--color-success, var(--color-success));
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+    background: var(--color-success);
   }
 
   .indicator.error {
-    background: var(--color-danger, var(--color-danger));
-    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
-  }
-
-  .status-copy {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
+    background: var(--color-danger);
   }
 
   .status-title {
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
     color: var(--color-text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: var(--font-semibold);
     white-space: nowrap;
   }
 
   .status-text {
-    font-size: var(--text-xs);
+    min-width: 0;
+    overflow: hidden;
     color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .metrics {
+    display: flex;
+    gap: var(--space-4);
+    margin: 0;
+  }
+
+  .metric {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+  }
+
+  .metric dt {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .metric dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric dd.feed {
+    font-family: var(--font-ui);
+    font-size: var(--text-xs);
   }
 
   .actions {
     display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
+    gap: 2px;
+    margin-left: auto;
   }
 
   .empty {
-    padding: var(--space-4);
-    border: 1px dashed var(--color-border-subtle);
-    border-radius: var(--radius-lg);
+    margin: 0;
     color: var(--color-text-tertiary);
-    background: var(--color-bg-elevated);
+    font-size: var(--text-xs);
   }
 
+  /* Entries: one dense row each. */
   .entry-list {
     display: grid;
-    gap: var(--space-2);
-    max-height: 100%;
-    overflow: auto;
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   .entry {
     display: grid;
-    gap: 4px;
-    padding: var(--space-3);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-elevated);
+    grid-template-columns: 84px 64px 96px minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: 5px var(--space-2);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .entry.session-match {
-    border-left: 3px solid var(--color-primary, var(--palette-blue-500));
+    background: var(--color-primary-muted);
+    box-shadow: inset 2px 0 0 var(--color-primary);
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+  }
+
+  .time {
+    color: var(--color-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .severity {
+    color: var(--color-info-text);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .severity.warning {
+    color: var(--color-warning-text);
+  }
+
+  .severity.error {
+    color: var(--color-danger-text);
+  }
+
+  .kind {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+  }
+
+  .entry-text {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .entry-title {
+    color: var(--color-text-primary);
+    font-weight: var(--font-medium);
+  }
+
+  .entry-message {
+    color: var(--color-text-secondary);
+  }
+
+  .details {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .source {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+
+  .jumps {
+    display: flex;
+    gap: 2px;
   }
 
   .jump-btn {
-    padding: 1px 6px;
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 4px;
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-text-tertiary);
-    font-size: 10px;
-    font-weight: var(--font-semibold);
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-xs);
     cursor: pointer;
     transition: var(--transition-colors);
   }
@@ -439,95 +472,22 @@
   .jump-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
-    border-color: var(--color-border-default);
   }
 
   .jump-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-    border-color: var(--color-border-focus);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 1px;
   }
 
-  .entry-head {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-  }
+  @media (max-width: 900px) {
+    .entry {
+      grid-template-columns: 84px 64px minmax(0, 1fr);
+    }
 
-  .time {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-  }
-
-  .severity,
-  .kind {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: var(--font-semibold);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .severity {
-    background: rgba(59, 130, 246, 0.14);
-    border: 1px solid rgba(59, 130, 246, 0.24);
-    color: rgba(191, 219, 254, 0.95);
-  }
-
-  .severity.warning {
-    background: rgba(245, 158, 11, 0.14);
-    border-color: rgba(245, 158, 11, 0.24);
-    color: rgba(254, 240, 138, 0.95);
-  }
-
-  .severity.error {
-    background: rgba(239, 68, 68, 0.14);
-    border-color: rgba(239, 68, 68, 0.24);
-    color: rgba(254, 202, 202, 0.96);
-  }
-
-  .kind {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-subtle);
-    color: var(--color-text-secondary);
-  }
-
-  .entry-title {
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .entry-message {
-    color: var(--color-text-secondary);
-    font-size: var(--text-sm);
-    line-height: 1.4;
-  }
-
-  .entry-meta {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-  }
-
-  .source {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .details {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  @media (max-width: 880px) {
-    .header {
-      grid-template-columns: 1fr;
+    .kind,
+    .source,
+    .jumps {
+      grid-column: 3;
     }
   }
 </style>

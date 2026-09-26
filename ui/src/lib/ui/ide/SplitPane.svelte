@@ -53,12 +53,7 @@
     size = newSize;
   }
 
-  function onMouseUp(): void {
-    if (!dragging) return;
-    dragging = false;
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-
+  function commitSize(): void {
     if (storageKey && typeof window !== 'undefined') {
       try {
         localStorage.setItem(storageKey, String(size));
@@ -67,6 +62,26 @@
       }
     }
     dispatch('resize', size);
+  }
+
+  function onMouseUp(): void {
+    if (!dragging) return;
+    dragging = false;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    commitSize();
+  }
+
+  /** Keyboard resizing: arrows move the divider 16 px (64 px with Shift). */
+  function onKeydown(e: KeyboardEvent): void {
+    const grow = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
+    const shrink = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
+    if (e.key !== grow && e.key !== shrink) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 64 : 16;
+    const delta = e.key === grow ? step : -step;
+    size = Math.min(maxSize, Math.max(minSize, size + delta));
+    commitSize();
   }
 
   onDestroy(() => {
@@ -98,7 +113,9 @@
     class:handle-horizontal={orientation === 'horizontal'}
     class:handle-vertical={orientation === 'vertical'}
     aria-label={orientation === 'horizontal' ? 'Resize workspace columns' : 'Resize workspace rows'}
+    title="Drag or use the arrow keys to resize"
     on:mousedown={onMouseDown}
+    on:keydown={onKeydown}
   ></button>
 
   <div class="split-secondary">
@@ -134,22 +151,42 @@
     min-height: 0;
   }
 
+  /* 4 px hit area with a 1 px rule; the accent shows on hover, focus and drag. */
   .split-handle {
+    position: relative;
     flex: 0 0 4px;
-    background: var(--ide-split-handle, var(--color-border-default));
+    padding: 0;
+    border: none;
+    background: transparent;
     cursor: col-resize;
-    transition: background var(--duration-fast) var(--ease-out);
     z-index: 1;
   }
 
+  .split-handle::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 50%;
+    width: 1px;
+    background: var(--color-border-subtle);
+    transform: translateX(-50%);
+  }
+
+  .handle-vertical::after {
+    inset: 50% 0 auto 0;
+    width: auto;
+    height: 1px;
+    transform: translateY(-50%);
+  }
+
   .split-handle:hover,
-  .split-handle:focus-visible {
+  .split-handle:focus-visible,
+  .dragging .split-handle {
     background: var(--ide-split-handle-hover, var(--color-primary));
+    transition: background var(--duration-fast) var(--ease-out) 80ms;
   }
 
   .split-handle:focus-visible {
     outline: none;
-    box-shadow: var(--shadow-focus);
   }
 
   .handle-horizontal {
@@ -158,10 +195,6 @@
 
   .handle-vertical {
     cursor: row-resize;
-  }
-
-  .dragging .split-handle {
-    background: var(--ide-split-handle-hover, var(--color-primary));
   }
 
   /* Prevent text selection during drag */

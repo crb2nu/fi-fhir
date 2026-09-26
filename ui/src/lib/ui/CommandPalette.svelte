@@ -5,13 +5,17 @@
     hint?: string;
     keywords?: string[];
     category?: string;
+    /** Keyboard shortcut shown right-aligned, in the platform's notation (e.g. "⌘B", "Ctrl+B"). */
+    shortcut?: string;
     run: () => void | Promise<void>;
   };
 </script>
 
 <script lang="ts">
   import { afterUpdate, createEventDispatcher, tick } from 'svelte';
+  import Search from '@lucide/svelte/icons/search';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
+  import Icon from '$lib/ui/primitives/Icon.svelte';
   import { toasts } from '$lib/ui/toastStore';
 
   export let open = false;
@@ -166,17 +170,10 @@
       aria-labelledby="cmd-title"
       tabindex="-1"
     >
-      <div class="head">
-        <div class="title" id="cmd-title">{title}</div>
-        <div class="kbd">
-          <span class="key">Esc</span>
-          <span class="key">Enter</span>
-          <span class="key">↑</span>
-          <span class="key">↓</span>
-        </div>
-      </div>
+      <h2 class="sr-only" id="cmd-title">{title}</h2>
 
       <div class="search">
+        <Icon icon={Search} class="search-icon" />
         <label class="sr-only" for="cmd-query">Search commands</label>
         <input
           id="cmd-query"
@@ -185,14 +182,16 @@
           type="text"
           bind:value={query}
           on:input={onQueryInput}
-          placeholder="Type to filter commands…"
+          placeholder="Type a command or view"
           autocomplete="off"
+          spellcheck="false"
         />
+        <span class="scope">{title}</span>
       </div>
 
       <div class="list" bind:this={listEl} role="listbox" aria-label="Commands">
         {#if filtered.length === 0}
-          <div class="empty">No matches</div>
+          <div class="empty">No commands match.</div>
         {:else}
           {#each grouped as group (group.category)}
             {#if group.category}
@@ -212,14 +211,23 @@
                   void runActive();
                 }}
               >
-                <div class="label">{c.label}</div>
+                <span class="label">{c.label}</span>
                 {#if c.hint}
-                  <div class="hint">{c.hint}</div>
+                  <span class="hint">{c.hint}</span>
+                {/if}
+                {#if c.shortcut}
+                  <kbd class="shortcut">{c.shortcut}</kbd>
                 {/if}
               </button>
             {/each}
           {/each}
         {/if}
+      </div>
+
+      <div class="footer" aria-hidden="true">
+        <span><kbd>↑</kbd><kbd>↓</kbd> Move</span>
+        <span><kbd>Enter</kbd> Run</span>
+        <span><kbd>Esc</kbd> Close</span>
       </div>
     </div>
   </div>
@@ -233,7 +241,7 @@
     display: flex;
     align-items: start;
     justify-content: center;
-    padding: var(--space-8) var(--space-4);
+    padding: 64px var(--space-4) var(--space-4);
   }
 
   .backdrop {
@@ -248,134 +256,151 @@
   .palette {
     position: relative;
     z-index: 1;
+    display: flex;
+    flex-direction: column;
     width: 100%;
-    max-width: 680px;
-    border-radius: var(--radius-2xl);
-    border: 1px solid var(--color-border-default);
-    background: rgba(12, 18, 34, 0.92);
-    box-shadow: var(--shadow-xl);
+    max-width: 580px;
+    max-height: min(480px, calc(100vh - 96px));
     overflow: hidden;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-overlay);
+    box-shadow: var(--shadow-xl);
     outline: none;
-    backdrop-filter: blur(10px);
-  }
-
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-4) var(--space-3);
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .title {
-    font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-tight);
-    color: var(--color-text-primary);
-  }
-
-  .kbd {
-    display: flex;
-    gap: var(--space-1);
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .key {
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
-    color: var(--color-text-tertiary);
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
   }
 
   .search {
-    padding: var(--space-3) var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    height: 40px;
+    padding: 0 var(--space-3);
     border-bottom: 1px solid var(--color-border-subtle);
+    color: var(--color-text-tertiary);
   }
 
   .input {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
     color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--text-ui);
     outline: none;
-    transition: var(--transition-all);
   }
 
-  .input:focus-visible {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .list {
-    max-height: 360px;
-    overflow: auto;
-    padding: var(--space-2);
-  }
-
-  .category-header {
-    padding: var(--space-2) var(--space-3);
-    margin-top: var(--space-1);
+  .input::placeholder {
     color: var(--color-text-muted);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-bold);
-    letter-spacing: var(--tracking-wider);
+  }
+
+  .scope {
+    flex: 0 0 auto;
+    color: var(--color-text-tertiary);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
   }
 
-  .category-header:first-child {
-    margin-top: 0;
+  .list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-1);
+  }
+
+  .category-header {
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    color: var(--color-text-tertiary);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
   }
 
   .empty {
-    padding: var(--space-6) var(--space-4);
-    color: var(--color-text-tertiary);
-    text-align: center;
+    padding: var(--space-4) var(--space-3);
+    color: var(--color-text-secondary);
   }
 
   .item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
     width: 100%;
-    text-align: left;
-    border: 1px solid transparent;
+    height: 30px;
+    padding: 0 var(--space-2);
+    border: none;
+    border-radius: var(--radius-sm);
     background: transparent;
-    padding: var(--space-3) var(--space-3);
-    border-radius: var(--radius-xl);
     color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-ui);
+    text-align: left;
     cursor: pointer;
-    display: grid;
-    gap: 2px;
-    transition: var(--transition-colors);
-  }
-
-  .item:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
   }
 
   .item.active {
-    background: rgba(59, 130, 246, 0.10);
-    border-color: rgba(59, 130, 246, 0.30);
+    background: var(--color-primary-muted);
     color: var(--color-text-primary);
   }
 
   .item:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-    border-color: var(--color-border-focus);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
   }
 
   .label {
-    font-weight: var(--font-semibold);
-    color: inherit;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .hint {
-    font-size: var(--text-xs);
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    white-space: nowrap;
+  }
+
+  .shortcut {
+    margin-left: auto;
+  }
+
+  .hint + .shortcut {
+    margin-left: 0;
+  }
+
+  kbd {
+    display: inline-block;
+    min-width: 18px;
+    padding: 2px 5px;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
     color: var(--color-text-tertiary);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+    line-height: 1;
+    text-align: center;
+  }
+
+  .footer {
+    display: flex;
+    gap: var(--space-4);
+    flex: 0 0 auto;
+    padding: 6px var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+  }
+
+  .footer kbd {
+    margin-right: 2px;
   }
 </style>

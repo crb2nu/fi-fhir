@@ -19,6 +19,9 @@ vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 
 const { default: IDEShell } = await import('./IDEShell.svelte');
 
+// jsdom has no layout; the palette scrolls its active option into view.
+Element.prototype.scrollIntoView ??= function scrollIntoView() {};
+
 describe('IDEShell workspace', () => {
   beforeEach(() => {
     gotoMock.mockClear();
@@ -31,7 +34,7 @@ describe('IDEShell workspace', () => {
     await tick();
 
     expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Source Intake' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { current: 'step' })).toHaveTextContent('Source Intake');
     expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toHaveAttribute('aria-selected', 'true');
 
     pageStore.set({ url: new URL('http://localhost/workflows') });
@@ -82,5 +85,42 @@ describe('IDEShell workspace', () => {
 
     expect(screen.getByText('Split workspace')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close split workspace' })).toBeInTheDocument();
+  });
+
+  it('shows the stage breadcrumb for the current document', async () => {
+    pageStore.set({ url: new URL('http://localhost/profiles') });
+    render(IDEShell);
+    await tick();
+
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(crumbs).toHaveTextContent('Normalization');
+    expect(crumbs.querySelector('[aria-current="page"]')).toHaveTextContent('Profiles');
+  });
+
+  it('lists the layout shortcuts in the palette Workspace category', async () => {
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    render(IDEShell);
+    await tick();
+
+    await fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    const palette = await screen.findByRole('dialog', { name: 'Commands' });
+    expect(palette).toHaveTextContent('Workspace');
+    const sidebar = screen.getByRole('option', { name: /Toggle sidebar/ });
+    const panel = screen.getByRole('option', { name: /Toggle bottom panel/ });
+    expect(sidebar.querySelector('kbd')?.textContent).toMatch(/B$/);
+    expect(panel.querySelector('kbd')?.textContent).toMatch(/J$/);
+  });
+
+  it('toggles the sidebar with Cmd/Ctrl+B and the bottom panel with Cmd/Ctrl+J', async () => {
+    render(IDEShell);
+    await tick();
+
+    expect(get(ideState).sidebarOpen).toBe(false);
+    await fireEvent.keyDown(window, { key: 'b', ctrlKey: true });
+    expect(get(ideState).sidebarOpen).toBe(true);
+
+    expect(get(ideState).bottomPanelOpen).toBe(false);
+    await fireEvent.keyDown(window, { key: 'j', metaKey: true });
+    expect(get(ideState).bottomPanelOpen).toBe(true);
   });
 });

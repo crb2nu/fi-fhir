@@ -10,7 +10,12 @@
    * plays no part (`.loom/36` R-B).
    */
   import { afterUpdate, onMount } from 'svelte';
-  import Badge from '$lib/ui/Badge.svelte';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Eraser from '@lucide/svelte/icons/eraser';
+  import Info from '@lucide/svelte/icons/info';
+  import Send from '@lucide/svelte/icons/send';
+  import Square from '@lucide/svelte/icons/square';
+  import { Badge, Button, Icon, IconButton, Textarea } from '$lib/ui/primitives';
   import {
     copilotState,
     sendAction,
@@ -31,6 +36,7 @@
   let selectedAction: CopilotAction = 'explain';
   let inputText = '';
   let messagesEl: HTMLDivElement | undefined;
+  let inputRowEl: HTMLDivElement | undefined;
   let textareaEl: HTMLTextAreaElement | undefined;
 
   // ── Derived ──
@@ -40,6 +46,7 @@
 
   // ── LLM capability (honest availability state) ──
   onMount(() => {
+    textareaEl = inputRowEl?.querySelector('textarea') ?? undefined;
     void refreshLlmCapability();
   });
 
@@ -60,28 +67,18 @@
   };
 
   // ── Action definitions ──
-  const actions: { key: CopilotAction; label: string; colorClass: string }[] = [
-    { key: 'explain', label: 'Explain', colorClass: 'action-info' },
-    { key: 'suggest', label: 'Suggest', colorClass: 'action-success' },
-    { key: 'generate', label: 'Generate', colorClass: 'action-warning' },
-    { key: 'review', label: 'Review', colorClass: 'action-primary' },
+  const actions: { key: CopilotAction; label: string }[] = [
+    { key: 'explain', label: 'Explain' },
+    { key: 'suggest', label: 'Suggest' },
+    { key: 'generate', label: 'Generate' },
+    { key: 'review', label: 'Review' },
   ];
 
   const placeholders: Record<CopilotAction, string> = {
-    explain: 'Paste an HL7 segment, EDI loop, or FHIR resource...',
-    suggest: 'Enter source field and target FHIR element...',
-    generate: 'Describe the filter condition in plain English...',
-    review: 'Paste the mapping decision to review...',
-  };
-
-  const actionBadgeVariant: Record<
-    CopilotAction,
-    'info' | 'success' | 'warning' | 'primary'
-  > = {
-    explain: 'info',
-    suggest: 'success',
-    generate: 'warning',
-    review: 'primary',
+    explain: 'Paste an HL7 segment, EDI loop, or FHIR resource',
+    suggest: 'Enter a source field and the target FHIR element',
+    generate: 'Describe the filter condition in plain English',
+    review: 'Paste the mapping decision to review',
   };
 
   // ── Context chips ──
@@ -113,7 +110,7 @@
     if (!textareaEl) return;
     textareaEl.style.height = 'auto';
     const scrollH = textareaEl.scrollHeight;
-    const maxH = 4 * 24; // ~4 lines
+    const maxH = 4 * 20; // ~4 lines
     textareaEl.style.height = `${Math.min(scrollH, maxH)}px`;
   }
 
@@ -223,42 +220,27 @@
 </script>
 
 <div class="copilot-panel">
-  <!-- Header bar -->
+  <!-- Context and panel actions -->
   <div class="copilot-header">
-    <div class="context-chips">
-      {#each contextChips as chip, i (chip.label)}
-        <span
-          class="context-chip"
-          style="--chip-delay: {i * 50}ms"
-        >
-          <span class="chip-label">{chip.label}</span>
-        </span>
+    <div class="context-chips" aria-label="Copilot context">
+      {#each contextChips as chip (chip.label)}
+        <Badge>{chip.label}</Badge>
+      {:else}
+        <span class="no-context">No context</span>
       {/each}
-      {#if contextChips.length === 0}
-        <span class="context-chip placeholder-chip">
-          <span class="chip-label">No context</span>
-        </span>
-      {/if}
     </div>
     <div class="header-actions">
       {#if degraded}
-        <span
-          class="llm-status-chip llm-degraded"
-          role="status"
-          title={llmWarnings.join('; ') || 'LLM degraded'}
-        >
+        <Badge tone="warning" dot role="status" title={llmWarnings.join('; ') || 'LLM degraded'}>
           LLM degraded
-        </span>
+        </Badge>
       {/if}
-      <button
-        type="button"
-        class="header-btn"
-        title="Clear conversation"
+      <IconButton
+        icon={Eraser}
+        label="Clear conversation"
         disabled={streaming}
-        on:click={handleClear}
-      >
-        Clear
-      </button>
+        onclick={handleClear}
+      />
     </div>
   </div>
 
@@ -269,60 +251,57 @@
     data-state={llmState}
     role={llmState === 'ready' ? undefined : 'status'}
   >
-    <span class="llm-state-title">
-      {llmStateTitles[llmState]}{#if llmState === 'ready' && llmModel}&nbsp;· {llmModel}{/if}
-    </span>
-    {#if llmState === 'unknown'}
-      <span class="llm-state-detail">
-        The capability check did not answer; actions still run and report their own errors.
+    <Icon
+      icon={llmState === 'unreachable' ? CircleAlert : Info}
+      size={14}
+      class="llm-state-icon"
+    />
+    <div class="llm-state-copy">
+      <span class="llm-state-title">
+        {llmStateTitles[llmState]}{#if llmState === 'ready' && llmModel}<span class="llm-model">&nbsp;· {llmModel}</span>{/if}
       </span>
-    {/if}
-    {#if inputLocked && llmWarnings.length > 0}
-      <ul class="llm-state-warnings">
-        {#each llmWarnings as warning (warning)}
-          <li>{warning}</li>
-        {/each}
-      </ul>
-    {/if}
+      {#if llmState === 'unknown'}
+        <span class="llm-state-detail">
+          The capability check did not answer; actions still run and report their own errors.
+        </span>
+      {/if}
+      {#if inputLocked && llmWarnings.length > 0}
+        <ul class="llm-state-warnings">
+          {#each llmWarnings as warning (warning)}
+            <li>{warning}</li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
   </div>
 
   <!-- Message area -->
   <div class="messages-area" bind:this={messagesEl}>
     {#each messages as msg (msg.id)}
       {#if msg.role === 'system'}
-        <div class="msg msg-system">
-          <span class="msg-system-text">{msg.content}</span>
-        </div>
+        <div class="msg msg-system">{msg.content}</div>
       {:else if msg.role === 'user'}
         <div class="msg msg-user">
-          <div class="msg-meta-user">
+          <div class="msg-meta">
             {#if msg.action}
-              <Badge
-                variant={actionBadgeVariant[msg.action]}
-                size="sm"
-                pill
-              >
-                {capitalize(msg.action)}
-              </Badge>
+              <Badge>{capitalize(msg.action)}</Badge>
             {/if}
             <span class="msg-time">{formatTime(msg.timestamp)}</span>
           </div>
-          <div class="msg-bubble msg-bubble-user">
-            {msg.content}
-          </div>
+          <div class="msg-body msg-body-user">{msg.content}</div>
         </div>
       {:else}
         <div class="msg msg-assistant">
-          <div class="msg-bubble msg-bubble-assistant">
+          <div class="msg-body msg-body-assistant">
             {#if msg.content}
               <!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-like formatting from trusted LLM responses -->
               {@html formatContent(msg.content)}
             {/if}
             {#if msg.streaming}
-              <span class="streaming-cursor">█</span>
+              <span class="streaming-cursor" aria-hidden="true">▍</span>
             {/if}
           </div>
-          <div class="msg-meta-assistant">
+          <div class="msg-meta">
             {#if msg.model}
               <span class="msg-model" title="Model that produced this response">{msg.model}</span>
             {/if}
@@ -333,85 +312,62 @@
     {/each}
 
     {#if $copilotState.error}
-      <div class="msg msg-system msg-error">
-        <span class="msg-error-text">{$copilotState.error}</span>
-      </div>
+      <div class="msg msg-error" role="alert">{$copilotState.error}</div>
     {/if}
   </div>
 
-  <!-- Action bar + input -->
+  <!-- Action + input: one row (wraps on narrow panels) -->
   <div class="copilot-input-area">
-    <div class="action-bar">
+    <div class="action-bar" role="group" aria-label="Copilot action">
       {#each actions as action (action.key)}
-        <button
-          type="button"
-          class="action-btn {action.colorClass}"
-          class:active={selectedAction === action.key}
+        <Button
+          variant="ghost"
+          aria-pressed={selectedAction === action.key ? 'true' : 'false'}
           disabled={streaming}
-          on:click={() => selectAction(action.key)}
-          title={action.label}
+          onclick={() => selectAction(action.key)}
         >
-          <span class="action-label">{action.label}</span>
-        </button>
+          {action.label}
+        </Button>
       {/each}
+    </div>
+
+    <div class="input-row" bind:this={inputRowEl}>
+      <Textarea
+        bind:value={inputText}
+        class="copilot-textarea"
+        placeholder={placeholders[selectedAction]}
+        aria-label="Copilot input"
+        rows={1}
+        disabled={inputLocked}
+        onkeydown={handleKeydown}
+      />
+
+      {#if streaming}
+        <IconButton icon={Square} label="Cancel" variant="danger" onclick={handleCancel} />
+      {:else}
+        <IconButton
+          icon={Send}
+          label={blockReason ?? 'Send (Enter)'}
+          variant="primary"
+          disabled={!canSend}
+          onclick={handleSend}
+        />
+      {/if}
     </div>
 
     {#if blockReason && !inputLocked}
       <p class="llm-block-note" role="status">{blockReason}</p>
     {/if}
-
-    <div class="input-row">
-      <textarea
-        bind:this={textareaEl}
-        bind:value={inputText}
-        class="copilot-textarea"
-        placeholder={placeholders[selectedAction]}
-        rows="1"
-        disabled={inputLocked}
-        on:keydown={handleKeydown}
-      ></textarea>
-
-      {#if streaming}
-        <button
-          type="button"
-          class="send-btn cancel-btn"
-          title="Cancel"
-          on:click={handleCancel}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <rect x="6" y="6" width="12" height="12" rx="2" />
-          </svg>
-        </button>
-      {:else}
-        <button
-          type="button"
-          class="send-btn"
-          title={blockReason ?? 'Send (Enter)'}
-          disabled={!canSend}
-          on:click={handleSend}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M22 2L11 13" />
-            <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-          </svg>
-        </button>
-      {/if}
-    </div>
   </div>
 </div>
 
 <style>
-  /* ======================================================================
-   * LAYOUT
-   * ====================================================================== */
-
   .copilot-panel {
     display: flex;
     flex-direction: column;
     height: 100%;
-    position: relative;
     overflow: hidden;
-    font-family: var(--font-sans);
+    font-size: var(--text-ui);
   }
 
   /* ── Header ── */
@@ -419,41 +375,24 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--color-border-subtle);
-    min-height: 28px;
+    gap: var(--space-2);
     flex-shrink: 0;
+    height: 28px;
+    padding: 0 var(--space-1) 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .context-chips {
     display: flex;
     align-items: center;
     gap: var(--space-1);
-    flex-wrap: wrap;
+    min-width: 0;
+    overflow: hidden;
   }
 
-  .context-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 1px var(--space-2);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-full);
-    font-size: var(--text-2xs);
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
-    color: var(--color-text-tertiary);
-    background: var(--color-bg-elevated);
-    animation: fadeIn var(--duration-normal) var(--ease-out) both;
-    animation-delay: var(--chip-delay, 0ms);
-  }
-
-  .placeholder-chip {
-    opacity: 0.5;
-  }
-
-  .chip-label {
-    line-height: 1;
+  .no-context {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
   }
 
   .header-actions {
@@ -463,443 +402,39 @@
     flex-shrink: 0;
   }
 
-  .llm-status-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 1px var(--space-2);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-full);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-medium);
-    letter-spacing: var(--tracking-wider);
-    text-transform: uppercase;
-    line-height: 1.5;
-    white-space: nowrap;
-  }
-
-  .llm-status-chip.llm-degraded {
-    color: var(--color-warning);
-    border-color: var(--color-warning-border);
-    background: var(--color-warning-bg);
-  }
-
-  .header-btn {
-    padding: 2px var(--space-2);
-    border: none;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--color-text-muted);
-    font-size: var(--text-2xs);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    transition: var(--transition-colors);
-  }
-
-  .header-btn:hover:not(:disabled) {
-    color: var(--color-text-primary);
-    background: var(--color-bg-hover);
-  }
-
-  .header-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  /* ── Messages ── */
-  .messages-area {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: var(--space-2) var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    min-height: 0;
-  }
-
-  .msg {
-    max-width: 100%;
-    animation: slideInUp var(--duration-normal) var(--ease-out);
-  }
-
-  /* System message */
-  .msg-system {
-    text-align: center;
-    padding: var(--space-1) 0;
-  }
-
-  .msg-system-text {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    font-style: italic;
-  }
-
-  .msg-error {
-    text-align: center;
-  }
-
-  .msg-error-text {
-    font-size: var(--text-xs);
-    color: var(--color-danger-text);
-  }
-
-  /* User message */
-  .msg-user {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-  }
-
-  .msg-meta-user {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-  }
-
-  .msg-bubble {
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-lg);
-    font-size: var(--text-sm);
-    line-height: var(--leading-normal);
-    max-width: 85%;
-    word-break: break-word;
-  }
-
-  .msg-bubble-user {
-    background: rgba(99, 102, 241, 0.08);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    color: var(--color-text-primary);
-    white-space: pre-wrap;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-  }
-
-  .msg-bubble-assistant {
-    background: var(--color-bg-elevated);
-    border: none;
-    border-left: 3px solid var(--color-primary);
-    color: var(--color-text-secondary);
-  }
-
-  /* Formatted content inside assistant bubbles */
-  .msg-bubble-assistant :global(p) {
-    margin: 0 0 var(--space-2);
-  }
-
-  .msg-bubble-assistant :global(p:last-child) {
-    margin-bottom: 0;
-  }
-
-  .msg-bubble-assistant :global(strong) {
-    color: var(--color-text-primary);
-    font-weight: var(--font-semibold);
-  }
-
-  .msg-bubble-assistant :global(.code-block) {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    margin: var(--space-2) 0;
-    overflow-x: auto;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    line-height: var(--leading-relaxed);
-    color: var(--color-text-primary);
-  }
-
-  .msg-bubble-assistant :global(.inline-code) {
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-subtle);
-    border-radius: var(--radius-sm);
-    padding: 1px 4px;
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-primary);
-  }
-
-  .msg-bubble-assistant :global(ul) {
-    margin: var(--space-2) 0;
-    padding-left: var(--space-4);
-    list-style: none;
-  }
-
-  .msg-bubble-assistant :global(li) {
-    position: relative;
-    padding-left: var(--space-2);
-    margin-bottom: var(--space-1);
-  }
-
-  .msg-bubble-assistant :global(li::before) {
-    content: '\2022';
-    position: absolute;
-    left: calc(-1 * var(--space-2));
-    color: var(--color-primary);
-    font-weight: var(--font-bold);
-  }
-
-  .msg-bubble-assistant :global(li.checklist) {
-    list-style: none;
-    padding-left: 0;
-  }
-
-  .msg-bubble-assistant :global(li.checklist::before) {
-    content: none;
-  }
-
-  .msg-bubble-assistant :global(.checkbox) {
-    margin-right: var(--space-1);
-    color: var(--color-text-muted);
-  }
-
-  .msg-bubble-assistant :global(.checkbox.checked) {
-    color: var(--color-success);
-  }
-
-  .msg-bubble-assistant :global(.response-table) {
-    width: 100%;
-    border-collapse: collapse;
-    margin: var(--space-2) 0;
-    font-size: var(--text-xs);
-  }
-
-  .msg-bubble-assistant :global(.response-table th) {
-    text-align: left;
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 2px solid var(--color-border-default);
-    color: var(--color-text-primary);
-    font-weight: var(--font-semibold);
-    white-space: nowrap;
-  }
-
-  .msg-bubble-assistant :global(.response-table td) {
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--color-border-subtle);
-    color: var(--color-text-secondary);
-  }
-
-  .msg-time {
-    font-size: var(--text-2xs);
-    color: var(--color-text-muted);
-  }
-
-  .msg-meta-assistant {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  .msg-model {
-    font-size: var(--text-2xs);
-    font-family: var(--font-mono);
-    color: var(--color-text-muted);
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: 0 var(--space-1);
-  }
-
-  /* Streaming cursor */
-  .streaming-cursor {
-    display: inline;
-    color: var(--color-primary);
-    font-weight: var(--font-bold);
-  }
-
-  /* Assistant message (left-aligned) */
-  .msg-assistant {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-
-  /* ── Action bar + Input ── */
-  .copilot-input-area {
-    flex-shrink: 0;
-    border-top: 1px solid var(--color-border-subtle);
-    padding: var(--space-2) var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  .action-bar {
-    display: flex;
-    gap: var(--space-1);
-  }
-
-  .llm-block-note {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  .action-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 3px var(--space-2);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-    background: transparent;
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    cursor: pointer;
-    transition:
-      color var(--duration-fast) var(--ease-out),
-      background-color var(--duration-fast) var(--ease-out),
-      border-color var(--duration-fast) var(--ease-out),
-      transform var(--duration-normal) var(--ease-out),
-      box-shadow var(--duration-normal) var(--ease-out);
-    line-height: 1;
-  }
-
-  .action-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    color: var(--color-text-primary);
-  }
-
-  .action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Action accent colors */
-  .action-btn.action-info:hover:not(:disabled),
-  .action-btn.action-info.active {
-    color: var(--color-info);
-    border-color: var(--color-info-border);
-    background: var(--color-info-bg);
-    box-shadow: 0 0 12px rgba(14, 165, 233, 0.15);
-  }
-
-  .action-btn.action-success:hover:not(:disabled),
-  .action-btn.action-success.active {
-    color: var(--color-success);
-    border-color: var(--color-success-border);
-    background: var(--color-success-bg);
-    box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
-  }
-
-  .action-btn.action-warning:hover:not(:disabled),
-  .action-btn.action-warning.active {
-    color: var(--color-warning);
-    border-color: var(--color-warning-border);
-    background: var(--color-warning-bg);
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
-  }
-
-  .action-btn.action-primary:hover:not(:disabled),
-  .action-btn.action-primary.active {
-    color: var(--color-primary);
-    border-color: var(--color-primary-border);
-    background: var(--color-primary-muted);
-    box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
-  }
-
-  /* Input row */
-  .input-row {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--space-2);
-  }
-
-  .copilot-textarea {
-    flex: 1;
-    resize: none;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    font-family: var(--font-sans);
-    font-size: var(--text-sm);
-    line-height: var(--leading-normal);
-    transition: var(--transition-all);
-    min-height: 36px;
-    max-height: 96px;
-    overflow-y: auto;
-  }
-
-  .copilot-textarea::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  .copilot-textarea:focus {
-    outline: none;
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .copilot-textarea:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .send-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    border: 1px solid var(--color-primary-border);
-    border-radius: var(--radius-lg);
-    background: var(--color-primary-muted);
-    color: var(--color-primary);
-    cursor: pointer;
-    transition: var(--transition-all);
-    flex-shrink: 0;
-  }
-
-  .send-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .send-btn:hover:not(:disabled) {
-    background: var(--color-primary);
-    color: var(--color-text-inverse);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-  }
-
-  .send-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
-
-  .cancel-btn {
-    border-color: var(--color-danger-border);
-    background: var(--color-danger-bg);
-    color: var(--color-danger-text);
-  }
-
-  .cancel-btn:hover:not(:disabled) {
-    background: var(--color-danger);
-    color: var(--color-text-inverse);
-    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
-  }
-
-  /* ======================================================================
-   * LLM STATE STRIP
-   * ====================================================================== */
-
+  /* ── LLM state line ── */
   .llm-state {
-    display: grid;
-    gap: 2px;
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--color-border-subtle);
-    font-size: var(--text-2xs);
-    color: var(--color-text-tertiary);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
     flex-shrink: 0;
+    padding: 6px var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+  }
+
+  .llm-state :global(.llm-state-icon) {
+    margin-top: 1px;
+  }
+
+  .llm-state-copy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--space-3);
+    row-gap: 2px;
+    min-width: 0;
   }
 
   .llm-state-title {
     font-weight: var(--font-medium);
+  }
+
+  .llm-model {
+    font-family: var(--font-mono);
+    font-weight: var(--font-normal);
   }
 
   .llm-state-detail {
@@ -908,53 +443,242 @@
 
   .llm-state-not-configured,
   .llm-state-unreachable {
-    padding: var(--space-2) var(--space-3);
     color: var(--color-text-secondary);
-  }
-
-  .llm-state-not-configured {
-    background: var(--color-bg-elevated);
-  }
-
-  .llm-state-unreachable {
-    background: var(--color-warning-bg);
-    border-bottom-color: var(--color-warning-border);
   }
 
   .llm-state-not-configured .llm-state-title,
   .llm-state-unreachable .llm-state-title {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
     color: var(--color-text-primary);
+    font-size: var(--text-ui);
+  }
+
+  .llm-state-unreachable :global(.llm-state-icon) {
+    color: var(--color-warning-text);
   }
 
   .llm-state-warnings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--space-3);
     margin: 0;
-    padding-left: var(--space-4);
+    padding: 0;
+    list-style: none;
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+  }
+
+  /* ── Messages ── */
+  .messages-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: var(--space-3);
+  }
+
+  .msg {
+    max-width: 100%;
+  }
+
+  .msg-system {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    text-align: center;
+  }
+
+  .msg-error {
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
+  }
+
+  .msg-user,
+  .msg-assistant {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .msg-user {
+    align-items: flex-end;
+  }
+
+  .msg-assistant {
+    align-items: flex-start;
+  }
+
+  .msg-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .msg-body {
+    max-width: 85%;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    line-height: var(--leading-ui);
+    word-break: break-word;
+  }
+
+  .msg-body-user {
+    border: 1px solid var(--color-border-default);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    white-space: pre-wrap;
+  }
+
+  .msg-body-assistant {
+    border-left: 2px solid var(--color-border-strong);
+    border-radius: 0;
+    color: var(--color-text-secondary);
+  }
+
+  .msg-body-assistant :global(p) {
+    margin: 0 0 var(--space-2);
+  }
+
+  .msg-body-assistant :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .msg-body-assistant :global(strong) {
+    color: var(--color-text-primary);
+    font-weight: var(--font-semibold);
+  }
+
+  .msg-body-assistant :global(.code-block) {
+    margin: var(--space-2) 0;
+    padding: var(--space-2) var(--space-3);
+    overflow-x: auto;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
     line-height: var(--leading-relaxed);
   }
 
-  /* ======================================================================
-   * REDUCED MOTION
-   * ====================================================================== */
+  .msg-body-assistant :global(.inline-code) {
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-active);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+  }
 
-  @media (prefers-reduced-motion: reduce) {
-    .context-chip,
-    .msg {
-      animation: none !important;
-    }
+  .msg-body-assistant :global(ul) {
+    margin: var(--space-2) 0;
+    padding-left: var(--space-4);
+  }
 
-    .streaming-cursor {
-      animation: none;
-      opacity: 1;
-    }
+  .msg-body-assistant :global(li) {
+    margin-bottom: var(--space-1);
+  }
 
-    .action-btn:hover:not(:disabled) {
-      transform: none;
-    }
+  .msg-body-assistant :global(li.checklist) {
+    list-style: none;
+    margin-left: calc(-1 * var(--space-4));
+  }
 
-    .send-btn:hover:not(:disabled) {
-      transform: none;
-    }
+  .msg-body-assistant :global(.checkbox) {
+    margin-right: var(--space-1);
+    color: var(--color-text-muted);
+  }
+
+  .msg-body-assistant :global(.checkbox.checked) {
+    color: var(--color-success-text);
+  }
+
+  .msg-body-assistant :global(.response-table) {
+    width: 100%;
+    margin: var(--space-2) 0;
+    border-collapse: collapse;
+    font-size: var(--text-xs);
+  }
+
+  .msg-body-assistant :global(.response-table th) {
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--color-border-default);
+    color: var(--color-text-tertiary);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .msg-body-assistant :global(.response-table td) {
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .msg-time {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+  }
+
+  .msg-model {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-label);
+  }
+
+  .streaming-cursor {
+    color: var(--color-text-tertiary);
+  }
+
+  /* ── Action + input row ── */
+  .copilot-input-area {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+    flex-shrink: 0;
+    padding: var(--space-2) var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
+  }
+
+  .action-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+
+  .input-row :global(.copilot-textarea) {
+    flex: 1;
+    min-height: var(--size-control-sm);
+    height: var(--size-control-sm);
+    max-height: 80px;
+    padding-top: 5px;
+    resize: none;
+  }
+
+  .llm-block-note {
+    flex: 1 0 100%;
+    margin: 0;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

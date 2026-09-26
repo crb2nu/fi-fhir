@@ -1,10 +1,17 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import X from '@lucide/svelte/icons/x';
+  import { Icon, IconButton } from '$lib/ui/primitives';
   import type { WorkspaceDocument, DocumentType } from './types';
+  import { DOCUMENT_ICONS, DOCUMENT_TYPE_LABELS, VIEW_ICONS } from './viewIcons';
 
   /**
-   * Multi-tab editor bar with artifact type badges, dirty indicators,
-   * close buttons, and a quick-add button.
+   * Editor tab strip, 32 px: an icon per document, the title, an unsaved dot,
+   * and a close button that shows on hover, focus and the active tab. The
+   * active tab is marked by an accent underline, not a fill. Keyboard: one
+   * tab stop; ArrowLeft/ArrowRight/Home/End move focus, Enter or Space opens,
+   * Delete closes.
    */
 
   export let tabs: WorkspaceDocument[] = [];
@@ -16,26 +23,17 @@
     add: DocumentType;
   }>();
 
-  /** Color mapping for artifact type badge dots. */
-  const TYPE_COLORS: Record<DocumentType, string | null> = {
-    route: null,
-    'workflow-draft': 'var(--color-primary)',
-    'debug-session': 'var(--color-warning)',
-    trace: 'var(--color-info)',
-    event: 'var(--color-success)',
-    profile: 'var(--palette-violet-600)',
-  };
-
   let addMenuOpen = false;
 
-  type AddOption = { type: DocumentType; label: string };
-  const addOptions: AddOption[] = [
-    { type: 'workflow-draft', label: 'Workflow Draft' },
-    { type: 'debug-session', label: 'Debug Session' },
-    { type: 'trace', label: 'Trace View' },
-    { type: 'event', label: 'Event Payload' },
-    { type: 'profile', label: 'Source Profile' },
-  ];
+  type AddOption = { type: Exclude<DocumentType, 'route'>; label: string };
+  const addOptions: AddOption[] = (
+    ['workflow-draft', 'debug-session', 'trace', 'event', 'profile'] as const
+  ).map((type) => ({ type, label: DOCUMENT_TYPE_LABELS[type] }));
+
+  function iconFor(tab: WorkspaceDocument) {
+    if (tab.type && tab.type !== 'route') return DOCUMENT_ICONS[tab.type];
+    return tab.view ? VIEW_ICONS[tab.view] : null;
+  }
 
   function onSelect(id: string): void {
     dispatch('select', id);
@@ -46,84 +44,100 @@
     dispatch('add', type);
   }
 
-  function toggleAddMenu(): void {
+  function toggleAddMenu(event: MouseEvent): void {
+    event.stopPropagation();
     addMenuOpen = !addMenuOpen;
   }
 
   function closeAddMenu(): void {
     addMenuOpen = false;
   }
+
+  $: tabStop = tabs.some((tab) => tab.id === activeTabId) ? activeTabId : (tabs[0]?.id ?? null);
+
+  function onTabKeydown(event: KeyboardEvent, index: number, id: string): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect(id);
+      return;
+    }
+    if (event.key === 'Delete') {
+      event.preventDefault();
+      dispatch('close', id);
+      return;
+    }
+    let next: number;
+    switch (event.key) {
+      case 'ArrowRight':
+        next = (index + 1) % tabs.length;
+        break;
+      case 'ArrowLeft':
+        next = (index - 1 + tabs.length) % tabs.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = tabs.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const list = (event.currentTarget as HTMLElement).closest('[role="tablist"]');
+    list?.querySelectorAll<HTMLElement>('[role="tab"]')[next]?.focus();
+  }
 </script>
 
 <svelte:window on:click={closeAddMenu} />
 
-<div class="editor-tabs" role="tablist" aria-label="Open editors">
-  {#each tabs as tab (tab.id)}
-    <div
-      class="tab"
-      class:active={tab.id === activeTabId}
-      role="tab"
-      aria-selected={tab.id === activeTabId}
-      aria-label={tab.title}
-      tabindex={tab.id === activeTabId ? 0 : -1}
-      on:click={() => onSelect(tab.id)}
-      on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(tab.id); } }}
-    >
-      {#if TYPE_COLORS[tab.type ?? 'route']}
-        <span
-          class="type-badge"
-          style="background: {TYPE_COLORS[tab.type ?? 'route']}"
-          title={tab.type}
-        ></span>
-      {/if}
-      <span class="tab-title">{tab.title}</span>
-      {#if tab.subtitle}
-        <span class="tab-subtitle">{tab.subtitle}</span>
-      {/if}
-      {#if tab.dirty}
-        <span class="dirty-indicator" aria-label="Unsaved changes"></span>
-      {/if}
-      <button
-        type="button"
-        class="tab-close"
-        aria-label="Close {tab.title}"
-        tabindex="-1"
-        on:click|stopPropagation={() => dispatch('close', tab.id)}
+<div class="editor-tabs">
+  <div class="tab-list" role="tablist" aria-label="Open editors">
+    {#each tabs as tab, index (tab.id)}
+      {@const glyph = iconFor(tab)}
+      <div
+        class="tab"
+        class:active={tab.id === activeTabId}
+        role="tab"
+        aria-selected={tab.id === activeTabId}
+        aria-label={tab.title}
+        tabindex={tab.id === tabStop ? 0 : -1}
+        title={tab.subtitle ? `${tab.title} — ${tab.subtitle}` : tab.title}
+        on:click={() => onSelect(tab.id)}
+        on:keydown={(e) => onTabKeydown(e, index, tab.id)}
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          aria-hidden="true"
+        {#if glyph}
+          <Icon icon={glyph} size={14} class="tab-icon" />
+        {/if}
+        <span class="tab-title">{tab.title}</span>
+        {#if tab.subtitle}
+          <span class="tab-subtitle">{tab.subtitle}</span>
+        {/if}
+        {#if tab.dirty}
+          <span class="dirty-indicator" aria-label="Unsaved changes"></span>
+        {/if}
+        <button
+          type="button"
+          class="tab-close"
+          aria-label="Close {tab.title}"
+          title="Close"
+          tabindex="-1"
+          on:click|stopPropagation={() => dispatch('close', tab.id)}
         >
-          <path d="M18 6L6 18" />
-          <path d="M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-  {/each}
+          <Icon icon={X} size={14} />
+        </button>
+      </div>
+    {/each}
+  </div>
 
-  <!-- Quick add button -->
   <div class="tab-add-wrapper">
-    <button
-      type="button"
-      class="tab-add"
-      aria-label="Open new document"
-      title="Open new document"
-      on:click|stopPropagation={toggleAddMenu}
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <path d="M12 5v14" />
-        <path d="M5 12h14" />
-      </svg>
-    </button>
+    <IconButton
+      icon={Plus}
+      label="Open new document"
+      aria-haspopup="menu"
+      aria-expanded={addMenuOpen}
+      onclick={toggleAddMenu}
+    />
 
     {#if addMenuOpen}
       <div class="add-menu" role="menu" aria-label="New document type">
@@ -134,10 +148,7 @@
             role="menuitem"
             on:click|stopPropagation={() => onAddSelect(opt.type)}
           >
-            <span
-              class="add-menu-dot"
-              style="background: {TYPE_COLORS[opt.type]}"
-            ></span>
+            <Icon icon={DOCUMENT_ICONS[opt.type]} size={14} />
             <span>{opt.label}</span>
           </button>
         {/each}
@@ -149,54 +160,39 @@
 <style>
   .editor-tabs {
     display: flex;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    height: var(--ide-tab-height, 36px);
-    min-height: var(--ide-tab-height, 36px);
-    background: var(--ide-tab-bg, var(--color-bg-surface));
+    align-items: stretch;
+    height: 32px;
+    min-height: 32px;
+    background: var(--ide-tab-bg, var(--color-bg-elevated));
     border-bottom: 1px solid var(--ide-tab-border, var(--color-border-subtle));
+  }
+
+  .tab-list {
+    display: flex;
+    min-width: 0;
+    overflow-x: auto;
     scrollbar-width: none;
   }
 
-  .editor-tabs::-webkit-scrollbar {
+  .tab-list::-webkit-scrollbar {
     display: none;
   }
 
   .tab {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-3);
-    height: 100%;
-    border: none;
-    border-right: 1px solid var(--ide-tab-border, var(--color-border-subtle));
-    background: var(--ide-tab-bg, var(--color-bg-surface));
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: var(--transition-colors);
+    gap: 6px;
     flex: 0 0 auto;
     max-width: 240px;
-    animation: tabSlideIn var(--duration-slow) var(--ease-out);
-  }
-
-  @keyframes tabSlideIn {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tab {
-      animation: none;
-    }
+    height: 100%;
+    padding: 0 4px 0 10px;
+    border-right: 1px solid var(--ide-tab-border, var(--color-border-subtle));
+    color: var(--color-text-tertiary);
+    font-size: var(--text-ui);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: var(--transition-colors);
   }
 
   .tab:hover {
@@ -207,63 +203,69 @@
   .tab.active {
     background: var(--ide-tab-active-bg, var(--color-bg-base));
     color: var(--color-text-primary);
-    border-bottom: 2px solid var(--color-primary);
+  }
+
+  .tab.active::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--color-primary);
   }
 
   .tab:focus-visible {
-    outline: none;
-    box-shadow: inset var(--shadow-focus);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
   }
 
-  /* Artifact type badge */
-  .type-badge {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: 0 0 auto;
+  .tab :global(.tab-icon) {
+    color: var(--color-text-tertiary);
   }
 
   .tab-title {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .tab-subtitle {
+    max-width: 96px;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: var(--text-2xs);
     color: var(--color-text-muted);
-    max-width: 80px;
+    font-size: var(--text-xs);
   }
 
   .dirty-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-warning);
+    width: 6px;
+    height: 6px;
     flex: 0 0 auto;
+    border-radius: var(--radius-full);
+    background: var(--color-warning);
   }
 
   .tab-close {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
     padding: 0;
     border: none;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-text-muted);
+    color: var(--color-text-tertiary);
     cursor: pointer;
-    flex: 0 0 auto;
-    opacity: 0;
-    transition: var(--transition-all);
+    visibility: hidden;
   }
 
   .tab:hover .tab-close,
+  .tab:focus-within .tab-close,
   .tab.active .tab-close {
-    opacity: 1;
+    visibility: visible;
   }
 
   .tab-close:hover {
@@ -271,75 +273,25 @@
     color: var(--color-text-primary);
   }
 
-  .tab-close svg {
-    width: 12px;
-    height: 12px;
-  }
-
-  /* Add button */
   .tab-add-wrapper {
     position: relative;
+    display: flex;
+    align-items: center;
     flex: 0 0 auto;
-    display: flex;
-    align-items: center;
+    padding: 0 var(--space-1);
   }
 
-  .tab-add {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    margin: 0 var(--space-2);
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-md);
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .tab-add:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
-  }
-
-  .tab-add:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .tab-add svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  /* Add menu dropdown */
   .add-menu {
     position: absolute;
-    top: 100%;
-    left: 0;
+    top: calc(100% + 2px);
+    left: var(--space-1);
     z-index: var(--z-dropdown);
     min-width: 180px;
     padding: var(--space-1);
     border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-lg);
-    background: var(--color-bg-elevated);
-    box-shadow: var(--shadow-md);
-    backdrop-filter: blur(8px);
-    animation: scaleIn var(--duration-fast) var(--ease-out);
-  }
-
-  @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95) translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
+    border-radius: var(--radius-md);
+    background: var(--color-bg-overlay);
+    box-shadow: var(--shadow-lg);
   }
 
   .add-menu-item {
@@ -347,15 +299,16 @@
     align-items: center;
     gap: var(--space-2);
     width: 100%;
-    padding: var(--space-2) var(--space-3);
+    height: 28px;
+    padding: 0 var(--space-2);
     border: none;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--color-text-secondary);
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    cursor: pointer;
+    font: inherit;
+    font-size: var(--text-ui);
     text-align: left;
+    cursor: pointer;
     transition: var(--transition-colors);
   }
 
@@ -365,14 +318,7 @@
   }
 
   .add-menu-item:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .add-menu-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: 0 0 auto;
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
   }
 </style>

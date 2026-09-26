@@ -146,9 +146,13 @@ export function hl7PreviewButton(page: Page) {
 
 /**
  * Loads a route and waits until the credential gate has stepped aside for the
- * trusted network — the IDE renders nothing before that.
+ * trusted network — the IDE renders nothing before that. The gate shows no
+ * strip once signed in; the access state is the status bar's chip (its
+ * popover carries "Trusted network access active").
  */
 export async function openIDE(page: Page, path: string): Promise<void> {
   await page.goto(path);
-  await expect(page.getByText('Trusted network access active')).toBeVisible();
+  const accessChip = page.getByTestId('access-chip');
+  await expect(accessChip).toBeVisible();
+  await expect(accessChip).toContainText('Trusted network');
 }
