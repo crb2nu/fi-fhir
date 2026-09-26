@@ -12,6 +12,8 @@
 
   let issues = $derived($problemsDiagnostics.issues);
   let isValid = $derived($problemsDiagnostics.isValid);
+  // Fresh session: no draft opened or edited, no session run — nothing to check yet.
+  let nothingChecked = $derived(isValid && !$problemsDiagnostics.draftLive);
   let errorCount = $derived(issues.filter((i) => i.severity === 'error').length);
   let warningCount = $derived(issues.filter((i) => i.severity === 'warning').length);
   let infoCount = $derived(issues.filter((i) => i.severity === 'info').length);
@@ -44,7 +46,26 @@
 </script>
 
 <div class="problems-panel">
-  {#if isValid}
+  {#if nothingChecked}
+    <!-- Fresh session: explain where problems come from instead of inventing any -->
+    <div class="state-card state-empty" data-testid="problems-empty">
+      <div class="state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4" />
+          <path d="M12 8h.01" />
+        </svg>
+      </div>
+      <div class="state-text">
+        <div class="state-title">No problems</div>
+        <div class="state-body">
+          Problems come from two places: validation of the workflow draft you edit in the
+          Workflows builder, and diagnostics from Integration Session runs in HL7 intake.
+          Nothing has been opened or run in this session yet.
+        </div>
+      </div>
+    </div>
+  {:else if isValid}
     <!-- Valid draft: calm, affirmative state (no blocking problems) -->
     <div class="state-card state-ok">
       <div class="state-icon" aria-hidden="true">
@@ -144,6 +165,14 @@
   .state-card.state-attention {
     background: var(--color-danger-bg);
     border-color: var(--color-danger-border);
+  }
+
+  .state-card.state-empty {
+    background: var(--color-bg-elevated);
+  }
+
+  .state-empty .state-icon {
+    color: var(--color-text-tertiary);
   }
 
   .state-icon {

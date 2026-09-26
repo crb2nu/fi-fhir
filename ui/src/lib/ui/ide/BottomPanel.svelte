@@ -86,6 +86,7 @@
             <span
               class="diag-badge {badgeVariant}"
               class:pulse={pulsing}
+              data-testid="problems-badge"
               aria-label="{$workflowProblemCounts.total} problems"
             >
               {$workflowProblemCounts.total}

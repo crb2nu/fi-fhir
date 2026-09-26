@@ -1,5 +1,9 @@
 import { derived, writable } from 'svelte/store';
-import { workflowDraft } from '$lib/features/workflows/workflowStore';
+import {
+  isEmptyDefaultDraft,
+  workflowBuilderOpened,
+  workflowDraft
+} from '$lib/features/workflows/workflowStore';
 import { validateWorkflowDraft, type WorkflowDraft } from '$lib/features/workflows/workflowTypes';
 import type { IntegrationSessionPreviewMeta } from '$lib/features/integration-session';
 
@@ -76,6 +80,18 @@ export const workflowDiagnostics = derived(workflowDraft, ($draft): WorkflowDiag
   };
 });
 
+/**
+ * The workflow draft is "live" once the builder has been opened in this
+ * session, or when the draft differs from the empty default (e.g. restored
+ * from a previous session). Only a live draft's validation reaches the
+ * Problems badge and panel — the never-opened builder's empty draft used to
+ * put three errors on every page of a fresh session.
+ */
+export const workflowDraftLive = derived(
+  [workflowDraft, workflowBuilderOpened],
+  ([$draft, $opened]) => $opened || !isEmptyDefaultDraft($draft)
+);
+
 const sessionProblems = writable<WorkflowProblem[]>([]);
 
 export const problemNavigation = writable<{ path: string; sequence: number } | null>(null);
@@ -116,13 +132,18 @@ function normalizeSeverity(severity: string | null): WorkflowProblemSeverity {
 }
 
 export const problemsDiagnostics = derived(
-  [workflowDiagnostics, sessionProblems],
-  ([$workflow, $session]) => ({
-    ...$workflow,
-    issues: [...$session, ...$workflow.issues],
-    isValid: $session.length === 0 && $workflow.isValid,
-    sessionCount: $session.length
-  })
+  [workflowDiagnostics, sessionProblems, workflowDraftLive],
+  ([$workflow, $session, $live]) => {
+    const draftIssues = $live ? $workflow.issues : [];
+    return {
+      ...$workflow,
+      issues: [...$session, ...draftIssues],
+      isValid: $session.length === 0 && draftIssues.length === 0,
+      sessionCount: $session.length,
+      /** False on a fresh session: nothing has produced problems yet. */
+      draftLive: $live
+    };
+  }
 );
 
 /**

@@ -279,6 +279,51 @@ function createWorkflowDraftStore() {
 }
 
 export const workflowDraft = createWorkflowDraftStore();
+
+/**
+ * True once the workflow builder has been opened in this page session. Until
+ * then (and while the draft is still the empty default) the draft is not
+ * "live", so its validation errors do not reach the global Problems badge.
+ */
+const builderOpenedStore = writable<boolean>(false);
+export const workflowBuilderOpened = { subscribe: builderOpenedStore.subscribe };
+
+export function markWorkflowBuilderOpened(): void {
+  builderOpenedStore.set(true);
+}
+
+/** Test/reset hook: back to a fresh session. */
+export function resetWorkflowBuilderOpened(): void {
+  builderOpenedStore.set(false);
+}
+
+function sameEmptyRoute(route: RouteDraft): boolean {
+  // Drafts restored from localStorage may predate a field; treat absent as empty.
+  return (
+    !(route.name ?? '').trim() &&
+    (route.filter?.eventTypes?.length ?? 0) === 0 &&
+    (route.filter?.sources?.length ?? 0) === 0 &&
+    !(route.filter?.condition ?? '').trim() &&
+    (route.transforms?.length ?? 0) === 0 &&
+    (route.actions?.length ?? 0) === 0
+  );
+}
+
+/**
+ * True when `draft` is indistinguishable from {@link createEmptyWorkflow}
+ * (generated `_key`s and UI-only `expanded` flags aside).
+ */
+export function isEmptyDefaultDraft(draft: WorkflowDraft): boolean {
+  // createEmptyWorkflow(): no name, version 1.0, exactly one empty route.
+  return (
+    !(draft.name ?? '').trim() &&
+    draft.version === '1.0' &&
+    Array.isArray(draft.routes) &&
+    draft.routes.length === 1 &&
+    draft.routes.every(sameEmptyRoute)
+  );
+}
+
 const savedDraftsStore = writable<SavedWorkflowDraft[]>(loadSavedDrafts());
 
 savedDraftsStore.subscribe((items) => {
