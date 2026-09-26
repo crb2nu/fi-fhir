@@ -43,8 +43,18 @@
   import { get } from 'svelte/store';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import { toasts } from '$lib/ui/toastStore';
+  import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
+  import { streamStatus } from '$lib/graphql/streamAvailability';
 
   export let useMockData = false;
+
+  // Live step delivery needs the `debugStepEvent` subscription. Without it
+  // the session still works — Step and Continue fetch each step on request —
+  // so the panel says so rather than waiting on a stream that never opens.
+  const debugStepStatus = streamStatus('debugStepEvent');
+  $: liveStepsUnavailable =
+    $debugStepStatus.availability === 'unavailable' ? $debugStepStatus : null;
+  $: if (liveStepsUnavailable && unsubscribeSession) cleanupSubscription();
 
   let historyExpanded = false;
   let debugEventJson = '';
@@ -220,6 +230,16 @@
         height="120px"
       />
     </div>
+  {/if}
+
+  {#if liveStepsUnavailable && !useMockData}
+    <StreamingUnavailable
+      compact
+      root="debugStepEvent"
+      subject="debug steps"
+      reason={liveStepsUnavailable.reason}
+      alternative="Step and Continue still advance the session; each step is fetched on request."
+    />
   {/if}
 
   <StepControls

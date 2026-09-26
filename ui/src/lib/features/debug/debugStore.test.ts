@@ -24,6 +24,7 @@ import {
 } from './debugStore';
 import { mockSession, mockTraceSpans, mockEventLineage } from './debugMocks';
 import type { DebugSession, DebugStep, Breakpoint } from './types';
+import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 
 describe('debugStore', () => {
   beforeEach(() => {
@@ -227,7 +228,21 @@ describe('debugStore', () => {
       startSession(mockSession);
       const unsub = subscribeToSession(mockSession.id);
       expect(typeof unsub).toBe('function');
-      unsub();
+      unsub?.();
+    });
+
+    it('opens nothing when the deployment cannot stream debug steps', () => {
+      setAccessStatus({
+        authenticated: true,
+        authVia: 'network',
+        capabilities: { operatorRead: false, streaming: false, subscriptions: [] }
+      });
+      try {
+        startSession(mockSession);
+        expect(subscribeToSession(mockSession.id)).toBeNull();
+      } finally {
+        resetAccessCapabilities();
+      }
     });
   });
 

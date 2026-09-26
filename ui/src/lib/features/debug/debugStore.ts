@@ -9,6 +9,7 @@ import type {
 } from './types';
 import { mockSession, mockTraceSpans, mockEventLineage } from './debugMocks';
 import { subscribeDebugStepEvent, fetchWorkflowRunTrace } from './debugApi';
+import { canAttemptStream, noteStreamError } from '$lib/graphql/streamAvailability';
 
 function deriveTraceSpansFromSession(session: DebugSession | null): TraceSpan[] {
   if (!session || session.steps.length === 0) return [];
@@ -174,11 +175,17 @@ export function endSession(): void {
   eventLineage.set([]);
 }
 
-// Subscription-based live step delivery
-export function subscribeToSession(sessionId: string): () => void {
+// Subscription-based live step delivery. Returns null (and opens nothing) when
+// this deployment cannot stream `debugStepEvent`; Step/Continue still work
+// because each step is fetched on request.
+export function subscribeToSession(sessionId: string): (() => void) | null {
+  if (!canAttemptStream('debugStepEvent')) return null;
   return subscribeDebugStepEvent(sessionId, {
     onData: (step) => addStep(step),
-    onError: (err) => console.error('[debug] subscription error:', err.message)
+    onError: (err) => {
+      if (noteStreamError('debugStepEvent', err)) return;
+      console.error('[debug] subscription error:', err.message);
+    }
   });
 }
 
