@@ -10,7 +10,10 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/graphql': { target: apiOrigin, changeOrigin: true },
-        '/health': { target: apiOrigin, changeOrigin: true }
+        '/health': { target: apiOrigin, changeOrigin: true },
+        // Mirrors nginx/default.conf.template so the credential gate can detect
+        // trusted-network / Cloudflare Access sessions against a local API.
+        '/api/auth/status': { target: apiOrigin, changeOrigin: true }
       }
     }
   };

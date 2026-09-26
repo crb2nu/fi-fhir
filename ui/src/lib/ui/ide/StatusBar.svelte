@@ -79,8 +79,9 @@
     height: var(--ide-status-bar-height, 24px);
     min-height: var(--ide-status-bar-height, 24px);
     padding: 0 var(--space-3);
-    background: var(--ide-status-bar-bg, var(--color-primary));
-    color: var(--ide-status-bar-text, var(--color-text-inverse));
+    background: var(--ide-status-bar-bg, var(--color-bg-elevated));
+    color: var(--ide-status-bar-text, var(--color-text-secondary));
+    border-top: 1px solid var(--color-border-subtle);
     font-size: var(--text-2xs);
     font-weight: var(--font-medium);
     user-select: none;
@@ -119,7 +120,7 @@
   }
 
   .disconnected .dot {
-    background: rgba(255, 255, 255, 0.4);
+    background: var(--color-text-muted);
   }
 
   .connection-text {
@@ -129,7 +130,7 @@
   .separator {
     width: 1px;
     height: 12px;
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--color-border-strong);
     flex: 0 0 auto;
   }
 
@@ -156,7 +157,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.35);
+    background: var(--color-text-muted);
     flex: 0 0 auto;
   }
 

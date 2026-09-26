@@ -1,85 +1,106 @@
 /**
- * Design Tokens for fi-fhir UI
+ * Design tokens for the fi-fhir IDE — dark-first, neutral, one accent.
  *
- * A centralized token system for consistent styling across all components.
- * Import this file in +layout.svelte to make tokens available globally.
+ * The working reference for these values is ui/docs/DESIGN.md.
+ *
+ * Theming
+ * -------
+ * `:root` holds the dark theme (the default). `:root[data-theme="light"]`
+ * overrides the colour tokens only; every other token is theme-independent.
+ * `src/lib/theme/theme.ts` (and the early-init script in `src/app.html`)
+ * always writes the *resolved* theme to `data-theme`, so "system" follows the
+ * OS by writing "light" or "dark" — the CSS never needs a media query.
+ *
+ * Rules encoded here (see DESIGN.md for the reasoning):
+ * - Neutral grey surfaces; borders are 1px white at 8–12 % (dark).
+ * - One accent (indigo, `--color-primary*`) for focus, selection, the primary
+ *   action and the active tab only. Status colours describe state only.
+ * - No gradients, no glows, no shadows on in-layout surfaces
+ *   (`--shadow-sm`/`--shadow-md` resolve to nothing; `--shadow-lg`/`-xl` are
+ *   for popovers and dialogs).
+ * - Token *names* are stable: legacy names were kept and their values
+ *   recalibrated so untouched components pick up the new system.
  */
 
 :root {
+  color-scheme: dark;
+
   /* ═══════════════════════════════════════════════════════════════════════════
-   * COLOR SYSTEM
+   * COLOUR — dark theme (default)
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  color-scheme: light;
+  /* Surfaces */
+  --color-bg-base: #141518; /* canvas: documents, editor, tables */
+  --color-bg-elevated: #1b1d21; /* chrome and panels: header, sidebar, bars */
+  --color-bg-surface: rgba(255, 255, 255, 0.035); /* raised within a panel */
+  --color-bg-overlay: #202227; /* popovers, dialogs, menus — opaque */
+  --color-bg-input: #111215; /* inset: inputs, selects, textareas */
+  --color-bg-hover: rgba(255, 255, 255, 0.05);
+  --color-bg-active: rgba(255, 255, 255, 0.08);
 
-  /* Background Colors */
-  --color-bg-base: #f8fafc;
-  --color-bg-elevated: rgba(15, 23, 42, 0.03);
-  --color-bg-surface: rgba(15, 23, 42, 0.05);
-  --color-bg-overlay: rgba(248, 250, 252, 0.85);
-  --color-bg-input: rgba(15, 23, 42, 0.03);
-  --color-bg-hover: rgba(15, 23, 42, 0.06);
-  --color-bg-active: rgba(15, 23, 42, 0.09);
+  /* Text (all ≥ 4.5:1 on base and elevated) */
+  --color-text-primary: #e6e7ea;
+  --color-text-secondary: #b4b8c0;
+  --color-text-tertiary: #9a9fa9;
+  --color-text-muted: #8a8f99;
+  --color-text-inverse: #ffffff; /* text on accent/danger fills */
 
-  /* Text Colors */
-  --color-text-primary: #0f172a;
-  --color-text-secondary: rgba(15, 23, 42, 0.78);
-  --color-text-tertiary: rgba(15, 23, 42, 0.66); /* AA: 5.43:1 min on light surfaces (kept a step above muted) */
-  --color-text-muted: rgba(15, 23, 42, 0.62); /* AA: 4.77:1 min on light surfaces (was 0.48 → 3.1:1, failed WCAG AA) */
-  --color-text-inverse: #f9fafb;
+  /* Accent — indigo. Focus, selection, primary action, active tab. Nothing else. */
+  --color-primary: #5b5fe6; /* fill; white text 4.97:1 */
+  --color-primary-hover: #5256dd;
+  --color-primary-muted: rgba(99, 102, 241, 0.16); /* selection background */
+  --color-primary-border: rgba(129, 132, 248, 0.5);
+  --color-accent-text: #9ea2ff; /* accent-coloured text/icons on surfaces */
+  --color-focus-ring: #7b7ff5;
 
-  /* Brand Colors */
-  --color-primary: #6366f1; /* Indigo 500 */
-  --color-primary-hover: #4f46e5; /* Indigo 600 */
-  --color-primary-muted: rgba(99, 102, 241, 0.15);
-  --color-primary-border: rgba(99, 102, 241, 0.35);
-  --color-primary-glow: rgba(99, 102, 241, 0.3);
+  /* Status — state only (success/warning/danger/info) */
+  --color-success: #3aa876;
+  --color-success-text: #4cc38a;
+  --color-success-bg: rgba(76, 195, 138, 0.12);
+  --color-success-border: rgba(76, 195, 138, 0.32);
 
-  /* Brand Gradients */
-  --color-brand-gradient-start: #6366f1;
-  --color-brand-gradient-end: #8b5cf6; /* Violet 500 */
+  --color-warning: #d69a2d;
+  --color-warning-text: #e0ac46;
+  --color-warning-bg: rgba(224, 172, 70, 0.12);
+  --color-warning-border: rgba(224, 172, 70, 0.32);
 
-  /* Semantic Colors - Success */
-  --color-success: #10b981;
-  --color-success-text: rgba(34, 197, 94, 0.9);
-  --color-success-bg: rgba(16, 185, 129, 0.12);
-  --color-success-border: rgba(16, 185, 129, 0.35);
+  --color-danger: #c93c35; /* fill; white text 5.02:1 */
+  --color-danger-text: #f0736b;
+  --color-danger-bg: rgba(240, 115, 107, 0.12);
+  --color-danger-border: rgba(240, 115, 107, 0.34);
 
-  /* Semantic Colors - Warning */
-  --color-warning: #f59e0b;
-  --color-warning-text: rgba(245, 158, 11, 0.9);
-  --color-warning-bg: rgba(245, 158, 11, 0.12);
-  --color-warning-border: rgba(245, 158, 11, 0.35);
+  --color-info: #3d8fd6;
+  --color-info-text: #5eb1ef;
+  --color-info-bg: rgba(94, 177, 239, 0.12);
+  --color-info-border: rgba(94, 177, 239, 0.32);
 
-  /* Semantic Colors - Danger/Error */
-  --color-danger: #ef4444;
-  --color-danger-text: rgba(239, 68, 68, 0.9);
-  --color-danger-bg: rgba(239, 68, 68, 0.1);
-  --color-danger-border: rgba(239, 68, 68, 0.35);
+  /* Legacy "soft" state colours (text/icons on surfaces) — aliases now. */
+  --color-success-soft: var(--color-success-text);
+  --color-warning-soft: var(--color-warning-text);
+  --color-danger-soft: var(--color-danger-text);
+  --color-info-soft: var(--color-info-text);
+  --color-accent-soft: var(--color-accent-text);
 
-  /* Semantic Colors - Info */
-  --color-info: #0ea5e9;
-  --color-info-text: rgba(14, 165, 233, 0.9);
-  --color-info-bg: rgba(14, 165, 233, 0.12);
-  --color-info-border: rgba(14, 165, 233, 0.35);
+  /* Borders — 1px white at 8–12 % */
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.12);
+  --color-border-focus: var(--color-focus-ring);
 
-  /* Soft state colors — lighter shades for text/icons on dark surfaces.
-   * Introduced in Slice 1 to eliminate raw hex; Slice 2 recalibrates these. */
-  --color-success-soft: #6ee7b7;
-  --color-warning-soft: #fde047;
-  --color-danger-soft: #f87171;
-  --color-info-soft: #93c5fd;
-  --color-accent-soft: #c4b5fd;
+  /* Elevation — floating surfaces only. In-layout surfaces use a border. */
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.36); /* popovers, menus, tooltips */
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.5); /* dialogs */
 
-  /* Border Colors */
-  --color-border-subtle: rgba(15, 23, 42, 0.08);
-  --color-border-default: rgba(15, 23, 42, 0.12);
-  --color-border-strong: rgba(15, 23, 42, 0.18);
-  --color-border-focus: rgba(99, 102, 241, 0.62);
+  /* Focus: a crisp 1px accent ring hugging the border, never a glow. */
+  --shadow-focus: 0 0 0 1px var(--color-border-focus);
+  --shadow-focus-danger: 0 0 0 1px var(--color-danger);
+
+  --modal-backdrop: rgba(0, 0, 0, 0.55);
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * SPACING SCALE
-   * Based on 4px increments for consistency
+   * SPACING — 4px grid
    * ═══════════════════════════════════════════════════════════════════════════ */
 
   --space-0: 0;
@@ -95,89 +116,88 @@
   --space-16: 64px;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * TYPOGRAPHY
+   * TYPOGRAPHY — Inter only; Geist is the wordmark's alone.
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* Font Families */
-  --font-sans:
+  --font-ui:
     "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     sans-serif;
-  --font-heading: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-ui); /* legacy alias */
+  --font-heading: "Geist", "Inter", system-ui, -apple-system, sans-serif; /* wordmark only */
   --font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
 
-  /* Font Sizes */
-  --text-2xs: 0.65rem; /* 10.4px - badges, micro text */
-  --text-xs: 0.75rem; /* 12px - labels, captions */
-  --text-sm: 0.875rem; /* 14px - secondary text */
-  --text-base: 1rem; /* 16px - body text */
-  --text-lg: 1.125rem; /* 18px - subheadings */
-  --text-xl: 1.25rem; /* 20px - headings */
-  --text-2xl: 1.5rem; /* 24px - page titles */
+  /* Scale. New names first; legacy names recalibrated onto the same steps. */
+  --text-label: 11px; /* labels, table headers, badges — uppercase + tracking */
+  --text-mono: 12px; /* identifiers, code, numbers */
+  --text-ui: 13px; /* UI base */
+  --text-title: 15px; /* page title in a toolbar (semibold) */
 
-  /* Font Weights */
+  --text-2xs: 11px; /* = label */
+  --text-xs: 12px; /* secondary */
+  --text-sm: 13px; /* = UI base */
+  --text-base: 13px; /* = UI base */
+  --text-lg: 14px; /* emphasis, dialog titles */
+  --text-xl: 15px; /* = title */
+  --text-2xl: 18px; /* stat figures only — never a page hero */
+
   --font-normal: 400;
   --font-medium: 500;
   --font-semibold: 600;
   --font-bold: 700;
 
-  /* Line Heights */
   --leading-none: 1;
   --leading-tight: 1.25;
   --leading-snug: 1.375;
-  --leading-normal: 1.5;
-  --leading-relaxed: 1.625;
+  --leading-ui: 1.45;
+  --leading-normal: 1.45;
+  --leading-relaxed: 1.6;
 
-  /* Letter Spacing */
   --tracking-tight: -0.01em;
   --tracking-normal: 0;
   --tracking-wide: 0.02em;
   --tracking-wider: 0.04em;
+  --tracking-label: 0.04em;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * BORDER RADIUS
+   * RADIUS — 4px in layout, 6px for popovers/dialogs
    * ═══════════════════════════════════════════════════════════════════════════ */
 
   --radius-none: 0;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
-  --radius-full: 9999px;
+  --radius-sm: 4px; /* everything in layout */
+  --radius-md: 6px; /* popovers, menus, dialogs */
+  --radius-lg: 4px; /* legacy: was 8px */
+  --radius-xl: 4px; /* legacy: was 12px */
+  --radius-2xl: 6px; /* legacy: was 16px */
+  --radius-full: 9999px; /* dots and spinners only — not badges */
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * SHADOWS
+   * SIZES
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* Elevation via border + faint shadow, not glow. Alphas recalibrated calmer
-     for the dark-first canonical theme (Slice 2). */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.18);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.24);
-  --shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.32);
+  --size-control-sm: 28px; /* default: inputs, selects, buttons */
+  --size-control-md: 32px; /* primary actions in dialogs */
+  --size-icon: 16px;
+  --size-icon-sm: 14px;
 
-  /* Focus ring (functional, not decorative) */
-  --shadow-focus: 0 0 0 3px var(--color-primary-glow);
-  --shadow-focus-danger: 0 0 0 3px rgba(239, 68, 68, 0.2);
+  --header-height: 40px;
+  --toolbar-height: 36px;
+  --statusbar-height: 24px;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * TRANSITIONS & ANIMATIONS
+   * MOTION — short, no bounce
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* Durations */
   --duration-fast: 100ms;
   --duration-normal: 150ms;
-  --duration-slow: 250ms;
-  --duration-slower: 350ms;
+  --duration-slow: 200ms;
+  --duration-slower: 250ms;
 
-  /* Easings */
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-bounce: var(--ease-out); /* legacy name; no overshoot */
 
-  /* Common transitions */
   --transition-colors:
     color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out),
@@ -187,7 +207,7 @@
   --transition-all: all var(--duration-normal) var(--ease-out);
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * Z-INDEX SCALE
+   * Z-INDEX
    * ═══════════════════════════════════════════════════════════════════════════ */
 
   --z-base: 0;
@@ -201,150 +221,178 @@
   --z-toast: 800;
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * COMPONENT-SPECIFIC TOKENS
+   * COMPONENT TOKENS (legacy names, recalibrated)
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  /* Buttons */
-  --btn-height-sm: 32px;
-  --btn-height-md: 40px;
-  --btn-height-lg: 48px;
-  --btn-padding-x-sm: var(--space-3);
-  --btn-padding-x-md: var(--space-4);
-  --btn-padding-x-lg: var(--space-5);
+  /* Legacy Button/Input scale compresses so untouched controls land on 28px.
+     New code uses --size-control-sm/md via the primitives. */
+  --btn-height-sm: 24px;
+  --btn-height-md: var(--size-control-sm);
+  --btn-height-lg: var(--size-control-md);
+  --btn-padding-x-sm: var(--space-2);
+  --btn-padding-x-md: var(--space-3);
+  --btn-padding-x-lg: var(--space-4);
 
-  /* Inputs */
-  --input-height-sm: 32px;
-  --input-height-md: 40px;
-  --input-height-lg: 48px;
-  --input-padding-x: var(--space-3);
+  --input-height-sm: 24px;
+  --input-height-md: var(--size-control-sm);
+  --input-height-lg: var(--size-control-md);
+  --input-padding-x: var(--space-2);
   --input-border-width: 1px;
 
-  /* Cards/Panels */
-  --panel-padding: var(--space-4);
-  --panel-radius: var(--radius-xl);
+  --panel-padding: var(--space-3);
+  --panel-radius: var(--radius-sm);
   --panel-border: 1px solid var(--color-border-default);
 
-  /* Tables */
-  --table-row-height: 48px;
-  --table-header-height: 40px;
-  --table-cell-padding-x: var(--space-4);
-  --table-cell-padding-y: var(--space-3);
+  --table-row-height: 30px;
+  --table-header-height: 28px;
+  --table-cell-padding-x: var(--space-2);
+  --table-cell-padding-y: var(--space-1);
 
-  /* Modals */
-  --modal-backdrop: rgba(0, 0, 0, 0.6);
   --modal-width-sm: 400px;
   --modal-width-md: 560px;
   --modal-width-lg: 720px;
-  --modal-radius: var(--radius-2xl);
+  --modal-radius: var(--radius-md);
 
-  /* Badges */
-  --badge-height: 22px;
-  --badge-padding-x: var(--space-2);
-  --badge-font-size: var(--text-xs);
+  --badge-height: 18px;
+  --badge-padding-x: 6px;
+  --badge-font-size: var(--text-label);
   --badge-radius: var(--radius-sm);
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * CONFIDENCE GRADIENT COLORS
-   * For mapping confidence indicators
+   * CONFIDENCE (mapping confidence is a state scale)
    * ═══════════════════════════════════════════════════════════════════════════ */
 
-  --confidence-high: #10b981; /* >= 90% */
-  --confidence-medium: #f59e0b; /* 70-89% */
-  --confidence-low: #f97316; /* 50-69% */
-  --confidence-very-low: #ef4444; /* < 50% */
+  --confidence-high: var(--color-success); /* >= 90% */
+  --confidence-medium: var(--color-warning); /* 70-89% */
+  --confidence-low: #e07a3a; /* 50-69% */
+  --confidence-very-low: var(--color-danger); /* < 50% */
 
-  --confidence-high-bg: rgba(16, 185, 129, 0.15);
-  --confidence-medium-bg: rgba(245, 158, 11, 0.15);
-  --confidence-low-bg: rgba(249, 115, 22, 0.15);
-  --confidence-very-low-bg: rgba(239, 68, 68, 0.15);
+  --confidence-high-bg: var(--color-success-bg);
+  --confidence-medium-bg: var(--color-warning-bg);
+  --confidence-low-bg: rgba(224, 122, 58, 0.14);
+  --confidence-very-low-bg: var(--color-danger-bg);
 
   /* ═══════════════════════════════════════════════════════════════════════════
-   * PALETTE SHADES (raw Tailwind values)
-   * TEMPORARY: introduced in Slice 1 to eliminate raw hex from components.
-   * Named by hue + lightness so Slice 2 can consolidate them into the
-   * recalibrated semantic scale. Prefer semantic tokens (--color-*) over these.
+   * PALETTE SHADES (legacy raw values) — now aliases onto the state colours so
+   * both themes stay legible. Prefer the semantic tokens in new code.
+   * `--palette-violet-600` is a categorical doc/stage colour awaiting removal
+   * by the page lanes (colour means state; categories get icons).
    * ═══════════════════════════════════════════════════════════════════════════ */
-  --palette-green-300: #86efac;
-  --palette-emerald-400: #34d399;
-  --palette-yellow-200: #fde68a;
-  --palette-yellow-500: #eab308;
-  --palette-red-300: #fca5a5;
-  --palette-blue-500: #3b82f6;
-  --palette-blue-600: #2563eb;
-  --palette-violet-600: #7c3aed;
-  --palette-slate-400: #94a3b8;
+  --palette-green-300: var(--color-success-text);
+  --palette-emerald-400: var(--color-success);
+  --palette-yellow-200: var(--color-warning-text);
+  --palette-yellow-500: var(--color-warning);
+  --palette-red-300: var(--color-danger-text);
+  --palette-blue-500: var(--color-info);
+  --palette-blue-600: var(--color-info);
+  --palette-violet-600: #8b85d6;
+  --palette-slate-400: var(--color-text-tertiary);
   --palette-white: #ffffff;
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * IDE LAYOUT
+   * ═══════════════════════════════════════════════════════════════════════════ */
+
+  --ide-activity-bar-width: 48px;
+  --ide-sidebar-width: 280px;
+  --ide-sidebar-min-width: 200px;
+  --ide-sidebar-max-width: 480px;
+  --ide-bottom-panel-height: 200px;
+  --ide-bottom-panel-min-height: 100px;
+  --ide-bottom-panel-max-height: 500px;
+  --ide-status-bar-height: var(--statusbar-height);
+  --ide-tab-height: 36px;
+  --ide-header-height: var(--header-height);
+
+  --ide-activity-bar-bg: var(--color-bg-elevated);
+  --ide-sidebar-bg: var(--color-bg-elevated);
+  --ide-bottom-panel-bg: var(--color-bg-elevated);
+  --ide-status-bar-bg: var(--color-bg-elevated); /* neutral strip, never the accent */
+  --ide-status-bar-text: var(--color-text-secondary);
+  --ide-tab-bg: var(--color-bg-elevated);
+  --ide-tab-active-bg: var(--color-bg-base);
+  --ide-tab-border: var(--color-border-subtle);
+  --ide-split-handle: var(--color-border-default);
+  --ide-split-handle-hover: var(--color-primary);
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * CODE EDITOR
+   * ═══════════════════════════════════════════════════════════════════════════ */
+
+  --editor-bg: var(--color-bg-base);
+  --editor-gutter-bg: var(--color-bg-base);
+  --editor-cursor: var(--color-text-primary);
+  --editor-selection: rgba(99, 102, 241, 0.3);
+  --editor-line-highlight: rgba(255, 255, 255, 0.03);
+  --editor-matching-bracket: rgba(99, 102, 241, 0.35);
+  --editor-gutter-text: var(--color-text-muted);
+  --editor-fold-placeholder: var(--color-text-tertiary);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-
-    --color-bg-base: #020617;
-    --color-bg-elevated: rgba(255, 255, 255, 0.03);
-    --color-bg-surface: rgba(255, 255, 255, 0.05);
-    --color-bg-overlay: rgba(2, 6, 23, 0.85);
-    --color-bg-input: rgba(255, 255, 255, 0.03);
-    --color-bg-hover: rgba(255, 255, 255, 0.06);
-    --color-bg-active: rgba(255, 255, 255, 0.08);
-
-    --color-text-primary: #f9fafb;
-    --color-text-secondary: rgba(229, 231, 235, 0.85);
-    --color-text-tertiary: rgba(229, 231, 235, 0.66);
-    --color-text-muted: rgba(229, 231, 235, 0.52);
-    --color-text-inverse: #111827;
-
-    --color-border-subtle: rgba(255, 255, 255, 0.06);
-    --color-border-default: rgba(255, 255, 255, 0.08);
-    --color-border-strong: rgba(255, 255, 255, 0.12);
-    --color-border-focus: rgba(99, 102, 241, 0.62);
-  }
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+ * COLOUR — light theme (parity: same names, colour tokens only)
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --color-bg-base: #f8fafc;
-  --color-bg-elevated: rgba(15, 23, 42, 0.03);
-  --color-bg-surface: rgba(15, 23, 42, 0.05);
-  --color-bg-overlay: rgba(248, 250, 252, 0.85);
-  --color-bg-input: rgba(15, 23, 42, 0.03);
-  --color-bg-hover: rgba(15, 23, 42, 0.06);
-  --color-bg-active: rgba(15, 23, 42, 0.09);
+  --color-bg-base: #f6f7f9;
+  --color-bg-elevated: #ffffff;
+  --color-bg-surface: rgba(16, 18, 22, 0.035);
+  --color-bg-overlay: #ffffff;
+  --color-bg-input: #ffffff;
+  --color-bg-hover: rgba(16, 18, 22, 0.05);
+  --color-bg-active: rgba(16, 18, 22, 0.08);
 
-  --color-text-primary: #0f172a;
-  --color-text-secondary: rgba(15, 23, 42, 0.78);
-  --color-text-tertiary: rgba(15, 23, 42, 0.66); /* AA: 5.43:1 min on light surfaces (kept a step above muted) */
-  --color-text-muted: rgba(15, 23, 42, 0.62); /* AA: 4.77:1 min on light surfaces (was 0.48 → 3.1:1, failed WCAG AA) */
-  --color-text-inverse: #f9fafb;
+  --color-text-primary: #1b1d21;
+  --color-text-secondary: #3d4149;
+  --color-text-tertiary: #565b64;
+  --color-text-muted: #62666f;
+  --color-text-inverse: #ffffff;
 
-  --color-border-subtle: rgba(15, 23, 42, 0.08);
-  --color-border-default: rgba(15, 23, 42, 0.12);
-  --color-border-strong: rgba(15, 23, 42, 0.18);
-  --color-border-focus: rgba(99, 102, 241, 0.62);
-}
+  --color-primary: #4f52d9; /* white text 5.93:1 */
+  --color-primary-hover: #4346c8;
+  --color-primary-muted: rgba(79, 82, 217, 0.1);
+  --color-primary-border: rgba(79, 82, 217, 0.4);
+  --color-accent-text: #4346c8;
+  --color-focus-ring: #5053d8;
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
+  --color-success: #1f9d63;
+  --color-success-text: #15784a;
+  --color-success-bg: rgba(31, 157, 99, 0.1);
+  --color-success-border: rgba(31, 157, 99, 0.3);
 
-  --color-bg-base: #020617;
-  --color-bg-elevated: rgba(255, 255, 255, 0.03);
-  --color-bg-surface: rgba(255, 255, 255, 0.05);
-  --color-bg-overlay: rgba(2, 6, 23, 0.85);
-  --color-bg-input: rgba(255, 255, 255, 0.03);
-  --color-bg-hover: rgba(255, 255, 255, 0.06);
-  --color-bg-active: rgba(255, 255, 255, 0.08);
+  --color-warning: #c98a12;
+  --color-warning-text: #8a5a00;
+  --color-warning-bg: rgba(201, 138, 18, 0.12);
+  --color-warning-border: rgba(201, 138, 18, 0.34);
 
-  --color-text-primary: #f9fafb;
-  --color-text-secondary: rgba(229, 231, 235, 0.85);
-  --color-text-tertiary: rgba(229, 231, 235, 0.66);
-  --color-text-muted: rgba(229, 231, 235, 0.52);
-  --color-text-inverse: #111827;
+  --color-danger: #c93c35;
+  --color-danger-text: #c0342c;
+  --color-danger-bg: rgba(201, 60, 53, 0.08);
+  --color-danger-border: rgba(201, 60, 53, 0.3);
 
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-default: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.12);
-  --color-border-focus: rgba(99, 102, 241, 0.62);
+  --color-info: #2b7bc0;
+  --color-info-text: #1b6aa8;
+  --color-info-bg: rgba(43, 123, 192, 0.1);
+  --color-info-border: rgba(43, 123, 192, 0.3);
+
+  --color-border-subtle: rgba(16, 18, 22, 0.08);
+  --color-border-default: rgba(16, 18, 22, 0.12);
+  --color-border-strong: rgba(16, 18, 22, 0.18);
+
+  --shadow-lg: 0 4px 16px rgba(16, 18, 22, 0.12);
+  --shadow-xl: 0 12px 40px rgba(16, 18, 22, 0.18);
+
+  --modal-backdrop: rgba(16, 18, 22, 0.32);
+
+  --confidence-low: #c2611f;
+  --confidence-low-bg: rgba(194, 97, 31, 0.1);
+  --palette-violet-600: #6a5fc4;
+
+  --editor-selection: rgba(79, 82, 217, 0.18);
+  --editor-line-highlight: rgba(16, 18, 22, 0.03);
+  --editor-matching-bracket: rgba(79, 82, 217, 0.25);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -438,53 +486,4 @@
   50% {
     transform: translateY(-4px);
   }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * IDE LAYOUT TOKENS
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-:root {
-  --ide-activity-bar-width: 48px;
-  --ide-sidebar-width: 280px;
-  --ide-sidebar-min-width: 200px;
-  --ide-sidebar-max-width: 480px;
-  --ide-bottom-panel-height: 200px;
-  --ide-bottom-panel-min-height: 100px;
-  --ide-bottom-panel-max-height: 500px;
-  --ide-status-bar-height: 24px;
-  --ide-tab-height: 36px;
-  --ide-header-height: 40px;
-
-  --ide-activity-bar-bg: var(--color-bg-elevated);
-  --ide-sidebar-bg: var(--color-bg-surface);
-  --ide-bottom-panel-bg: var(--color-bg-surface);
-  --ide-status-bar-bg: var(--color-primary);
-  --ide-status-bar-text: var(--color-text-inverse);
-  --ide-tab-bg: var(--color-bg-surface);
-  --ide-tab-active-bg: var(--color-bg-base);
-  --ide-tab-border: var(--color-border-subtle);
-  --ide-split-handle: var(--color-border-default);
-  --ide-split-handle-hover: var(--color-primary);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * CODE EDITOR TOKENS
- * ═══════════════════════════════════════════════════════════════════════════ */
-
-:root {
-  --editor-bg: var(--color-bg-input);
-  --editor-gutter-bg: var(--color-bg-elevated);
-  --editor-cursor: var(--color-text-primary);
-  --editor-selection: rgba(99, 102, 241, 0.2);
-  --editor-line-highlight: rgba(99, 102, 241, 0.06);
-  --editor-matching-bracket: rgba(99, 102, 241, 0.3);
-  --editor-gutter-text: var(--color-text-muted);
-  --editor-fold-placeholder: var(--color-text-tertiary);
-}
-
-:root[data-theme="dark"] {
-  --editor-selection: rgba(99, 102, 241, 0.3);
-  --editor-line-highlight: rgba(99, 102, 241, 0.08);
-  --editor-matching-bracket: rgba(99, 102, 241, 0.4);
 }

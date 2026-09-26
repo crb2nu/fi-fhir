@@ -182,7 +182,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: var(--color-bg-overlay);
+    background: var(--modal-backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -203,7 +203,7 @@
 
   .title {
     margin: 0 0 var(--space-2);
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     font-size: var(--text-lg);
     color: var(--color-text-primary);
   }

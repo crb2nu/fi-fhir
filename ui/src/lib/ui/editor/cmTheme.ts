@@ -190,13 +190,11 @@ const darkHighlightStyle = HighlightStyle.define([
   { tag: tags.escape, color: '#fbbf24' }
 ]);
 
+// Mirrors tokens.css: dark unless the resolved theme is light. theme.ts always
+// writes the resolved theme to data-theme, so "system" arrives here as light|dark.
 function isDarkTheme(): boolean {
-  if (typeof document === 'undefined') return false;
-  const root = document.documentElement;
-  const explicit = root.getAttribute('data-theme');
-  if (explicit === 'dark') return true;
-  if (explicit === 'light') return false;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (typeof document === 'undefined') return true;
+  return document.documentElement.getAttribute('data-theme') !== 'light';
 }
 
 /**

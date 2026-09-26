@@ -11,14 +11,16 @@
       name="description"
       content="fi-fhir Mapping Studio: profile-driven HL7 mapping, validation, and normalization tools."
     />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#f8fafc" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#141518" />
     <script>
       (() => {
-        // Keep this in sync with src/lib/theme/theme.ts
+        // Keep this in sync with src/lib/theme/theme.ts.
+        // Dark is the default; "system" follows the OS. The resolved theme is
+        // always written to data-theme so the CSS never needs a media query.
         const STORAGE_KEY = "fi-fhir-theme";
-        const LIGHT_BG = "#f8fafc";
-        const DARK_BG = "#0b1220";
+        const LIGHT_BG = "#f6f7f9";
+        const DARK_BG = "#141518";
 
         try {
           const root = document.documentElement;
@@ -28,16 +30,15 @@
             matchMedia("(prefers-color-scheme: dark)").matches;
 
           const resolved =
-            stored === "dark" || stored === "light"
-              ? stored
-              : prefersDark
-                ? "dark"
-                : "light";
+            stored === "light"
+              ? "light"
+              : stored === "system"
+                ? prefersDark
+                  ? "dark"
+                  : "light"
+                : "dark";
 
-          // Persisted override: data-theme="light|dark". System preference: no attribute.
-          if (stored === "dark" || stored === "light")
-            root.setAttribute("data-theme", stored);
-          else root.removeAttribute("data-theme");
+          root.setAttribute("data-theme", resolved);
 
           // Prevent first-paint flash before the bundled CSS loads.
           root.style.backgroundColor = resolved === "dark" ? DARK_BG : LIGHT_BG;
@@ -49,7 +50,7 @@
               resolved === "dark" ? DARK_BG : LIGHT_BG,
             );
         } catch {
-          // Ignore (e.g. localStorage blocked). Defaults handled by CSS + browser.
+          // Ignore (e.g. localStorage blocked). CSS defaults to dark.
         }
       })();
     </script>
@@ -60,30 +61,17 @@
       rel="stylesheet"
     />
     <style>
+      /* First paint only — mirrors --color-bg-base / --color-text-primary. */
       :root {
-        color-scheme: light;
-        background: #f8fafc;
-        color: #0f172a;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        :root {
-          color-scheme: dark;
-          background: #0b1220;
-          color: #e5e7eb;
-        }
+        color-scheme: dark;
+        background: #141518;
+        color: #e6e7ea;
       }
 
       :root[data-theme="light"] {
         color-scheme: light;
-        background: #f8fafc;
-        color: #0f172a;
-      }
-
-      :root[data-theme="dark"] {
-        color-scheme: dark;
-        background: #0b1220;
-        color: #e5e7eb;
+        background: #f6f7f9;
+        color: #1b1d21;
       }
 
       html,
@@ -93,11 +81,13 @@
         background: inherit;
         color: inherit;
         font-family:
+          Inter,
           system-ui,
           -apple-system,
           Segoe UI,
           Roboto,
           sans-serif;
+        font-size: 13px;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
       }

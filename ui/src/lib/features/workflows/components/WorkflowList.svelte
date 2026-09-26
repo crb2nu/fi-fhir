@@ -730,7 +730,7 @@
   .workflow-row.expanded {
     border-color: var(--color-primary-border);
     background: var(--color-bg-elevated);
-    box-shadow: 0 0 0 1px var(--color-primary-glow);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
   }
 
   .workflow-name {

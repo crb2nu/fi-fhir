@@ -9,24 +9,28 @@ const STORAGE_KEY = 'fi-fhir-theme';
 const THEME_ATTR = 'data-theme';
 const DARK_MQ = '(prefers-color-scheme: dark)';
 
-const LIGHT_BG = '#f8fafc';
-const DARK_BG = '#0b1220';
+/** Dark is the default workbench theme; "system" is an explicit choice. */
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = 'dark';
 
-export const themePreference = writable<ThemePreference>('system');
-export const appliedTheme = writable<AppliedTheme>('light');
+// Mirror --color-bg-base in src/lib/styles/tokens.css.
+const LIGHT_BG = '#f6f7f9';
+const DARK_BG = '#141518';
+
+export const themePreference = writable<ThemePreference>(DEFAULT_THEME_PREFERENCE);
+export const appliedTheme = writable<AppliedTheme>('dark');
 
 let mq: MediaQueryList | null = null;
 let mqCleanup: (() => void) | null = null;
 
 function getStoredPreference(): ThemePreference {
-  if (!browser) return 'system';
+  if (!browser) return DEFAULT_THEME_PREFERENCE;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === 'light' || raw === 'dark' || raw === 'system') return raw;
   } catch {
     // ignore
   }
-  return 'system';
+  return DEFAULT_THEME_PREFERENCE;
 }
 
 function setStoredPreference(pref: ThemePreference): void {
@@ -37,9 +41,9 @@ function setStoredPreference(pref: ThemePreference): void {
   }
 }
 
-function resolveApplied(pref: ThemePreference): AppliedTheme {
+export function resolveTheme(pref: ThemePreference): AppliedTheme {
   if (pref === 'dark' || pref === 'light') return pref;
-  if (!browser) return 'light';
+  if (!browser) return 'dark';
   return matchMedia(DARK_MQ).matches ? 'dark' : 'light';
 }
 
@@ -49,12 +53,12 @@ function setThemeColorMeta(theme: AppliedTheme): void {
   meta.setAttribute('content', theme === 'dark' ? DARK_BG : LIGHT_BG);
 }
 
-function applyToDom(pref: ThemePreference, theme: AppliedTheme): void {
+function applyToDom(theme: AppliedTheme): void {
   const root = document.documentElement;
 
-  // Persisted override: data-theme="light|dark". System preference: no attribute.
-  if (pref === 'dark' || pref === 'light') root.setAttribute(THEME_ATTR, pref);
-  else root.removeAttribute(THEME_ATTR);
+  // Always the resolved theme: tokens.css is dark on :root and overrides only
+  // under [data-theme="light"], so "system" works by writing light|dark here.
+  root.setAttribute(THEME_ATTR, theme);
 
   // Ensure the browser's first-paint background stays in sync.
   root.style.backgroundColor = theme === 'dark' ? DARK_BG : LIGHT_BG;
@@ -69,9 +73,9 @@ function attachSystemListener(): void {
   const onChange = () => {
     const currentPref = getStoredPreference();
     if (currentPref !== 'system') return;
-    const theme = resolveApplied('system');
+    const theme = resolveTheme('system');
     appliedTheme.set(theme);
-    applyToDom('system', theme);
+    applyToDom(theme);
   };
   mq.addEventListener('change', onChange);
   mqCleanup = () => mq?.removeEventListener('change', onChange);
@@ -87,9 +91,9 @@ export function initTheme(): void {
   if (!browser) return;
   const pref = getStoredPreference();
   themePreference.set(pref);
-  const theme = resolveApplied(pref);
+  const theme = resolveTheme(pref);
   appliedTheme.set(theme);
-  applyToDom(pref, theme);
+  applyToDom(theme);
 
   if (pref === 'system') attachSystemListener();
   else detachSystemListener();
@@ -100,11 +104,10 @@ export function setThemePreference(pref: ThemePreference): void {
   themePreference.set(pref);
   setStoredPreference(pref);
 
-  const theme = resolveApplied(pref);
+  const theme = resolveTheme(pref);
   appliedTheme.set(theme);
-  applyToDom(pref, theme);
+  applyToDom(theme);
 
   if (pref === 'system') attachSystemListener();
   else detachSystemListener();
 }
-

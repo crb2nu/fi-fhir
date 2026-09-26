@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { page } from '$app/stores';
   import ToastContainer from '$lib/ui/ToastContainer.svelte';
   import { initTheme } from '$lib/theme/theme';
   import { IDEShell } from '$lib/ui/ide';
@@ -12,6 +13,10 @@
   import '$lib/styles/base.css';
 
   let credentialReady = false;
+
+  // Dev-only primitives gallery renders bare (no credential gate, no shell) so
+  // it can be screenshotted; in production builds this is constant-false.
+  $: bareDesignRoute = import.meta.env.DEV && $page.url.pathname === '/design';
   let mounted = false;
   let connectionStarted = false;
 
@@ -37,16 +42,20 @@
 </script>
 
 <ToastContainer />
-<div class="credential-layout">
-  <GraphQLCredentialGate bind:authenticated={credentialReady} />
-  {#if credentialReady}
-    <div class="ide-frame">
-      <IDEShell connectionState={$connectionState}>
-        <slot />
-      </IDEShell>
-    </div>
-  {/if}
-</div>
+{#if bareDesignRoute}
+  <slot />
+{:else}
+  <div class="credential-layout">
+    <GraphQLCredentialGate bind:authenticated={credentialReady} />
+    {#if credentialReady}
+      <div class="ide-frame">
+        <IDEShell connectionState={$connectionState}>
+          <slot />
+        </IDEShell>
+      </div>
+    {/if}
+  </div>
+{/if}
 
 <style>
   .credential-layout {

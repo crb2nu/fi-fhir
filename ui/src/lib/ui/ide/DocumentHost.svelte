@@ -153,7 +153,7 @@
 
   .doc-title {
     margin: 0;
-    font-family: var(--font-heading);
+    font-family: var(--font-ui);
     font-size: var(--text-xl);
     font-weight: var(--font-semibold);
     letter-spacing: var(--tracking-tight);
