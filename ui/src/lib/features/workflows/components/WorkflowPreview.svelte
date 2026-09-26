@@ -1,6 +1,9 @@
 <script lang="ts">
-  import Panel from '$lib/ui/Panel.svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import Check from '@lucide/svelte/icons/check';
+  import Copy from '@lucide/svelte/icons/copy';
+  import Download from '@lucide/svelte/icons/download';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import { Button, Icon, Panel } from '$lib/ui/primitives';
   import MermaidDiagram from '$lib/ui/MermaidDiagram.svelte';
   import { workflowDraft } from '../workflowStore';
   import { draftToYaml } from '../workflowYaml';
@@ -64,24 +67,22 @@
   }
 </script>
 
-<Panel title="YAML Preview">
-  <svelte:fragment slot="actions">
-    <Button variant="secondary" on:click={handleCopy}>
-      {copied ? 'Copied!' : 'Copy'}
+<Panel title="YAML preview" flush>
+  {#snippet actions()}
+    <Button variant="ghost" icon={copied ? Check : Copy} onclick={handleCopy}>
+      {copied ? 'Copied' : 'Copy'}
     </Button>
-    <Button variant="secondary" on:click={handleDownload}>
-      Download
-    </Button>
-    <Button variant="secondary" on:click={handleExplain} disabled={explaining}>
+    <Button variant="ghost" icon={Download} onclick={handleDownload}>Download</Button>
+    <Button variant="ghost" onclick={handleExplain} disabled={explaining}>
       {explaining ? 'Explaining...' : 'Explain with AI'}
     </Button>
-  </svelte:fragment>
+  {/snippet}
 
   <pre class="yaml-output">{yamlOutput}</pre>
 
   {#if explanation || explainSummary}
-    <div class="explanation">
-      <h4 class="explanation-title">AI Explanation</h4>
+    <section class="explanation" aria-labelledby="workflow-explanation-title">
+      <h4 id="workflow-explanation-title" class="explanation-title">AI explanation</h4>
       {#if explainSummary}
         <p class="explanation-summary">{explainSummary}</p>
       {/if}
@@ -91,7 +92,7 @@
           <span class="warnings-label">Warnings</span>
           <ul class="warnings-list">
             {#each explainWarnings as warning (warning)}
-              <li>{warning}</li>
+              <li><Icon icon={TriangleAlert} /><span>{warning}</span></li>
             {/each}
           </ul>
         </div>
@@ -101,82 +102,88 @@
           <MermaidDiagram source={explainDiagram} />
         </div>
       {/if}
-    </div>
+    </section>
   {/if}
 </Panel>
 
 <style>
   .yaml-output {
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
-    color: var(--color-text-primary);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    overflow-x: auto;
-    white-space: pre;
+    max-height: 360px;
     margin: 0;
+    padding: var(--space-3);
+    overflow: auto;
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    line-height: var(--leading-snug);
+    white-space: pre;
   }
 
   .explanation {
-    margin-top: 12px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--color-primary-border);
-    background: var(--color-primary-muted);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
-  .explanation-title {
-    color: var(--color-primary);
-    font-size: 0.85rem;
-    font-weight: 700;
-    margin: 0 0 8px;
+  .explanation-title,
+  .warnings-label {
+    margin: 0;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
   }
 
   .explanation-summary {
+    margin: 0;
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
     color: var(--color-text-primary);
-    font-size: 0.9rem;
-    font-weight: 600;
-    line-height: 1.4;
-    margin: 0 0 8px;
   }
 
   .explanation-text {
+    font-size: var(--text-ui);
+    line-height: var(--leading-ui);
     color: var(--color-text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.55;
     white-space: pre-wrap;
   }
 
   .explanation-warnings {
-    margin-top: 12px;
-    padding: 8px 12px;
-    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
     border: 1px solid var(--color-warning-border);
+    border-radius: var(--radius-sm);
     background: var(--color-warning-bg);
   }
 
-  .warnings-label {
-    display: block;
-    color: var(--color-warning);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 4px;
+  .warnings-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-xs);
+    color: var(--color-text-primary);
   }
 
-  .warnings-list {
-    margin: 0;
-    padding-left: 18px;
-    color: var(--color-text-secondary);
-    font-size: 0.85rem;
-    line-height: 1.5;
+  .warnings-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .warnings-list :global(.ui-icon) {
+    color: var(--color-warning-text);
   }
 
   .explanation-diagram {
-    margin-top: 12px;
+    padding-top: var(--space-2);
   }
 </style>

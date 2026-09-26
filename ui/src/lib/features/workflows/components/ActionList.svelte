@@ -1,7 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import ArrowDown from '@lucide/svelte/icons/arrow-down';
+  import ArrowUp from '@lucide/svelte/icons/arrow-up';
+  import Plus from '@lucide/svelte/icons/plus';
+  import X from '@lucide/svelte/icons/x';
+  import { Button, IconButton } from '$lib/ui/primitives';
   import ActionEditor from './ActionEditor.svelte';
-  import Button from '$lib/ui/Button.svelte';
   import type { ActionDraft } from '../workflowTypes';
 
   export let actions: ActionDraft[];
@@ -14,123 +18,81 @@
   }>();
 </script>
 
-<div class="action-list">
+<div class="item-list">
   {#each actions as action, i (action._key)}
-    <div class="action-item">
-      <div class="action-header">
-        <span class="action-index">Action {i + 1}</span>
-        <div class="action-controls">
-          <button
-            type="button"
-            class="icon-btn"
+    <div class="item">
+      <div class="item-head">
+        <span class="item-index">Action {i + 1}</span>
+        <div class="item-controls">
+          <IconButton
+            icon={ArrowUp}
+            label={`Move action ${i + 1} up`}
             disabled={i === 0}
-            on:click={() => dispatch('move', { actionKey: action._key, direction: 'up' })}
-            aria-label={`Move action ${i + 1} up`}
-            title={`Move action ${i + 1} up`}
-          >
-            &uarr;
-          </button>
-          <button
-            type="button"
-            class="icon-btn"
+            onclick={() => dispatch('move', { actionKey: action._key, direction: 'up' })}
+          />
+          <IconButton
+            icon={ArrowDown}
+            label={`Move action ${i + 1} down`}
             disabled={i === actions.length - 1}
-            on:click={() => dispatch('move', { actionKey: action._key, direction: 'down' })}
-            aria-label={`Move action ${i + 1} down`}
-            title={`Move action ${i + 1} down`}
-          >
-            &darr;
-          </button>
-          <button
-            type="button"
-            class="icon-btn danger"
-            on:click={() => dispatch('remove', { actionKey: action._key })}
-            aria-label={`Remove action ${i + 1}`}
-            title={`Remove action ${i + 1}`}
-          >
-            &times;
-          </button>
+            onclick={() => dispatch('move', { actionKey: action._key, direction: 'down' })}
+          />
+          <IconButton
+            icon={X}
+            label={`Remove action ${i + 1}`}
+            onclick={() => dispatch('remove', { actionKey: action._key })}
+          />
         </div>
       </div>
-      <ActionEditor
-        {action}
-        on:change={(e) => dispatch('change', { actionKey: action._key, action: e.detail })}
-      />
+      <div class="item-body">
+        <ActionEditor
+          {action}
+          on:change={(e) => dispatch('change', { actionKey: action._key, action: e.detail })}
+        />
+      </div>
     </div>
   {/each}
 
-  <Button variant="secondary" on:click={() => dispatch('add')}>
-    + Add Action
-  </Button>
+  <div>
+    <Button variant="ghost" icon={Plus} onclick={() => dispatch('add')}>Add action</Button>
+  </div>
 </div>
 
 <style>
-  .action-list {
-    display: grid;
-    gap: 10px;
-  }
-
-  .action-item {
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-  }
-
-  .action-header {
+  .item-list {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .item {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface);
+  }
+
+  .item-head {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
+    height: 32px;
+    padding: 0 var(--space-1) 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .action-index {
-    color: var(--color-text-muted);
-    font-size: 0.8rem;
-    font-weight: 700;
+  .item-index {
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .action-controls {
-    display: flex;
-    gap: 6px;
-  }
-
-  .icon-btn {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    border: 1px solid var(--color-border-default);
-    background: transparent;
     color: var(--color-text-tertiary);
-    cursor: pointer;
-    font-size: 0.85rem;
-    line-height: 1;
-    transition: var(--transition-all);
   }
 
-  .icon-btn:hover:not(:disabled) {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
+  .item-controls {
+    display: flex;
+    gap: 2px;
   }
 
-  .icon-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .icon-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .icon-btn.danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: rgba(239, 68, 68, 0.3);
-    color: rgba(254, 202, 202, 0.9);
+  .item-body {
+    padding: var(--space-3);
   }
 </style>

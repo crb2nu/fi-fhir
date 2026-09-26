@@ -58,7 +58,7 @@ describe('GenerateFromDescription', () => {
     await fireEvent.input(screen.getByLabelText('Workflow description'), {
       target: { value: 'Route admits to FHIR' }
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Generate workflow/ }));
 
     await waitFor(() => {
       expect(generateWorkflow).toHaveBeenCalledWith(
@@ -89,12 +89,12 @@ describe('GenerateFromDescription', () => {
     await fireEvent.input(screen.getByLabelText('Workflow description'), {
       target: { value: 'admissions' }
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
-    await screen.findByText('Load into Builder');
+    await fireEvent.click(screen.getByRole('button', { name: /Generate workflow/ }));
+    await screen.findByText('Load into builder');
 
     expect(get(workflowDraft).name).toBe('');
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Load into Builder' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Load into builder' }));
 
     await waitFor(() => {
       expect(get(workflowDraft).name).toBe('adt-routing');
@@ -121,13 +121,13 @@ describe('GenerateFromDescription', () => {
     await fireEvent.input(screen.getByLabelText('Workflow description'), {
       target: { value: 'Generate malformed yaml for the kill-test' }
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Generate workflow/ }));
 
     await screen.findByText('not: [valid: yaml');
     expect(get(toastList).some((toast) => toast.message === 'Failed to parse generated YAML')).toBe(false);
     expect(get(workflowDraft)).toEqual(originalDraft);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Load into Builder' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Load into builder' }));
 
     await waitFor(() => {
       expect(get(toastList).some((toast) => toast.message === 'Failed to parse generated YAML')).toBe(true);
@@ -144,7 +144,7 @@ describe('GenerateFromDescription', () => {
     await fireEvent.input(screen.getByLabelText('Workflow description'), {
       target: { value: 'Route lab results to email' }
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Generate Workflow/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Generate workflow/ }));
 
     await waitFor(() => {
       expect(generateWorkflow).toHaveBeenCalled();

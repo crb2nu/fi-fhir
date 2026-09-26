@@ -1,7 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import ArrowDown from '@lucide/svelte/icons/arrow-down';
+  import ArrowUp from '@lucide/svelte/icons/arrow-up';
+  import Plus from '@lucide/svelte/icons/plus';
+  import X from '@lucide/svelte/icons/x';
+  import { Button, IconButton } from '$lib/ui/primitives';
   import TransformEditor from './TransformEditor.svelte';
-  import Button from '$lib/ui/Button.svelte';
   import type { TransformDraft } from '../workflowTypes';
 
   export let transforms: TransformDraft[];
@@ -14,123 +18,81 @@
   }>();
 </script>
 
-<div class="transform-list">
+<div class="item-list">
   {#each transforms as transform, i (transform._key)}
-    <div class="transform-item">
-      <div class="transform-header">
-        <span class="transform-index">Transform {i + 1}</span>
-        <div class="transform-controls">
-          <button
-            type="button"
-            class="icon-btn"
+    <div class="item">
+      <div class="item-head">
+        <span class="item-index">Transform {i + 1}</span>
+        <div class="item-controls">
+          <IconButton
+            icon={ArrowUp}
+            label={`Move transform ${i + 1} up`}
             disabled={i === 0}
-            on:click={() => dispatch('move', { transformKey: transform._key, direction: 'up' })}
-            aria-label={`Move transform ${i + 1} up`}
-            title={`Move transform ${i + 1} up`}
-          >
-            &uarr;
-          </button>
-          <button
-            type="button"
-            class="icon-btn"
+            onclick={() => dispatch('move', { transformKey: transform._key, direction: 'up' })}
+          />
+          <IconButton
+            icon={ArrowDown}
+            label={`Move transform ${i + 1} down`}
             disabled={i === transforms.length - 1}
-            on:click={() => dispatch('move', { transformKey: transform._key, direction: 'down' })}
-            aria-label={`Move transform ${i + 1} down`}
-            title={`Move transform ${i + 1} down`}
-          >
-            &darr;
-          </button>
-          <button
-            type="button"
-            class="icon-btn danger"
-            on:click={() => dispatch('remove', { transformKey: transform._key })}
-            aria-label={`Remove transform ${i + 1}`}
-            title={`Remove transform ${i + 1}`}
-          >
-            &times;
-          </button>
+            onclick={() => dispatch('move', { transformKey: transform._key, direction: 'down' })}
+          />
+          <IconButton
+            icon={X}
+            label={`Remove transform ${i + 1}`}
+            onclick={() => dispatch('remove', { transformKey: transform._key })}
+          />
         </div>
       </div>
-      <TransformEditor
-        {transform}
-        on:change={(e) => dispatch('change', { transformKey: transform._key, transform: e.detail })}
-      />
+      <div class="item-body">
+        <TransformEditor
+          {transform}
+          on:change={(e) => dispatch('change', { transformKey: transform._key, transform: e.detail })}
+        />
+      </div>
     </div>
   {/each}
 
-  <Button variant="secondary" on:click={() => dispatch('add')}>
-    + Add Transform
-  </Button>
+  <div>
+    <Button variant="ghost" icon={Plus} onclick={() => dispatch('add')}>Add transform</Button>
+  </div>
 </div>
 
 <style>
-  .transform-list {
-    display: grid;
-    gap: 10px;
-  }
-
-  .transform-item {
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-  }
-
-  .transform-header {
+  .item-list {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .item {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-surface);
+  }
+
+  .item-head {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
+    height: 32px;
+    padding: 0 var(--space-1) 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
-  .transform-index {
-    color: var(--color-text-muted);
-    font-size: 0.8rem;
-    font-weight: 700;
+  .item-index {
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .transform-controls {
-    display: flex;
-    gap: 6px;
-  }
-
-  .icon-btn {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    border: 1px solid var(--color-border-default);
-    background: transparent;
     color: var(--color-text-tertiary);
-    cursor: pointer;
-    font-size: 0.85rem;
-    line-height: 1;
-    transition: var(--transition-all);
   }
 
-  .icon-btn:hover:not(:disabled) {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
+  .item-controls {
+    display: flex;
+    gap: 2px;
   }
 
-  .icon-btn:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
-  }
-
-  .icon-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .icon-btn.danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: rgba(239, 68, 68, 0.3);
-    color: rgba(254, 202, 202, 0.9);
+  .item-body {
+    padding: var(--space-3);
   }
 </style>

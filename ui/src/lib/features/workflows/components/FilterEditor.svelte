@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import { Badge, Button, Field, Input } from '$lib/ui/primitives';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import {
     EVENT_TYPE_CATEGORIES,
@@ -46,17 +46,20 @@
 </script>
 
 <div class="filter-editor">
-  <div class="section">
-    <div class="section-header">
-      <span class="section-label">Event Types</span>
+  <div class="block">
+    <div class="block-head">
+      <span class="block-label">Event types</span>
+      {#if filter.eventTypes.length > 0}
+        <Badge mono>{filter.eventTypes.length} selected</Badge>
+      {/if}
       <div class="preset-bar">
         {#each EVENT_TYPE_PRESETS as preset (preset.label)}
-          <Button variant="secondary" size="sm" on:click={() => applyPreset(preset.types)}>
+          <Button variant="ghost" onclick={() => applyPreset(preset.types)}>
             {preset.label}
           </Button>
         {/each}
         {#if filter.eventTypes.length > 0}
-          <Button variant="danger" size="sm" on:click={clearEventTypes}>Clear</Button>
+          <Button variant="ghost" onclick={clearEventTypes}>Clear</Button>
         {/if}
       </div>
     </div>
@@ -73,174 +76,154 @@
                   checked={filter.eventTypes.includes(type)}
                   on:change={() => toggleEventType(type)}
                 />
-                <span class="checkbox-label">{type.replace(/_/g, ' ')}</span>
+                <span class="checkbox-label">{type}</span>
               </label>
             {/each}
           </div>
         </div>
       {/each}
     </div>
-
-    {#if filter.eventTypes.length > 0}
-      <div class="selected-count">
-        {filter.eventTypes.length} event type{filter.eventTypes.length > 1 ? 's' : ''} selected
-      </div>
-    {/if}
   </div>
 
-  <div class="section">
-    <label class="section-label">
-      Sources (comma-separated)
-      <input
-        type="text"
-        class="input"
+  <div class="sources">
+    <Field label="Sources" hint="Comma-separated source system names.">
+      <Input
+        mono
         bind:value={sourcesText}
-        on:blur={handleSourcesBlur}
+        onblur={handleSourcesBlur}
         placeholder="e.g. epic, cerner"
       />
-    </label>
+    </Field>
   </div>
 
-  <div class="section">
-    <div class="section-header">
-      <span class="section-label">CEL Condition</span>
-      <Button variant="ghost" size="sm" on:click={() => (showCel = !showCel)}>
-        {showCel ? 'Hide' : 'Show'} Expert Mode
+  <div class="block">
+    <div class="block-head">
+      <span class="block-label">CEL condition</span>
+      <Button variant="ghost" onclick={() => (showCel = !showCel)} aria-expanded={showCel}>
+        {showCel ? 'Hide' : 'Show'} expert mode
       </Button>
     </div>
     {#if showCel}
-      <CodeEditor
-        language="cel"
-        value={filter.condition}
-        on:change={handleConditionChange}
-        placeholder="e.g. event.isCritical == true"
-        height="60px"
-        lineNumbers={false}
-      />
-      <div class="hint">
-        CEL expression evaluated against the event. Returns true to match.
+      <div class="cel-editor">
+        <CodeEditor
+          language="cel"
+          value={filter.condition}
+          on:change={handleConditionChange}
+          placeholder="e.g. event.isCritical == true"
+          height="60px"
+          lineNumbers={false}
+        />
       </div>
+      <p class="hint">CEL expression evaluated against the event. Returns true to match.</p>
     {/if}
   </div>
 </div>
 
 <style>
   .filter-editor {
-    display: grid;
-    gap: 16px;
-  }
-
-  .section {
-    display: grid;
-    gap: 8px;
-  }
-
-  .section-header {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .block-head {
+    display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-2);
   }
 
-  .section-label {
+  .block-label {
+    font-size: var(--text-label);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
     color: var(--color-text-tertiary);
-    font-size: 0.9rem;
-    font-weight: 700;
-    display: grid;
-    gap: 6px;
   }
 
   .preset-bar {
     display: flex;
-    gap: 4px;
     flex-wrap: wrap;
+    gap: 2px;
+    margin-left: auto;
   }
 
   .checkbox-groups {
-    display: grid;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-input);
   }
 
   .checkbox-group {
     display: grid;
-    gap: 4px;
+    grid-template-columns: 136px minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--space-3);
   }
 
   .group-label {
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: var(--text-label);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
   }
 
   .checkboxes {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 12px;
+    gap: var(--space-1) var(--space-4);
   }
 
   .checkbox {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-height: 22px;
     cursor: pointer;
   }
 
   .checkbox input {
-    accent-color: rgba(59, 130, 246, 0.85);
+    margin: 0;
+    accent-color: var(--color-primary);
   }
 
   .checkbox-label {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
     color: var(--color-text-secondary);
-    font-size: 0.85rem;
   }
 
-  .selected-count {
-    color: rgba(147, 197, 253, 0.8);
-    font-size: 0.8rem;
-    font-weight: 600;
+  .sources {
+    max-width: 360px;
   }
 
-  .input {
-    padding: 8px 12px;
-    border-radius: 10px;
+  .cel-editor {
     border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-    transition: var(--transition-all);
-  }
-
-  .input::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  .input:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
   }
 
   .hint {
-    color: var(--color-text-muted);
-    font-size: 0.8rem;
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
   @media (max-width: 640px) {
-    .section-header {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .checkboxes {
-      gap: 6px 16px;
+    .checkbox-group {
+      grid-template-columns: 1fr;
+      gap: var(--space-1);
     }
   }
 </style>

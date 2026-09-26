@@ -150,7 +150,7 @@ describe('DryRunPanel session simulation', () => {
     expect(await screen.findByRole('option', { name: 'ADT investigation' })).toBeInTheDocument();
     expect(screen.getByText('1 event')).toBeInTheDocument();
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Run Simulation' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Run simulation' }));
 
     await waitFor(() => expect(simulateSessionWorkflow).toHaveBeenCalledTimes(1));
     expect(saveSessionWorkflowDraft).toHaveBeenCalledWith(
