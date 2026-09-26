@@ -1,9 +1,20 @@
 <script lang="ts">
   import { afterUpdate, createEventDispatcher, tick } from 'svelte';
-  import Button from '$lib/ui/Button.svelte';
+  import X from '@lucide/svelte/icons/x';
+  import {
+    Button,
+    Field,
+    IconButton,
+    Input,
+    KeyValue,
+    Select,
+    Textarea,
+    type KeyValueItem
+  } from '$lib/ui/primitives';
   import { toasts } from '$lib/ui/toastStore';
   import { isErrorToasted } from '$lib/graphql/client';
   import { updateMapping } from './terminologyApi';
+  import { formatTimestamp, originLabel } from './terminologyFormat';
   import type { MappingEquivalence, ListMappingsQuery } from '$lib/gen/graphql';
   import { createDialogFocusController } from '$lib/domain/a11yDialog';
 
@@ -37,6 +48,18 @@
     editComment = mapping.comment ?? '';
     editConfidence = mapping.confidence ?? 0;
   }
+
+  $: readonlyItems = [
+    { key: 'Source system', value: mapping.sourceSystem, mono: true },
+    { key: 'Source code', value: mapping.sourceCode, mono: true },
+    { key: 'Source display', value: mapping.sourceDisplay },
+    { key: 'Target system', value: mapping.targetSystem, mono: true },
+    { key: 'Target code', value: mapping.targetCode, mono: true },
+    { key: 'Origin', value: originLabel(mapping.origin) },
+    { key: 'Created', value: formatTimestamp(mapping.createdAt), mono: true },
+    { key: 'Created by', value: mapping.createdBy },
+    { key: 'Batch id', value: mapping.uploadBatchId, mono: true, truncate: true }
+  ] satisfies KeyValueItem[];
 
   const equivalenceOptions: { value: MappingEquivalence; label: string }[] = [
     { value: 'EQUIVALENT', label: 'Equivalent' },
@@ -87,31 +110,14 @@
     }
   }
 
-  function formatOrigin(origin: string): string {
-    switch (origin) {
-      case 'CSV_UPLOAD': return 'CSV Upload';
-      case 'APPROVED_AUTOROUTE': return 'Approved';
-      case 'MANUAL': return 'Manual';
-      default: return origin;
-    }
-  }
-
-  function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
-
   afterUpdate(() => {
     if (open && !wasOpen) {
       tick().then(() => {
         if (!modalEl) return;
-        focusCtl = createDialogFocusController(modalEl);
+        // Start on the first editable field, not the header's close button.
+        focusCtl = createDialogFocusController(modalEl, {
+          initialFocus: modalEl.querySelector<HTMLElement>('#target-display')
+        });
         focusCtl.focusInitial();
       });
     }
@@ -142,127 +148,54 @@
       aria-labelledby="modal-title"
       tabindex="-1"
     >
-      <h3 id="modal-title" class="modal-title">Edit Mapping</h3>
+      <header class="modal-header">
+        <h3 id="modal-title" class="modal-title">Edit mapping</h3>
+        <IconButton icon={X} label="Close" onclick={handleClose} />
+      </header>
 
       <div class="modal-body">
-        <!-- Read-only source info -->
-        <div class="readonly-section">
-          <div class="field-group">
-            <span class="field-label">Source System</span>
-            <div class="field-value readonly">{mapping.sourceSystem}</div>
-          </div>
-          <div class="field-group">
-            <span class="field-label">Source Code</span>
-            <div class="field-value readonly mono">{mapping.sourceCode}</div>
-          </div>
-          {#if mapping.sourceDisplay}
-            <div class="field-group">
-              <span class="field-label">Source Display</span>
-              <div class="field-value readonly">{mapping.sourceDisplay}</div>
+        <KeyValue items={readonlyItems} />
+
+        <div class="form-grid">
+          <Field label="Target display" id="target-display" class="span-2">
+            <Input bind:value={editTargetDisplay} placeholder="Human-readable display name" />
+          </Field>
+
+          <Field label="Equivalence" id="equivalence">
+            <Select bind:value={editEquivalence} options={equivalenceOptions} />
+          </Field>
+
+          <Field label="Confidence" id="confidence">
+            <div class="range-row">
+              <input
+                id="confidence"
+                class="range"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                bind:value={editConfidence}
+              />
+              <span class="range-value text-mono">{(editConfidence * 100).toFixed(0)}%</span>
             </div>
-          {/if}
-        </div>
+          </Field>
 
-        <div class="divider"></div>
-
-        <!-- Target info (partially editable) -->
-        <div class="editable-section">
-          <div class="field-group">
-            <span class="field-label">Target System</span>
-            <div class="field-value readonly">{mapping.targetSystem}</div>
-          </div>
-          <div class="field-group">
-            <span class="field-label">Target Code</span>
-            <div class="field-value readonly mono">{mapping.targetCode}</div>
-          </div>
-          <div class="field-group">
-            <label class="field-label" for="target-display">Target Display</label>
-            <input
-              id="target-display"
-              type="text"
-              class="field-input"
-              bind:value={editTargetDisplay}
-              placeholder="Human-readable display name"
-            />
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <!-- Mapping attributes -->
-        <div class="attributes-section">
-          <div class="field-row">
-            <div class="field-group">
-              <label class="field-label" for="equivalence">Equivalence</label>
-              <select id="equivalence" class="field-select" bind:value={editEquivalence}>
-                {#each equivalenceOptions as opt (opt.value)}
-                  <option value={opt.value}>{opt.label}</option>
-                {/each}
-              </select>
-            </div>
-            <div class="field-group">
-              <label class="field-label" for="confidence">Confidence</label>
-              <div class="confidence-input">
-                <input
-                  id="confidence"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  bind:value={editConfidence}
-                />
-                <span class="confidence-value">{(editConfidence * 100).toFixed(0)}%</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="field-group full-width">
-            <label class="field-label" for="comment">Comment</label>
-            <textarea
-              id="comment"
-              class="field-textarea"
+          <Field label="Comment" id="comment" class="span-2">
+            <Textarea
               bind:value={editComment}
-              rows="3"
-              placeholder="Optional notes about this mapping..."
-            ></textarea>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <!-- Metadata (read-only) -->
-        <div class="metadata-section">
-          <div class="metadata-row">
-            <span class="meta-label">Origin:</span>
-            <span class="meta-value">{formatOrigin(mapping.origin)}</span>
-          </div>
-          <div class="metadata-row">
-            <span class="meta-label">Created:</span>
-            <span class="meta-value">{formatDate(mapping.createdAt)}</span>
-          </div>
-          {#if mapping.createdBy}
-            <div class="metadata-row">
-              <span class="meta-label">Created By:</span>
-              <span class="meta-value">{mapping.createdBy}</span>
-            </div>
-          {/if}
-          {#if mapping.uploadBatchId}
-            <div class="metadata-row">
-              <span class="meta-label">Batch ID:</span>
-              <span class="meta-value mono">{mapping.uploadBatchId}</span>
-            </div>
-          {/if}
+              rows={3}
+              placeholder="Optional notes about this mapping"
+            />
+          </Field>
         </div>
       </div>
 
-      <div class="modal-actions">
-        <Button variant="secondary" on:click={handleClose} disabled={saving}>
-          Cancel
+      <footer class="modal-actions">
+        <Button variant="ghost" size="md" onclick={handleClose} disabled={saving}>Cancel</Button>
+        <Button variant="primary" size="md" onclick={handleSave} loading={saving}>
+          Save changes
         </Button>
-        <Button variant="primary" on:click={handleSave} disabled={saving}>
-          {saving ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
+      </footer>
     </div>
   </div>
 {/if}
@@ -285,179 +218,89 @@
     padding: 0;
     background: var(--modal-backdrop);
     cursor: default;
-    animation: fadeIn var(--duration-fast) var(--ease-out);
   }
 
   .modal {
     position: relative;
     z-index: 1;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--modal-radius);
-    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: var(--modal-width-md);
     max-height: 90vh;
-    overflow-y: auto;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--modal-radius);
     box-shadow: var(--shadow-xl);
-    animation: modalIn var(--duration-normal) var(--ease-out);
+    outline: none;
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes modalIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95) translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    height: 44px;
+    padding: 0 var(--space-2) 0 var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .modal-title {
-    margin: 0 0 var(--space-5);
-    font-size: var(--text-lg);
-    font-weight: var(--font-bold);
+    margin: 0 auto 0 0;
+    font-size: var(--text-title);
+    font-weight: var(--font-semibold);
     color: var(--color-text-primary);
   }
 
   .modal-body {
-    margin-bottom: var(--space-5);
-  }
-
-  .divider {
-    height: 1px;
-    background: var(--color-border-subtle);
-    margin: var(--space-4) 0;
-  }
-
-  .field-group {
-    margin-bottom: var(--space-3);
-  }
-
-  .field-group.full-width {
-    grid-column: 1 / -1;
-  }
-
-  .field-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
-  }
-
-  .field-label {
-    display: block;
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    margin-bottom: var(--space-1);
-  }
-
-  .field-value {
-    font-size: var(--text-sm);
-    color: var(--color-text-primary);
-    line-height: var(--leading-normal);
-  }
-
-  .field-value.readonly {
-    padding: var(--space-2) var(--space-3);
-    background: var(--color-bg-elevated);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border-subtle);
-  }
-
-  .field-value.mono {
-    font-family: var(--font-mono);
-  }
-
-  .field-input,
-  .field-select,
-  .field-textarea {
-    width: 100%;
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    font-size: var(--text-sm);
-    font-family: inherit;
-    outline: none;
-    transition: var(--transition-all);
-  }
-
-  .field-input:focus,
-  .field-select:focus,
-  .field-textarea:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .field-textarea {
-    resize: vertical;
-    min-height: 80px;
-  }
-
-  .confidence-input {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-4);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 
-  .confidence-input input[type="range"] {
+  .form-grid :global(.span-2) {
+    grid-column: 1 / -1;
+  }
+
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: var(--size-control-sm);
+  }
+
+  .range {
     flex: 1;
+    min-width: 0;
     accent-color: var(--color-primary);
-    height: 6px;
   }
 
-  .confidence-value {
-    min-width: 45px;
+  .range-value {
+    min-width: 40px;
     text-align: right;
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
     color: var(--color-text-secondary);
-  }
-
-  .metadata-section {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-6);
-  }
-
-  .metadata-row {
-    display: flex;
-    gap: var(--space-2);
-    font-size: var(--text-xs);
-  }
-
-  .meta-label {
-    color: var(--color-text-muted);
-  }
-
-  .meta-value {
-    color: var(--color-text-tertiary);
-  }
-
-  .meta-value.mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-2xs);
   }
 
   .modal-actions {
     display: flex;
-    gap: var(--space-3);
     justify-content: flex-end;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   @media (max-width: 480px) {
-    .field-row {
+    .form-grid {
       grid-template-columns: 1fr;
     }
   }

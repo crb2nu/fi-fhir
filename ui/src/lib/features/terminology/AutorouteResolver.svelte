@@ -7,13 +7,25 @@
    */
 
   import { createEventDispatcher } from "svelte";
-  import Button from "$lib/ui/Button.svelte";
-  import Input from "$lib/ui/Input.svelte";
-  import Select from "$lib/ui/Select.svelte";
-  import Badge from "$lib/ui/Badge.svelte";
-  import ConfidenceBadge from "$lib/ui/ConfidenceBadge.svelte";
-  import Panel from "$lib/ui/Panel.svelte";
-  import EmptyState from "$lib/ui/EmptyState.svelte";
+  import Check from "@lucide/svelte/icons/check";
+  import CircleAlert from "@lucide/svelte/icons/circle-alert";
+  import Search from "@lucide/svelte/icons/search";
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    Input,
+    KeyValue,
+    Panel,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type KeyValueItem,
+  } from "$lib/ui/primitives";
   import { toasts } from "$lib/ui/toastStore";
   import { isErrorToasted } from "$lib/graphql/client";
   import {
@@ -22,10 +34,17 @@
     createMapping,
   } from "./terminologyApi";
   import { validateResolveInputs } from "./resolveValidation";
+  import {
+    confidenceTone,
+    decisionLabel,
+    decisionTone,
+    equivalenceLabel,
+    formatDurationMs,
+    formatPercent,
+  } from "./terminologyFormat";
   import type {
     ResolveMappingQuery,
     SuggestMappingsQuery,
-    AutorouteDecision,
     MappingEquivalence,
     MappingOrigin,
   } from "$lib/gen/graphql";
@@ -54,6 +73,9 @@
   let result: ResolveResult | null = null;
   let candidates: Candidate[] = [];
   let error: string | null = null;
+  // Which request produced the current results (null until one succeeds), so an
+  // empty suggestion list reads as "no candidates", not as "nothing run yet".
+  let lastAction: "resolve" | "suggest" | null = null;
 
   // Approval state
   let approvingIndex: number | null = null;
@@ -66,6 +88,8 @@
     { value: "http://www.nlm.nih.gov/research/umls/rxnorm", label: "RxNorm" },
     { value: "http://www.ama-assn.org/go/cpt", label: "CPT" },
   ];
+
+  $: resultItems = result ? summaryItems(result) : [];
 
   async function handleResolve() {
     const validationError = validateResolveInputs({
@@ -82,6 +106,7 @@
     error = null;
     result = null;
     candidates = [];
+    lastAction = null;
 
     try {
       result = await resolveMapping({
@@ -96,6 +121,7 @@
 
       // Extract candidates from result
       candidates = result.candidates;
+      lastAction = "resolve";
 
       dispatch("resolved", { result });
     } catch (err) {
@@ -120,6 +146,7 @@
     error = null;
     result = null;
     candidates = [];
+    lastAction = null;
 
     try {
       candidates = await suggestMappings({
@@ -129,6 +156,7 @@
         targetSystem,
         maxCandidates,
       });
+      lastAction = "suggest";
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to get suggestions";
     } finally {
@@ -172,448 +200,250 @@
     }
   }
 
-  function getDecisionVariant(
-    decision: AutorouteDecision,
-  ): "success" | "warning" | "danger" | "default" {
-    switch (decision) {
-      case "PERSISTENT_HIT":
-      case "AUTOROUTE_HIGH_CONF":
-        return "success";
-      case "AUTOROUTE_MED_CONF":
-        return "warning";
-      case "AUTOROUTE_LOW_CONF":
-      case "NO_MATCH":
-        return "danger";
-      default:
-        return "default";
+  function summaryItems(res: ResolveResult): KeyValueItem[] {
+    const items: KeyValueItem[] = [
+      { key: "Confidence", value: formatPercent(res.confidence), mono: true },
+    ];
+    if (res.mapping) {
+      items.push(
+        {
+          key: "Persistent mapping",
+          value: `${res.mapping.sourceCode} → ${res.mapping.targetCode}`,
+          mono: true,
+        },
+        { key: "Source system", value: res.mapping.sourceSystem, mono: true },
+        { key: "Target system", value: res.mapping.targetSystem, mono: true },
+        { key: "Target display", value: res.mapping.targetDisplay },
+      );
     }
-  }
-
-  function formatDecisionLabel(decision: AutorouteDecision): string {
-    switch (decision) {
-      case "PERSISTENT_HIT":
-        return "Persistent Match";
-      case "AUTOROUTE_HIGH_CONF":
-        return "High Confidence";
-      case "AUTOROUTE_MED_CONF":
-        return "Medium Confidence";
-      case "AUTOROUTE_LOW_CONF":
-        return "Low Confidence";
-      case "NO_MATCH":
-        return "No Match";
-      default:
-        return decision;
+    if (res.reasoning) {
+      items.push({ key: "Reasoning", value: res.reasoning });
     }
-  }
-
-  function formatDuration(ms: number): string {
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
+    return items;
   }
 </script>
 
 <div class="resolver">
-  <!-- Input Form -->
-  <Panel title="Resolve Mapping">
-    <div class="form-grid">
-      <Input
-        label="Source Code"
-        bind:value={sourceCode}
-        placeholder="e.g., LAB001"
-        required
-      />
+  <Panel title="Resolve mapping">
+    <form class="form" on:submit|preventDefault={handleResolve} novalidate>
+      <div class="form-grid">
+        <Field label="Source code" required>
+          <Input bind:value={sourceCode} placeholder="e.g., LAB001" mono />
+        </Field>
 
-      <Input
-        label="Source System"
-        bind:value={sourceSystem}
-        placeholder="e.g., epic_custom_labs"
-        required
-      />
+        <Field label="Source system" required>
+          <Input
+            bind:value={sourceSystem}
+            placeholder="e.g., epic_custom_labs"
+            mono
+          />
+        </Field>
 
-      <Input
-        label="Source Display"
-        bind:value={sourceDisplay}
-        placeholder="e.g., Hemoglobin A1c Panel"
-        hint="Optional - helps improve match quality"
-      />
+        <Field label="Source display" hint="Optional; improves match quality.">
+          <Input
+            bind:value={sourceDisplay}
+            placeholder="e.g., Hemoglobin A1c Panel"
+          />
+        </Field>
 
-      <Select
-        label="Target System"
-        bind:value={targetSystem}
-        options={targetSystemOptions}
-        required
-      />
-    </div>
+        <Field label="Target system" required>
+          <Select bind:value={targetSystem} options={targetSystemOptions} />
+        </Field>
+      </div>
 
-    <div class="form-actions">
-      <Button on:click={handleResolve} {loading}>
-        {loading ? "Resolving..." : "Resolve (Persistent + Autoroute)"}
-      </Button>
-      <Button variant="secondary" on:click={handleSuggestOnly} {loading}>
-        {loading ? "Loading..." : "Suggest Only (Autoroute)"}
-      </Button>
-    </div>
+      {#if error}
+        <p class="form-error" role="alert">
+          <Icon icon={CircleAlert} />
+          <span>{error}</span>
+        </p>
+      {/if}
+
+      <div class="form-actions">
+        <Button
+          type="submit"
+          variant="primary"
+          {loading}
+          title="Persistent lookup, then autoroute"
+        >
+          Resolve
+        </Button>
+        <Button
+          onclick={handleSuggestOnly}
+          disabled={loading}
+          title="Autoroute suggestions only"
+        >
+          Suggest only
+        </Button>
+      </div>
+    </form>
   </Panel>
 
-  <!-- Error -->
-  {#if error}
-    <Panel tone="error">
-      <p class="error-text">{error}</p>
-    </Panel>
-  {/if}
-
-  <!-- Result Summary -->
-  {#if result}
-    <Panel title="Resolution Result">
-      <svelte:fragment slot="actions">
-        <span class="duration">{formatDuration(result.durationMs)}</span>
-      </svelte:fragment>
-
-      <div class="result-header">
-        <Badge variant={getDecisionVariant(result.decision)}>
-          {formatDecisionLabel(result.decision)}
-        </Badge>
-        {#if result.confidence != null}
-          <ConfidenceBadge confidence={result.confidence} />
-        {/if}
-      </div>
-
-      {#if result.mapping}
-        <div class="persistent-match">
-          <div class="match-label">Persistent Mapping Found</div>
-          <div class="match-codes">
-            <span class="code">{result.mapping.sourceCode}</span>
-            <span class="system">({result.mapping.sourceSystem})</span>
-            <span class="arrow">→</span>
-            <span class="code">{result.mapping.targetCode}</span>
-            <span class="system">({result.mapping.targetSystem})</span>
-          </div>
-          {#if result.mapping.targetDisplay}
-            <div class="match-display">{result.mapping.targetDisplay}</div>
-          {/if}
-        </div>
-      {/if}
-
-      {#if result.reasoning}
-        <div class="reasoning">
-          <div class="reasoning-label">Reasoning</div>
-          <p class="reasoning-text">{result.reasoning}</p>
-        </div>
-      {/if}
-
-      <!-- Decision Trace -->
-      {#if result.trace && result.trace.steps.length > 0}
-        <details class="trace">
-          <summary class="trace-summary">
-            Decision Trace ({result.trace.steps.length} steps)
-          </summary>
-          <div class="trace-steps">
-            {#each result.trace.steps as step, i (i)}
-              <div class="trace-step">
-                <span class="step-name">{step.step}</span>
-                <span class="step-arrow">→</span>
-                <span class="step-result">{step.result}</span>
-                <span class="step-duration">({step.durationMs}ms)</span>
-              </div>
-            {/each}
-          </div>
-        </details>
-      {/if}
-    </Panel>
-  {/if}
-
-  <!-- Candidates -->
-  {#if candidates.length > 0}
-    <Panel title="Candidates ({candidates.length})">
-      <div class="candidates">
-        {#each candidates as candidate, index (candidate.code + candidate.system)}
-          <div
-            class="candidate hover-lift"
-            style="animation-delay: {Math.min(index, 20) * 0.05}s"
+  <div class="results">
+    {#if result}
+      <Panel title="Resolution">
+        {#snippet actions()}
+          <span class="panel-meta text-mono"
+            >{formatDurationMs(result?.durationMs)}</span
           >
-            <div class="candidate-main">
-              <div class="candidate-header">
-                <span class="candidate-code">{candidate.code}</span>
-                <ConfidenceBadge confidence={candidate.confidence} size="sm" />
-                {#if candidate.equivalence}
-                  <Badge variant="default" size="sm"
-                    >{candidate.equivalence}</Badge
-                  >
-                {/if}
-              </div>
-              <p class="candidate-display">{candidate.display}</p>
-              <p class="candidate-system">{candidate.system}</p>
-              {#if candidate.reasoning}
-                <p class="candidate-reasoning">{candidate.reasoning}</p>
-              {/if}
-            </div>
-            <Button
-              size="sm"
-              on:click={() => approveCandidate(index)}
-              loading={approvingIndex === index}
-            >
-              {approvingIndex === index ? "Saving..." : "Approve"}
-            </Button>
-          </div>
-        {/each}
-      </div>
-    </Panel>
-  {:else if result && !result.mapping}
-    <Panel tone="warning">
+        {/snippet}
+        <div class="result-head">
+          <Badge tone={decisionTone(result.decision)} dot>
+            {decisionLabel(result.decision)}
+          </Badge>
+        </div>
+        <KeyValue items={resultItems} />
+      </Panel>
+
+      {#if result.trace && result.trace.steps.length > 0}
+        <Panel title="Decision trace ({result.trace.steps.length} steps)" flush>
+          <Table label="Decision trace" layout="fixed">
+            {#snippet head()}
+              <tr>
+                <Th width="200px">Step</Th>
+                <Th>Result</Th>
+                <Th width="80px" numeric>ms</Th>
+              </tr>
+            {/snippet}
+            {#each result.trace.steps as step, i (i)}
+              <Tr>
+                <Td mono truncate value={step.step} />
+                <Td truncate value={step.result} />
+                <Td numeric value={step.durationMs} />
+              </Tr>
+            {/each}
+          </Table>
+        </Panel>
+      {/if}
+    {/if}
+
+    {#if candidates.length > 0}
+      <Panel title="Candidates ({candidates.length})" flush>
+        <Table label="Candidates" layout="fixed">
+          {#snippet head()}
+            <tr>
+              <Th width="112px">Code</Th>
+              <Th>Display</Th>
+              <Th>System</Th>
+              <Th width="88px" numeric>Confidence</Th>
+              <Th width="104px">Equivalence</Th>
+              <Th width="104px"><span class="sr-only">Actions</span></Th>
+            </tr>
+          {/snippet}
+          {#each candidates as candidate, index (candidate.code + candidate.system)}
+            <Tr>
+              <Td mono truncate value={candidate.code} />
+              <Td
+                truncate
+                value={candidate.display}
+                title={candidate.reasoning
+                  ? `${candidate.display} — ${candidate.reasoning}`
+                  : candidate.display}
+              />
+              <Td muted truncate value={candidate.system} />
+              <Td numeric>
+                <Badge tone={confidenceTone(candidate.confidence)} mono
+                  >{formatPercent(candidate.confidence)}</Badge
+                >
+              </Td>
+              <Td truncate value={equivalenceLabel(candidate.equivalence) || "—"} />
+              <Td class="cell-action">
+                <Button
+                  icon={Check}
+                  onclick={() => approveCandidate(index)}
+                  loading={approvingIndex === index}
+                  aria-label="Approve {candidate.code}"
+                >
+                  Approve
+                </Button>
+              </Td>
+            </Tr>
+          {/each}
+        </Table>
+      </Panel>
+    {:else if (result && !result.mapping) || lastAction === "suggest"}
+      <Panel title="Candidates">
+        <EmptyState
+          icon={Search}
+          align="start"
+          message="No candidates found for this code."
+        />
+      </Panel>
+    {/if}
+
+    {#if lastAction === null && !loading}
       <EmptyState
-        icon="search"
-        title="No candidates found"
-        description="Add a more descriptive source name to improve matches."
-        compact
+        align="start"
+        message="Resolve a source code to see the decision, its trace and the candidates."
       />
-    </Panel>
-  {/if}
+    {/if}
+  </div>
 </div>
 
 <style>
   .resolver {
+    display: grid;
+    grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  @media (max-width: 1100px) {
+    .resolver {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .form {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 
-  /* Form */
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-4);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
   }
 
-  @media (max-width: 640px) {
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
+  .form-error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
+  }
+
+  .form-error :global(.ui-icon) {
+    margin-top: 1px;
   }
 
   .form-actions {
     display: flex;
-    gap: var(--space-3);
-    margin-top: var(--space-4);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--color-border-subtle);
-  }
-
-  /* Error */
-  .error-text {
-    color: var(--color-danger-text);
-    margin: 0;
-  }
-
-  /* Result */
-  .result-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-  }
-
-  .duration {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  /* Persistent Match */
-  .persistent-match {
-    padding: var(--space-3);
-    background: var(--color-success-bg);
-    border: 1px solid var(--color-success-border);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--space-3);
-  }
-
-  .match-label {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    color: var(--color-success-text);
-    margin-bottom: var(--space-2);
-  }
-
-  .match-codes {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    font-size: var(--text-sm);
-  }
-
-  .code {
-    font-family: var(--font-mono);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .system {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-  }
-
-  .arrow {
-    color: var(--color-text-muted);
-    margin: 0 var(--space-1);
-  }
-
-  .match-display {
-    font-size: var(--text-xs);
-    color: var(--color-success-text);
-    margin-top: var(--space-1);
-  }
-
-  /* Reasoning */
-  .reasoning {
-    padding: var(--space-3);
-    background: var(--color-bg-elevated);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--space-3);
-  }
-
-  .reasoning-label {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-tertiary);
-    margin-bottom: var(--space-1);
-  }
-
-  .reasoning-text {
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-    margin: 0;
-    line-height: var(--leading-relaxed);
-  }
-
-  /* Trace */
-  .trace {
-    margin-top: var(--space-3);
-  }
-
-  .trace-summary {
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-    padding: var(--space-2);
-    border-radius: var(--radius-md);
-    transition: var(--transition-colors);
-  }
-
-  .trace-summary:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-secondary);
-  }
-
-  .trace-steps {
-    margin-top: var(--space-2);
-    padding-left: var(--space-4);
-    border-left: 2px solid var(--color-border-default);
-  }
-
-  .trace-step {
-    display: flex;
-    align-items: center;
     gap: var(--space-2);
-    padding: var(--space-1) 0;
-    font-size: var(--text-xs);
   }
 
-  .step-name {
-    font-family: var(--font-mono);
-    color: var(--color-primary);
-  }
-
-  .step-arrow {
-    color: var(--color-text-muted);
-  }
-
-  .step-result {
-    color: var(--color-text-secondary);
-  }
-
-  .step-duration {
-    color: var(--color-text-muted);
-    margin-left: auto;
-  }
-
-  /* Candidates */
-  .candidates {
+  .results {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-  }
-
-  .candidate {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-4);
-    background: var(--color-bg-surface);
-    border: 1px solid var(--color-border-default);
-    border-top: 1px solid rgba(255, 255, 255, 0.05); /* 3D depth */
-    box-shadow: var(--shadow-sm);
-    border-radius: var(--radius-lg);
-    transition: var(--transition-all);
-    animation: fade-in-up 0.4s ease-out both;
-  }
-
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .candidate:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-border-strong);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-  }
-
-  .candidate-main {
-    flex: 1;
     min-width: 0;
   }
 
-  .candidate-header {
+  .panel-meta {
+    padding-right: var(--space-2);
+    color: var(--color-text-tertiary);
+  }
+
+  .result-head {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-bottom: var(--space-2);
+    margin-bottom: var(--space-3);
   }
 
-  .candidate-code {
-    font-family: var(--font-mono);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .candidate-display {
-    font-size: var(--text-sm);
-    color: var(--color-text-secondary);
-    margin: 0 0 var(--space-1);
-  }
-
-  .candidate-system {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    margin: 0 0 var(--space-1);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .candidate-reasoning {
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-    font-style: italic;
-    margin: var(--space-2) 0 0;
+  .results :global(.cell-action) {
+    text-align: right;
   }
 </style>

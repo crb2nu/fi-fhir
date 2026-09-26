@@ -1,11 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import PageHeader from '$lib/ui/PageHeader.svelte';
-  import Tabs from '$lib/ui/Tabs.svelte';
-  import type { TabItem } from '$lib/ui/types';
-  import AuthoringFlowRail from '$lib/features/shared/AuthoringFlowRail.svelte';
-  import type { FlowStep } from '$lib/features/shared/authoringFlow';
+  import CircleHelp from '@lucide/svelte/icons/circle-help';
+  import { IconButton, Popover, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
   import AutorouteResolver from '$lib/features/terminology/AutorouteResolver.svelte';
   import MappingBrowser from '$lib/features/terminology/MappingBrowser.svelte';
   import MappingUploader from '$lib/features/terminology/MappingUploader.svelte';
@@ -17,29 +13,34 @@
 
   type MappingNode = ListMappingsQuery['listMappings']['nodes'][number];
 
-  let tabs: TabItem[] = [
-    { key: 'browse', label: 'Browse' },
-    { key: 'upload', label: 'Upload' },
-    { key: 'review', label: 'Review' },
-    { key: 'resolve', label: 'Resolver' },
-    { key: 'workflows', label: 'Workflows' }
-  ];
+  const PANEL_ID = 'terminology-view';
 
   let activeTab = 'browse';
-  let reviewCount = 0;
-  let flowSteps: FlowStep[] = [];
+  // Undefined until the stats load; the Review tab shows no count until then.
+  let reviewCount: number | undefined = undefined;
 
-  // Load pending review count for badge
-  onMount(async () => {
+  $: tabItems = [
+    { id: 'browse', label: 'Browse', controls: PANEL_ID },
+    { id: 'upload', label: 'Upload', controls: PANEL_ID },
+    { id: 'review', label: 'Review', count: reviewCount, controls: PANEL_ID },
+    { id: 'resolve', label: 'Resolver', controls: PANEL_ID },
+    { id: 'workflows', label: 'Workflows', controls: PANEL_ID }
+  ] satisfies TabItem[];
+
+  $: activeLabel = tabItems.find((tab) => tab.id === activeTab)?.label ?? 'Browse';
+
+  async function loadReviewCount() {
     try {
       const stats = await getPendingAutorouteStats();
       reviewCount = stats.pendingCount;
-      tabs = tabs.map((t) =>
-        t.key === 'review' ? { ...t, count: stats.pendingCount } : t
-      );
     } catch {
-      // Badge is optional — silently ignore
+      // The count is optional — silently ignore
     }
+  }
+
+  // Load pending review count for the tab
+  onMount(() => {
+    void loadReviewCount();
   });
 
   // Trigger refresh when a mapping is approved or uploaded
@@ -48,50 +49,14 @@
     browserKey++;
   }
 
+  function handleReviewChange() {
+    refreshBrowser();
+    void loadReviewCount();
+  }
+
   // Edit modal state
   let editingMapping: MappingNode | null = null;
   let showEditor = false;
-
-  $: flowSteps = [
-    {
-      eyebrow: 'Upstream source context',
-      title: 'Start from the code that appeared in HL7 or the source profile',
-      description:
-        'Use the HL7 preview and profile workspace first so the mapping work stays tied to the source message and the normalization rules that produced it.',
-      metric: 'upstream context',
-      status: activeTab === 'resolve' ? 'resolver open' : 'ready',
-      actions: [
-        { label: 'Open HL7 preview', variant: 'primary', href: '/hl7' },
-        { label: 'Open profiles', variant: 'secondary', href: '/profiles' }
-      ]
-    },
-    {
-      eyebrow: 'Mapping action',
-      title: 'Resolve, upload, or review the candidate code path',
-      description:
-        'Browse persistent mappings, upload CSVs from downstream teams, or let the resolver suggest a semantic match when the source code has no obvious home.',
-      metric: activeTab === 'review' ? 'review queue' : 'mapping lane',
-      status: activeTab === 'browse' ? 'browse' : activeTab === 'upload' ? 'upload' : 'resolve',
-      actions: [
-        { label: 'Browse', variant: 'secondary', onClick: () => { activeTab = 'browse'; } },
-        { label: 'Resolver', variant: 'secondary', onClick: () => { activeTab = 'resolve'; } },
-        { label: 'Upload CSV', variant: 'primary', onClick: () => { activeTab = 'upload'; } }
-      ]
-    },
-    {
-      eyebrow: 'Downstream workflow use',
-      title: 'Confirm review queues and workflow handoff',
-      description:
-        'Once a mapping is approved, keep an eye on the review queue and the workflow lane so code changes don’t drift away from the operational path that consumes them.',
-      metric: reviewCount ? `${reviewCount} pending` : 'review queue',
-      status: activeTab === 'workflows' ? 'workflow open' : 'monitoring',
-      actions: [
-        { label: 'Review', variant: 'secondary', onClick: () => { activeTab = 'review'; } },
-        { label: 'Workflows', variant: 'primary', onClick: () => { activeTab = 'workflows'; } },
-        { label: 'Open workflows', variant: 'ghost', href: '/workflows' }
-      ]
-    }
-  ] satisfies FlowStep[];
 
   function handleEditMapping(event: CustomEvent<{ mapping: MappingNode }>) {
     editingMapping = event.detail.mapping;
@@ -110,45 +75,43 @@
   }
 </script>
 
-<PageHeader title="Terminology Mapping" subtitle="Map codes after confirming the source profile and HL7 context." />
+<div class="terminology-page">
+  <Toolbar title="Terminology">
+    {#snippet tabs()}
+      <Tabs
+        label="Terminology views"
+        items={tabItems}
+        value={activeTab}
+        onchange={(id) => (activeTab = id)}
+      />
+    {/snippet}
+    {#snippet actions()}
+      <Popover label="About terminology" placement="bottom-end">
+        {#snippet trigger(props)}
+          <IconButton {...props} icon={CircleHelp} label="About terminology" />
+        {/snippet}
+        Mappings translate source codes into target terminologies. Resolve codes seen in HL7 intake;
+        approved suggestions and CSV uploads appear in Browse.
+      </Popover>
+    {/snippet}
+  </Toolbar>
 
-<div class="flow-shell">
-  <AuthoringFlowRail
-    compact
-    title="From source code to workflow-ready mapping"
-    steps={flowSteps}
-  />
-</div>
-
-<div class="tabs-wrapper">
-  <Tabs {tabs} active={activeTab} onChange={(key) => (activeTab = key)} />
-</div>
-
-<Panel>
-  {#if activeTab === 'browse'}
-    <div class="tab-content">
+  <div class="terminology-body" id={PANEL_ID} role="tabpanel" aria-label={activeLabel}>
+    {#if activeTab === 'browse'}
       {#key browserKey}
         <MappingBrowser on:refresh={refreshBrowser} on:edit={handleEditMapping} />
       {/key}
-    </div>
-  {:else if activeTab === 'upload'}
-    <div class="tab-content">
-      <MappingUploader on:uploaded={refreshBrowser} />
-    </div>
-  {:else if activeTab === 'review'}
-    <div class="tab-content">
-      <PendingReviewList on:approve={refreshBrowser} on:refresh={refreshBrowser} />
-    </div>
-  {:else if activeTab === 'resolve'}
-    <div class="tab-content">
+    {:else if activeTab === 'upload'}
+      <MappingUploader on:uploadComplete={refreshBrowser} />
+    {:else if activeTab === 'review'}
+      <PendingReviewList on:approve={handleReviewChange} on:refresh={handleReviewChange} />
+    {:else if activeTab === 'resolve'}
       <AutorouteResolver on:approved={refreshBrowser} />
-    </div>
-  {:else if activeTab === 'workflows'}
-    <div class="tab-content">
+    {:else if activeTab === 'workflows'}
       <TemporalWorkflowList workflowType="TerminologyReviewWorkflow" />
-    </div>
-  {/if}
-</Panel>
+    {/if}
+  </div>
+</div>
 
 <!-- Mapping Editor Modal -->
 {#if editingMapping}
@@ -161,15 +124,18 @@
 {/if}
 
 <style>
-  .flow-shell {
-    margin-bottom: 14px;
+  .terminology-page {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
-  .tabs-wrapper {
-    margin-bottom: 16px;
-  }
-
-  .tab-content {
-    padding: 8px 0;
+  .terminology-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
   }
 </style>
