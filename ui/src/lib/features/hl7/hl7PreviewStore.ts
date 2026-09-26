@@ -14,10 +14,14 @@ export type HL7PreviewState = {
   session: IntegrationSessionPreviewMeta | null;
 };
 
-const defaultSample =
-  'MSH|^~\\\\&|EPIC|HOSPITAL|FI-FHIR|DEST|20240115103000||ADT^A01|MSG001|P|2.5\\r' +
-  'PID|1||MRN123^^^HOSP^MR||DOE^JOHN||19800101|M\\r' +
-  'PV1|1|I|ICU^101^A^HOSPITAL';
+// Synthetic ADT^A01 in the executable A01 subset (MSH, EVN, PID, PV1) with
+// real CR segment terminators and the standard `^~\&` encoding characters.
+const defaultSample = [
+  'MSH|^~\\&|EPIC|HOSPITAL|FI-FHIR|DEST|20240115103000||ADT^A01|MSG001|P|2.5',
+  'EVN|A01|20240115103000',
+  'PID|1||MRN123^^^HOSP^MR||DOE^JOHN||19800101|M',
+  'PV1|1|I|ICU^101^A^HOSPITAL'
+].join('\r');
 
 export function createHL7PreviewStore() {
   const state = writable<HL7PreviewState>({

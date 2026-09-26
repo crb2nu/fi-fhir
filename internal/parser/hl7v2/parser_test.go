@@ -2,6 +2,8 @@ package hl7v2
 
 import (
 	"fmt"
+	"reflect"
+	"strings"
 	"testing"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
@@ -1500,4 +1502,83 @@ FT1|1|TXN006||20240115|20240115|CG|99213^Office Visit Level 3^CPT||||75.00|75.00
 	if len(event.Transactions) != 1 {
 		t.Fatalf("Expected 1 transaction, got %d", len(event.Transactions))
 	}
+}
+
+// TestParseRawIsIdenticalAcrossLineEndings pins the tolerant segment split: an
+// ADT^A01 separated by LF, CRLF, or a mix of CR, LF and CRLF (blank lines
+// included) parses to exactly the segments, fields and event of its CR form.
+// The strict executable path keeps its own claimed-line-ending contract; see
+// TestStrictValidationEnforcesClaimedLineEndingMode.
+func TestParseRawIsIdenticalAcrossLineEndings(t *testing.T) {
+	segments := []string{
+		`MSH|^~\&|SENDING_APP|SENDING_FAC|RECEIVING_APP|RECEIVING_FAC|20240115120000||ADT^A01|MSG00001|P|2.5`,
+		"EVN|A01|20240115120000",
+		"PID|1||123456789^^^HOSPITAL^MRN||DOE^JOHN^WILLIAM||19800315|M",
+		"PV1|1|I|ICU^101^A^HOSPITAL||||1234567890^SMITH^JANE",
+	}
+	crForm := strings.Join(segments, "\r")
+	want, err := NewParser("test_source", ParserConfig{}).parseRaw(crForm)
+	if err != nil {
+		t.Fatalf("parseRaw(CR) error = %v", err)
+	}
+	if len(want.Segments) != len(segments) {
+		t.Fatalf("CR form parsed to %d segments, want %d", len(want.Segments), len(segments))
+	}
+	wantEvent := parseAdmitEvent(t, crForm)
+
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "LF", raw: strings.Join(segments, "\n")},
+		{name: "CRLF", raw: strings.Join(segments, "\r\n")},
+		{name: "mixed CR, LF and CRLF", raw: segments[0] + "\r" + segments[1] + "\n" + segments[2] + "\r\n" + segments[3]},
+		{
+			name: "mixed with blank lines and a trailing terminator",
+			raw:  segments[0] + "\r\n\r\n" + segments[1] + "\n\n" + segments[2] + "\r" + segments[3] + "\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewParser("test_source", ParserConfig{}).parseRaw(tt.raw)
+			if err != nil {
+				t.Fatalf("parseRaw() error = %v", err)
+			}
+			if !reflect.DeepEqual(got.Segments, want.Segments) {
+				t.Errorf("segments differ from the CR form:\n got: %q\nwant: %q", got.Segments, want.Segments)
+			}
+			if got.Delimiters != want.Delimiters {
+				t.Errorf("Delimiters = %+v, want %+v", got.Delimiters, want.Delimiters)
+			}
+			if got.Type != want.Type || got.ControlID != want.ControlID || got.Version != want.Version {
+				t.Errorf("MSH metadata = (%q, %q, %q), want (%q, %q, %q)",
+					got.Type, got.ControlID, got.Version, want.Type, want.ControlID, want.Version)
+			}
+
+			event := parseAdmitEvent(t, tt.raw)
+			if !reflect.DeepEqual(event.Patient, wantEvent.Patient) {
+				t.Errorf("Patient = %+v, want %+v", event.Patient, wantEvent.Patient)
+			}
+			if !reflect.DeepEqual(event.Encounter, wantEvent.Encounter) {
+				t.Errorf("Encounter = %+v, want %+v", event.Encounter, wantEvent.Encounter)
+			}
+			if event.SourceMessageID != wantEvent.SourceMessageID {
+				t.Errorf("SourceMessageID = %q, want %q", event.SourceMessageID, wantEvent.SourceMessageID)
+			}
+		})
+	}
+}
+
+func parseAdmitEvent(t *testing.T, raw string) *events.PatientAdmitEvent {
+	t.Helper()
+	result, err := NewParser("test_source", ParserConfig{}).Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	event, ok := result.(*events.PatientAdmitEvent)
+	if !ok {
+		t.Fatalf("Parse() = %T, want *events.PatientAdmitEvent", result)
+	}
+	return event
 }
