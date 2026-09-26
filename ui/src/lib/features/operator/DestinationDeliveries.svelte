@@ -10,8 +10,12 @@
    * text, because none of them was ever recorded.
    */
 
-  import Badge from '$lib/ui/Badge.svelte';
-  import { describeDestinationDelivery, type DestinationDeliveryLike } from './attemptPresentation';
+  import { Badge } from '$lib/ui/primitives';
+  import {
+    badgeTone,
+    describeDestinationDelivery,
+    type DestinationDeliveryLike
+  } from './attemptPresentation';
 
   export let deliveries: readonly DestinationDeliveryLike[] = [];
   /** Accessible name of the list, so several blocks on a page stay distinct. */
@@ -28,8 +32,8 @@
       {@const display = describeDestinationDelivery(delivery)}
       <li class="delivery">
         <div class="summary">
-          <Badge variant="primary" size="sm" mono>{display.transportLabel}</Badge>
-          <Badge variant={display.outcomeVariant} size="sm">{display.outcomeLabel}</Badge>
+          <Badge mono>{display.transportLabel}</Badge>
+          <Badge tone={badgeTone(display.outcomeVariant)} dot>{display.outcomeLabel}</Badge>
           {#if display.entryCountText}
             <span class="muted">{display.entryCountText}</span>
           {/if}
@@ -98,9 +102,9 @@
     background: var(--color-bg-surface);
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-sm);
-    padding: 0 var(--space-2);
+    padding: 0 var(--space-1);
     font-family: var(--font-mono);
-    font-size: var(--text-2xs);
+    font-size: var(--text-mono);
     color: var(--color-text-secondary);
   }
 
@@ -111,7 +115,7 @@
   .endpoint {
     margin: var(--space-1) 0 0;
     font-family: var(--font-mono);
-    font-size: var(--text-xs);
+    font-size: var(--text-mono);
     color: var(--color-text-tertiary);
     overflow-wrap: anywhere;
   }

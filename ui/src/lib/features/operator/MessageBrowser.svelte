@@ -1,21 +1,32 @@
 <script lang="ts">
   /**
-   * Durable message browser.
+   * Durable message browser: Operator › Messages, left side.
    *
-   * Lists tenant-scoped admission receipts from the operator control plane and
-   * drills into one receipt's full receipt-to-delivery lineage. Filters and the
-   * cursor are server-owned: the backend clamps every page and returns an
-   * opaque forward cursor, so this component never invents its own paging.
+   * Lists tenant-scoped admission receipts from the operator control plane; a
+   * selected row opens its receipt-to-delivery trace in the pane beside it.
+   * Filters and the cursor are server-owned: the backend clamps every page and
+   * returns an opaque forward cursor, so this component never invents its own
+   * paging.
    */
 
   import { createEventDispatcher, onMount } from 'svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
-  import Input from '$lib/ui/Input.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Select from '$lib/ui/Select.svelte';
-  import Skeleton from '$lib/ui/Skeleton.svelte';
+  import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Inbox from '@lucide/svelte/icons/inbox';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import {
+    Badge,
+    Button,
+    EmptyState,
+    IconButton,
+    Input,
+    Select,
+    Table,
+    Td,
+    Th,
+    Tr
+  } from '$lib/ui/primitives';
   import { fetchReceipts, type OperatorReceipt } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
   import { formatTimestamp, shortDigest } from './attemptPresentation';
@@ -88,127 +99,123 @@
     void load(previous.length > 0 ? previous[previous.length - 1] : null);
   }
 
+  function select(receiptId: string) {
+    dispatch('select', { receiptId });
+  }
+
   onMount(() => {
     void load(null);
   });
 </script>
 
-<Panel title="Messages" padding="md">
-  <svelte:fragment slot="actions">
-    <Button size="sm" variant="secondary" on:click={() => applyFilters()} disabled={loading}>
-      Refresh
-    </Button>
-  </svelte:fragment>
-
+<div class="browser">
   <form
     class="filters"
-    on:submit|preventDefault={applyFilters}
     aria-label="Message filters"
+    on:submit|preventDefault={applyFilters}
   >
-    <Select label="Status" bind:value={statusFilter} options={statusOptions} size="sm" />
-    <Input label="Correlation ID" bind:value={correlationId} size="sm" placeholder="correlation-…" />
-    <Input label="Source message ID" bind:value={sourceMessageId} size="sm" placeholder="MSH-10" />
-    <Input
-      label="Integration"
-      bind:value={integrationArtifactId}
-      size="sm"
-      placeholder="artifact ID"
-    />
-    <div class="filter-action">
-      <Button size="sm" type="submit" disabled={loading}>Apply</Button>
+    <div class="filter filter-status">
+      <Select aria-label="Status" bind:value={statusFilter} options={statusOptions} />
     </div>
+    <div class="filter">
+      <Input aria-label="Correlation ID" bind:value={correlationId} placeholder="Correlation id" mono />
+    </div>
+    <div class="filter">
+      <Input aria-label="Source message ID" bind:value={sourceMessageId} placeholder="MSH-10" mono />
+    </div>
+    <div class="filter">
+      <Input
+        aria-label="Integration"
+        bind:value={integrationArtifactId}
+        placeholder="Integration"
+        mono
+      />
+    </div>
+    <Button type="submit" disabled={loading}>Apply</Button>
+    <span class="spacer"></span>
+    <IconButton icon={RefreshCw} label="Refresh messages" {loading} onclick={applyFilters} />
   </form>
 
   {#if loading}
-    <div class="loading" aria-busy="true" aria-live="polite">
-      <Skeleton lines={4} />
-      <span class="sr-only">Loading messages</span>
-    </div>
+    <EmptyState message="Loading messages" aria-busy="true" aria-live="polite" />
   {:else if error}
-    <div class="error-state" role="alert">
-      <p class="error-message">{error}</p>
-      <Button size="sm" variant="secondary" on:click={() => load(null)}>Retry</Button>
-    </div>
-  {:else if receipts.length === 0}
     <EmptyState
-      icon="inbox"
-      title="No messages match these filters"
-      description="Durable admissions appear here as soon as an integration accepts a message."
+      icon={CircleAlert}
+      role="alert"
+      message={error}
+      actionLabel="Retry"
+      onaction={() => void load(null)}
     />
+  {:else if receipts.length === 0}
+    <EmptyState icon={Inbox} message="No messages match these filters" />
   {:else}
-    <div class="table-scroll">
-      <table class="records">
-        <caption class="sr-only">Durable admission receipts</caption>
-        <thead>
-          <tr>
-            <th scope="col">Receipt</th>
-            <th scope="col">Status</th>
-            <th scope="col">Correlation</th>
-            <th scope="col">Integration</th>
-            <th scope="col">Events</th>
-            <th scope="col">Failed</th>
-            <th scope="col">Dead letters</th>
-            <th scope="col">Recorded</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each receipts as receipt (receipt.receiptId)}
-            <tr class:selected={receipt.receiptId === selectedReceiptId}>
-              <th scope="row">
-                <button
-                  type="button"
-                  class="link"
-                  on:click={() => dispatch('select', { receiptId: receipt.receiptId })}
-                >
-                  {receipt.receiptId}
-                </button>
-              </th>
-              <td>
-                <Badge variant={receipt.status === 'accepted' ? 'success' : 'danger'} size="sm">
-                  {receipt.status}
-                </Badge>
-              </td>
-              <td class="mono">{receipt.correlationId}</td>
-              <td class="mono" title={receipt.integrationRevision.digest}>
-                {receipt.integrationRevision.artifactId}@{receipt.integrationRevision.revisionId}
-                <span class="digest">{shortDigest(receipt.integrationRevision.digest)}</span>
-              </td>
-              <td class="numeric">{receipt.eventCount}</td>
-              <td class="numeric">
-                {#if receipt.failedAttemptCount > 0}
-                  <Badge variant="danger" size="sm">{receipt.failedAttemptCount}</Badge>
-                {:else}
-                  {receipt.failedAttemptCount}
-                {/if}
-              </td>
-              <td class="numeric">
-                {#if receipt.deadLetterCount > 0}
-                  <Badge variant="warning" size="sm">{receipt.deadLetterCount}</Badge>
-                {:else}
-                  {receipt.deadLetterCount}
-                {/if}
-              </td>
-              <td class="mono">{formatTimestamp(receipt.recordedAt)}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
+    <Table label="Durable admission receipts" layout="fixed" class="receipts">
+      {#snippet head()}
+        <tr>
+          <Th width="152px">Recorded</Th>
+          <Th>Receipt</Th>
+          <Th width="88px">Status</Th>
+          <Th>Correlation</Th>
+          <Th>Integration</Th>
+          <Th width="62px" numeric>Events</Th>
+          <Th width="58px" numeric>Failed</Th>
+          <Th width="44px" numeric>DLQ</Th>
+        </tr>
+      {/snippet}
+      {#each receipts as receipt (receipt.receiptId)}
+        <Tr
+          selectable
+          selected={receipt.receiptId === selectedReceiptId}
+          onselect={() => select(receipt.receiptId)}
+        >
+          <Td mono muted value={formatTimestamp(receipt.recordedAt)} />
+          <Td mono truncate value={receipt.receiptId} />
+          <Td>
+            <Badge tone={receipt.status === 'accepted' ? 'success' : 'danger'} dot>
+              {receipt.status}
+            </Badge>
+          </Td>
+          <Td mono truncate muted value={receipt.correlationId} />
+          <Td
+            mono
+            truncate
+            title={`${receipt.integrationRevision.artifactId}@${receipt.integrationRevision.revisionId} ${shortDigest(receipt.integrationRevision.digest)}`}
+            value={`${receipt.integrationRevision.artifactId}@${receipt.integrationRevision.revisionId}`}
+          />
+          <Td numeric value={receipt.eventCount} />
+          <Td numeric>
+            {#if receipt.failedAttemptCount > 0}
+              <Badge tone="danger" mono>{receipt.failedAttemptCount}</Badge>
+            {:else}
+              {receipt.failedAttemptCount}
+            {/if}
+          </Td>
+          <Td numeric>
+            {#if receipt.deadLetterCount > 0}
+              <Badge tone="warning" mono>{receipt.deadLetterCount}</Badge>
+            {:else}
+              {receipt.deadLetterCount}
+            {/if}
+          </Td>
+        </Tr>
+      {/each}
+    </Table>
 
     <div class="pagination">
+      <span class="page text-mono">Page {cursors.length + 1}</span>
       <Button
-        size="sm"
-        variant="secondary"
-        on:click={previousPage}
+        variant="ghost"
+        icon={ChevronLeft}
+        onclick={previousPage}
         disabled={cursors.length === 0 || loading}
         title={cursors.length === 0 ? 'You are on the first page.' : undefined}
       >
         Previous
       </Button>
       <Button
-        size="sm"
-        variant="secondary"
-        on:click={nextPage}
+        variant="ghost"
+        icon={ChevronRight}
+        onclick={nextPage}
         disabled={!hasNextPage || loading}
         title={!hasNextPage ? 'No further pages match these filters.' : undefined}
       >
@@ -216,117 +223,53 @@
       </Button>
     </div>
   {/if}
-</Panel>
+</div>
 
 <style>
+  .browser {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   .filters {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: var(--space-3);
-    align-items: end;
-    margin-bottom: var(--space-4);
-  }
-
-  .filter-action {
     display: flex;
-    align-items: flex-end;
-  }
-
-  .loading {
-    padding: var(--space-2) 0;
-  }
-
-  .error-state {
-    background: var(--color-danger-bg);
-    border: 1px solid var(--color-danger-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-  }
-
-  .error-message {
-    margin: 0;
-    color: var(--color-danger-text);
-    font-size: var(--text-sm);
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-  }
-
-  .records {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-sm);
-  }
-
-  .records th,
-  .records td {
-    text-align: left;
-    padding: var(--space-2);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--color-border-subtle);
-    white-space: nowrap;
   }
 
-  .records thead th {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  .filter {
+    width: 150px;
   }
 
-  .records tbody tr.selected {
-    background: var(--color-bg-active);
+  .filter-status {
+    width: 128px;
   }
 
-  .numeric {
-    text-align: right;
+  .spacer {
+    flex: 1 1 auto;
   }
 
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-  }
-
-  .digest {
-    color: var(--color-text-muted);
-  }
-
-  .link {
-    background: none;
-    border: none;
-    padding: 0;
-    color: var(--color-primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    cursor: pointer;
-    text-decoration: underline;
-  }
-
-  .link:hover {
-    color: var(--color-primary-hover);
+  .browser :global(.receipts) {
+    flex: 0 1 auto;
+    min-height: 0;
   }
 
   .pagination {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    border-top: 1px solid var(--color-border-subtle);
   }
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+  .page {
+    margin-right: auto;
+    color: var(--color-text-tertiary);
   }
 </style>

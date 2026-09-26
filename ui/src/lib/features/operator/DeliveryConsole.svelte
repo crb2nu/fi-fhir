@@ -11,12 +11,29 @@
    */
 
   import { createEventDispatcher, onMount } from 'svelte';
-  import Badge from '$lib/ui/Badge.svelte';
-  import Button from '$lib/ui/Button.svelte';
-  import EmptyState from '$lib/ui/EmptyState.svelte';
-  import Panel from '$lib/ui/Panel.svelte';
-  import Skeleton from '$lib/ui/Skeleton.svelte';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Inbox from '@lucide/svelte/icons/inbox';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+  import Send from '@lucide/svelte/icons/send';
+  import Trash2 from '@lucide/svelte/icons/trash-2';
+  import Zap from '@lucide/svelte/icons/zap';
   import {
+    Badge,
+    Button,
+    EmptyState,
+    IconButton,
+    Panel,
+    Table,
+    Td,
+    Th,
+    Tr,
+    type IconComponent
+  } from '$lib/ui/primitives';
+  import {
+    badgeTone,
     circuitStateVariant,
     deadLetterStateLabel,
     deliveryActionBlockedReason,
@@ -49,7 +66,12 @@
   let error: string | null = null;
   let circuitError: string | null = null;
 
-  const actions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
+  const recoveryActions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
+  const actionIcons: Record<DeliveryAction, IconComponent> = {
+    replay: RotateCcw,
+    resubmit: Send,
+    discard: Trash2
+  };
 
   /**
    * A dead letter does not carry the provenance ledger, so each row's Delivery
@@ -153,283 +175,240 @@
   });
 </script>
 
-<Panel title="Dead-letter queue" padding="md">
-  <svelte:fragment slot="actions">
-    <Button size="sm" variant="ghost" on:click={toggleScope} disabled={loading}>
+<Panel title="Dead letters" flush>
+  {#snippet actions()}
+    <Button variant="ghost" onclick={toggleScope} disabled={loading}>
       {activeOnly ? 'Show resolved too' : 'Show open only'}
     </Button>
-    <Button size="sm" variant="secondary" on:click={reload} disabled={loading}>Refresh</Button>
-  </svelte:fragment>
+    <IconButton icon={RefreshCw} label="Refresh dead letters" {loading} onclick={reload} />
+  {/snippet}
 
   {#if loading}
-    <div aria-busy="true" aria-live="polite">
-      <Skeleton lines={3} />
-      <span class="sr-only">Loading dead letters</span>
-    </div>
+    <EmptyState align="start" message="Loading dead letters" aria-busy="true" aria-live="polite" />
   {:else if error}
-    <div class="error-state" role="alert">
-      <p class="error-message">{error}</p>
-      <Button size="sm" variant="secondary" on:click={reload}>Retry</Button>
-    </div>
+    <EmptyState
+      icon={CircleAlert}
+      align="start"
+      role="alert"
+      message={error}
+      actionLabel="Retry"
+      onaction={reload}
+    />
   {:else if deadLetters.length === 0}
     <EmptyState
-      icon="inbox"
-      title={activeOnly ? 'No open dead letters' : 'No dead letters recorded'}
-      description={activeOnly
-        ? 'Delivery is keeping up. Failed deliveries that exhaust their retries appear here.'
-        : 'Nothing has entered the dead-letter queue for this tenant.'}
+      icon={Inbox}
+      align="start"
+      message={activeOnly
+        ? 'No open dead letters. Deliveries that exhaust their retries appear here.'
+        : 'No dead letters recorded for this tenant.'}
     />
   {:else}
-    <div class="table-scroll">
-      <table class="records">
-        <caption class="sr-only">Durable dead-letter entries</caption>
-        <thead>
-          <tr>
-            <th scope="col">Attempt</th>
-            <th scope="col">State</th>
-            <th scope="col">Failure</th>
-            <th scope="col">Replays</th>
-            <th scope="col">Failed at</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each deadLetters as entry, index (entry.attemptId)}
-            {@const detail = details[entry.attemptId]}
-            <tr>
-              <th scope="row">
-                <button
-                  type="button"
-                  class="link"
-                  on:click={() => dispatch('inspect', { attemptId: entry.attemptId })}
+    <Table label="Durable dead-letter entries" layout="fixed">
+      {#snippet head()}
+        <tr>
+          <Th width="330px">Attempt</Th>
+          <Th width="204px">State</Th>
+          <Th>Failure</Th>
+          <Th width="76px" numeric>Replays</Th>
+          <Th width="164px">Failed at</Th>
+          <Th width="316px">Actions</Th>
+        </tr>
+      {/snippet}
+      {#each deadLetters as entry, index (entry.attemptId)}
+        {@const detail = details[entry.attemptId]}
+        {@const open = expanded[entry.attemptId] ?? false}
+        <Tr>
+          <Td>
+            <span class="attempt">
+              <IconButton
+                icon={open ? ChevronDown : ChevronRight}
+                label={open ? 'Hide delivery' : 'Show delivery'}
+                aria-expanded={open ? 'true' : 'false'}
+                aria-controls={`dlq-deliveries-${index}`}
+                onclick={() => toggleDeliveries(entry.attemptId)}
+              />
+              <button
+                type="button"
+                class="link"
+                title={`Open the trace for ${entry.attemptId}`}
+                on:click={() => dispatch('inspect', { attemptId: entry.attemptId })}
+              >
+                {entry.attemptId}
+              </button>
+            </span>
+          </Td>
+          <Td>
+            <Badge tone={entry.active ? 'warning' : 'neutral'} dot>
+              {deadLetterStateLabel(entry)}
+            </Badge>
+          </Td>
+          <Td truncate title={`${entry.failureCode}: ${entry.failureDetail}`}>
+            <code class="failure-code">{entry.failureCode}</code>
+            <span class="detail">{entry.failureDetail}</span>
+          </Td>
+          <Td numeric value={entry.replayCount} />
+          <Td mono muted value={formatTimestamp(entry.failedAt)} />
+          <Td>
+            <span class="row-actions">
+              {#each recoveryActions as action (action)}
+                {@const blocked = blockedReason(entry, action, $deliveryControlBlock)}
+                <Button
+                  variant={action === 'discard' ? 'danger' : 'secondary'}
+                  icon={actionIcons[action]}
+                  disabled={blocked !== null}
+                  title={blocked ?? undefined}
+                  onclick={() => dispatch('control', { action, attemptId: entry.attemptId })}
                 >
-                  {entry.attemptId}
-                </button>
-                <div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-expanded={expanded[entry.attemptId] ? 'true' : 'false'}
-                    aria-controls={`dlq-deliveries-${index}`}
-                    on:click={() => toggleDeliveries(entry.attemptId)}
-                  >
-                    {expanded[entry.attemptId] ? 'Hide delivery' : 'Show delivery'}
-                  </Button>
-                </div>
-              </th>
-              <td>
-                <Badge variant={entry.active ? 'warning' : 'default'} size="sm">
-                  {deadLetterStateLabel(entry)}
-                </Badge>
-              </td>
-              <td>
-                <code>{entry.failureCode}</code>
-                <span class="detail">{entry.failureDetail}</span>
-              </td>
-              <td class="numeric">{entry.replayCount}</td>
-              <td class="mono">{formatTimestamp(entry.failedAt)}</td>
-              <td>
-                <div class="row-actions">
-                  {#each actions as action (action)}
-                    {@const blocked = blockedReason(entry, action, $deliveryControlBlock)}
-                    <Button
-                      size="sm"
-                      variant={action === 'discard' ? 'danger' : 'secondary'}
-                      disabled={blocked !== null}
-                      title={blocked ?? undefined}
-                      on:click={() =>
-                        dispatch('control', { action, attemptId: entry.attemptId })}
-                    >
-                      {actionLabel(action)}
-                    </Button>
-                  {/each}
-                </div>
-              </td>
-            </tr>
-            {#if expanded[entry.attemptId]}
-              <tr class="detail-row" id={`dlq-deliveries-${index}`}>
-                <td colspan="6">
-                  <h4 class="block-title">Delivery</h4>
-                  {#if !detail || detail.loading}
-                    <div aria-busy="true" aria-live="polite">
-                      <Skeleton lines={1} />
-                      <span class="sr-only">Loading destination deliveries</span>
-                    </div>
-                  {:else if detail.error}
-                    <p class="error-message" role="alert">{detail.error}</p>
-                  {:else}
-                    <DestinationDeliveries
-                      deliveries={detail.deliveries}
-                      label={`Destination deliveries for ${entry.attemptId}, newest first`}
-                    />
-                  {/if}
-                </td>
-              </tr>
-            {/if}
-          {/each}
-        </tbody>
-      </table>
-    </div>
+                  {actionLabel(action)}
+                </Button>
+              {/each}
+            </span>
+          </Td>
+        </Tr>
+        {#if open}
+          <tr class="detail-row" id={`dlq-deliveries-${index}`}>
+            <td colspan="6">
+              <h4 class="block-title">Delivery</h4>
+              {#if !detail || detail.loading}
+                <p class="detail" aria-busy="true" aria-live="polite">Loading destination deliveries</p>
+              {:else if detail.error}
+                <p class="error-message" role="alert">{detail.error}</p>
+              {:else}
+                <DestinationDeliveries
+                  deliveries={detail.deliveries}
+                  label={`Destination deliveries for ${entry.attemptId}, newest first`}
+                />
+              {/if}
+            </td>
+          </tr>
+        {/if}
+      {/each}
+    </Table>
   {/if}
 </Panel>
 
-<Panel title="Destination circuits" padding="md">
+<Panel title="Destination circuits" flush>
   {#if loading}
-    <Skeleton lines={2} />
+    <EmptyState align="start" message="Loading circuit state" aria-busy="true" />
   {:else if circuitError}
-    <div class="error-state" role="alert">
-      <p class="error-message">{circuitError}</p>
-      <Button size="sm" variant="secondary" on:click={reload}>Retry</Button>
-    </div>
+    <EmptyState
+      icon={CircleAlert}
+      align="start"
+      role="alert"
+      message={circuitError}
+      actionLabel="Retry"
+      onaction={reload}
+    />
   {:else if circuits.length === 0}
     <EmptyState
-      icon="data"
-      title="No circuit state recorded"
-      description="A destination gets a circuit entry the first time a delivery to it succeeds or fails."
+      icon={Zap}
+      align="start"
+      message="No circuit state recorded. A destination gets one after its first delivery."
     />
   {:else}
-    <ul class="circuits">
+    <Table label="Destination circuit state" layout="fixed">
+      {#snippet head()}
+        <tr>
+          <Th>Destination</Th>
+          <Th width="96px">State</Th>
+          <Th width="88px" numeric>Failures</Th>
+          <Th width="164px">Open until</Th>
+          <Th width="164px">Updated</Th>
+        </tr>
+      {/snippet}
       {#each circuits as circuit (circuit.destination.artifactId + circuit.destination.revisionId)}
-        <li>
-          <Badge variant={circuitStateVariant(circuit.state)} size="sm">{circuit.state}</Badge>
-          <span class="mono" title={circuit.destination.digest}>
-            {circuit.destination.artifactId}@{circuit.destination.revisionId}
-            <span class="detail">{shortDigest(circuit.destination.digest)}</span>
-          </span>
-          <span class="detail">{circuit.consecutiveFailures} consecutive failures</span>
-          {#if circuit.openUntil}
-            <span class="detail">open until {formatTimestamp(circuit.openUntil)}</span>
-          {/if}
-          <span class="detail">updated {formatTimestamp(circuit.updatedAt)}</span>
-        </li>
+        <Tr>
+          <Td
+            mono
+            truncate
+            title={circuit.destination.digest}
+            value={`${circuit.destination.artifactId}@${circuit.destination.revisionId} · ${shortDigest(circuit.destination.digest)}`}
+          />
+          <Td>
+            <Badge tone={badgeTone(circuitStateVariant(circuit.state))} dot>{circuit.state}</Badge>
+          </Td>
+          <Td numeric value={circuit.consecutiveFailures} />
+          <Td mono muted value={formatTimestamp(circuit.openUntil)} />
+          <Td mono muted value={formatTimestamp(circuit.updatedAt)} />
+        </Tr>
       {/each}
-    </ul>
+    </Table>
   {/if}
 </Panel>
 
 <style>
-  .error-state {
-    background: var(--color-danger-bg);
-    border: 1px solid var(--color-danger-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
+  .attempt {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
+    gap: var(--space-1);
+    min-width: 0;
+    overflow: hidden;
   }
 
-  .error-message {
-    margin: 0;
-    color: var(--color-danger-text);
-    font-size: var(--text-sm);
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-  }
-
-  .records {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-sm);
-  }
-
-  .records th,
-  .records td {
-    text-align: left;
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--color-border-subtle);
-    vertical-align: top;
-  }
-
-  .records thead th {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  .link {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    text-decoration: underline;
+    text-decoration-color: var(--color-border-strong);
+    text-underline-offset: 2px;
+    cursor: pointer;
   }
 
-  .numeric {
-    text-align: right;
+  .link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .link:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 1px;
+    border-radius: var(--radius-sm);
+  }
+
+  .failure-code {
+    margin-right: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-danger-text);
+  }
+
+  .detail {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .row-actions {
+    display: inline-flex;
+    gap: var(--space-1);
   }
 
   .detail-row td {
-    background: var(--color-bg-surface);
+    padding: var(--space-2) var(--space-3) var(--space-3) 44px;
+    border-bottom: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-base);
   }
 
   .block-title {
     margin: 0 0 var(--space-2);
     font-family: var(--font-ui);
-    font-size: var(--text-2xs);
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
     color: var(--color-text-tertiary);
   }
 
-  .row-actions {
-    display: flex;
-    gap: var(--space-1);
-    flex-wrap: wrap;
-  }
-
-  .link {
-    background: none;
-    border: none;
-    padding: 0;
-    color: var(--color-primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    cursor: pointer;
-    text-decoration: underline;
-  }
-
-  .link:hover {
-    color: var(--color-primary-hover);
-  }
-
-  .mono {
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--color-text-secondary);
-  }
-
-  .detail {
-    color: var(--color-text-tertiary);
-    font-size: var(--text-xs);
-  }
-
-  code {
-    font-family: var(--font-mono);
+  .error-message {
+    margin: 0;
     font-size: var(--text-xs);
     color: var(--color-danger-text);
-  }
-
-  .circuits {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .circuits li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 </style>

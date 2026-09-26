@@ -96,6 +96,31 @@ describe('OperatorPage — capability pre-flight', () => {
     expect(screen.queryByTestId('operator-preflight')).not.toBeInTheDocument();
   });
 
+  it('is a toolbar titled Operator with Messages, Delivery and Deployments tabs', async () => {
+    setAccessStatus(status(true));
+    render(OperatorPage);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Operator' })).toBeInTheDocument();
+    const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent?.trim());
+    expect(tabs).toEqual(['Messages', 'Delivery', 'Deployments']);
+    expect(screen.getByRole('tab', { name: 'Messages' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText('No messages match these filters')).toBeInTheDocument();
+    expect(screen.getByText('No message selected.')).toBeInTheDocument();
+    // The e2e gate (check 2) asserts this word never reaches the page body.
+    expect(document.body.textContent ?? '').not.toMatch(/forbidden/i);
+  });
+
+  it('pre-flight lists the missing roles in mono and keeps the gate attributes', async () => {
+    setAccessStatus(status(false));
+    render(OperatorPage);
+
+    const preflight = await screen.findByTestId('operator-preflight');
+    const codes = Array.from(preflight.querySelectorAll('code')).map((node) => node.textContent);
+    expect(codes).toContain('integration.operator');
+    expect(codes).toContain('graphql:operator');
+    expect(document.body.textContent ?? '').not.toMatch(/forbidden/i);
+  });
+
   it('names the missing role even when the server omits missingRoles', async () => {
     setAccessStatus(status(false, { missingRoles: {}, roles: [] }));
     render(OperatorPage);
