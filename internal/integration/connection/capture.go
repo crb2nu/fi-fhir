@@ -337,13 +337,13 @@ func boundedDefault(value, defaultValue, limit int) (int, bool) {
 	return value, value >= 1 && value <= limit
 }
 
-// armedCapture is one cache entry: what the tap needs to claim a slot and
-// write a sample, and nothing it would have to keep in step with the row.
+// armedCapture is one cache entry: what the tap needs to find the row and name
+// the sample, and nothing it would have to keep in step with the row — the
+// count and the bound are read under the row's lock (FillCaptureSlot).
 type armedCapture struct {
-	id          string
-	sessionID   string
-	maxMessages int
-	expiresAt   time.Time
+	id        string
+	sessionID string
+	expiresAt time.Time
 }
 
 // captureLedger is the part of PostgresStore the cache and the tap use; unit
@@ -449,10 +449,7 @@ func (r *CaptureRegistry) Refresh(ctx context.Context) error {
 }
 
 func armedCaptureOf(capture Capture) armedCapture {
-	return armedCapture{
-		id: capture.ID, sessionID: capture.SessionID,
-		maxMessages: capture.MaxMessages, expiresAt: capture.ExpiresAt,
-	}
+	return armedCapture{id: capture.ID, sessionID: capture.SessionID, expiresAt: capture.ExpiresAt}
 }
 
 // armedFor is the tap's one read on the admission path.
