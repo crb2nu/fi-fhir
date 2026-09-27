@@ -332,7 +332,8 @@ actions:
 
 ### Exec Action
 
-Run external command (with allowlist):
+Run an external command (no shell). The command must be allowed twice: by the
+deployment and by the action.
 
 ```yaml
 actions:
@@ -343,9 +344,19 @@ actions:
 
     timeout: 30s
 
-    # Comma-separated absolute paths allowed to run (required)
+    # Comma-separated absolute paths (required). This list can only NARROW
+    # the deployment's FI_FHIR_WORKFLOW_EXEC_ALLOWLIST; it cannot widen it.
     allowlist: /usr/local/bin/notify-script,/usr/local/bin/audit-script
 ```
+
+The deployment-owned allowlist is the environment variable
+`FI_FHIR_WORKFLOW_EXEC_ALLOWLIST` (comma-separated absolute paths) of the
+process that runs the workflow. It is **empty by default, which refuses every
+command** — the action fails with an error naming the variable. Before
+2026-09-27 the YAML `allowlist` was the only check, so anyone who could submit
+a workflow could authorise any binary; see
+[SEC-2026-09-27-1](../operations/SECURITY.md#sec-2026-09-27-1-the-workflow-debugger-executed-actions).
+The interactive debugger never runs `exec` (see below).
 
 ### LLM Extract Action
 
@@ -588,6 +599,30 @@ fi-fhir workflow run --dry-run --config workflow.yaml events.json
 ```bash
 fi-fhir workflow simulate --config workflow.yaml --events test_events.json
 ```
+
+### Interactive Debugger
+
+The IDE's workflow debugger (`startDebugSession` and the `debug*` GraphQL
+operations, `graphql:operator` only) steps through routes, transforms, and
+actions of a workflow you paste in, against one event. It is a debugger, not a
+runner: **actions do not execute**. Each action is replaced by a recording
+no-op, and its paused step shows:
+
+| Variable | Meaning |
+|---|---|
+| `action.type` | The action type (`webhook`, `fhir`, …) |
+| `action.stubbed` | `true` when the action was replaced by a no-op |
+| `action.inputs` | The action's config with `{{ }}` templates resolved against the event; credential-named keys (`password`, `token`, `secret`, `dsn`, …) and URL passwords are redacted; at most 64 keys of 2 KiB each |
+| `action.success` | Set after you step past the action; always `true` for a stub |
+
+A deployment can let specific action types execute for real in the debugger
+with `FI_FHIR_WORKFLOW_DEBUG_ACTIONS` (for example `log`); `exec` can never be
+enabled there. Sessions are bounded per API process —
+`FI_FHIR_WORKFLOW_DEBUG_MAX_SESSIONS` (default 8, `0` disables the debugger) —
+and expire `FI_FHIR_WORKFLOW_DEBUG_SESSION_TTL` (default `15m`) after they
+start. At capacity, starting a session fails with "workflow debugger is at
+capacity; end a debug session or retry later"; end sessions you are done with.
+See [SEC-2026-09-27-1](../operations/SECURITY.md#sec-2026-09-27-1-the-workflow-debugger-executed-actions).
 
 ---
 

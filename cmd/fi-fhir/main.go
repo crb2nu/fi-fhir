@@ -4583,6 +4583,34 @@ func runServe(args []string) error {
 		resolvers.WithVersion(version),
 		resolvers.WithPreviewService(securePreviewRuntime.previewService),
 	}
+
+	// SEC-2026-09-27-1/-2 (docs/operations/SECURITY.md): what the workflow
+	// debugger and exec action may run, and which FHIR servers subscription
+	// management may contact, are deployment-owned. Unset is most restrictive;
+	// a malformed value fails startup.
+	execAllowlist, err := loadExecAllowlistFromEnv()
+	if err != nil {
+		return err
+	}
+	debugPolicy, err := loadWorkflowDebugPolicyFromEnv()
+	if err != nil {
+		return err
+	}
+	subscriptionPolicy, err := loadFHIRSubscriptionPolicyFromEnv()
+	if err != nil {
+		return err
+	}
+	resolverOpts = append(resolverOpts,
+		resolvers.WithWorkflowDebugPolicy(debugPolicy),
+		resolvers.WithFHIRSubscriptionPolicy(subscriptionPolicy),
+	)
+	serveLog.Info("workflow action allowlists configured",
+		observability.F(observability.FieldComponent, "workflow-hardening"),
+		observability.F(observability.FieldCount, len(execAllowlist)),
+		observability.F(observability.FieldEnabled, len(debugPolicy.ExecutableActions) > 0))
+	serveLog.Info("FHIR subscription destinations configured",
+		observability.F(observability.FieldComponent, "fhir-subscriptions"),
+		observability.F(observability.FieldCount, len(subscriptionPolicy.AllowedHosts)))
 	if securePreviewRuntime.sessionStore != nil {
 		resolverOpts = append(resolverOpts, resolvers.WithIntegrationSessionStore(securePreviewRuntime.sessionStore))
 		serveLog.Info("integration session workspace configured",
@@ -4768,6 +4796,7 @@ func runServe(args []string) error {
 	observabilityConfig := runtimeConfig.Observability
 	serveHealth := observability.NewHealth(version, 3*time.Second)
 	serveMetrics := observability.NewMetrics(version)
+	resolverOpts = append(resolverOpts, resolvers.WithWorkflowDebugObserver(serveMetrics))
 	// Slice 4.4a: publish the seven migration ledger versions this binary
 	// expects, so two replicas mid-rolling-upgrade are distinguishable in
 	// Prometheus. The build stamp cannot do that (there are no git tags, and a
@@ -5538,6 +5567,17 @@ OIDC authentication environment:
 Optional static-mode trusted-network access:
   FI_FHIR_GRAPHQL_TRUSTED_CIDRS      Comma-separated LAN CIDRs allowed without
                                      a bearer token; never include pod/service CIDRs
+
+Optional workflow and FHIR subscription allowlists (unset = most restrictive):
+  FI_FHIR_WORKFLOW_EXEC_ALLOWLIST      Absolute executables the exec action may run;
+    empty refuses every command. Workflow YAML allowlists can only narrow it.
+  FI_FHIR_WORKFLOW_DEBUG_ACTIONS       Action types the debugger executes for real;
+    empty stubs every action as a recorded no-op. exec is never allowed.
+  FI_FHIR_WORKFLOW_DEBUG_MAX_SESSIONS  Debug sessions per process (default: 8; 0 disables)
+  FI_FHIR_WORKFLOW_DEBUG_SESSION_TTL   Debug session lifetime (default: 15m)
+  FI_FHIR_FHIR_SUBSCRIPTION_ALLOWED_HOSTS  Comma-separated exact hosts or *.suffix
+    that FHIR subscription management may contact over https; empty refuses all.
+  FI_FHIR_FHIR_SUBSCRIPTION_MAX_CLIENTS    Cached subscription clients (default: 32)
 
 Optional operator control-plane environment:
   FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED  true initializes PostgreSQL-backed

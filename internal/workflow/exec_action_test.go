@@ -40,7 +40,7 @@ echo "ok:$input"
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := execAction(ctx, map[string]any{"x": "y"}, cfg); err != nil {
+	if err := execAction(ctx, map[string]any{"x": "y"}, cfg, []string{scriptPath}); err != nil {
 		t.Fatalf("execAction: %v", err)
 	}
 }
@@ -63,7 +63,7 @@ func TestExecAction_BlocksNonAllowlistedCommand(t *testing.T) {
 		"command":   scriptPath,
 		"allowlist": filepath.Join(dir, "other.sh"),
 	}
-	err := execAction(context.Background(), map[string]any{}, cfg)
+	err := execAction(context.Background(), map[string]any{}, cfg, []string{scriptPath})
 	if err == nil {
 		t.Fatalf("expected error")
 	}

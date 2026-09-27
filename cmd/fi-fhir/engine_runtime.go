@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
@@ -12,6 +13,7 @@ import (
 	integrationingress "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/ingress"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 )
 
@@ -113,6 +115,13 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM", defaultValue: "roles"},
 		{key: "FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS", defaultValue: "RS256"},
 		{key: "FI_FHIR_GRAPHQL_TRUSTED_CIDRS"},
+
+		{key: workflow.EnvExecAllowlist},
+		{key: workflow.EnvDebugActions},
+		{key: resolvers.EnvWorkflowDebugMaxSessions, defaultValue: strconv.Itoa(resolvers.DefaultWorkflowDebugMaxSessions)},
+		{key: resolvers.EnvWorkflowDebugSessionTTL, defaultValue: resolvers.DefaultWorkflowDebugSessionTTL.String()},
+		{key: resolvers.EnvFHIRSubscriptionAllowedHosts},
+		{key: resolvers.EnvFHIRSubscriptionMaxClients, defaultValue: strconv.Itoa(resolvers.DefaultFHIRSubscriptionMaxClients)},
 
 		{key: "FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED", defaultValue: "false"},
 
