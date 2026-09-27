@@ -140,7 +140,8 @@ test('5. a fresh load shows no phantom Problems badge and no Platform indicator'
  * client CIDRs no real system uses, and no secret binding at all.
  */
 const E2E_MLLP = {
-  id: 'e2e-mllp-east',
+  // Unique per run, so a kept or reused stack (UI_E2E_KEEP=1) does not refuse it as a duplicate.
+  id: `e2e-mllp-${Date.now().toString(36)}`,
   name: 'E2E MLLP east',
   fields: {
     source_id: 'e2e-adt-east',
@@ -195,7 +196,10 @@ test('7. connections: an MLLP source is created, saved and compiled through the 
   const watch = await watchPage(page);
   await openIDE(page, '/connections');
   const sources = page.getByRole('tabpanel', { name: 'Sources' });
-  await expect(sources.getByText('No source connections are defined.')).toBeVisible();
+  // A fresh stack starts empty; a reused one lists what earlier runs made.
+  await expect(
+    sources.getByText('No source connections are defined.').or(sources.getByTestId('connections-table'))
+  ).toBeVisible();
   await expect(page.getByTestId('connections-preflight')).toHaveCount(0);
 
   // New ▾ → MLLP, then the kind's generated form.
