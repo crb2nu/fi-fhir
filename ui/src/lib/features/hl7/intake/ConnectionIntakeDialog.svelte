@@ -419,9 +419,9 @@
               {#snippet head()}
                 <tr>
                   <Th>Source</Th>
-                  <Th width="92px">Kind</Th>
-                  <Th width="210px">State</Th>
-                  <Th width="136px"><span class="sr-only">Action</span></Th>
+                  <Th width="64px">Kind</Th>
+                  <Th width="260px">State</Th>
+                  <Th width="132px"><span class="sr-only">Action</span></Th>
                 </tr>
               {/snippet}
               {#each view.sources as source (source.key)}
