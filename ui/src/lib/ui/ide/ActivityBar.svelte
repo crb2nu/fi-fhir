@@ -8,7 +8,8 @@
    * Left activity bar: one 16 px icon per view, 40 px wide. The label is the
    * accessible name and the native tooltip; the active view gets a 2 px
    * accent bar on its left edge. Order: Home, the five stages in stage
-   * order, then Operator. Labels match the route toolbars.
+   * order, then the two views outside the stages (Connections, Operator).
+   * Labels match the route toolbars.
    */
 
   export let activeView: IDEView = 'hl7';
@@ -30,6 +31,7 @@
     { view: 'terminology', label: 'Terminology', stage: 'Translation' },
     { view: 'workflows', label: 'Workflows', stage: 'Delivery' },
     { view: 'events', label: 'Events', stage: 'Verification' },
+    { view: 'connections', label: 'Connections' },
     { view: 'operator', label: 'Operator' },
   ];
 

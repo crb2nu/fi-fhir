@@ -30,7 +30,16 @@ interface PersistedLayout {
 }
 
 const VALID_PANEL_TABS = new Set<PanelTab>(['output', 'problems', 'debug', 'trace', 'copilot']);
-const VALID_VIEWS = new Set<IDEView>(['hl7', 'workflows', 'events', 'profiles', 'terminology', 'operator', 'system']);
+const VALID_VIEWS = new Set<IDEView>([
+  'hl7',
+  'workflows',
+  'events',
+  'profiles',
+  'terminology',
+  'connections',
+  'operator',
+  'system',
+]);
 
 function loadLayout(): PersistedLayout | null {
   if (typeof window === 'undefined') return null;
@@ -104,6 +113,7 @@ const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
   events: 'Events',
   profiles: 'Profiles',
   terminology: 'Terminology',
+  connections: 'Connections',
   operator: 'Operator',
 };
 
@@ -114,6 +124,7 @@ const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
   events: '/events',
   profiles: '/profiles',
   terminology: '/terminology',
+  connections: '/connections',
   operator: '/operator',
 };
 
@@ -132,6 +143,7 @@ function workspaceViewForPath(pathname: string): IDEView {
   if (normalized.startsWith('/hl7')) return 'hl7';
   if (normalized.startsWith('/profiles')) return 'profiles';
   if (normalized.startsWith('/operator')) return 'operator';
+  if (normalized.startsWith('/connections')) return 'connections';
   if (normalized.startsWith('/terminology')) return 'terminology';
   if (normalized.startsWith('/workflows')) return 'workflows';
   return 'system';

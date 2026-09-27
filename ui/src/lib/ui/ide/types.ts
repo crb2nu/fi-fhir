@@ -2,8 +2,24 @@
  * Type definitions for the IDE shell layout.
  */
 
-export type IDEView = 'hl7' | 'workflows' | 'events' | 'profiles' | 'terminology' | 'operator' | 'system';
-export type IDEAppRoute = '/' | '/hl7' | '/workflows' | '/events' | '/profiles' | '/terminology' | '/operator';
+export type IDEView =
+  | 'hl7'
+  | 'workflows'
+  | 'events'
+  | 'profiles'
+  | 'terminology'
+  | 'connections'
+  | 'operator'
+  | 'system';
+export type IDEAppRoute =
+  | '/'
+  | '/hl7'
+  | '/workflows'
+  | '/events'
+  | '/profiles'
+  | '/terminology'
+  | '/connections'
+  | '/operator';
 
 /**
  * What a workspace tab holds. Only routes: the editor-less artifact types

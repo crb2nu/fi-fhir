@@ -15,6 +15,10 @@
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
   import type { PaletteCommand } from '$lib/ui/CommandPalette.svelte';
   import type { AccessSession } from '$lib/graphql/GraphQLCredentialGate.svelte';
+  import {
+    requestConnectionsView,
+    type ConnectionsIntent
+  } from '$lib/features/connections/connectionsIntent';
   import { Button, Icon, Panel } from '$lib/ui/primitives';
   import {
     ideState,
@@ -83,6 +87,7 @@
     events: '/events',
     profiles: '/profiles',
     terminology: '/terminology',
+    connections: '/connections',
     operator: '/operator',
     system: '/',
   };
@@ -93,9 +98,16 @@
     '/events': 'events',
     '/profiles': 'profiles',
     '/terminology': 'terminology',
+    '/connections': 'connections',
     '/operator': 'operator',
     '/': 'system',
   };
+
+  /** Records what the Connections page should open, then goes there. */
+  function openConnections(intent: ConnectionsIntent): void {
+    requestConnectionsView(intent);
+    void goto(resolve('/connections'));
+  }
 
   /** Navigate to a resolved path, bypassing SvelteKit typed route constraints. */
   function navigateTo(path: string): void {
@@ -112,7 +124,11 @@
     { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', category: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
     { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', category: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
     { id: 'nav:events', label: 'Go to Events', hint: '/events', category: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
+    { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', category: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => goto(resolve('/connections')) },
     { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
+    { id: 'cmd:new-source-connection', label: 'New source connection', hint: '/connections', category: 'Connections', keywords: ['connection', 'source', 'mllp', 'http', 'batch', 's3', 'sftp', 'create'], run: () => openConnections({ view: 'sources', openNew: true }) },
+    { id: 'cmd:new-destination-connection', label: 'New destination connection', hint: '/connections', category: 'Connections', keywords: ['connection', 'destination', 'https', 'fhir', 'kafka', 'create'], run: () => openConnections({ view: 'destinations', openNew: true }) },
+    { id: 'cmd:engine-properties', label: 'Engine properties', hint: '/connections', category: 'Connections', keywords: ['engine', 'runtime', 'adapters', 'properties', 'environment', 'ledgers'], run: () => openConnections({ view: 'engine' }) },
     { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), category: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
     { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), category: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
     { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), category: 'Workspace', keywords: ['close', 'tab'], run: () => closeActiveTab() },

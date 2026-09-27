@@ -24,6 +24,7 @@
     terminology: 'terminology',
     workflows: 'workflows',
     events: 'events',
+    connections: 'connections',
     operator: 'operator',
   };
 

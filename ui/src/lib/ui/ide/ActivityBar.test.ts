@@ -7,11 +7,28 @@ import ActivityBar from './ActivityBar.svelte';
 
 describe('ActivityBar', () => {
   describe('rendering', () => {
-    it('should render 7 view icons', () => {
+    it('should render 8 view icons', () => {
       render(ActivityBar, { props: { activeView: 'hl7' } });
 
       const buttons = screen.getAllByRole('button');
-      expect(buttons).toHaveLength(7);
+      expect(buttons).toHaveLength(8);
+    });
+
+    it('orders Home, the five stages, then Connections and Operator', () => {
+      render(ActivityBar, { props: { activeView: 'hl7' } });
+
+      expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+        'Home',
+        'HL7 / Intake',
+        'Profiles',
+        'Terminology',
+        'Workflows',
+        'Events',
+        'Connections',
+        'Operator'
+      ]);
+      // Off the stages: the tooltip is the label alone.
+      expect(screen.getByRole('button', { name: 'Connections' })).toHaveAttribute('title', 'Connections');
     });
 
     it('should render all expected aria labels', () => {
@@ -22,6 +39,7 @@ describe('ActivityBar', () => {
       expect(screen.getByRole('button', { name: 'Events' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Profiles' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Terminology' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Connections' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Operator' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
     });
@@ -82,6 +100,7 @@ describe('ActivityBar', () => {
         ['Events', 'events'],
         ['Profiles', 'profiles'],
         ['Terminology', 'terminology'],
+        ['Connections', 'connections'],
         ['Home', 'system']
       ] as const;
 
@@ -89,7 +108,7 @@ describe('ActivityBar', () => {
         await fireEvent.click(screen.getByRole('button', { name: label }));
       }
 
-      expect(changeFn).toHaveBeenCalledTimes(6);
+      expect(changeFn).toHaveBeenCalledTimes(7);
       for (const [index, [, expectedView]] of views.entries()) {
         expect(changeFn.mock.calls[index]?.[0]?.detail).toBe(expectedView);
       }

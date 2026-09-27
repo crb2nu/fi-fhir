@@ -2,6 +2,7 @@
  * One glyph per view, shared by the activity bar, the editor tabs and the
  * sidebar. Categories get an icon and a label, never a colour.
  */
+import Cable from '@lucide/svelte/icons/cable';
 import FileInput from '@lucide/svelte/icons/file-input';
 import Languages from '@lucide/svelte/icons/languages';
 import House from '@lucide/svelte/icons/house';
@@ -19,5 +20,6 @@ export const VIEW_ICONS: Record<IDEView, IconComponent> = {
   terminology: Languages,
   workflows: Workflow,
   events: Zap,
+  connections: Cable,
   operator: ServerCog,
 };
