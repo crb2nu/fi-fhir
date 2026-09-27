@@ -55,7 +55,9 @@
     return field.required ? options : [{ value: '', label: 'Not set' }, ...options];
   });
 
+  // An optional binding (a CA bundle, a passphrase) can be set back to none.
   const bindingOptions = $derived([
+    ...(field.required ? [] : [{ value: '', label: 'None' }]),
     ...bindingNames.map((name) => ({ value: name, label: name })),
     { value: OTHER, label: 'Other name…' }
   ]);
@@ -120,7 +122,7 @@
           mono
           value={text}
           options={bindingOptions}
-          placeholder="Choose a binding"
+          placeholder={field.required ? 'Choose a binding' : undefined}
           onchange={pickBinding}
         />
       {/if}

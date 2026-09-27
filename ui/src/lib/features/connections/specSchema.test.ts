@@ -202,6 +202,22 @@ describe('specSchema — binding fields name declared bindings', () => {
     }
   });
 
+  it('lets an optional binding go back to none', () => {
+    const https = KIND_SCHEMAS.find((schema) => schema.kind === 'https') as KindSchema;
+    const { container } = renderForm(https, (buffer) => {
+      buffer.bindings.push({ name: 'sandbox-token', provider: 'env', key: 'FHIR_SANDBOX_TOKEN', version: '' });
+    });
+    const optional = container.querySelector<HTMLSelectElement>('[data-path="https.ca_bundle_binding"] select');
+    expect(Array.from(optional?.options ?? []).map((option) => option.textContent?.trim())).toEqual([
+      'None',
+      'sandbox-token',
+      'Other name…'
+    ]);
+    const required = container.querySelector<HTMLSelectElement>('[data-path="https.token_binding"] select');
+    expect(required?.options[0]?.textContent?.trim()).toBe('Choose a binding');
+    expect(required?.options[0]?.disabled).toBe(true);
+  });
+
   it('keeps an undeclared name as typed text, for the checker to report', () => {
     const { container } = renderForm(s3, (buffer) => {
       buffer.bindings.push({ name: 'declared', provider: 'env', key: 'K', version: '' });

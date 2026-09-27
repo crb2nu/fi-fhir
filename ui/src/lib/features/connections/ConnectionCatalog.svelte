@@ -29,7 +29,14 @@
   import { writeBlockedReason } from './connectionsAccess';
   import { describeConnectionFailure } from './connectionsErrors';
   import { connectionStatus, connectionStatusText } from './connectionStatus';
-  import { bufferFromConnection, isDirty, newBuffer, reconcileBuffer, type EditBuffer } from './editBuffer';
+  import {
+    bufferFromConnection,
+    isDirty,
+    newBuffer,
+    reconcileBuffer,
+    specOf,
+    type EditBuffer
+  } from './editBuffer';
   import { formatMinute, shortHash } from './presentation';
   import { endpointOf, kindSchema, kindsFor, type ConnectionDirectionId, type SpecKind } from './specSchema';
 
@@ -259,7 +266,7 @@
             <Td truncate value={creating.name.trim() || `New ${schema?.label ?? ''} ${noun}`} />
             <Td value={schema?.label ?? creating.kind} />
             <Td mono truncate value={creating.id.trim() || '—'} />
-            <Td mono truncate muted value="—" />
+            <Td mono truncate muted value={endpointOf(creating.kind, specOf(creating)) || '—'} />
             <Td mono muted value="—" />
             <Td><Badge tone="warning">Not created</Badge></Td>
             <Td mono muted value="—" />
