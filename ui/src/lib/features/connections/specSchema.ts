@@ -42,7 +42,21 @@ export interface SpecField {
   when?: FieldCondition | undefined;
   /** Spans both columns of the form grid. */
   wide?: boolean | undefined;
+  /** Display labels for a `select` field's options (the value is what is written). */
+  optionLabels?: Readonly<Record<string, string>> | undefined;
+  /** The only value the document allows (`defaultValue`): shown read only and always written. */
+  fixed?: boolean | undefined;
+  /**
+   * A form-only choice that is not a spec key: it drives other fields' `when`
+   * and is never written. Its value is read back from the first `deriveFrom`
+   * path that holds a value.
+   */
+  virtual?: boolean | undefined;
+  deriveFrom?: ReadonlyArray<{ path: string; value: string }> | undefined;
 }
+
+/** Shown on a `*_binding` field while the connection declares no binding. */
+export const BINDING_DECLARE_FIRST = 'Declare a binding in Secrets first.';
 
 /** A labelled set of fields; `path` is the JSON object they live under ('' = top level). */
 export interface SpecGroup {
@@ -177,6 +191,9 @@ const destinationIdentity: SpecGroup = {
     }
   ]
 };
+
+/** The form-only SFTP credential choice (a `#` path is never a spec key). */
+export const SFTP_CREDENTIAL = 'sftp.#credential';
 
 const mutualTLS: FieldCondition = { path: 'tls.mode', equals: 'mutual' };
 const notOAuth: FieldCondition = { path: 'auth_mode', notEquals: 'oauth2' };
@@ -533,17 +550,40 @@ export const KIND_SCHEMAS: readonly KindSchema[] = [
           },
           { path: 'sftp.known_hosts_binding', label: 'Known hosts binding', control: 'binding', required: true },
           {
+            // Not a spec key: which one of the two credential bindings this
+            // connection uses, so "exactly one" is the form's shape.
+            path: SFTP_CREDENTIAL,
+            label: 'Credential',
+            control: 'select',
+            required: true,
+            virtual: true,
+            options: ['password', 'private_key'],
+            optionLabels: { password: 'Password', private_key: 'Private key' },
+            deriveFrom: [
+              { path: 'sftp.private_key_binding', value: 'private_key' },
+              { path: 'sftp.password_binding', value: 'password' }
+            ],
+            hint: 'Exactly one of a password and a private key.'
+          },
+          {
             path: 'sftp.password_binding',
             label: 'Password binding',
             control: 'binding',
-            hint: 'Exactly one of password and private key.'
+            required: true,
+            when: { path: SFTP_CREDENTIAL, equals: 'password' }
           },
-          { path: 'sftp.private_key_binding', label: 'Private key binding', control: 'binding' },
+          {
+            path: 'sftp.private_key_binding',
+            label: 'Private key binding',
+            control: 'binding',
+            required: true,
+            when: { path: SFTP_CREDENTIAL, equals: 'private_key' }
+          },
           {
             path: 'sftp.private_key_passphrase_binding',
             label: 'Private key passphrase binding',
             control: 'binding',
-            hint: 'Only with a private key.'
+            when: { path: SFTP_CREDENTIAL, equals: 'private_key' }
           }
         ]
       },
@@ -608,7 +648,8 @@ export const KIND_SCHEMAS: readonly KindSchema[] = [
             label: 'Interaction',
             control: 'select',
             options: ['transaction'],
-            defaultValue: 'transaction'
+            defaultValue: 'transaction',
+            fixed: true
           },
           { path: 'fhir.token_binding', label: 'Token binding', control: 'binding', required: true },
           { path: 'fhir.ca_bundle_binding', label: 'CA bundle binding', control: 'binding' }
@@ -761,7 +802,11 @@ export function controlValue(field: SpecField, value: string | number | null | u
 export function valuesFromSpec(schema: KindSchema, spec: unknown): { values: SpecValues; repeats: SpecRepeats } {
   const values: SpecValues = {};
   for (const field of groupFields(schema)) {
-    values[field.path] = controlText(field, getPath(spec, field.path));
+    values[field.path] = field.virtual
+      ? derivedChoice(field, spec)
+      : field.fixed
+        ? (field.defaultValue ?? '')
+        : controlText(field, getPath(spec, field.path));
   }
   const repeats: SpecRepeats = {};
   for (const section of repeatSections(schema)) {
@@ -775,6 +820,15 @@ export function valuesFromSpec(schema: KindSchema, spec: unknown): { values: Spe
       : [];
   }
   return { values, repeats };
+}
+
+/** A virtual field's value, read from the first `deriveFrom` path that holds one. */
+function derivedChoice(field: SpecField, spec: unknown): string {
+  for (const source of field.deriveFrom ?? []) {
+    const stored = getPath(spec, source.path);
+    if (typeof stored === 'string' && stored.trim() !== '') return source.value;
+  }
+  return '';
 }
 
 /** Form state for a new connection: the documented defaults and nothing else. */
@@ -819,7 +873,9 @@ export function buildSpec(
   // proxy, and a spec is JSON by contract.
   const spec: Record<string, unknown> = isRecord(base) ? (JSON.parse(JSON.stringify(base)) as Record<string, unknown>) : {};
   for (const field of groupFields(schema)) {
-    const value = fieldVisible(field, values) ? controlValue(field, values[field.path] ?? '') : undefined;
+    if (field.virtual) continue; // a form-only choice, never a spec key
+    const text = field.fixed ? field.defaultValue : values[field.path];
+    const value = fieldVisible(field, values) ? controlValue(field, text ?? '') : undefined;
     if (value === undefined) deletePath(spec, field.path);
     else setPath(spec, field.path, value);
   }

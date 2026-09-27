@@ -1,14 +1,15 @@
 <!--
   One spec field: a Field (label, hint or error) around the control its
   schema entry names. Numbers are number inputs bounded by the checker's own
-  limits, closed sets are Selects, lists are one entry per line, and a
-  `*_binding` field picks one of the connection's declared bindings — or takes
-  a typed name, which the checker reports if nothing declares it.
+  limits, closed sets are Selects, lists are one entry per line, a fixed value
+  is shown read only, and a `*_binding` field is a Select over the
+  connection's declared bindings — never a text box, so there is nowhere to
+  paste a secret value. A stored name that no binding declares stays visible
+  as a read-only option, so the checker's UNBOUND_SECRET lands on this field.
 -->
 <script lang="ts">
-  import List from '@lucide/svelte/icons/list';
-  import { Field, IconButton, Input, Select, Textarea, type SelectOption } from '$lib/ui/primitives';
-  import { fieldText, type SpecField } from './specSchema';
+  import { Field, Input, Select, Textarea, type SelectOption } from '$lib/ui/primitives';
+  import { BINDING_DECLARE_FIRST, fieldText, type SpecField } from './specSchema';
 
   interface Props {
     field: SpecField;
@@ -16,8 +17,8 @@
     path: string;
     value: string | number | null | undefined;
     error?: string | undefined;
-    bindingNames?: readonly string[];
-    readOnly?: boolean;
+    bindingNames?: readonly string[] | undefined;
+    readOnly?: boolean | undefined;
   }
 
   let {
@@ -29,21 +30,18 @@
     readOnly = false
   }: Props = $props();
 
-  const OTHER = '\u0000other';
-
   const text = $derived(fieldText(value));
-  // A typed binding name that no binding declares stays a typed name.
-  let typing = $state(false);
-  const bindingInput = $derived(
-    bindingNames.length === 0 || typing || (text !== '' && !bindingNames.includes(text))
-  );
 
   const range = $derived(
     field.min !== undefined && field.max !== undefined ? `${field.min}–${field.max}` : undefined
   );
 
+  function labelled(option: string): SelectOption {
+    return { value: option, label: field.optionLabels?.[option] ?? option };
+  }
+
   const selectOptions = $derived.by((): SelectOption[] => {
-    const options = (field.options ?? []).map((option) => ({ value: option, label: option }));
+    const options = (field.options ?? []).map(labelled);
     return field.required ? options : [{ value: '', label: 'Not set' }, ...options];
   });
 
@@ -55,38 +53,41 @@
     return field.required ? options : [{ value: '', label: 'Not set' }, ...options];
   });
 
-  // An optional binding (a CA bundle, a passphrase) can be set back to none.
-  const bindingOptions = $derived([
+  const noBindings = $derived(bindingNames.length === 0);
+  const undeclared = $derived(text !== '' && !bindingNames.includes(text));
+
+  const bindingOptions = $derived.by((): SelectOption[] => [
+    // An optional binding (a CA bundle, a passphrase) can be set back to none.
     ...(field.required ? [] : [{ value: '', label: 'None' }]),
-    ...bindingNames.map((name) => ({ value: name, label: name })),
-    { value: OTHER, label: 'Other name…' }
+    // A stored name nothing declares: shown, not choosable.
+    ...(undeclared ? [{ value: text, label: `${text} (not declared)`, disabled: true }] : []),
+    ...bindingNames.map((name) => ({ value: name, label: name }))
   ]);
 
+  const hint = $derived(field.control === 'binding' && noBindings && !readOnly ? BINDING_DECLARE_FIRST : field.hint);
+
   function pickBinding(event: Event): void {
-    const chosen = (event.currentTarget as HTMLSelectElement).value;
-    if (chosen === OTHER) {
-      typing = true;
-      value = '';
-      return;
-    }
-    value = chosen;
+    value = (event.currentTarget as HTMLSelectElement).value;
   }
 </script>
 
 <Field
   label={field.label}
   required={field.required ?? false}
-  hint={field.hint}
+  {hint}
   {error}
   class={['spec-field', { 'spec-field--wide': field.wide || field.control === 'list' }]}
   data-path={path}
-  data-control={field.control}
+  data-control={field.fixed ? 'fixed' : field.control}
 >
-  {#if readOnly && field.control === 'list'}
+  {#if field.fixed}
+    <!-- The only value the document allows: shown, and always written. -->
+    <Input mono value={field.defaultValue ?? ''} readonly />
+  {:else if readOnly && field.control === 'list'}
     <Textarea mono rows={3} value={text} readonly />
   {:else if readOnly}
     <!-- Read only: every control is a read-only text box at full contrast. -->
-    <Input mono value={text} placeholder="—" readonly />
+    <Input mono value={field.control === 'select' && text ? labelled(text).label : text} placeholder="—" readonly />
   {:else if field.control === 'number'}
     <Input
       type="number"
@@ -104,42 +105,21 @@
   {:else if field.control === 'list'}
     <Textarea mono rows={3} placeholder={field.placeholder} bind:value />
   {:else if field.control === 'binding'}
-    <div class="binding-control">
-      {#if bindingInput}
-        <Input mono placeholder="Binding name" bind:value />
-        {#if bindingNames.length > 0}
-          <IconButton
-            icon={List}
-            label="Choose a declared binding"
-            onclick={() => {
-              typing = false;
-              value = '';
-            }}
-          />
-        {/if}
-      {:else}
-        <Select
-          mono
-          value={text}
-          options={bindingOptions}
-          placeholder={field.required ? 'Choose a binding' : undefined}
-          onchange={pickBinding}
-        />
-      {/if}
-    </div>
+    <Select
+      mono
+      value={text}
+      options={bindingOptions}
+      placeholder={field.required ? 'Choose a binding' : undefined}
+      disabled={noBindings}
+      title={noBindings ? BINDING_DECLARE_FIRST : undefined}
+      onchange={pickBinding}
+    />
   {:else}
     <Input mono placeholder={field.placeholder} bind:value />
   {/if}
 </Field>
 
 <style>
-  .binding-control {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    min-width: 0;
-  }
-
   :global(.spec-field--wide) {
     grid-column: 1 / -1;
   }

@@ -4,7 +4,9 @@ import ConnectionForm from './ConnectionForm.svelte';
 import { newBuffer, type EditBuffer } from './editBuffer';
 import { reactive } from './testState.svelte';
 import {
+  BINDING_DECLARE_FIRST,
   KIND_SCHEMAS,
+  SFTP_CREDENTIAL,
   buildSpec,
   controlValue,
   emptyRepeatItem,
@@ -185,10 +187,10 @@ describe('specSchema — problems land on their fields', () => {
   });
 });
 
-describe('specSchema — binding fields name declared bindings', () => {
+describe('specSchema — binding fields name declared bindings, and nothing can be typed there', () => {
   const s3 = KIND_SCHEMAS.find((schema) => schema.kind === 'batch_s3') as KindSchema;
 
-  it('offers the declared binding names (and a typed name) in every *_binding field', () => {
+  it('offers exactly the declared binding names in every *_binding field', () => {
     const { container } = renderForm(s3, (buffer) => {
       buffer.bindings.push(
         { name: 'batch-s3-access-key', provider: 'env', key: 'FI_FHIR_BATCH_S3_ACCESS_KEY', version: '' },
@@ -196,9 +198,12 @@ describe('specSchema — binding fields name declared bindings', () => {
       );
     });
     for (const path of ['s3.access_key_binding', 's3.secret_access_key_binding']) {
-      const select = container.querySelector<HTMLSelectElement>(`[data-path="${path}"] select`);
+      const field = container.querySelector<HTMLElement>(`[data-path="${path}"]`) as HTMLElement;
+      // A Select and nothing else: there is no text box to paste a secret into.
+      expect(field.querySelector('input, textarea')).toBeNull();
+      const select = field.querySelector<HTMLSelectElement>('select');
       const labels = Array.from(select?.options ?? []).map((option) => option.textContent?.trim());
-      expect(labels).toEqual(['Choose a binding', 'batch-s3-access-key', 'batch-s3-secret-key', 'Other name…']);
+      expect(labels).toEqual(['Choose a binding', 'batch-s3-access-key', 'batch-s3-secret-key']);
     }
   });
 
@@ -210,27 +215,84 @@ describe('specSchema — binding fields name declared bindings', () => {
     const optional = container.querySelector<HTMLSelectElement>('[data-path="https.ca_bundle_binding"] select');
     expect(Array.from(optional?.options ?? []).map((option) => option.textContent?.trim())).toEqual([
       'None',
-      'sandbox-token',
-      'Other name…'
+      'sandbox-token'
     ]);
     const required = container.querySelector<HTMLSelectElement>('[data-path="https.token_binding"] select');
     expect(required?.options[0]?.textContent?.trim()).toBe('Choose a binding');
     expect(required?.options[0]?.disabled).toBe(true);
   });
 
-  it('keeps an undeclared name as typed text, for the checker to report', () => {
-    const { container } = renderForm(s3, (buffer) => {
-      buffer.bindings.push({ name: 'declared', provider: 'env', key: 'K', version: '' });
-      buffer.values['s3.access_key_binding'] = 'not-declared';
-    });
-    const input = container.querySelector<HTMLInputElement>('[data-path="s3.access_key_binding"] input');
-    expect(input?.value).toBe('not-declared');
+  it('shows a stored name no binding declares as a read-only option, so UNBOUND_SECRET lands on it', () => {
+    const { container } = renderForm(
+      s3,
+      (buffer) => {
+        buffer.bindings.push({ name: 'declared', provider: 'env', key: 'K', version: '' });
+        buffer.values['s3.access_key_binding'] = 'not-declared';
+      },
+      [{ code: 'UNBOUND_SECRET', path: 's3.access_key_binding', message: 'names secret binding "not-declared", which is not declared' }]
+    );
+    const field = container.querySelector<HTMLElement>('[data-path="s3.access_key_binding"]') as HTMLElement;
+    expect(field.querySelector('input')).toBeNull();
+    const select = field.querySelector<HTMLSelectElement>('select') as HTMLSelectElement;
+    expect(select.value).toBe('not-declared');
+    const shown = Array.from(select.options).find((option) => option.value === 'not-declared');
+    expect(shown?.textContent?.trim()).toBe('not-declared (not declared)');
+    expect(shown?.disabled).toBe(true);
+    expect(within(field).getByText(/which is not declared/)).toBeInTheDocument();
+    expect(select).toHaveAttribute('aria-invalid', 'true');
   });
 
-  it('is a text box when no binding is declared yet', () => {
+  it('is a disabled Select saying to declare a binding first when none is declared', () => {
     const { container } = renderForm(s3);
-    expect(container.querySelector('[data-path="s3.access_key_binding"] select')).toBeNull();
-    expect(container.querySelector('[data-path="s3.access_key_binding"] input')).not.toBeNull();
+    const field = container.querySelector<HTMLElement>('[data-path="s3.access_key_binding"]') as HTMLElement;
+    expect(field.querySelector('input')).toBeNull();
+    const select = field.querySelector<HTMLSelectElement>('select') as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(select).toHaveAttribute('title', BINDING_DECLARE_FIRST);
+    expect(within(field).getByText(BINDING_DECLARE_FIRST)).toBeInTheDocument();
+  });
+});
+
+describe('specSchema — form-only choices and fixed values', () => {
+  const sftp = KIND_SCHEMAS.find((schema) => schema.kind === 'batch_sftp') as KindSchema;
+  const fhir = KIND_SCHEMAS.find((schema) => schema.kind === 'fhir') as KindSchema;
+
+  it('makes SFTP "exactly one of password and private key" the shape of the form', () => {
+    const paths = (credential: string) => {
+      const { container } = renderForm(sftp, (buffer) => (buffer.values[SFTP_CREDENTIAL] = credential));
+      const shown = ['sftp.password_binding', 'sftp.private_key_binding', 'sftp.private_key_passphrase_binding'].filter(
+        (path) => container.querySelector(`[data-path="${path}"]`) !== null
+      );
+      cleanup();
+      return shown;
+    };
+    expect(paths('')).toEqual([]);
+    expect(paths('password')).toEqual(['sftp.password_binding']);
+    expect(paths('private_key')).toEqual(['sftp.private_key_binding', 'sftp.private_key_passphrase_binding']);
+  });
+
+  it('reads the SFTP credential choice back from the stored spec and never writes it', () => {
+    const stored = { sftp: { host: 'h', password_binding: 'sftp-password' } };
+    const { values, repeats } = valuesFromSpec(sftp, stored);
+    expect(values[SFTP_CREDENTIAL]).toBe('password');
+    const spec = buildSpec(sftp, values, repeats, stored);
+    expect(spec).toEqual(stored);
+    values[SFTP_CREDENTIAL] = 'private_key';
+    values['sftp.private_key_binding'] = 'sftp-key';
+    expect(buildSpec(sftp, values, repeats, stored)).toEqual({ sftp: { host: 'h', private_key_binding: 'sftp-key' } });
+  });
+
+  it('shows the FHIR interaction as its one allowed value, read only, and always writes it', () => {
+    const { container } = renderForm(fhir);
+    const input = container.querySelector<HTMLInputElement>('[data-path="fhir.interaction"] input');
+    expect(input?.value).toBe('transaction');
+    expect(input?.readOnly).toBe(true);
+    expect(container.querySelector('[data-path="fhir.interaction"] select')).toBeNull();
+    const { values, repeats } = valuesFromSpec(fhir, { fhir: { base_url: 'https://fhir.example/r4' } });
+    values['fhir.interaction'] = 'batch';
+    expect(buildSpec(fhir, values, repeats, {})).toEqual({
+      fhir: { base_url: 'https://fhir.example/r4', interaction: 'transaction' }
+    });
   });
 });
 
