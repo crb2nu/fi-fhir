@@ -1,0 +1,18 @@
+{
+  "kind": "https",
+  "spec": {
+    "destination_id": "dest-https-pinned",
+    "class": "production",
+    "https": {
+      "url": "https://destination.example.org/inbound",
+      "method": "POST",
+      "token_binding": "pinned-token",
+      "ca_bundle_binding": "pinned-ca"
+    },
+    "identity": {"subject": "pinned-client", "grants": ["integration.destination.client"]}
+  },
+  "secret_bindings": [
+    {"name": "pinned-token", "reference": {"provider": "file", "key": "destinations/pinned-token"}},
+    {"name": "pinned-ca", "reference": {"provider": "file", "key": "destinations/pinned-ca.pem"}}
+  ]
+}

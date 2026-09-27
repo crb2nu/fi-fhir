@@ -1,0 +1,27 @@
+{
+  "kind": "batch_sftp",
+  "spec": {
+    "source_id": "adt-west",
+    "sftp": {
+      "host": "sftp.example.com",
+      "port": 22,
+      "username": "fi-fhir-batch",
+      "input_directory": "/inbound",
+      "archive_directory": "/archive",
+      "known_hosts_binding": "sftp-known-hosts",
+      "private_key_binding": "sftp-client-key",
+      "private_key_passphrase_binding": "sftp-client-key-passphrase"
+    },
+    "workload": {"subject": "batch-adt-west", "grants": ["integration:batch"]},
+    "poll_seconds": 30,
+    "lease_seconds": 300,
+    "process_seconds": 120,
+    "max_files_per_poll": 50,
+    "max_message_bytes": 524288
+  },
+  "secret_bindings": [
+    {"name": "sftp-known-hosts", "reference": {"provider": "file", "key": "sftp/known_hosts"}},
+    {"name": "sftp-client-key", "reference": {"provider": "k8s", "key": "fi-fhir/sftp-client-key", "version": "3"}},
+    {"name": "sftp-client-key-passphrase", "reference": {"provider": "vault", "key": "fi-fhir/sftp-client-key-passphrase"}}
+  ]
+}

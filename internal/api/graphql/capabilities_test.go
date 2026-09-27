@@ -42,6 +42,10 @@ func securityFor(authVia, principal string, roles ...string) integration.Securit
 // operatorRead=false and name integration.operator as the missing role.
 func TestAuthCapabilities(t *testing.T) {
 	none := []string{}
+	allRolesHeld := missingRoles{
+		OperatorRead: none, OperatorDelivery: none, OperatorDeployment: none, ClinicalRead: none,
+		ConnectionsRead: none, ConnectionsWrite: none,
+	}
 	tests := []struct {
 		name         string
 		security     integration.SecurityContext
@@ -60,6 +64,8 @@ func TestAuthCapabilities(t *testing.T) {
 				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
 				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
 				ClinicalRead:       none,
+				ConnectionsRead:    []string{operator.ReadRole},
+				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -67,21 +73,23 @@ func TestAuthCapabilities(t *testing.T) {
 			security: securityFor("network", "fi-fhir-ide-operator", operatorBundle...),
 			capabilities: accessCapabilities{
 				OperatorRead: true, OperatorDelivery: true, OperatorDeployment: true,
-				ClinicalRead: true, Subscriptions: none,
+				ClinicalRead: true, ConnectionsRead: true, ConnectionsWrite: true, Subscriptions: none,
 			},
-			missing: missingRoles{OperatorRead: none, OperatorDelivery: none, OperatorDeployment: none, ClinicalRead: none},
+			missing: allRolesHeld,
 		},
 		{
 			name:     "control-plane read without the recovery or deployment grants",
 			security: securityFor("bearer", "reader", previewRole, GraphQLOperatorRole, operator.ReadRole),
 			capabilities: accessCapabilities{
-				OperatorRead: true, ClinicalRead: true, Subscriptions: none,
+				OperatorRead: true, ClinicalRead: true, ConnectionsRead: true, Subscriptions: none,
 			},
 			missing: missingRoles{
 				OperatorRead:       none,
 				OperatorDelivery:   []string{delivery.OperatorRole},
 				OperatorDeployment: []string{operator.DeploymentOperatorRole},
 				ClinicalRead:       none,
+				ConnectionsRead:    none,
+				ConnectionsWrite:   []string{operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -95,6 +103,8 @@ func TestAuthCapabilities(t *testing.T) {
 				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
 				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
 				ClinicalRead:       none,
+				ConnectionsRead:    []string{operator.ReadRole},
+				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -105,13 +115,15 @@ func TestAuthCapabilities(t *testing.T) {
 			security: securityFor("service-bearer", "mentatlab", operator.ReadRole, previewRole),
 			config:   ServerConfig{IntegrationSessionStreaming: true, IntegrationSessionsConfigured: true},
 			capabilities: accessCapabilities{
-				OperatorRead: true, IntegrationSessions: true, Streaming: true, Subscriptions: none,
+				OperatorRead: true, ConnectionsRead: true, IntegrationSessions: true, Streaming: true, Subscriptions: none,
 			},
 			missing: missingRoles{
 				OperatorRead:       none,
 				OperatorDelivery:   []string{delivery.OperatorRole},
 				OperatorDeployment: []string{operator.DeploymentOperatorRole},
 				ClinicalRead:       []string{clinicalReadRole},
+				ConnectionsRead:    none,
+				ConnectionsWrite:   []string{operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -125,6 +137,8 @@ func TestAuthCapabilities(t *testing.T) {
 				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
 				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
 				ClinicalRead:       []string{clinicalReadRole},
+				ConnectionsRead:    []string{operator.ReadRole},
+				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -133,11 +147,12 @@ func TestAuthCapabilities(t *testing.T) {
 			config:   ServerConfig{IntegrationSessionStreaming: true, IntegrationSessionsConfigured: true, LLMConfigured: true},
 			capabilities: accessCapabilities{
 				OperatorRead: true, OperatorDelivery: true, OperatorDeployment: true, ClinicalRead: true,
+				ConnectionsRead: true, ConnectionsWrite: true,
 				IntegrationSessions: true, Streaming: true,
 				Subscriptions: []string{"integrationSessionEvents", "sessionRunEvents"},
 				LLM:           llmState{Configured: true},
 			},
-			missing: missingRoles{OperatorRead: none, OperatorDelivery: none, OperatorDeployment: none, ClinicalRead: none},
+			missing: allRolesHeld,
 		},
 		{
 			name:     "streaming off with the session store wired",
@@ -145,9 +160,40 @@ func TestAuthCapabilities(t *testing.T) {
 			config:   ServerConfig{IntegrationSessionsConfigured: true},
 			capabilities: accessCapabilities{
 				OperatorRead: true, OperatorDelivery: true, OperatorDeployment: true, ClinicalRead: true,
+				ConnectionsRead: true, ConnectionsWrite: true,
 				IntegrationSessions: true, Subscriptions: none,
 			},
-			missing: missingRoles{OperatorRead: none, OperatorDelivery: none, OperatorDeployment: none, ClinicalRead: none},
+			missing: allRolesHeld,
+		},
+		{
+			// .loom/38 C-0: the two deployment facts that let a surface say
+			// "not configured" instead of "forbidden". They follow the server
+			// configuration and nothing about the caller.
+			name:     "control plane and connection catalog configured",
+			security: securityFor("network", "fi-fhir-ide-operator", operatorBundle...),
+			config:   ServerConfig{OperatorControlPlaneConfigured: true, ConnectionCatalogConfigured: true},
+			capabilities: accessCapabilities{
+				OperatorRead: true, OperatorDelivery: true, OperatorDeployment: true, ClinicalRead: true,
+				ConnectionsRead: true, ConnectionsWrite: true, Subscriptions: none,
+				ControlPlane: true, ConnectionCatalog: true,
+			},
+			missing: allRolesHeld,
+		},
+		{
+			name:     "configured, but the caller holds only the transport grant",
+			security: securityFor("network", "fi-fhir-ide-operator", productionRoles...),
+			config:   ServerConfig{OperatorControlPlaneConfigured: true, ConnectionCatalogConfigured: true},
+			capabilities: accessCapabilities{
+				ClinicalRead: true, Subscriptions: none, ControlPlane: true, ConnectionCatalog: true,
+			},
+			missing: missingRoles{
+				OperatorRead:       []string{operator.ReadRole},
+				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
+				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				ClinicalRead:       none,
+				ConnectionsRead:    []string{operator.ReadRole},
+				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -214,6 +260,12 @@ func TestAuthCapabilityRepresentativesCoverTheirGroup(t *testing.T) {
 		{clinicalReadCapability, ast.Query, []string{
 			"event", "events", "patient", "patients", "patientTimeline", "eventStatistics",
 			"activeEncounters", "activeEncounter", "activeEncounterByPatient", "projectionStatus",
+		}},
+		{connectionsReadCapability, ast.Query, []string{
+			"connections", "connection", "connectionRevisions", "connectionRevision", "engineRuntime",
+		}},
+		{connectionsWriteCapability, ast.Mutation, []string{
+			"createConnection", "updateConnection", "archiveConnection", "compileConnection", "validateConnectionSpec",
 		}},
 	}
 	for _, group := range groups {
@@ -335,7 +387,10 @@ func TestAuthCapabilityFieldNamesAreSchemaRoots(t *testing.T) {
 			t.Errorf("%s.%s is not a root field of the executed schema", strings.ToLower(string(operation)), field)
 		}
 	}
-	for _, capability := range []roleCapability{operatorReadCapability, operatorDeliveryCapability, operatorDeploymentCapability, clinicalReadCapability} {
+	for _, capability := range []roleCapability{
+		operatorReadCapability, operatorDeliveryCapability, operatorDeploymentCapability, clinicalReadCapability,
+		connectionsReadCapability, connectionsWriteCapability,
+	} {
 		check(capability.operation, capability.field)
 	}
 	for _, root := range integrationSessionStreamRoots {

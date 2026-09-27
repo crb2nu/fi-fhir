@@ -24,8 +24,8 @@ import (
 // Five assertions, each of which was false or unproven before this slice:
 //
 //  1. two replicas migrating one fresh database concurrently both succeed,
-//     across all six ledgers including terminology, which took no advisory
-//     lock until now (.loom/32 correction 25);
+//     across every ledger (seven since .loom/38 C-0) including terminology,
+//     which took no advisory lock until now (.loom/32 correction 25);
 //  2. the same holds against a database already at head, which is what every
 //     restart after the first actually does;
 //  3. every ledger's declared SchemaVersion equals the version actually
@@ -151,7 +151,7 @@ func assertConcurrentMigrationSucceeds(ctx context.Context, t *testing.T, db *sq
 				"ledger version inside it.", i, err)
 		}
 	}
-	t.Logf("assertion PASSED: %d replicas migrated all six ledgers concurrently with no error", replicas)
+	t.Logf("assertion PASSED: %d replicas migrated all %d ledgers concurrently with no error", replicas, len(ledgerExpectations()))
 }
 
 // assertEveryLedgerAtDeclaredVersion is assertion 3. It is the guard that keeps
@@ -190,7 +190,7 @@ func assertEveryLedgerAtDeclaredVersion(ctx context.Context, t *testing.T, db *s
 				ledger.name, rows, distinct, ledger.declared)
 		}
 	}
-	t.Logf("assertion PASSED: all six ledgers are at their declared SchemaVersion with one row per version")
+	t.Logf("assertion PASSED: all %d ledgers are at their declared SchemaVersion with one row per version", len(ledgerExpectations()))
 }
 
 // assertLivePathStillAttributesExports is the counterweight to slice 4.4a's
@@ -261,6 +261,11 @@ var durableClasses = []string{
 	"integration_retention_policies",
 	"integration_retention_policy_audit",
 	"integration_retention_purge_audit",
+	// .loom/38 C-0: the connection catalog's three tables, the seventh
+	// ledger's whole surface. Seeded by seedConnectionCatalog.
+	"integration_connection_drafts",
+	"integration_connection_revisions",
+	"integration_connection_captures",
 }
 
 func durableRowCounts(ctx context.Context, t *testing.T, db *sql.DB) map[string]int {

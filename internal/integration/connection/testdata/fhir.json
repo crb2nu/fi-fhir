@@ -1,0 +1,18 @@
+{
+  "kind": "fhir",
+  "spec": {
+    "destination_id": "fhir-primary",
+    "class": "production",
+    "fhir": {
+      "base_url": "https://fhir.example.org/r4",
+      "token_binding": "fhir-token",
+      "ca_bundle_binding": "fhir-ca",
+      "interaction": "transaction"
+    },
+    "identity": {"subject": "fhir-client", "grants": ["integration.destination.client"]}
+  },
+  "secret_bindings": [
+    {"name": "fhir-token", "reference": {"provider": "env", "key": "FHIR_PRIMARY_TOKEN"}},
+    {"name": "fhir-ca", "reference": {"provider": "file", "key": "destinations/fhir-ca.pem"}}
+  ]
+}

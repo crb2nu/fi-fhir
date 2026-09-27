@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -78,9 +79,39 @@ type artifactKey struct {
 type StaticRegistry struct {
 	deploymentTenantID string
 	bindings           map[string]PreviewBinding
+	sources            map[string]integration.SourceRevisionRef
 	definitions        map[definitionKey][]byte
 	profiles           map[artifactKey][]byte
 	workflows          map[artifactKey][]byte
+}
+
+// IntegrationSummary is one registry binding as the engine runtime reports
+// it: the public integration ID, the exact definition revision it resolves to,
+// and the source revision that definition names. It carries no profile or
+// workflow bytes.
+type IntegrationSummary struct {
+	IntegrationID       string
+	IntegrationRevision integration.ArtifactRevisionRef
+	Source              integration.SourceRevisionRef
+	Format              events.SourceFormat
+}
+
+// Integrations lists every binding in integration-ID order.
+func (r *StaticRegistry) Integrations() []IntegrationSummary {
+	if r == nil {
+		return nil
+	}
+	summaries := make([]IntegrationSummary, 0, len(r.bindings))
+	for integrationID, binding := range r.bindings {
+		summaries = append(summaries, IntegrationSummary{
+			IntegrationID:       integrationID,
+			IntegrationRevision: binding.IntegrationRevision,
+			Source:              r.sources[integrationID],
+			Format:              binding.Format,
+		})
+	}
+	sort.Slice(summaries, func(i, j int) bool { return summaries[i].IntegrationID < summaries[j].IntegrationID })
+	return summaries
 }
 
 // NewStaticRegistry validates exact definition/profile/workflow provenance and
@@ -95,6 +126,7 @@ func NewStaticRegistry(deploymentTenantID string, entries []Entry) (*StaticRegis
 	registry := &StaticRegistry{
 		deploymentTenantID: deploymentTenantID,
 		bindings:           make(map[string]PreviewBinding, len(entries)),
+		sources:            make(map[string]integration.SourceRevisionRef, len(entries)),
 		definitions:        make(map[definitionKey][]byte, len(entries)),
 		profiles:           make(map[artifactKey][]byte, len(entries)),
 		workflows:          make(map[artifactKey][]byte, len(entries)),
@@ -202,6 +234,7 @@ func (r *StaticRegistry) add(entry Entry) error {
 		Format:              revision.Format,
 		Classification:      revision.Policy.Classification,
 	}
+	r.sources[entry.IntegrationID] = revision.Source
 	return nil
 }
 

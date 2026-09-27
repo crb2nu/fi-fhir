@@ -258,16 +258,22 @@ trusted network:
     "operatorDelivery": false,
     "operatorDeployment": false,
     "clinicalRead": true,
+    "connectionsRead": false,
+    "connectionsWrite": false,
     "integrationSessions": false,
     "streaming": false,
     "subscriptions": [],
-    "llm": {"configured": true}
+    "llm": {"configured": true},
+    "controlPlane": false,
+    "connectionCatalog": false
   },
   "missingRoles": {
     "operatorRead": ["integration.operator"],
     "operatorDelivery": ["integration.operator", "integration.delivery.operator"],
     "operatorDeployment": ["integration.operator", "integration.deployment.operator"],
-    "clinicalRead": []
+    "clinicalRead": [],
+    "connectionsRead": ["integration.operator"],
+    "connectionsWrite": ["integration.operator", "integration.deployment.operator"]
   }
 }
 ```

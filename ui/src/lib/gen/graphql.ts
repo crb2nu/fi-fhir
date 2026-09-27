@@ -256,6 +256,142 @@ export type ConditionEvent = Event & {
   type: EventType;
 };
 
+export type Connection = {
+  __typename?: 'Connection';
+  archived: Scalars['Boolean']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: OperatorPrincipal;
+  description: Scalars['String']['output'];
+  direction: ConnectionDirection;
+  /** The connection's artifact ID; every compiled revision carries it. */
+  id: Scalars['ID']['output'];
+  kind: ConnectionKind;
+  latestRevision: Maybe<ConnectionRevision>;
+  name: Scalars['String']['output'];
+  /** Lifecycle definition revisions that name any revision of this connection. */
+  references: Array<ConnectionReference>;
+  runtime: ConnectionRuntimeState;
+  secretBindings: Array<ConnectionSecretBinding>;
+  /** The kind's spec: snake_case, non-secret, and possibly incomplete (compile reports what is missing). */
+  spec: Scalars['JSON']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  updatedBy: OperatorPrincipal;
+  updatedReason: Scalars['String']['output'];
+  /** Optimistic draft version, starting at 1. Every update and archive advances it; compile does not. */
+  version: Scalars['Int']['output'];
+};
+
+export type ConnectionCommandInput = {
+  expectedVersion: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
+  reason: Scalars['String']['input'];
+};
+
+export type ConnectionCompileResult = {
+  __typename?: 'ConnectionCompileResult';
+  connection: Connection;
+  problems: Array<ConnectionProblem>;
+  /** Null exactly when a blocking problem was found; nothing was written then. */
+  revision: Maybe<ConnectionRevision>;
+};
+
+export type ConnectionDirection =
+  | 'DESTINATION'
+  | 'SOURCE';
+
+export type ConnectionKind =
+  | 'BATCH_S3'
+  | 'BATCH_SFTP'
+  | 'FHIR'
+  | 'HTTP'
+  | 'HTTPS'
+  | 'KAFKA'
+  | 'MLLP';
+
+/**
+ * One field-level finding. path is JSON dot form relative to the spec
+ * (timeouts.read_seconds, s3.bucket, clients.allowed_cidrs[0]) or
+ * secret_bindings[i].<field>; empty for the document as a whole. Every code but
+ * UNUSED_BINDING blocks compile.
+ */
+export type ConnectionProblem = {
+  __typename?: 'ConnectionProblem';
+  code: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+  path: Scalars['String']['output'];
+};
+
+/**
+ * One lifecycle definition revision that names a revision of this connection,
+ * as its source or as one of its destinations.
+ */
+export type ConnectionReference = {
+  __typename?: 'ConnectionReference';
+  definitionId: Scalars['ID']['output'];
+  /** The digest of this connection's revision that the definition names. */
+  digest: Scalars['String']['output'];
+  health: Scalars['String']['output'];
+  /** The referencing definition's revision ID. */
+  revisionId: Scalars['ID']['output'];
+  /** The definition revision's lifecycle state (draft ... deployed, paused, retired). */
+  state: Scalars['String']['output'];
+};
+
+export type ConnectionRevision = {
+  __typename?: 'ConnectionRevision';
+  artifactId: Scalars['ID']['output'];
+  /** The draft version this revision was compiled from. */
+  compiledFromVersion: Scalars['Int']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: OperatorPrincipal;
+  createdReason: Scalars['String']['output'];
+  digest: Scalars['String']['output'];
+  direction: ConnectionDirection;
+  kind: ConnectionKind;
+  /** Revision IDs are 1, 2, ... per connection. */
+  revisionId: Scalars['ID']['output'];
+  /** The exact bytes serve mounts. */
+  revisionJson: Scalars['String']['output'];
+};
+
+export type ConnectionRuntimeState = {
+  __typename?: 'ConnectionRuntimeState';
+  /** Which revision is mounted, and by what; null when not mounted. */
+  detail: Maybe<Scalars['String']['output']>;
+  /** True when this replica runs a revision of this connection. */
+  mounted: Scalars['Boolean']['output'];
+  /** mllp-listener, batch-runner, http-ingress, or delivery-registry; null when not mounted. */
+  role: Maybe<Scalars['String']['output']>;
+};
+
+/** A reference to a secret: never its value. */
+export type ConnectionSecretBinding = {
+  __typename?: 'ConnectionSecretBinding';
+  key: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  /** env, file, vault, aws-ssm, or k8s. */
+  provider: Scalars['String']['output'];
+  version: Maybe<Scalars['String']['output']>;
+};
+
+export type ConnectionSecretBindingInput = {
+  key: Scalars['String']['input'];
+  name: Scalars['String']['input'];
+  provider: Scalars['String']['input'];
+  version: InputMaybe<Scalars['String']['input']>;
+};
+
+export type CreateConnectionInput = {
+  description: InputMaybe<Scalars['String']['input']>;
+  direction: ConnectionDirection;
+  id: Scalars['ID']['input'];
+  kind: ConnectionKind;
+  name: Scalars['String']['input'];
+  reason: Scalars['String']['input'];
+  secretBindings: InputMaybe<Array<ConnectionSecretBindingInput>>;
+  spec: Scalars['JSON']['input'];
+};
+
 export type CreateIntegrationSessionInput = {
   description: InputMaybe<Scalars['String']['input']>;
   name: Scalars['String']['input'];
@@ -365,6 +501,119 @@ export type Encounter = {
   id: Scalars['ID']['output'];
   location: Maybe<Location>;
   status: Maybe<Scalars['String']['output']>;
+};
+
+/**
+ * One ingress or egress adapter. Every field but kind and enabled is null when
+ * the adapter is disabled or the field does not apply to its kind.
+ */
+export type EngineAdapter = {
+  __typename?: 'EngineAdapter';
+  authMode: Maybe<Scalars['String']['output']>;
+  definitionId: Maybe<Scalars['ID']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  integrationId: Maybe<Scalars['ID']['output']>;
+  /** http, mllp, batch, or delivery. */
+  kind: Scalars['String']['output'];
+  listenAddress: Maybe<Scalars['String']['output']>;
+  maxAttempts: Maybe<Scalars['Int']['output']>;
+  maxBodyBytes: Maybe<Scalars['Int']['output']>;
+  maxConnections: Maybe<Scalars['Int']['output']>;
+  maxMessageBytes: Maybe<Scalars['Int']['output']>;
+  path: Maybe<Scalars['String']['output']>;
+  pollSeconds: Maybe<Scalars['Int']['output']>;
+  provider: Maybe<Scalars['String']['output']>;
+  queueDriver: Maybe<Scalars['String']['output']>;
+  requireClientIdentity: Maybe<Scalars['Boolean']['output']>;
+  requireWorkloadIdentity: Maybe<Scalars['Boolean']['output']>;
+  sourceDigest: Maybe<Scalars['String']['output']>;
+  sourceId: Maybe<Scalars['ID']['output']>;
+  sourceRevisionId: Maybe<Scalars['ID']['output']>;
+  tlsMode: Maybe<Scalars['String']['output']>;
+  workerId: Maybe<Scalars['String']['output']>;
+};
+
+export type EngineDestination = {
+  __typename?: 'EngineDestination';
+  artifactId: Scalars['ID']['output'];
+  /** production or sandbox. */
+  class: Scalars['String']['output'];
+  digest: Scalars['String']['output'];
+  /** Scheme, host, and path only; advisory, never a trust input. */
+  endpointAdvisory: Scalars['String']['output'];
+  revisionId: Scalars['ID']['output'];
+  /** kafka, https, or fhir. */
+  transport: Scalars['String']['output'];
+};
+
+export type EngineDestinationIdentity = {
+  __typename?: 'EngineDestinationIdentity';
+  destinations: Array<EngineDestination>;
+  /** strict or compatibility. */
+  mode: Scalars['String']['output'];
+};
+
+export type EngineLedger = {
+  __typename?: 'EngineLedger';
+  name: Scalars['String']['output'];
+  version: Scalars['Int']['output'];
+};
+
+export type EngineProperty = {
+  __typename?: 'EngineProperty';
+  /** The environment variable that sets it; change it in GitOps. */
+  key: Scalars['String']['output'];
+  secret: Scalars['Boolean']['output'];
+  /** env or default. */
+  source: Scalars['String']['output'];
+  /** The value, the documented default, or "" when neither; set/unset when secret. */
+  value: Scalars['String']['output'];
+};
+
+export type EngineRegistry = {
+  __typename?: 'EngineRegistry';
+  integrationCount: Scalars['Int']['output'];
+  integrations: Array<EngineRegistryIntegration>;
+};
+
+export type EngineRegistryIntegration = {
+  __typename?: 'EngineRegistryIntegration';
+  definitionId: Scalars['ID']['output'];
+  digest: Scalars['String']['output'];
+  format: Scalars['String']['output'];
+  integrationId: Scalars['ID']['output'];
+  revisionId: Scalars['ID']['output'];
+  sourceId: Scalars['ID']['output'];
+};
+
+/**
+ * What this replica composed at startup: PHI-free and secret-free. Process
+ * properties are an allowlist of the documented serve settings; a secret one
+ * renders only as "set" or "unset".
+ */
+export type EngineRuntime = {
+  __typename?: 'EngineRuntime';
+  accessIdentity: Scalars['Boolean']['output'];
+  /** Exactly four rows, enabled or not: http, mllp, batch, delivery. */
+  adapters: Array<EngineAdapter>;
+  /** GraphQL authentication mode: static or oidc. */
+  authMode: Scalars['String']['output'];
+  controlPlane: Scalars['Boolean']['output'];
+  /** Null when no delivery identity registry is loaded. */
+  destinationIdentity: Maybe<EngineDestinationIdentity>;
+  integrationSessions: Scalars['Boolean']['output'];
+  /** Every forward-only migration ledger and the version this binary expects. */
+  ledgers: Array<EngineLedger>;
+  llmConfigured: Scalars['Boolean']['output'];
+  properties: Array<EngineProperty>;
+  registry: EngineRegistry;
+  /** hostname-pid, as the MLLP rate quota derives it. */
+  replicaId: Scalars['String']['output'];
+  retentionPurge: Scalars['Boolean']['output'];
+  streaming: Scalars['Boolean']['output'];
+  tenantId: Scalars['ID']['output'];
+  trustedNetwork: Scalars['Boolean']['output'];
+  version: Scalars['String']['output'];
 };
 
 export type Event = {
@@ -953,10 +1202,13 @@ export type Mutation = {
   approvePendingAutoroute: CodeMapping;
   approveSessionPublication: SessionDeploymentSnapshot;
   approveWorkflowVersion: WorkflowApprovalRequest;
+  archiveConnection: Connection;
   archiveIntegrationSession: IntegrationSession;
   archiveWorkflowDefinition: WorkflowDefinition;
   bulkApprovePendingAutoroutes: BulkApproveResult;
   cancelTemporalWorkflow: Scalars['Boolean']['output'];
+  compileConnection: ConnectionCompileResult;
+  createConnection: Connection;
   createFhirSubscription: FhirSubscription;
   createIntegrationSession: IntegrationSession;
   createMapping: CodeMapping;
@@ -1002,12 +1254,14 @@ export type Mutation = {
   submitEvent: SubmitResult;
   submitMessage: SubmitResult;
   triggerWorkflow: WorkflowResult;
+  updateConnection: Connection;
   updateMapping: CodeMapping;
   updateProfile: SourceProfile;
   updateSessionProfileDraft: SessionArtifact;
   updateSessionWorkflowDraft: SessionArtifact;
   updateWorkflowDefinition: WorkflowDefinition;
   uploadMappingCSV: UploadMappingResult;
+  validateConnectionSpec: Array<ConnectionProblem>;
 };
 
 
@@ -1036,6 +1290,11 @@ export type MutationApproveWorkflowVersionArgs = {
 };
 
 
+export type MutationArchiveConnectionArgs = {
+  input: ConnectionCommandInput;
+};
+
+
 export type MutationArchiveIntegrationSessionArgs = {
   id: Scalars['ID']['input'];
 };
@@ -1054,6 +1313,16 @@ export type MutationBulkApprovePendingAutoroutesArgs = {
 export type MutationCancelTemporalWorkflowArgs = {
   reason: InputMaybe<Scalars['String']['input']>;
   workflowId: Scalars['String']['input'];
+};
+
+
+export type MutationCompileConnectionArgs = {
+  input: ConnectionCommandInput;
+};
+
+
+export type MutationCreateConnectionArgs = {
+  input: CreateConnectionInput;
 };
 
 
@@ -1288,6 +1557,11 @@ export type MutationTriggerWorkflowArgs = {
 };
 
 
+export type MutationUpdateConnectionArgs = {
+  input: UpdateConnectionInput;
+};
+
+
 export type MutationUpdateMappingArgs = {
   input: UpdateMappingInput;
 };
@@ -1316,6 +1590,11 @@ export type MutationUpdateWorkflowDefinitionArgs = {
 
 export type MutationUploadMappingCsvArgs = {
   input: UploadMappingCsvInput;
+};
+
+
+export type MutationValidateConnectionSpecArgs = {
+  input: ValidateConnectionSpecInput;
 };
 
 export type NormalizationSettingsConfig = {
@@ -1898,7 +2177,12 @@ export type Query = {
   activeEncounters: Array<ActiveEncounter>;
   analyzeQuality: DataQualityScore;
   classifyMessage: MessageClassification;
+  connection: Maybe<Connection>;
+  connectionRevision: Maybe<ConnectionRevision>;
+  connectionRevisions: Array<ConnectionRevision>;
+  connections: Array<Connection>;
   debugSession: Maybe<DebugSession>;
+  engineRuntime: EngineRuntime;
   event: Maybe<Event>;
   eventStatistics: EventStatistics;
   events: EventConnection;
@@ -1984,6 +2268,28 @@ export type QueryAnalyzeQualityArgs = {
 
 export type QueryClassifyMessageArgs = {
   input: ClassifyMessageInput;
+};
+
+
+export type QueryConnectionArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryConnectionRevisionArgs = {
+  artifactId: Scalars['ID']['input'];
+  revisionId: Scalars['ID']['input'];
+};
+
+
+export type QueryConnectionRevisionsArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryConnectionsArgs = {
+  direction: InputMaybe<ConnectionDirection>;
+  includeArchived: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 
@@ -2780,6 +3086,19 @@ export type TraceSpanEvent = {
   timestamp: Scalars['DateTime']['output'];
 };
 
+export type UpdateConnectionInput = {
+  description: InputMaybe<Scalars['String']['input']>;
+  /** Optimistic concurrency guard; a stale version is rejected, never retried. */
+  expectedVersion: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
+  name: InputMaybe<Scalars['String']['input']>;
+  reason: Scalars['String']['input'];
+  /** Replaces the stored bindings when present, including with an empty list. */
+  secretBindings: InputMaybe<Array<ConnectionSecretBindingInput>>;
+  /** Replaces the stored spec when present. */
+  spec: InputMaybe<Scalars['JSON']['input']>;
+};
+
 export type UpdateMappingInput = {
   comment: InputMaybe<Scalars['String']['input']>;
   confidence: InputMaybe<Scalars['Float']['input']>;
@@ -2849,6 +3168,12 @@ export type UploadValidationError = {
   column: Maybe<Scalars['String']['output']>;
   message: Scalars['String']['output'];
   row: Scalars['Int']['output'];
+};
+
+export type ValidateConnectionSpecInput = {
+  kind: ConnectionKind;
+  secretBindings: InputMaybe<Array<ConnectionSecretBindingInput>>;
+  spec: Scalars['JSON']['input'];
 };
 
 export type ValidationSettingsConfig = {
