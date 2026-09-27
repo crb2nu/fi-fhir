@@ -86,7 +86,7 @@ var operatorRecovery = []string{operator.ReadRole, delivery.OperatorRole}
 // (internal/integration/operator/service.go:299).
 var operatorDeployment = []string{operator.ReadRole, operator.DeploymentOperatorRole}
 
-// rootFieldRoles covers all 141 schema root fields. A root field that is absent
+// rootFieldRoles covers all 145 schema root fields. A root field that is absent
 // is refused: see transportGateRolesSatisfied. TestTransportGateRoleMapIsExhaustive
 // fails when schema.graphql grows a root field this map does not name, so a new
 // field cannot reach production without a role decision.
@@ -111,6 +111,9 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		"connectionRevisions": operatorRead,
 		"connectionRevision":  operatorRead,
 		"engineRuntime":       operatorRead,
+		// .loom/38 C-2 sample intake audit reads; connection.Service re-checks
+		// the role and requires a configured session workspace.
+		"connectionCaptures": operatorRead,
 
 		// Health and preview. health stays in the compatibility bucket on
 		// purpose: the low-privilege path to it is the untouched
@@ -214,6 +217,14 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		"archiveConnection":      operatorDeployment,
 		"compileConnection":      operatorDeployment,
 		"validateConnectionSpec": operatorDeployment,
+
+		// .loom/38 C-2 sample intake: the operator read role (the spec's
+		// Roles table), re-checked by connection.Service, which also requires a
+		// configured session workspace and a reason. They write only into an
+		// Integration Session and the capture audit, never the catalog.
+		"peekBatchConnection":     operatorRead,
+		"startConnectionCapture":  operatorRead,
+		"cancelConnectionCapture": operatorRead,
 
 		// previewIntegrationMessage is the integration:preview surface. It keeps
 		// its compatibility entry so a graphql:operator token reaches it exactly

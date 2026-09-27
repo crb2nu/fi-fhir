@@ -263,6 +263,7 @@ func TestAuthCapabilityRepresentativesCoverTheirGroup(t *testing.T) {
 		}},
 		{connectionsReadCapability, ast.Query, []string{
 			"connections", "connection", "connectionRevisions", "connectionRevision", "engineRuntime",
+			"connectionCaptures",
 		}},
 		{connectionsWriteCapability, ast.Mutation, []string{
 			"createConnection", "updateConnection", "archiveConnection", "compileConnection", "validateConnectionSpec",

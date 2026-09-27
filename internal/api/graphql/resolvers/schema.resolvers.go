@@ -1944,6 +1944,21 @@ func (r *mutationResolver) ValidateConnectionSpec(ctx context.Context, input mod
 	return r.validateConnectionSpec(ctx, input)
 }
 
+// PeekBatchConnection is the resolver for the peekBatchConnection field.
+func (r *mutationResolver) PeekBatchConnection(ctx context.Context, input model.PeekBatchConnectionInput) (*model.BatchPeekResult, error) {
+	return r.peekBatchConnection(ctx, input)
+}
+
+// StartConnectionCapture is the resolver for the startConnectionCapture field.
+func (r *mutationResolver) StartConnectionCapture(ctx context.Context, input model.StartConnectionCaptureInput) (*model.ConnectionCapture, error) {
+	return r.startConnectionCapture(ctx, input)
+}
+
+// CancelConnectionCapture is the resolver for the cancelConnectionCapture field.
+func (r *mutationResolver) CancelConnectionCapture(ctx context.Context, id string, reason string) (*model.ConnectionCapture, error) {
+	return r.cancelConnectionCapture(ctx, id, reason)
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -3450,6 +3465,11 @@ func (r *queryResolver) ConnectionRevision(ctx context.Context, artifactID strin
 // EngineRuntime is the resolver for the engineRuntime field.
 func (r *queryResolver) EngineRuntime(ctx context.Context) (*model.EngineRuntime, error) {
 	return r.engineRuntime(ctx)
+}
+
+// ConnectionCaptures is the resolver for the connectionCaptures field.
+func (r *queryResolver) ConnectionCaptures(ctx context.Context, sessionID string) ([]model.ConnectionCapture, error) {
+	return r.connectionCaptures(ctx, sessionID)
 }
 
 // EventStream is the resolver for the eventStream field.

@@ -26,6 +26,7 @@ type SessionSample struct {
 	Format          SourceFormat `json:"format"`
 	Source          *string      `json:"source,omitempty"`
 	RawPayload      *string      `json:"rawPayload,omitempty"`
+	RedactedPayload *string      `json:"redactedPayload,omitempty"`
 	PayloadChecksum string       `json:"payloadChecksum"`
 	PayloadRef      *string      `json:"payloadRef,omitempty"`
 	CreatedAt       time.Time    `json:"createdAt"`

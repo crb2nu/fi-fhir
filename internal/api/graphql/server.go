@@ -709,6 +709,19 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"connection catalog request failed",
 		"engine runtime unavailable":
 		return &gqlerror.Error{Message: presented.Message}
+	// Connection sample intake outcomes (.loom/38 C-2). Each names a decision
+	// about the caller's own request — its session, its capture, the connection
+	// it named — and none carries a store detail, a secret, or message content.
+	case "connection sample intake unavailable",
+		"invalid connection sample intake request",
+		"integration session not found",
+		"integration session is archived",
+		"connection capture not found",
+		"a capture is already armed for this source",
+		"connection capture is already finished",
+		"peek requires a compiled batch source connection",
+		"connection sample intake request failed":
+		return &gqlerror.Error{Message: presented.Message}
 	case connectionSpecRejectedMessage:
 		// The one catalog error with extensions: the refused paths, computed
 		// from the caller's own spec, so the form can mark the field. Only the

@@ -122,6 +122,20 @@ type ComplexityRoot struct {
 		WorkflowResults func(childComplexity int) int
 	}
 
+	BatchPeekObject struct {
+		ModifiedAt func(childComplexity int) int
+		Path       func(childComplexity int) int
+		Size       func(childComplexity int) int
+		Version    func(childComplexity int) int
+	}
+
+	BatchPeekResult struct {
+		Capture  func(childComplexity int) int
+		Objects  func(childComplexity int) int
+		Problems func(childComplexity int) int
+		Samples  func(childComplexity int) int
+	}
+
 	BatchResult struct {
 		DurationMs   func(childComplexity int) int
 		FailureCount func(childComplexity int) int
@@ -213,6 +227,23 @@ type ComplexityRoot struct {
 		UpdatedBy      func(childComplexity int) int
 		UpdatedReason  func(childComplexity int) int
 		Version        func(childComplexity int) int
+	}
+
+	ConnectionCapture struct {
+		Captured     func(childComplexity int) int
+		CompletedAt  func(childComplexity int) int
+		ConnectionID func(childComplexity int) int
+		ExpiresAt    func(childComplexity int) int
+		ID           func(childComplexity int) int
+		MaxMessages  func(childComplexity int) int
+		Mode         func(childComplexity int) int
+		Problems     func(childComplexity int) int
+		Reason       func(childComplexity int) int
+		RequestedAt  func(childComplexity int) int
+		RequestedBy  func(childComplexity int) int
+		SessionID    func(childComplexity int) int
+		SourceID     func(childComplexity int) int
+		Status       func(childComplexity int) int
 	}
 
 	ConnectionCompileResult struct {
@@ -787,6 +818,7 @@ type ComplexityRoot struct {
 		ArchiveIntegrationSession    func(childComplexity int, id string) int
 		ArchiveWorkflowDefinition    func(childComplexity int, input model.ArchiveWorkflowDefinitionInput) int
 		BulkApprovePendingAutoroutes func(childComplexity int, input *model.BulkApproveInput) int
+		CancelConnectionCapture      func(childComplexity int, id string, reason string) int
 		CancelTemporalWorkflow       func(childComplexity int, workflowID string, reason *string) int
 		CompileConnection            func(childComplexity int, input model.ConnectionCommandInput) int
 		CreateConnection             func(childComplexity int, input model.CreateConnectionInput) int
@@ -813,6 +845,7 @@ type ComplexityRoot struct {
 		GenerateWorkflow             func(childComplexity int, input model.GenerateWorkflowInput) int
 		PauseFhirSubscription        func(childComplexity int, id string) int
 		PauseIntegrationDeployment   func(childComplexity int, input model.OperatorDeploymentCommandInput) int
+		PeekBatchConnection          func(childComplexity int, input model.PeekBatchConnectionInput) int
 		PreviewIntegrationMessage    func(childComplexity int, input model.PreviewIntegrationMessageInput) int
 		PublishIntegrationSession    func(childComplexity int, input model.PublishIntegrationSessionInput) int
 		PublishWorkflowVersion       func(childComplexity int, input model.PublishWorkflowVersionInput) int
@@ -829,6 +862,7 @@ type ComplexityRoot struct {
 		SaveWorkflowVersion          func(childComplexity int, input model.SaveWorkflowVersionInput) int
 		SignalReviewDecision         func(childComplexity int, input model.SignalReviewDecisionInput) int
 		SimulateSessionWorkflow      func(childComplexity int, input model.SimulateSessionWorkflowInput) int
+		StartConnectionCapture       func(childComplexity int, input model.StartConnectionCaptureInput) int
 		StartDebugSession            func(childComplexity int, input model.StartDebugSessionInput) int
 		StartTerminologyReview       func(childComplexity int, input model.StartTerminologyReviewInput) int
 		SubmitBatch                  func(childComplexity int, input model.SubmitBatchInput) int
@@ -1253,6 +1287,7 @@ type ComplexityRoot struct {
 		AnalyzeQuality             func(childComplexity int, input model.AnalyzeQualityInput) int
 		ClassifyMessage            func(childComplexity int, input model.ClassifyMessageInput) int
 		Connection                 func(childComplexity int, id string) int
+		ConnectionCaptures         func(childComplexity int, sessionID string) int
 		ConnectionRevision         func(childComplexity int, artifactID string, revisionID string) int
 		ConnectionRevisions        func(childComplexity int, id string) int
 		Connections                func(childComplexity int, direction *model.ConnectionDirection, includeArchived *bool) int
@@ -1426,6 +1461,7 @@ type ComplexityRoot struct {
 		PayloadChecksum func(childComplexity int) int
 		PayloadRef      func(childComplexity int) int
 		RawPayload      func(childComplexity int) int
+		RedactedPayload func(childComplexity int) int
 		SessionID       func(childComplexity int) int
 		Source          func(childComplexity int) int
 	}
@@ -1831,6 +1867,9 @@ type MutationResolver interface {
 	ArchiveConnection(ctx context.Context, input model.ConnectionCommandInput) (*model.Connection, error)
 	CompileConnection(ctx context.Context, input model.ConnectionCommandInput) (*model.ConnectionCompileResult, error)
 	ValidateConnectionSpec(ctx context.Context, input model.ValidateConnectionSpecInput) ([]model.ConnectionProblem, error)
+	PeekBatchConnection(ctx context.Context, input model.PeekBatchConnectionInput) (*model.BatchPeekResult, error)
+	StartConnectionCapture(ctx context.Context, input model.StartConnectionCaptureInput) (*model.ConnectionCapture, error)
+	CancelConnectionCapture(ctx context.Context, id string, reason string) (*model.ConnectionCapture, error)
 }
 type QueryResolver interface {
 	Event(ctx context.Context, id string) (model.Event, error)
@@ -1902,6 +1941,7 @@ type QueryResolver interface {
 	ConnectionRevisions(ctx context.Context, id string) ([]model.ConnectionRevision, error)
 	ConnectionRevision(ctx context.Context, artifactID string, revisionID string) (*model.ConnectionRevision, error)
 	EngineRuntime(ctx context.Context) (*model.EngineRuntime, error)
+	ConnectionCaptures(ctx context.Context, sessionID string) ([]model.ConnectionCapture, error)
 }
 type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
@@ -2233,6 +2273,56 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.BatchItemResult.WorkflowResults(childComplexity), true
+
+	case "BatchPeekObject.modifiedAt":
+		if e.complexity.BatchPeekObject.ModifiedAt == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekObject.ModifiedAt(childComplexity), true
+	case "BatchPeekObject.path":
+		if e.complexity.BatchPeekObject.Path == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekObject.Path(childComplexity), true
+	case "BatchPeekObject.size":
+		if e.complexity.BatchPeekObject.Size == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekObject.Size(childComplexity), true
+	case "BatchPeekObject.version":
+		if e.complexity.BatchPeekObject.Version == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekObject.Version(childComplexity), true
+
+	case "BatchPeekResult.capture":
+		if e.complexity.BatchPeekResult.Capture == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekResult.Capture(childComplexity), true
+	case "BatchPeekResult.objects":
+		if e.complexity.BatchPeekResult.Objects == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekResult.Objects(childComplexity), true
+	case "BatchPeekResult.problems":
+		if e.complexity.BatchPeekResult.Problems == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekResult.Problems(childComplexity), true
+	case "BatchPeekResult.samples":
+		if e.complexity.BatchPeekResult.Samples == nil {
+			break
+		}
+
+		return e.complexity.BatchPeekResult.Samples(childComplexity), true
 
 	case "BatchResult.durationMs":
 		if e.complexity.BatchResult.DurationMs == nil {
@@ -2638,6 +2728,91 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Connection.Version(childComplexity), true
+
+	case "ConnectionCapture.captured":
+		if e.complexity.ConnectionCapture.Captured == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.Captured(childComplexity), true
+	case "ConnectionCapture.completedAt":
+		if e.complexity.ConnectionCapture.CompletedAt == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.CompletedAt(childComplexity), true
+	case "ConnectionCapture.connectionId":
+		if e.complexity.ConnectionCapture.ConnectionID == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.ConnectionID(childComplexity), true
+	case "ConnectionCapture.expiresAt":
+		if e.complexity.ConnectionCapture.ExpiresAt == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.ExpiresAt(childComplexity), true
+	case "ConnectionCapture.id":
+		if e.complexity.ConnectionCapture.ID == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.ID(childComplexity), true
+	case "ConnectionCapture.maxMessages":
+		if e.complexity.ConnectionCapture.MaxMessages == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.MaxMessages(childComplexity), true
+	case "ConnectionCapture.mode":
+		if e.complexity.ConnectionCapture.Mode == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.Mode(childComplexity), true
+	case "ConnectionCapture.problems":
+		if e.complexity.ConnectionCapture.Problems == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.Problems(childComplexity), true
+	case "ConnectionCapture.reason":
+		if e.complexity.ConnectionCapture.Reason == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.Reason(childComplexity), true
+	case "ConnectionCapture.requestedAt":
+		if e.complexity.ConnectionCapture.RequestedAt == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.RequestedAt(childComplexity), true
+	case "ConnectionCapture.requestedBy":
+		if e.complexity.ConnectionCapture.RequestedBy == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.RequestedBy(childComplexity), true
+	case "ConnectionCapture.sessionId":
+		if e.complexity.ConnectionCapture.SessionID == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.SessionID(childComplexity), true
+	case "ConnectionCapture.sourceId":
+		if e.complexity.ConnectionCapture.SourceID == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.SourceID(childComplexity), true
+	case "ConnectionCapture.status":
+		if e.complexity.ConnectionCapture.Status == nil {
+			break
+		}
+
+		return e.complexity.ConnectionCapture.Status(childComplexity), true
 
 	case "ConnectionCompileResult.connection":
 		if e.complexity.ConnectionCompileResult.Connection == nil {
@@ -5039,6 +5214,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.BulkApprovePendingAutoroutes(childComplexity, args["input"].(*model.BulkApproveInput)), true
+	case "Mutation.cancelConnectionCapture":
+		if e.complexity.Mutation.CancelConnectionCapture == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_cancelConnectionCapture_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CancelConnectionCapture(childComplexity, args["id"].(string), args["reason"].(string)), true
 	case "Mutation.cancelTemporalWorkflow":
 		if e.complexity.Mutation.CancelTemporalWorkflow == nil {
 			break
@@ -5325,6 +5511,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.PauseIntegrationDeployment(childComplexity, args["input"].(model.OperatorDeploymentCommandInput)), true
+	case "Mutation.peekBatchConnection":
+		if e.complexity.Mutation.PeekBatchConnection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_peekBatchConnection_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PeekBatchConnection(childComplexity, args["input"].(model.PeekBatchConnectionInput)), true
 	case "Mutation.previewIntegrationMessage":
 		if e.complexity.Mutation.PreviewIntegrationMessage == nil {
 			break
@@ -5501,6 +5698,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.SimulateSessionWorkflow(childComplexity, args["input"].(model.SimulateSessionWorkflowInput)), true
+	case "Mutation.startConnectionCapture":
+		if e.complexity.Mutation.StartConnectionCapture == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_startConnectionCapture_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StartConnectionCapture(childComplexity, args["input"].(model.StartConnectionCaptureInput)), true
 	case "Mutation.startDebugSession":
 		if e.complexity.Mutation.StartDebugSession == nil {
 			break
@@ -7414,6 +7622,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Connection(childComplexity, args["id"].(string)), true
+	case "Query.connectionCaptures":
+		if e.complexity.Query.ConnectionCaptures == nil {
+			break
+		}
+
+		args, err := ec.field_Query_connectionCaptures_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ConnectionCaptures(childComplexity, args["sessionId"].(string)), true
 	case "Query.connectionRevision":
 		if e.complexity.Query.ConnectionRevision == nil {
 			break
@@ -8569,6 +8788,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SessionSample.RawPayload(childComplexity), true
+	case "SessionSample.redactedPayload":
+		if e.complexity.SessionSample.RedactedPayload == nil {
+			break
+		}
+
+		return e.complexity.SessionSample.RedactedPayload(childComplexity), true
 	case "SessionSample.sessionId":
 		if e.complexity.SessionSample.SessionID == nil {
 			break
@@ -10025,6 +10250,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputPagingInput,
 		ec.unmarshalInputParseWarningInput,
 		ec.unmarshalInputPatientFilter,
+		ec.unmarshalInputPeekBatchConnectionInput,
 		ec.unmarshalInputPreviewIntegrationMessageInput,
 		ec.unmarshalInputPromoteSessionPublicationInput,
 		ec.unmarshalInputPublishIntegrationSessionInput,
@@ -10039,6 +10265,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputSetBreakpointInput,
 		ec.unmarshalInputSignalReviewDecisionInput,
 		ec.unmarshalInputSimulateSessionWorkflowInput,
+		ec.unmarshalInputStartConnectionCaptureInput,
 		ec.unmarshalInputStartDebugSessionInput,
 		ec.unmarshalInputStartTerminologyReviewInput,
 		ec.unmarshalInputSubmitBatchInput,
@@ -10291,6 +10518,22 @@ func (ec *executionContext) field_Mutation_bulkApprovePendingAutoroutes_args(ctx
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_cancelConnectionCapture_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "reason", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["reason"] = arg1
 	return args, nil
 }
 
@@ -10600,6 +10843,17 @@ func (ec *executionContext) field_Mutation_pauseIntegrationDeployment_args(ctx c
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_peekBatchConnection_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNPeekBatchConnectionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPeekBatchConnectionInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_previewIntegrationMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -10769,6 +11023,17 @@ func (ec *executionContext) field_Mutation_simulateSessionWorkflow_args(ctx cont
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNSimulateSessionWorkflowInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSimulateSessionWorkflowInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_startConnectionCapture_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNStartConnectionCaptureInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartConnectionCaptureInput)
 	if err != nil {
 		return nil, err
 	}
@@ -11023,6 +11288,17 @@ func (ec *executionContext) field_Query_classifyMessage_args(ctx context.Context
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_connectionCaptures_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionId"] = arg0
 	return args, nil
 }
 
@@ -13456,6 +13732,308 @@ func (ec *executionContext) fieldContext_BatchItemResult_workflowResults(_ conte
 	return fc, nil
 }
 
+func (ec *executionContext) _BatchPeekObject_path(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekObject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekObject_path,
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekObject_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekObject",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchPeekObject_size(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekObject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekObject_size,
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekObject_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekObject",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchPeekObject_version(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekObject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekObject_version,
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekObject_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekObject",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchPeekObject_modifiedAt(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekObject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekObject_modifiedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ModifiedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekObject_modifiedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekObject",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchPeekResult_objects(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekResult_objects,
+		func(ctx context.Context) (any, error) {
+			return obj.Objects, nil
+		},
+		nil,
+		ec.marshalNBatchPeekObject2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchPeekObjectᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekResult_objects(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "path":
+				return ec.fieldContext_BatchPeekObject_path(ctx, field)
+			case "size":
+				return ec.fieldContext_BatchPeekObject_size(ctx, field)
+			case "version":
+				return ec.fieldContext_BatchPeekObject_version(ctx, field)
+			case "modifiedAt":
+				return ec.fieldContext_BatchPeekObject_modifiedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BatchPeekObject", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchPeekResult_samples(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekResult_samples,
+		func(ctx context.Context) (any, error) {
+			return obj.Samples, nil
+		},
+		nil,
+		ec.marshalNSessionSample2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐSessionSampleᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekResult_samples(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_SessionSample_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_SessionSample_sessionId(ctx, field)
+			case "name":
+				return ec.fieldContext_SessionSample_name(ctx, field)
+			case "format":
+				return ec.fieldContext_SessionSample_format(ctx, field)
+			case "source":
+				return ec.fieldContext_SessionSample_source(ctx, field)
+			case "rawPayload":
+				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "redactedPayload":
+				return ec.fieldContext_SessionSample_redactedPayload(ctx, field)
+			case "payloadChecksum":
+				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
+			case "payloadRef":
+				return ec.fieldContext_SessionSample_payloadRef(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_SessionSample_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionSample", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchPeekResult_capture(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekResult_capture,
+		func(ctx context.Context) (any, error) {
+			return obj.Capture, nil
+		},
+		nil,
+		ec.marshalNConnectionCapture2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCapture,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekResult_capture(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ConnectionCapture_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_ConnectionCapture_sessionId(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionCapture_sourceId(ctx, field)
+			case "connectionId":
+				return ec.fieldContext_ConnectionCapture_connectionId(ctx, field)
+			case "mode":
+				return ec.fieldContext_ConnectionCapture_mode(ctx, field)
+			case "status":
+				return ec.fieldContext_ConnectionCapture_status(ctx, field)
+			case "captured":
+				return ec.fieldContext_ConnectionCapture_captured(ctx, field)
+			case "maxMessages":
+				return ec.fieldContext_ConnectionCapture_maxMessages(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_ConnectionCapture_expiresAt(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_ConnectionCapture_requestedBy(ctx, field)
+			case "reason":
+				return ec.fieldContext_ConnectionCapture_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ConnectionCapture_requestedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_ConnectionCapture_completedAt(ctx, field)
+			case "problems":
+				return ec.fieldContext_ConnectionCapture_problems(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionCapture", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BatchPeekResult_problems(ctx context.Context, field graphql.CollectedField, obj *model.BatchPeekResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BatchPeekResult_problems,
+		func(ctx context.Context) (any, error) {
+			return obj.Problems, nil
+		},
+		nil,
+		ec.marshalNConnectionProblem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionProblemᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BatchPeekResult_problems(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BatchPeekResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_ConnectionProblem_code(ctx, field)
+			case "path":
+				return ec.fieldContext_ConnectionProblem_path(ctx, field)
+			case "message":
+				return ec.fieldContext_ConnectionProblem_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionProblem", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _BatchResult_totalItems(ctx context.Context, field graphql.CollectedField, obj *model.BatchResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15565,6 +16143,430 @@ func (ec *executionContext) fieldContext_Connection_updatedAt(_ context.Context,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_id(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_sessionId(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_sessionId,
+		func(ctx context.Context) (any, error) {
+			return obj.SessionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_sessionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_sourceId(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_sourceId,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_sourceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_connectionId(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_connectionId,
+		func(ctx context.Context) (any, error) {
+			return obj.ConnectionID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_connectionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_mode(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_mode,
+		func(ctx context.Context) (any, error) {
+			return obj.Mode, nil
+		},
+		nil,
+		ec.marshalNConnectionCaptureMode2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureMode,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_mode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectionCaptureMode does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_status(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNConnectionCaptureStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureStatus,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectionCaptureStatus does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_captured(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_captured,
+		func(ctx context.Context) (any, error) {
+			return obj.Captured, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_captured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_maxMessages(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_maxMessages,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxMessages, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_maxMessages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_expiresAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_requestedBy(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_requestedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.RequestedBy, nil
+		},
+		nil,
+		ec.marshalNOperatorPrincipal2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPrincipal,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_requestedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OperatorPrincipal_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_OperatorPrincipal_kind(ctx, field)
+			case "authMethod":
+				return ec.fieldContext_OperatorPrincipal_authMethod(ctx, field)
+			case "roles":
+				return ec.fieldContext_OperatorPrincipal_roles(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPrincipal", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_reason(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_requestedAt(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_requestedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.RequestedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_requestedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_completedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionCapture_problems(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionCapture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionCapture_problems,
+		func(ctx context.Context) (any, error) {
+			return obj.Problems, nil
+		},
+		nil,
+		ec.marshalNConnectionProblem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionProblemᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionCapture_problems(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionCapture",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_ConnectionProblem_code(ctx, field)
+			case "path":
+				return ec.fieldContext_ConnectionProblem_path(ctx, field)
+			case "message":
+				return ec.fieldContext_ConnectionProblem_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionProblem", field.Name)
 		},
 	}
 	return fc, nil
@@ -23098,6 +24100,8 @@ func (ec *executionContext) fieldContext_IntegrationBundle_samples(_ context.Con
 				return ec.fieldContext_SessionSample_source(ctx, field)
 			case "rawPayload":
 				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "redactedPayload":
+				return ec.fieldContext_SessionSample_redactedPayload(ctx, field)
 			case "payloadChecksum":
 				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
 			case "payloadRef":
@@ -25269,6 +26273,8 @@ func (ec *executionContext) fieldContext_IntegrationSession_samples(_ context.Co
 				return ec.fieldContext_SessionSample_source(ctx, field)
 			case "rawPayload":
 				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "redactedPayload":
+				return ec.fieldContext_SessionSample_redactedPayload(ctx, field)
 			case "payloadChecksum":
 				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
 			case "payloadRef":
@@ -28732,6 +29738,8 @@ func (ec *executionContext) fieldContext_Mutation_addSessionSample(ctx context.C
 				return ec.fieldContext_SessionSample_source(ctx, field)
 			case "rawPayload":
 				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "redactedPayload":
+				return ec.fieldContext_SessionSample_redactedPayload(ctx, field)
 			case "payloadChecksum":
 				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
 			case "payloadRef":
@@ -31280,6 +32288,199 @@ func (ec *executionContext) fieldContext_Mutation_validateConnectionSpec(ctx con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_validateConnectionSpec_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_peekBatchConnection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_peekBatchConnection,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().PeekBatchConnection(ctx, fc.Args["input"].(model.PeekBatchConnectionInput))
+		},
+		nil,
+		ec.marshalNBatchPeekResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchPeekResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_peekBatchConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "objects":
+				return ec.fieldContext_BatchPeekResult_objects(ctx, field)
+			case "samples":
+				return ec.fieldContext_BatchPeekResult_samples(ctx, field)
+			case "capture":
+				return ec.fieldContext_BatchPeekResult_capture(ctx, field)
+			case "problems":
+				return ec.fieldContext_BatchPeekResult_problems(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BatchPeekResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_peekBatchConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_startConnectionCapture(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_startConnectionCapture,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().StartConnectionCapture(ctx, fc.Args["input"].(model.StartConnectionCaptureInput))
+		},
+		nil,
+		ec.marshalNConnectionCapture2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCapture,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_startConnectionCapture(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ConnectionCapture_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_ConnectionCapture_sessionId(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionCapture_sourceId(ctx, field)
+			case "connectionId":
+				return ec.fieldContext_ConnectionCapture_connectionId(ctx, field)
+			case "mode":
+				return ec.fieldContext_ConnectionCapture_mode(ctx, field)
+			case "status":
+				return ec.fieldContext_ConnectionCapture_status(ctx, field)
+			case "captured":
+				return ec.fieldContext_ConnectionCapture_captured(ctx, field)
+			case "maxMessages":
+				return ec.fieldContext_ConnectionCapture_maxMessages(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_ConnectionCapture_expiresAt(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_ConnectionCapture_requestedBy(ctx, field)
+			case "reason":
+				return ec.fieldContext_ConnectionCapture_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ConnectionCapture_requestedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_ConnectionCapture_completedAt(ctx, field)
+			case "problems":
+				return ec.fieldContext_ConnectionCapture_problems(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionCapture", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_startConnectionCapture_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelConnectionCapture(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_cancelConnectionCapture,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CancelConnectionCapture(ctx, fc.Args["id"].(string), fc.Args["reason"].(string))
+		},
+		nil,
+		ec.marshalNConnectionCapture2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCapture,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_cancelConnectionCapture(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ConnectionCapture_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_ConnectionCapture_sessionId(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionCapture_sourceId(ctx, field)
+			case "connectionId":
+				return ec.fieldContext_ConnectionCapture_connectionId(ctx, field)
+			case "mode":
+				return ec.fieldContext_ConnectionCapture_mode(ctx, field)
+			case "status":
+				return ec.fieldContext_ConnectionCapture_status(ctx, field)
+			case "captured":
+				return ec.fieldContext_ConnectionCapture_captured(ctx, field)
+			case "maxMessages":
+				return ec.fieldContext_ConnectionCapture_maxMessages(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_ConnectionCapture_expiresAt(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_ConnectionCapture_requestedBy(ctx, field)
+			case "reason":
+				return ec.fieldContext_ConnectionCapture_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ConnectionCapture_requestedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_ConnectionCapture_completedAt(ctx, field)
+			case "problems":
+				return ec.fieldContext_ConnectionCapture_problems(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionCapture", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_cancelConnectionCapture_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -41035,6 +42236,8 @@ func (ec *executionContext) fieldContext_Query_sessionSamples(ctx context.Contex
 				return ec.fieldContext_SessionSample_source(ctx, field)
 			case "rawPayload":
 				return ec.fieldContext_SessionSample_rawPayload(ctx, field)
+			case "redactedPayload":
+				return ec.fieldContext_SessionSample_redactedPayload(ctx, field)
 			case "payloadChecksum":
 				return ec.fieldContext_SessionSample_payloadChecksum(ctx, field)
 			case "payloadRef":
@@ -44042,6 +45245,77 @@ func (ec *executionContext) fieldContext_Query_engineRuntime(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_connectionCaptures(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_connectionCaptures,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ConnectionCaptures(ctx, fc.Args["sessionId"].(string))
+		},
+		nil,
+		ec.marshalNConnectionCapture2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_connectionCaptures(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ConnectionCapture_id(ctx, field)
+			case "sessionId":
+				return ec.fieldContext_ConnectionCapture_sessionId(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionCapture_sourceId(ctx, field)
+			case "connectionId":
+				return ec.fieldContext_ConnectionCapture_connectionId(ctx, field)
+			case "mode":
+				return ec.fieldContext_ConnectionCapture_mode(ctx, field)
+			case "status":
+				return ec.fieldContext_ConnectionCapture_status(ctx, field)
+			case "captured":
+				return ec.fieldContext_ConnectionCapture_captured(ctx, field)
+			case "maxMessages":
+				return ec.fieldContext_ConnectionCapture_maxMessages(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_ConnectionCapture_expiresAt(ctx, field)
+			case "requestedBy":
+				return ec.fieldContext_ConnectionCapture_requestedBy(ctx, field)
+			case "reason":
+				return ec.fieldContext_ConnectionCapture_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ConnectionCapture_requestedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_ConnectionCapture_completedAt(ctx, field)
+			case "problems":
+				return ec.fieldContext_ConnectionCapture_problems(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionCapture", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_connectionCaptures_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -46704,6 +47978,35 @@ func (ec *executionContext) _SessionSample_rawPayload(ctx context.Context, field
 }
 
 func (ec *executionContext) fieldContext_SessionSample_rawPayload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SessionSample",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionSample_redactedPayload(ctx context.Context, field graphql.CollectedField, obj *model.SessionSample) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionSample_redactedPayload,
+		func(ctx context.Context) (any, error) {
+			return obj.RedactedPayload, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_SessionSample_redactedPayload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "SessionSample",
 		Field:      field,
@@ -57181,6 +58484,68 @@ func (ec *executionContext) unmarshalInputPatientFilter(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputPeekBatchConnectionInput(ctx context.Context, obj any) (model.PeekBatchConnectionInput, error) {
+	var it model.PeekBatchConnectionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"connectionId", "sessionId", "objectPath", "maxObjects", "maxMessages", "reason"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "connectionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("connectionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ConnectionID = data
+		case "sessionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "objectPath":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("objectPath"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ObjectPath = data
+		case "maxObjects":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxObjects"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxObjects = data
+		case "maxMessages":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxMessages"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxMessages = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPreviewIntegrationMessageInput(ctx context.Context, obj any) (model.PreviewIntegrationMessageInput, error) {
 	var it model.PreviewIntegrationMessageInput
 	asMap := map[string]any{}
@@ -57889,6 +59254,61 @@ func (ec *executionContext) unmarshalInputSimulateSessionWorkflowInput(ctx conte
 				return it, err
 			}
 			it.BaselineSimulationID = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputStartConnectionCaptureInput(ctx context.Context, obj any) (model.StartConnectionCaptureInput, error) {
+	var it model.StartConnectionCaptureInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sourceId", "sessionId", "maxMessages", "ttlSeconds", "reason"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sourceId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceID = data
+		case "sessionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SessionID = data
+		case "maxMessages":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxMessages"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxMessages = data
+		case "ttlSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ttlSeconds"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TTLSeconds = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
 		}
 	}
 
@@ -59552,6 +60972,111 @@ func (ec *executionContext) _BatchItemResult(ctx context.Context, sel ast.Select
 	return out
 }
 
+var batchPeekObjectImplementors = []string{"BatchPeekObject"}
+
+func (ec *executionContext) _BatchPeekObject(ctx context.Context, sel ast.SelectionSet, obj *model.BatchPeekObject) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, batchPeekObjectImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BatchPeekObject")
+		case "path":
+			out.Values[i] = ec._BatchPeekObject_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._BatchPeekObject_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._BatchPeekObject_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modifiedAt":
+			out.Values[i] = ec._BatchPeekObject_modifiedAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var batchPeekResultImplementors = []string{"BatchPeekResult"}
+
+func (ec *executionContext) _BatchPeekResult(ctx context.Context, sel ast.SelectionSet, obj *model.BatchPeekResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, batchPeekResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BatchPeekResult")
+		case "objects":
+			out.Values[i] = ec._BatchPeekResult_objects(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "samples":
+			out.Values[i] = ec._BatchPeekResult_samples(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "capture":
+			out.Values[i] = ec._BatchPeekResult_capture(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "problems":
+			out.Values[i] = ec._BatchPeekResult_problems(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var batchResultImplementors = []string{"BatchResult"}
 
 func (ec *executionContext) _BatchResult(ctx context.Context, sel ast.SelectionSet, obj *model.BatchResult) graphql.Marshaler {
@@ -60108,6 +61633,104 @@ func (ec *executionContext) _Connection(ctx context.Context, sel ast.SelectionSe
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Connection_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var connectionCaptureImplementors = []string{"ConnectionCapture"}
+
+func (ec *executionContext) _ConnectionCapture(ctx context.Context, sel ast.SelectionSet, obj *model.ConnectionCapture) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, connectionCaptureImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ConnectionCapture")
+		case "id":
+			out.Values[i] = ec._ConnectionCapture_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sessionId":
+			out.Values[i] = ec._ConnectionCapture_sessionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceId":
+			out.Values[i] = ec._ConnectionCapture_sourceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connectionId":
+			out.Values[i] = ec._ConnectionCapture_connectionId(ctx, field, obj)
+		case "mode":
+			out.Values[i] = ec._ConnectionCapture_mode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._ConnectionCapture_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "captured":
+			out.Values[i] = ec._ConnectionCapture_captured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxMessages":
+			out.Values[i] = ec._ConnectionCapture_maxMessages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._ConnectionCapture_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestedBy":
+			out.Values[i] = ec._ConnectionCapture_requestedBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._ConnectionCapture_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "requestedAt":
+			out.Values[i] = ec._ConnectionCapture_requestedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._ConnectionCapture_completedAt(ctx, field, obj)
+		case "problems":
+			out.Values[i] = ec._ConnectionCapture_problems(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -64249,6 +65872,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "peekBatchConnection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_peekBatchConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startConnectionCapture":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_startConnectionCapture(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelConnectionCapture":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelConnectionCapture(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -68375,6 +70019,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "connectionCaptures":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_connectionCaptures(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -69045,6 +70711,8 @@ func (ec *executionContext) _SessionSample(ctx context.Context, sel ast.Selectio
 			out.Values[i] = ec._SessionSample_source(ctx, field, obj)
 		case "rawPayload":
 			out.Values[i] = ec._SessionSample_rawPayload(ctx, field, obj)
+		case "redactedPayload":
+			out.Values[i] = ec._SessionSample_redactedPayload(ctx, field, obj)
 		case "payloadChecksum":
 			out.Values[i] = ec._SessionSample_payloadChecksum(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -71880,6 +73548,68 @@ func (ec *executionContext) unmarshalNBatchMessageItem2gitlabᚗflexinferᚗai�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNBatchPeekObject2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchPeekObject(ctx context.Context, sel ast.SelectionSet, v model.BatchPeekObject) graphql.Marshaler {
+	return ec._BatchPeekObject(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBatchPeekObject2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchPeekObjectᚄ(ctx context.Context, sel ast.SelectionSet, v []model.BatchPeekObject) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNBatchPeekObject2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchPeekObject(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNBatchPeekResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchPeekResult(ctx context.Context, sel ast.SelectionSet, v model.BatchPeekResult) graphql.Marshaler {
+	return ec._BatchPeekResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBatchPeekResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchPeekResult(ctx context.Context, sel ast.SelectionSet, v *model.BatchPeekResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BatchPeekResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNBatchResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐBatchResult(ctx context.Context, sel ast.SelectionSet, v model.BatchResult) graphql.Marshaler {
 	return ec._BatchResult(ctx, sel, &v)
 }
@@ -72167,6 +73897,84 @@ func (ec *executionContext) marshalNConnection2ᚖgitlabᚗflexinferᚗaiᚋlibs
 		return graphql.Null
 	}
 	return ec._Connection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNConnectionCapture2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCapture(ctx context.Context, sel ast.SelectionSet, v model.ConnectionCapture) graphql.Marshaler {
+	return ec._ConnectionCapture(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNConnectionCapture2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureᚄ(ctx context.Context, sel ast.SelectionSet, v []model.ConnectionCapture) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNConnectionCapture2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCapture(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNConnectionCapture2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCapture(ctx context.Context, sel ast.SelectionSet, v *model.ConnectionCapture) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ConnectionCapture(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNConnectionCaptureMode2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureMode(ctx context.Context, v any) (model.ConnectionCaptureMode, error) {
+	var res model.ConnectionCaptureMode
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectionCaptureMode2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureMode(ctx context.Context, sel ast.SelectionSet, v model.ConnectionCaptureMode) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNConnectionCaptureStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureStatus(ctx context.Context, v any) (model.ConnectionCaptureStatus, error) {
+	var res model.ConnectionCaptureStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectionCaptureStatus2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCaptureStatus(ctx context.Context, sel ast.SelectionSet, v model.ConnectionCaptureStatus) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNConnectionCommandInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionCommandInput(ctx context.Context, v any) (model.ConnectionCommandInput, error) {
@@ -75205,6 +77013,11 @@ func (ec *executionContext) marshalNPatientEdge2ᚕgitlabᚗflexinferᚗaiᚋlib
 	return ret
 }
 
+func (ec *executionContext) unmarshalNPeekBatchConnectionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPeekBatchConnectionInput(ctx context.Context, v any) (model.PeekBatchConnectionInput, error) {
+	res, err := ec.unmarshalInputPeekBatchConnectionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNPendingAutoroute2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPendingAutoroute(ctx context.Context, sel ast.SelectionSet, v model.PendingAutoroute) graphql.Marshaler {
 	return ec._PendingAutoroute(ctx, sel, &v)
 }
@@ -76297,6 +78110,11 @@ func (ec *executionContext) marshalNSourceProfile2ᚖgitlabᚗflexinferᚗaiᚋl
 		return graphql.Null
 	}
 	return ec._SourceProfile(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNStartConnectionCaptureInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartConnectionCaptureInput(ctx context.Context, v any) (model.StartConnectionCaptureInput, error) {
+	res, err := ec.unmarshalInputStartConnectionCaptureInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNStartDebugSessionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐStartDebugSessionInput(ctx context.Context, v any) (model.StartDebugSessionInput, error) {

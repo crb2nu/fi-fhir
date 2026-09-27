@@ -165,6 +165,28 @@ export type BatchMessageItem = {
   source: Scalars['String']['input'];
 };
 
+/** One object under a batch source's input prefix or directory. */
+export type BatchPeekObject = {
+  __typename?: 'BatchPeekObject';
+  /** The provider's modification time. Advisory: never a trust input. */
+  modifiedAt: Maybe<Scalars['DateTime']['output']>;
+  path: Scalars['String']['output'];
+  size: Scalars['Int']['output'];
+  /** The provider's exact version: an S3 version ID, or an SFTP change stamp. */
+  version: Scalars['String']['output'];
+};
+
+export type BatchPeekResult = {
+  __typename?: 'BatchPeekResult';
+  /** The peek's audit row, finished. */
+  capture: ConnectionCapture;
+  /** At most maxObjects objects, in the provider's listing order. */
+  objects: Array<BatchPeekObject>;
+  problems: Array<ConnectionProblem>;
+  /** The samples this peek added to the session; empty without objectPath. */
+  samples: Array<SessionSample>;
+};
+
 export type BatchResult = {
   __typename?: 'BatchResult';
   durationMs: Scalars['Int']['output'];
@@ -280,6 +302,47 @@ export type Connection = {
   /** Optimistic draft version, starting at 1. Every update and archive advances it; compile does not. */
   version: Scalars['Int']['output'];
 };
+
+/** One audited peek or stream capture. */
+export type ConnectionCapture = {
+  __typename?: 'ConnectionCapture';
+  /** Messages that reached the session. */
+  captured: Scalars['Int']['output'];
+  /** Null while armed. */
+  completedAt: Maybe<Scalars['DateTime']['output']>;
+  /** The catalog connection a peek read; null for a stream capture, which names a runtime source. */
+  connectionId: Maybe<Scalars['ID']['output']>;
+  /** When an armed capture stops by itself; a peek's own deadline. */
+  expiresAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  maxMessages: Scalars['Int']['output'];
+  mode: ConnectionCaptureMode;
+  /**
+   * Why it finished as it did: SECRET_UNRESOLVABLE (path is the spec field naming
+   * the binding), SOURCE_UNAVAILABLE, OBJECT_NOT_FOUND, MESSAGE_UNREADABLE, or
+   * SAMPLE_WRITE_FAILED (path is the input field, or empty). Empty when it did all
+   * it was asked.
+   */
+  problems: Array<ConnectionProblem>;
+  reason: Scalars['String']['output'];
+  requestedAt: Scalars['DateTime']['output'];
+  requestedBy: OperatorPrincipal;
+  sessionId: Scalars['ID']['output'];
+  /** The runtime source ID a stream capture taps, or the peeked revision's source_id. */
+  sourceId: Scalars['ID']['output'];
+  status: ConnectionCaptureStatus;
+};
+
+export type ConnectionCaptureMode =
+  | 'PEEK'
+  | 'STREAM';
+
+export type ConnectionCaptureStatus =
+  | 'ARMED'
+  | 'CANCELLED'
+  | 'COMPLETE'
+  | 'EXPIRED'
+  | 'FAILED';
 
 export type ConnectionCommandInput = {
   expectedVersion: Scalars['Int']['input'];
@@ -1206,6 +1269,7 @@ export type Mutation = {
   archiveIntegrationSession: IntegrationSession;
   archiveWorkflowDefinition: WorkflowDefinition;
   bulkApprovePendingAutoroutes: BulkApproveResult;
+  cancelConnectionCapture: ConnectionCapture;
   cancelTemporalWorkflow: Scalars['Boolean']['output'];
   compileConnection: ConnectionCompileResult;
   createConnection: Connection;
@@ -1232,6 +1296,7 @@ export type Mutation = {
   generateWorkflow: GeneratedWorkflow;
   pauseFhirSubscription: FhirSubscription;
   pauseIntegrationDeployment: OperatorDeployment;
+  peekBatchConnection: BatchPeekResult;
   previewIntegrationMessage: IntegrationPreviewResult;
   publishIntegrationSession: SessionPublication;
   publishWorkflowVersion: WorkflowRelease;
@@ -1248,6 +1313,8 @@ export type Mutation = {
   saveWorkflowVersion: WorkflowVersion;
   signalReviewDecision: Scalars['Boolean']['output'];
   simulateSessionWorkflow: SessionWorkflowSimulation;
+  /** Arms a capture of the source's next frames; one armed capture per source. */
+  startConnectionCapture: ConnectionCapture;
   startDebugSession: DebugSession;
   startTerminologyReview: StartTerminologyReviewResult;
   submitBatch: BatchResult;
@@ -1307,6 +1374,12 @@ export type MutationArchiveWorkflowDefinitionArgs = {
 
 export type MutationBulkApprovePendingAutoroutesArgs = {
   input: InputMaybe<BulkApproveInput>;
+};
+
+
+export type MutationCancelConnectionCaptureArgs = {
+  id: Scalars['ID']['input'];
+  reason: Scalars['String']['input'];
 };
 
 
@@ -1444,6 +1517,11 @@ export type MutationPauseIntegrationDeploymentArgs = {
 };
 
 
+export type MutationPeekBatchConnectionArgs = {
+  input: PeekBatchConnectionInput;
+};
+
+
 export type MutationPreviewIntegrationMessageArgs = {
   input: PreviewIntegrationMessageInput;
 };
@@ -1521,6 +1599,11 @@ export type MutationSignalReviewDecisionArgs = {
 
 export type MutationSimulateSessionWorkflowArgs = {
   input: SimulateSessionWorkflowInput;
+};
+
+
+export type MutationStartConnectionCaptureArgs = {
+  input: StartConnectionCaptureInput;
 };
 
 
@@ -2030,6 +2113,20 @@ export type PatientTimeline = {
   mrn: Scalars['ID']['output'];
 };
 
+export type PeekBatchConnectionInput = {
+  /** A catalog batch_s3 or batch_sftp connection with a compiled revision. */
+  connectionId: Scalars['ID']['input'];
+  /** 1-50; 5 when omitted. */
+  maxMessages: InputMaybe<Scalars['Int']['input']>;
+  /** 1-50; 10 when omitted. */
+  maxObjects: InputMaybe<Scalars['Int']['input']>;
+  /** An object path from a previous listing. Without it the peek lists and reads nothing. */
+  objectPath: InputMaybe<Scalars['String']['input']>;
+  reason: Scalars['String']['input'];
+  /** An active session. */
+  sessionId: Scalars['ID']['input'];
+};
+
 export type PendingAutoroute = {
   __typename?: 'PendingAutoroute';
   alternates: Array<MappingCandidate>;
@@ -2178,6 +2275,8 @@ export type Query = {
   analyzeQuality: DataQualityScore;
   classifyMessage: MessageClassification;
   connection: Maybe<Connection>;
+  /** One session's peeks and captures, newest first, at most 100. */
+  connectionCaptures: Array<ConnectionCapture>;
   connectionRevision: Maybe<ConnectionRevision>;
   connectionRevisions: Array<ConnectionRevision>;
   connections: Array<Connection>;
@@ -2273,6 +2372,11 @@ export type QueryClassifyMessageArgs = {
 
 export type QueryConnectionArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type QueryConnectionCapturesArgs = {
+  sessionId: Scalars['ID']['input'];
 };
 
 
@@ -2745,6 +2849,12 @@ export type SessionSample = {
   payloadChecksum: Scalars['String']['output'];
   payloadRef: Maybe<Scalars['String']['output']>;
   rawPayload: Maybe<Scalars['String']['output']>;
+  /**
+   * The stored text of a sample peeked or captured from a connection, as the
+   * capture redactor left it (docs/operations/PHI-RETENTION.md, "Captured and
+   * peeked samples"). Null for every other sample.
+   */
+  redactedPayload: Maybe<Scalars['String']['output']>;
   sessionId: Scalars['ID']['output'];
   source: Maybe<Scalars['String']['output']>;
 };
@@ -2856,6 +2966,18 @@ export type SourceProfile = {
   terminology: Maybe<TerminologyConfig>;
   updatedAt: Scalars['DateTime']['output'];
   version: Scalars['String']['output'];
+};
+
+export type StartConnectionCaptureInput = {
+  /** 1-100; 5 when omitted. */
+  maxMessages: InputMaybe<Scalars['Int']['input']>;
+  reason: Scalars['String']['input'];
+  /** An active session. */
+  sessionId: Scalars['ID']['input'];
+  /** The runtime source ID frames are admitted under (engineRuntime.adapters.sourceId). */
+  sourceId: Scalars['ID']['input'];
+  /** 1-900; 300 when omitted. */
+  ttlSeconds: InputMaybe<Scalars['Int']['input']>;
 };
 
 export type StartDebugSessionInput = {
