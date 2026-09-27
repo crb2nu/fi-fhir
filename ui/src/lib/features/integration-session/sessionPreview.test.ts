@@ -319,6 +319,73 @@ describe('authenticated integration preview routing', () => {
     }
   });
 
+  it('runs a session sample by its id instead of adding the editor text again (.loom/38 C-3)', async () => {
+    const env = import.meta.env as Record<string, string | undefined>;
+    const previous = env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED;
+    env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = 'true';
+    setAccessStatus(sessionCapableStatus(true));
+    const operations: string[] = [];
+    const runInputs: unknown[] = [];
+    const run = {
+      __typename: 'SessionRun' as const,
+      id: 'run-2',
+      sessionId: 'session-1',
+      sampleId: 'sample_capture_cap-1_1',
+      status: 'completed',
+      profileRevisionId: null,
+      profileRevisionDigest: null,
+      createdAt: '2026-09-27T12:00:00Z',
+      completedAt: '2026-09-27T12:00:01Z',
+      stages: [],
+      diagnostics: [],
+      lineage: [],
+      events: [],
+      warnings: []
+    } satisfies RunStreamingSessionPreviewMutation['runSessionPreview'];
+    mockSubscribe.mockImplementation((_document, _variables, callbacks) => {
+      callbacks.onOpen?.();
+      return vi.fn();
+    });
+    mockFetch.mockImplementation((document, variables) => {
+      const name = operationName(document);
+      operations.push(name);
+      if (name === 'RunStreamingSessionPreview') {
+        runInputs.push((variables as { input: unknown }).input);
+        return Promise.resolve({ runSessionPreview: run });
+      }
+      if (name === 'CreateStreamingIntegrationSession') {
+        return Promise.resolve({ createIntegrationSession: { id: 'session-new' } });
+      }
+      if (name === 'AddStreamingSessionSample') {
+        return Promise.resolve({ addSessionSample: { id: 'sample-added', sessionId: 'session-new' } });
+      }
+      return Promise.reject(new Error(`unexpected operation ${name}`));
+    });
+
+    try {
+      const result = await runAuthenticatedIntegrationPreview({
+        data: rawMessage,
+        sessionId: 'session-1',
+        sessionSampleId: 'sample_capture_cap-1_1'
+      });
+      expect(operations).toEqual(['RunStreamingSessionPreview']);
+      expect(runInputs[0]).toMatchObject({ sessionId: 'session-1', sampleId: 'sample_capture_cap-1_1', data: null });
+      expect(result.session).toMatchObject({ id: 'session-1', sampleId: 'sample_capture_cap-1_1' });
+
+      // Without a session there is nothing to run by id: the editor path is unchanged.
+      operations.length = 0;
+      await runAuthenticatedIntegrationPreview({ data: rawMessage, sessionSampleId: 'sample_capture_cap-1_1' });
+      expect(operations).toEqual([
+        'CreateStreamingIntegrationSession',
+        'AddStreamingSessionSample',
+        'RunStreamingSessionPreview'
+      ]);
+      expect(runInputs[1]).toMatchObject({ sessionId: 'session-new', sampleId: 'sample-added' });
+    } finally {
+      env.VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED = previous;
+    }
+  });
+
   it('uses one stateless mutation and excludes all browser-owned binding fields', async () => {
     mockFetch.mockResolvedValue({ previewIntegrationMessage: enginePreview });
 

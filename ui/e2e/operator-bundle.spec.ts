@@ -14,6 +14,7 @@ import {
   graphqlData,
   hl7PreviewButton,
   isStreamRequest,
+  openHL7Samples,
   openIDE,
   selects,
   watchPage
@@ -133,6 +134,46 @@ test('5. a fresh load shows no phantom Problems badge and no Platform indicator'
 
   await expect(page.getByTestId('problems-badge')).toHaveCount(0);
   await expect(page.getByTestId('platform-indicator')).toHaveCount(0);
+});
+
+// Check 9 sits here, before check 7, on purpose: with one worker the file runs
+// in order, and check 7 is what first puts a source in this stack's catalog.
+// Here the stack mounts no MLLP listener, HTTP ingress or batch runner and the
+// catalog is still empty, which is the honest empty state (.loom/38 C-3).
+test('9. intake: From connection… on /hl7 reaches the honest empty state, creating no session and querying no capture', async ({
+  page,
+  request
+}, testInfo) => {
+  const status = await fetchAuthStatus(request, testInfo);
+  expect(status.capabilities).toMatchObject({ integrationSessions: true, connectionCatalog: true, connectionsRead: true });
+  const { connections, engineRuntime } = await graphqlData<{
+    connections: unknown[];
+    engineRuntime: { adapters: Array<{ kind: string; enabled: boolean }> };
+  }>(request, '{ connections(direction: SOURCE) { id } engineRuntime { adapters { kind enabled } } }');
+  expect(connections, 'check 9 runs before check 7 creates a source connection').toEqual([]);
+  expect(engineRuntime.adapters.filter((adapter) => adapter.enabled)).toEqual([]);
+
+  const watch = await watchPage(page);
+  await openHL7Samples(page);
+  await page.getByTestId('sample-from-connection').click();
+  const dialog = page.getByTestId('connection-intake-dialog');
+  await expect(dialog).toBeVisible();
+  const empty = dialog.getByTestId('connection-intake-empty');
+  await expect(empty).toContainText('No source connection is mounted on this deployment.');
+  await expect(dialog.getByTestId('connection-intake-sources')).toHaveCount(0);
+  await expect(dialog.getByTestId('connection-intake-preflight')).toHaveCount(0);
+
+  // Listing sources is a read: no session, no audit row, no capture poll.
+  for (const field of ['createIntegrationSession', 'connectionCaptures', 'startConnectionCapture', 'peekBatchConnection']) {
+    expect(watch.graphql.filter((request) => selects(request, field)), `${field} was not issued`).toHaveLength(0);
+  }
+  // What it did read: this replica's adapters and the catalog's sources.
+  expect(watch.graphql.filter((request) => selects(request, 'engineRuntime')).length).toBeGreaterThan(0);
+  expect(watch.graphql.filter((request) => selects(request, 'connections')).length).toBeGreaterThan(0);
+
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(watch.errorToasts).toEqual([]);
 });
 
 /**
@@ -280,5 +321,69 @@ test('8. connections: the Engine tab shows the four adapters exactly as this rep
   }
   await expect(engine.getByTestId('engine-registry')).toContainText(String(engineRuntime.registry.integrationCount));
   await expect(engine.getByTestId('engine-properties')).toContainText('FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED');
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('10. intake: a capture armed on the compiled MLLP source of check 7 shows its row, polls, and stops polling once cancelled', async ({
+  page
+}, testInfo) => {
+  const watch = await watchPage(page);
+  await openHL7Samples(page);
+  await page.getByTestId('sample-from-connection').click();
+  const dialog = page.getByTestId('connection-intake-dialog');
+  const row = dialog
+    .getByTestId('connection-intake-sources')
+    .locator(`[data-row="stream:${E2E_MLLP.fields.source_id}"]`);
+  // Compiled in the catalog, mounted by no replica: capturable, and it says so.
+  await expect(row).toContainText('Compiled r1 · not mounted here');
+  await row.getByRole('button', { name: 'Capture…' }).click();
+  await expect(dialog).toHaveAttribute('data-step', 'capture');
+  await expect(dialog).toContainText('messages with segments beyond MSH/EVN/PID/PV1 are currently rejected at admission');
+
+  await dialog.getByRole('spinbutton', { name: /^Messages/ }).fill('2');
+  await dialog.getByRole('spinbutton', { name: /^Expires after/ }).fill('120');
+  await dialog.getByRole('textbox', { name: /^Reason/ }).fill('e2e: capture the synthetic east feed');
+  const started = page.waitForResponse((response) => selects(response.request(), 'startConnectionCapture'), {
+    timeout: 10_000
+  });
+  await dialog.getByRole('button', { name: 'Arm capture' }).click();
+  const response = await started;
+  const body = (await response.json()) as {
+    data?: { startConnectionCapture: { sessionId: string; status: string; sourceId: string } };
+    errors?: unknown[];
+  };
+  expect(body.errors ?? [], 'startConnectionCapture answered without GraphQL errors').toEqual([]);
+  expect(body.data?.startConnectionCapture).toMatchObject({ status: 'ARMED', sourceId: E2E_MLLP.fields.source_id });
+  await expect(dialog).toHaveCount(0);
+
+  // No Preview had run: intake created the page's session, once.
+  expect(watch.graphql.filter((request) => selects(request, 'createIntegrationSession'))).toHaveLength(1);
+
+  const capture = page.getByTestId('connection-capture-row');
+  await expect(capture).toHaveAttribute('data-status', 'ARMED');
+  await expect(capture).toContainText(/0 \/ 2 captured · expires in [12]:\d\d/);
+  // Polling: connectionCaptures of the page's session, every 2–3 s while armed.
+  await expect
+    .poll(() => watch.graphql.filter((request) => selects(request, 'connectionCaptures')).length, { timeout: 8_000 })
+    .toBeGreaterThanOrEqual(2);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await testInfo.attach('hl7-capture-armed.png', {
+    body: await page.screenshot({ animations: 'disabled', caret: 'hide' }),
+    contentType: 'image/png'
+  });
+
+  await capture.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toHaveAttribute('data-step', 'cancel');
+  await dialog.getByRole('textbox', { name: /^Reason/ }).fill('e2e: done');
+  await dialog.getByRole('button', { name: 'Cancel capture' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(capture).toHaveAttribute('data-status', 'CANCELLED');
+  await expect(capture).toContainText('0 / 2 captured · cancelled');
+
+  // Nothing is armed: the page stops asking.
+  const polls = watch.graphql.filter((request) => selects(request, 'connectionCaptures')).length;
+  await page.waitForTimeout(6_000);
+  expect(watch.graphql.filter((request) => selects(request, 'connectionCaptures'))).toHaveLength(polls);
   expect(watch.errorToasts).toEqual([]);
 });

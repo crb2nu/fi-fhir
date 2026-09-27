@@ -3,6 +3,17 @@ import type { HL7Sample, NewHL7Sample } from './types';
 import { parseHL7Message } from '$lib/domain/hl7v2';
 import { demoSamples } from './demoSamples';
 
+/** A captured or peeked session sample (`intakeState.SessionIntakeSample`). */
+export type SessionHL7SampleInput = {
+  sessionId: string;
+  sampleId: string;
+  name: string;
+  provenance: string;
+  sourceId: string | null;
+  raw: string;
+  payloadWithheld: boolean;
+};
+
 type State = {
   samples: HL7Sample[];
   activeId: string | null;
@@ -112,6 +123,45 @@ export function createHL7SampleStore() {
       });
 
       return samplesToAdd;
+    },
+
+    /**
+     * Adds captured or peeked session samples the inbox does not hold yet
+     * (matched by session sample id), newest first, in tab memory like every
+     * other sample. `activate` makes the first new one active — a peek the
+     * user just read; samples a capture delivers while the user works never
+     * replace the editor on their own.
+     */
+    addSessionSamples(inputs: readonly SessionHL7SampleInput[], activate: boolean): HL7Sample[] {
+      let added: HL7Sample[] = [];
+      state.update((s) => {
+        const held = new Set(
+          s.samples.flatMap((x) => (x.session ? [`${x.session.sessionId}\u0000${x.session.sampleId}`] : []))
+        );
+        added = inputs
+          .filter((input) => !held.has(`${input.sessionId}\u0000${input.sampleId}`))
+          .map((input) => ({
+            id: makeId(),
+            name: input.name.trim() || 'Captured sample',
+            source: input.sourceId?.trim() || input.provenance,
+            raw: input.raw,
+            createdAt: nowIso(),
+            ...(input.raw ? summarize(input.raw) : {}),
+            session: {
+              sessionId: input.sessionId,
+              sampleId: input.sampleId,
+              provenance: input.provenance,
+              payloadWithheld: input.payloadWithheld
+            }
+          }));
+        if (added.length === 0) return s;
+        return {
+          ...s,
+          activeId: activate ? added[0]!.id : s.activeId,
+          samples: [...added, ...s.samples]
+        };
+      });
+      return added;
     },
 
     remove(id: string): void {
