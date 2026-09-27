@@ -84,7 +84,7 @@ route; `ui/README.md` has the dev commands.
 - **[User Guide](docs/user-guide/README.md)** - Tutorials, concepts, and CLI reference
 - **[Browser Playground](https://flexinfer.ai/playground/fi-fhir)** - The engine compiled to WebAssembly, running in your tab; nothing you paste leaves the page ([what it runs](docs/user-guide/playground.md))
 - **[Mapping Studio guide](docs/user-guide/ide.md)** - The IDE, route by route
-- **Hosted demo** - The Mapping Studio with a preview-only identity at https://fi-fhir-demo.flexinfer.ai (when live)
+- **Hosted demo** - The Mapping Studio with a preview-only identity at `https://fi-fhir-demo.flexinfer.ai` (when live)
 
 ### Developer Resources
 
