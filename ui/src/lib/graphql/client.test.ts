@@ -2,7 +2,7 @@
  * Tests for the GraphQL client.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { graphqlFetch, isErrorToasted } from './client';
+import { GraphQLResponseError, graphQLErrorEntries, graphqlFetch, isErrorToasted } from './client';
 import { setGraphQLCredentialProvider, setGraphQLTrustedNetworkAccess } from './credentials';
 import { toasts, toastList } from '$lib/ui/toastStore';
 import { get } from 'svelte/store';
@@ -130,6 +130,27 @@ describe('graphqlFetch', () => {
     });
 
     await expect(graphqlFetch(mockDocument)).rejects.toThrow('Error 1; Error 2');
+  });
+
+  it('keeps each GraphQL error entry, extensions included, on the thrown error', async () => {
+    const problems = [{ code: 'SECRET_VALUE_FORBIDDEN', path: 'tls.password', message: 'no values' }];
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        errors: [{ message: 'connection spec carries secret material', extensions: { code: 'X', problems } }]
+      })
+    });
+
+    const thrown = await graphqlFetch(mockDocument, undefined, { showErrorToast: false }).catch(
+      (err: unknown) => err
+    );
+
+    expect(thrown).toBeInstanceOf(GraphQLResponseError);
+    expect((thrown as Error).message).toBe('connection spec carries secret material');
+    expect(graphQLErrorEntries(thrown)).toEqual([
+      { message: 'connection spec carries secret material', extensions: { code: 'X', problems } }
+    ]);
+    expect(graphQLErrorEntries(new Error('plain'))).toEqual([]);
   });
 
   it('should not show toast when showErrorToast is false', async () => {

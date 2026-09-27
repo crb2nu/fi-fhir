@@ -28,6 +28,16 @@ export interface AccessCapabilities {
   subscriptions: string[] | null;
   /** Whether the API has an LLM provider configured; `null` when not reported. */
   llmConfigured: boolean | null;
+  /**
+   * The connection catalog (.loom/38). Role capabilities: reading connections
+   * and the engine runtime, and changing connections. Deployment capabilities:
+   * the operator control plane and the catalog it migrates are configured.
+   * Each is `null` when the server predates it — unknown, which never blocks.
+   */
+  connectionsRead: boolean | null;
+  connectionsWrite: boolean | null;
+  controlPlane: boolean | null;
+  connectionCatalog: boolean | null;
 }
 
 export type CapabilityKey = keyof Omit<AccessCapabilities, 'subscriptions' | 'llmConfigured'>;
@@ -57,6 +67,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+/** A reported boolean, or `null` when the server did not report the key. */
+function reportedBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
 }
 
 /**
@@ -89,7 +104,11 @@ export function parseAuthStatus(body: unknown): AccessCapabilityState {
       integrationSessions: caps.integrationSessions === true,
       streaming: caps.streaming === true,
       subscriptions: Array.isArray(caps.subscriptions) ? stringList(caps.subscriptions) : null,
-      llmConfigured: llm && typeof llm.configured === 'boolean' ? llm.configured : null
+      llmConfigured: llm && typeof llm.configured === 'boolean' ? llm.configured : null,
+      connectionsRead: reportedBoolean(caps.connectionsRead),
+      connectionsWrite: reportedBoolean(caps.connectionsWrite),
+      controlPlane: reportedBoolean(caps.controlPlane),
+      connectionCatalog: reportedBoolean(caps.connectionCatalog)
     },
     missingRoles: missing
   };
@@ -110,7 +129,10 @@ export function currentAccessCapabilities(): AccessCapabilityState {
   return get(store);
 }
 
-/** `true`/`false` when the server reported the capability, `null` when unknown. */
+/**
+ * `true`/`false` when the server reported the capability, `null` when unknown
+ * (no capabilities at all, or a server that predates this key).
+ */
 export function capabilityOf(state: AccessCapabilityState, key: CapabilityKey): boolean | null {
   return state.state === 'known' ? state.capabilities[key] : null;
 }
@@ -125,6 +147,10 @@ export const operatorDeploymentCapability = capabilityStore('operatorDeployment'
 export const clinicalReadCapability = capabilityStore('clinicalRead');
 export const integrationSessionsCapability = capabilityStore('integrationSessions');
 export const streamingCapability = capabilityStore('streaming');
+export const connectionsReadCapability = capabilityStore('connectionsRead');
+export const connectionsWriteCapability = capabilityStore('connectionsWrite');
+export const controlPlaneCapability = capabilityStore('controlPlane');
+export const connectionCatalogCapability = capabilityStore('connectionCatalog');
 
 /** Allowlisted subscription roots, or `null` when unknown / not reported. */
 export const subscriptionRoots: Readable<string[] | null> = derived(store, ($state) =>
