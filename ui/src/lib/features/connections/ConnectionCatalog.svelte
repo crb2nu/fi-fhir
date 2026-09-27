@@ -245,12 +245,12 @@
         {#snippet head()}
           <tr>
             <Th>Name</Th>
-            <Th width="84px">Kind</Th>
-            <Th width="128px">ID</Th>
+            <Th width="92px">Kind</Th>
+            <Th width="120px">ID</Th>
             <Th>Endpoint</Th>
             <Th width="112px">Revision</Th>
-            <Th width="200px">Status</Th>
-            <Th width="124px">Updated</Th>
+            <Th width="168px">Status</Th>
+            <Th width="140px">Updated</Th>
           </tr>
         {/snippet}
         {#if creating}
@@ -327,7 +327,7 @@
 <style>
   .catalog {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(480px, 38%);
+    grid-template-columns: minmax(0, 1fr) minmax(480px, 36%);
     flex: 1 1 auto;
     min-height: 0;
   }

@@ -24,15 +24,19 @@ export interface AdapterPresentation {
   /** Variables that mount the adapter at startup. */
   enableKeys: readonly string[];
   fields: readonly AdapterFieldSpec[];
-  /** One sentence the panel always shows. */
-  note?: string | undefined;
+  /** One sentence the panel always shows; `{ code }` segments render as code. */
+  note?: ReadonlyArray<string | { code: string }> | undefined;
 }
 
 export const ADAPTER_PRESENTATION: Record<string, AdapterPresentation> = {
   http: {
     title: 'HTTP ingress',
     enableKeys: ['FI_FHIR_HTTP_INGRESS_INTEGRATION_ID'],
-    note: 'Configured from FI_FHIR_HTTP_INGRESS_* at startup; an HTTP source connection is a declaration the runtime does not load.',
+    note: [
+      'Configured from ',
+      { code: 'FI_FHIR_HTTP_INGRESS_*' },
+      ' at startup; an HTTP source connection is a declaration the runtime does not load.'
+    ],
     fields: [
       { field: 'integrationId', label: 'Integration', mono: true, envKey: 'FI_FHIR_HTTP_INGRESS_INTEGRATION_ID' },
       { field: 'definitionId', label: 'Definition', mono: true },

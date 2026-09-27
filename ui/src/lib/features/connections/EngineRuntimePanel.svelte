@@ -110,19 +110,20 @@
           <Table label="Registry integrations" layout="fixed" class="registry-table">
             {#snippet head()}
               <tr>
-                <Th>Integration</Th>
+                <Th width="30%">Integration</Th>
                 <Th>Definition</Th>
-                <Th width="56px">Rev</Th>
-                <Th>Source</Th>
                 <Th width="64px">Format</Th>
               </tr>
             {/snippet}
             {#each runtime.registry.integrations as integration (integration.integrationId)}
               <Tr>
-                <Td mono truncate value={integration.integrationId} />
-                <Td mono truncate title={integration.digest} value={integration.definitionId} />
-                <Td mono value={integration.revisionId} />
-                <Td mono truncate value={integration.sourceId} />
+                <Td mono truncate title={`${integration.integrationId} (source ${integration.sourceId})`} value={integration.integrationId} />
+                <Td
+                  mono
+                  truncate
+                  title={`${integration.definitionId}@${integration.revisionId} ${integration.digest}`}
+                  value={`${integration.definitionId}@${integration.revisionId}`}
+                />
                 <Td mono value={integration.format} />
               </Tr>
             {/each}
@@ -159,12 +160,16 @@
           {:else}
             {@const keys = enableKeys(adapter.kind)}
             <p class="disabled-note">
-              Not enabled on this replica.{#if keys.length > 0}&nbsp;Set by
+              Not enabled on this replica.{#if keys.length > 0}&nbsp;Enabled by
                 {#each keys as key, index (key)}{#if index > 0}&nbsp;and&nbsp;{/if}<code>{key}</code>{/each}.{/if}
             </p>
           {/if}
           {#if presentation.note}
-            <p class="adapter-note">{presentation.note}</p>
+            <p class="adapter-note">
+              {#each presentation.note as segment, index (index)}{#if typeof segment === 'string'}{segment}{:else}<code
+                    >{segment.code}</code
+                  >{/if}{/each}
+            </p>
           {/if}
         </Panel>
       {/each}
@@ -325,6 +330,7 @@
 
   .env-key,
   .disabled-note code,
+  .adapter-note code,
   .engine-note code {
     font-family: var(--font-mono);
     font-size: var(--text-label);

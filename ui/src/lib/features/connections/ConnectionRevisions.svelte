@@ -14,7 +14,7 @@
   import { toasts } from '$lib/ui/toastStore';
   import { formatTimestamp } from '$lib/features/operator/attemptPresentation';
   import type { ConnectionRevisionRow } from './connectionsApi';
-  import { revisionFileName, shortHash } from './presentation';
+  import { formatMinute, revisionFileName, shortHash } from './presentation';
 
   interface Props {
     revisions: ConnectionRevisionRow[] | null;
@@ -30,6 +30,18 @@
   const selected = $derived(
     revisions?.find((revision) => revision.revisionId === selectedRevisionId) ?? revisions?.[0] ?? null
   );
+
+  // The stored bytes are compact JSON; the viewer indents them for reading.
+  // Copy JSON and Download always hand over the stored bytes, unchanged.
+  const readable = $derived.by(() => {
+    if (!selected) return '';
+    try {
+      return JSON.stringify(JSON.parse(selected.revisionJson), null, 2);
+    } catch {
+      return selected.revisionJson;
+    }
+  });
+  const byteCount = $derived(selected ? new TextEncoder().encode(selected.revisionJson).length : 0);
 
   let copyError = $state<string | null>(null);
 
@@ -69,10 +81,11 @@
     <Table label="Connection revisions" layout="fixed" class="revision-table">
       {#snippet head()}
         <tr>
-          <Th width="56px">Rev</Th>
+          <Th width="48px">Rev</Th>
           <Th>Digest</Th>
-          <Th width="64px" numeric>From v</Th>
-          <Th width="140px">Created</Th>
+          <Th width="56px" numeric>From v</Th>
+          <Th width="104px">By</Th>
+          <Th width="124px">Created</Th>
         </tr>
       {/snippet}
       {#each revisions as revision (revision.revisionId)}
@@ -85,7 +98,8 @@
           <Td mono value={`r${revision.revisionId}`} />
           <Td mono truncate title={revision.digest} value={shortHash(revision.digest, 16)} />
           <Td numeric value={revision.compiledFromVersion} />
-          <Td mono muted value={formatTimestamp(revision.createdAt)} />
+          <Td mono truncate muted value={revision.createdBy.id} />
+          <Td mono muted title={revision.createdAt} value={formatMinute(revision.createdAt)} />
         </Tr>
       {/each}
     </Table>
@@ -117,8 +131,11 @@
         {#if copyError}
           <p class="copy-error" role="alert">{copyError}</p>
         {/if}
+        <p class="bytes-note">
+          Indented for reading. Copy JSON and Download give the stored {byteCount.toLocaleString()} bytes exactly.
+        </p>
         <div class="revision-json">
-          <CodeEditor language="json" value={selected.revisionJson} readOnly lineNumbers={false} height="240px" />
+          <CodeEditor language="json" value={readable} readOnly lineNumbers={false} height="280px" />
         </div>
       </section>
     {/if}
@@ -156,10 +173,15 @@
     gap: var(--space-2);
   }
 
-  .copy-error {
+  .copy-error,
+  .bytes-note {
     margin: 0;
     font-size: var(--text-xs);
     color: var(--color-danger-text);
+  }
+
+  .bytes-note {
+    color: var(--color-text-tertiary);
   }
 
   .revision-json {

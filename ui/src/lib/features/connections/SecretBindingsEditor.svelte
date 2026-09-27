@@ -60,10 +60,10 @@
     <Table label="Secret bindings" layout="fixed" class="bindings-table">
       {#snippet head()}
         <tr>
-          <Th width="30%">Name</Th>
-          <Th width="96px">Provider</Th>
+          <Th width="34%">Name</Th>
+          <Th width="88px">Provider</Th>
           <Th>Key</Th>
-          <Th width="72px">Version</Th>
+          <Th width="64px">Version</Th>
           {#if !readOnly}<Th width="36px"><span class="sr-only">Remove</span></Th>{/if}
         </tr>
       {/snippet}
