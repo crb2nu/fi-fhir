@@ -346,4 +346,7 @@ type Capture struct {
 	// Problems says why the capture finished as it did (Lane C-2,
 	// problems_json); empty while it is armed and when it completed cleanly.
 	Problems []Problem
+	// ObjectPath is the object a peek read (Lane C-2, object_path); empty for
+	// a stream capture and for a peek that only listed.
+	ObjectPath string
 }

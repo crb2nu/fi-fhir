@@ -135,7 +135,7 @@ func newPeekRun(t *testing.T, provider *recordingProvider, sessions *fakeSession
 			},
 		},
 		source: peekSource(t), audit: Capture{ID: "peek-1"}, request: request,
-		maxObjects: 2, maxMessages: 2, provenance: "peek:adt-drop@sha256:abc:" + request.ObjectPath,
+		maxObjects: 2, maxMessages: 2,
 	}, &built
 }
 
@@ -164,9 +164,11 @@ func TestPeekRun_ReadsTheFirstMessagesWithoutLeaseCheckpointArchiveOrDelete(t *t
 	}
 	for index, request := range added {
 		number := index + 1
-		wantSource := "peek:adt-drop@sha256:abc:incoming/c.hl7#" + string(rune('0'+number))
-		if request.Source != wantSource || request.Redaction != session.SampleRedactionCapture ||
-			request.PHIPolicy != session.PHIPolicyRedact || !strings.HasPrefix(request.Raw, "MSH|") {
+		// The sample names its audit row only; the object path stays on the
+		// row (review S4).
+		if request.Source != "peek:peek-1" || request.Name != "peek peek-1 #"+string(rune('0'+number)) ||
+			request.Redaction != session.SampleRedactionCapture || request.PHIPolicy != session.PHIPolicyRedact ||
+			!strings.HasPrefix(request.Raw, "MSH|") || strings.Contains(request.Source+request.Name, "incoming/") {
 			t.Fatalf("sample %d = %+v", number, request)
 		}
 	}

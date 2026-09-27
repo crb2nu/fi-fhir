@@ -2,6 +2,7 @@ package connection
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"strings"
@@ -30,7 +31,14 @@ type fakeLedger struct {
 	captures map[string]*Capture
 	fillErr  error
 	armedErr error
-	fills    int
+	// blockArmed makes ArmedStreamCaptures wait for its context, like a hung
+	// query.
+	blockArmed bool
+	// countErr fails the count after a successful write; failMarkErr then
+	// fails recording that, leaving the row armed one slot behind.
+	countErr    error
+	failMarkErr error
+	fills       int
 	// advancedUnder records the version each counted fill read and advanced
 	// the row from — the expected version of the update.
 	advancedUnder []int64
@@ -57,7 +65,14 @@ func (l *fakeLedger) advance(by time.Duration) {
 	l.mu.Unlock()
 }
 
-func (l *fakeLedger) ArmedStreamCaptures(_ context.Context, tenantID string, now time.Time, _ int) ([]Capture, error) {
+func (l *fakeLedger) ArmedStreamCaptures(ctx context.Context, tenantID string, now time.Time, _ int) ([]Capture, error) {
+	l.mu.Lock()
+	blocked := l.blockArmed
+	l.mu.Unlock()
+	if blocked {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.armedErr != nil {
@@ -81,7 +96,9 @@ func (l *fakeLedger) ExpireCaptures(_ context.Context, tenantID string, now time
 	}
 	var expired int64
 	for _, capture := range l.captures {
-		if capture.TenantID == tenantID && capture.Status == CaptureStatusArmed && !now.Before(capture.ExpiresAt) {
+		due := capture.Mode == CaptureModeStream && !now.Before(capture.ExpiresAt) ||
+			capture.Mode == CaptureModePeek && !now.Add(-peekOrphanGrace).Before(capture.ExpiresAt)
+		if capture.TenantID == tenantID && capture.Status == CaptureStatusArmed && due {
 			capture.Status = CaptureStatusExpired
 			capture.Version++
 			expired++
@@ -104,20 +121,32 @@ func (l *fakeLedger) FillCaptureSlot(ctx context.Context, tenantID, captureID st
 		return captureFill{outcome: fillSkipped}, nil
 	}
 	slot, version := capture.Captured+1, capture.Version
-	if err := write(ctx, slot); err != nil {
+	fail := func(fill captureFill, captured int, code string) (captureFill, error) {
+		if l.failMarkErr != nil {
+			return fill, l.failMarkErr
+		}
 		capture.Status = CaptureStatusFailed
+		capture.Captured = captured
 		capture.Version++
-		capture.Problems = []Problem{{Code: CodeSampleWriteFailed}}
-		return captureFill{slot: slot, outcome: fillWriteFailed, writeErr: err}, nil
+		capture.Problems = []Problem{{Code: code}}
+		fill.counted = fill.outcome == fillCountFailed
+		fill.finished = true
+		return fill, nil
+	}
+	if err := write(ctx, slot); err != nil {
+		return fail(captureFill{slot: slot, outcome: fillWriteFailed, cause: err}, slot-1, CodeSampleWriteFailed)
+	}
+	if l.countErr != nil {
+		return fail(captureFill{slot: slot, outcome: fillCountFailed, cause: l.countErr}, slot, CodeCaptureCountFailed)
 	}
 	l.advancedUnder = append(l.advancedUnder, version)
 	capture.Captured = slot
 	capture.Version++
 	if slot >= capture.MaxMessages {
 		capture.Status = CaptureStatusComplete
-		return captureFill{slot: slot, outcome: fillCompleted}, nil
+		return captureFill{slot: slot, outcome: fillCompleted, counted: true, finished: true}, nil
 	}
-	return captureFill{slot: slot, outcome: fillWritten}, nil
+	return captureFill{slot: slot, outcome: fillWritten, counted: true}, nil
 }
 
 func (l *fakeLedger) capture(id string) Capture {
@@ -126,7 +155,9 @@ func (l *fakeLedger) capture(id string) Capture {
 	return *l.captures[id]
 }
 
-// fakeSessions records every sample, and can fail or panic.
+// fakeSessions records every sample, and can fail or panic. Like the real
+// stores it keeps one sample per caller-named ID: a repeated ID returns the
+// first write.
 type fakeSessions struct {
 	mu       sync.Mutex
 	samples  []session.AddSampleRequest
@@ -155,8 +186,13 @@ func (f *fakeSessions) AddSample(_ context.Context, sessionID string, request se
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	for _, existing := range f.samples {
+		if request.ID != "" && existing.ID == request.ID {
+			return &session.Sample{ID: existing.ID, SessionID: sessionID, Name: existing.Name, Source: existing.Source}, nil
+		}
+	}
 	f.samples = append(f.samples, request)
-	return &session.Sample{ID: "sample-" + request.Name, SessionID: sessionID, Name: request.Name, Source: request.Source}, nil
+	return &session.Sample{ID: request.ID, SessionID: sessionID, Name: request.Name, Source: request.Source}, nil
 }
 
 func (f *fakeSessions) added() []session.AddSampleRequest {
@@ -343,7 +379,7 @@ func TestCaptureTap_CapturesOnlyDurablyAcceptedProductionFramesOfTheArmedSource(
 		t.Fatalf("an accepted production frame of the armed source captured %d samples", len(added))
 	}
 	want := session.AddSampleRequest{
-		Name: "capture cap-1 #1", Format: events.FormatHL7v2, Source: "capture:cap-1",
+		ID: "sample_capture_cap-1_1", Name: "capture cap-1 #1", Format: events.FormatHL7v2, Source: "capture:cap-1",
 		Raw: string(armed.Envelope.Bytes()), PHIPolicy: session.PHIPolicyRedact, Redaction: session.SampleRedactionCapture,
 	}
 	if !reflect.DeepEqual(added[0], want) {
@@ -404,6 +440,84 @@ func TestCaptureTap_SessionFailureFailsTheCaptureAndIsCounted(t *testing.T) {
 	}
 	if ledger.fills != 1 {
 		t.Fatalf("fills = %d: a failed capture must leave the cache at once", ledger.fills)
+	}
+}
+
+// TestCaptureTap_CountFailureFailsTheCaptureWithTheSampleCounted: a sample
+// written whose count does not commit finishes the capture failed with
+// CAPTURE_COUNT_FAILED and the sample counted, so the row agrees with the
+// session; the failure is a ledger failure, and the capture leaves the cache.
+func TestCaptureTap_CountFailureFailsTheCaptureWithTheSampleCounted(t *testing.T) {
+	ledger := newFakeLedger(armedStream("cap-1", "adt-east", 5, time.Date(2026, 9, 26, 13, 0, 0, 0, time.UTC)))
+	ledger.countErr = errInjected
+	sessions := &fakeSessions{}
+	observer := newRecordingObserver()
+	taps := boundTaps(t, ledger, sessions, observer)
+	request := frame(t, integration.ExecutionModeProduction, "adt-east")
+	for range 2 {
+		inner := fixedProcessor{result: acceptedFor(request)}
+		result, err := taps.Wrap(&inner).Process(context.Background(), request)
+		if err != nil || !reflect.DeepEqual(result, inner.result) {
+			t.Fatalf("a failing count changed the outcome: (%+v, %v)", result, err)
+		}
+	}
+	final := ledger.capture("cap-1")
+	if final.Status != CaptureStatusFailed || final.Captured != 1 || len(final.Problems) != 1 || final.Problems[0].Code != CodeCaptureCountFailed {
+		t.Fatalf("capture = %+v, want failed with CAPTURE_COUNT_FAILED and the written sample counted", final)
+	}
+	if got := len(sessions.added()); got != 1 || observer.failuresOf(TapFailureLedger) != 1 || observer.captured[CaptureModeStream] != 1 {
+		t.Fatalf("samples %d, ledger failures %d, captured metric %d; want 1, 1, 1",
+			got, observer.failuresOf(TapFailureLedger), observer.captured[CaptureModeStream])
+	}
+	if ledger.fills != 1 {
+		t.Fatalf("fills = %d: a failed capture must leave the cache at once", ledger.fills)
+	}
+}
+
+// TestCaptureTap_ARetriedSlotIsOneSample: when a count fails and recording
+// that fails too, the row stays armed one slot behind while the session
+// already holds that slot's sample. The next frame is handed the same slot,
+// and its write — under the same derived ID — is the first sample again, not a
+// second, so the session never holds more than the row can count.
+func TestCaptureTap_ARetriedSlotIsOneSample(t *testing.T) {
+	ledger := newFakeLedger(armedStream("cap-1", "adt-east", 2, time.Date(2026, 9, 26, 13, 0, 0, 0, time.UTC)))
+	ledger.countErr, ledger.failMarkErr = errInjected, errInjected
+	sessions := &fakeSessions{}
+	observer := newRecordingObserver()
+	taps := boundTaps(t, ledger, sessions, observer)
+	send := func(controlID string) {
+		t.Helper()
+		request := frame(t, integration.ExecutionModeProduction, "adt-east")
+		request.CorrelationID = controlID
+		inner := fixedProcessor{result: acceptedFor(request)}
+		if _, err := taps.Wrap(&inner).Process(context.Background(), request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	send("first")
+	if row := ledger.capture("cap-1"); row.Status != CaptureStatusArmed || row.Captured != 0 {
+		t.Fatalf("after an unrecorded count failure the row is %+v, want armed one behind", row)
+	}
+	// The ledger (count, then the failed record) failed twice; the capture
+	// stays in the cache because the row may still be armed.
+	if observer.failuresOf(TapFailureLedger) != 2 || observer.captured[CaptureModeStream] != 0 {
+		t.Fatalf("ledger failures %d, captured metric %d; want 2, 0",
+			observer.failuresOf(TapFailureLedger), observer.captured[CaptureModeStream])
+	}
+	ledger.mu.Lock()
+	ledger.countErr, ledger.failMarkErr = nil, nil
+	ledger.mu.Unlock()
+	send("second")
+	send("third")
+	added := sessions.added()
+	if len(added) != 2 || added[0].ID != "sample_capture_cap-1_1" || added[1].ID != "sample_capture_cap-1_2" {
+		t.Fatalf("session samples = %+v, want slots 1 and 2 once each", added)
+	}
+	if row := ledger.capture("cap-1"); row.Status != CaptureStatusComplete || row.Captured != 2 {
+		t.Fatalf("capture = %+v, want complete with 2", row)
+	}
+	if observer.captured[CaptureModeStream] != 2 {
+		t.Fatalf("captured metric = %d, want each slot counted once", observer.captured[CaptureModeStream])
 	}
 }
 
@@ -468,6 +582,107 @@ func TestCaptureRegistry_RunReportsRefreshFailuresAndStops(t *testing.T) {
 	}
 	if observer.failuresOf(TapFailureRefresh) < 2 {
 		t.Fatal("refresh failures were not reported")
+	}
+}
+
+// TestCaptureRegistry_RunBoundsEachRefresh: a refresh whose query hangs is cut
+// off at the interval and reported, and the next one still runs, rather than
+// one hung query freezing the cache for the life of the process.
+func TestCaptureRegistry_RunBoundsEachRefresh(t *testing.T) {
+	ledger := newFakeLedger()
+	ledger.blockArmed = true
+	observer := newRecordingObserver()
+	registry := newCaptureRegistry(ledger, "tenant-a", 5*time.Millisecond, observer.observer())
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- registry.Run(ctx) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for observer.failuresOf(TapFailureRefresh) < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("Run returned %v", err)
+	}
+	if observer.failuresOf(TapFailureRefresh) < 2 {
+		t.Fatal("a hung refresh was never cut off: Run is stuck in its first refresh")
+	}
+}
+
+// TestCaptureRegistry_PeekRowsExpireOnlyWhenOrphaned: a refresh expires a
+// stream capture at its TTL, but leaves a peek's row alone until
+// peekOrphanGrace past it, because the peek itself finishes that row.
+func TestCaptureRegistry_PeekRowsExpireOnlyWhenOrphaned(t *testing.T) {
+	expiresAt := time.Date(2026, 9, 26, 12, 0, 1, 0, time.UTC)
+	peek := Capture{
+		TenantID: "tenant-a", ID: "peek-1", SessionID: "sess-1", Mode: CaptureModePeek,
+		Status: CaptureStatusArmed, MaxMessages: 5, Version: 1, ExpiresAt: expiresAt,
+	}
+	ledger := newFakeLedger(armedStream("cap-1", "adt-east", 5, expiresAt), peek)
+	registry := newCaptureRegistry(ledger, "tenant-a", time.Hour, CaptureObserver{})
+	ledger.advance(2 * time.Second)
+	if err := registry.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if stream, row := ledger.capture("cap-1"), ledger.capture("peek-1"); stream.Status != CaptureStatusExpired || row.Status != CaptureStatusArmed {
+		t.Fatalf("past the TTL: stream %s, peek %s; want expired and still armed", stream.Status, row.Status)
+	}
+	ledger.advance(peekOrphanGrace)
+	if err := registry.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if row := ledger.capture("peek-1"); row.Status != CaptureStatusExpired {
+		t.Fatalf("an orphaned peek row is %s past its grace, want expired", row.Status)
+	}
+}
+
+// TestStartCapture_OnlyASourceTheTapCanSee: a source an enabled MLLP or HTTP
+// adapter of this replica admits is armed without asking the catalog; any
+// other source — a disabled adapter's, a batch runner's, an unknown one — must
+// be named by a compiled MLLP or HTTP source connection, so the catalog is
+// asked. The store behind this service fails every query, which is how the
+// two paths tell apart; the PostgreSQL proof covers the refusal itself.
+func TestStartCapture_OnlyASourceTheTapCanSee(t *testing.T) {
+	db := sql.OpenDB(unreachableConnector{})
+	t.Cleanup(func() { _ = db.Close() })
+	store, err := NewPostgresStore(db, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := describedRuntime()
+	runtime.Adapters[0].SourceID = "adt-west"
+	runtime.Adapters[1].SourceID = "adt-east"
+	runtime.Adapters[2].Enabled, runtime.Adapters[2].SourceID = true, "batch-east"
+	service, err := NewService(store, nil, runtime, "tenant-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.EnableSampleIntake(IntakeConfig{Sessions: &fakeSessions{}}); err != nil {
+		t.Fatal(err)
+	}
+	disabled := describedRuntime()
+	disabled.Adapters[1].Enabled, disabled.Adapters[1].SourceID = false, "adt-east"
+	for sourceID, wantCatalog := range map[string]bool{"adt-east": false, "adt-west": false, "batch-east": true, "adt-nowhere": true} {
+		_, err := service.StartCapture(callerContext("tenant-a", ReadRole), StartCaptureRequest{
+			SourceID: sourceID, SessionID: "sess-1", Reason: "shape the profile",
+		})
+		askedCatalog := err != nil && strings.Contains(err.Error(), "look up compiled stream sources")
+		armed := err != nil && strings.Contains(err.Error(), "begin capture insert")
+		if askedCatalog != wantCatalog || armed == wantCatalog {
+			t.Errorf("%s: %v; want catalog lookup %v", sourceID, err, wantCatalog)
+		}
+	}
+	disabledService, err := NewService(store, nil, disabled, "tenant-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := disabledService.EnableSampleIntake(IntakeConfig{Sessions: &fakeSessions{}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := disabledService.StartCapture(callerContext("tenant-a", ReadRole), StartCaptureRequest{
+		SourceID: "adt-east", SessionID: "sess-1", Reason: "shape the profile",
+	}); err == nil || !strings.Contains(err.Error(), "look up compiled stream sources") {
+		t.Fatalf("a disabled adapter's source skipped the catalog: %v", err)
 	}
 }
 

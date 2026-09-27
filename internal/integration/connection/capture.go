@@ -37,8 +37,11 @@ import (
 //     one map lookup;
 //   - its work is bounded: for a frame of an armed source it locks the
 //     capture row without waiting (SKIP LOCKED), writes one sample, and
-//     counts it — completing the row on the last slot — under a timeout of
-//     its own, with no retry (PostgresStore.FillCaptureSlot).
+//     counts it — completing the row on the last slot — with no retry
+//     (PostgresStore.FillCaptureSlot). That adds at most 2 s to the ACK of a
+//     frame of an armed source, and nothing to any other frame: the fill runs
+//     under captureFillTimeout, and only a fill that fails after locking its
+//     slot spends up to captureFailTimeout more recording the failure.
 
 // Stream capture bounds.
 const (
@@ -50,11 +53,8 @@ const (
 	MaxCaptureTTLSeconds = 900
 	// CaptureRefreshInterval is how stale a replica's armed-capture cache may
 	// be: a capture armed or cancelled on another replica takes effect here
-	// within it.
+	// within it. It also bounds each refresh.
 	CaptureRefreshInterval = 2 * time.Second
-	// captureTapTimeout bounds the tap's own work for one frame. It is the most
-	// a capture can delay the ACK of a frame of an armed source.
-	captureTapTimeout = 2 * time.Second
 	// maxListedCaptures bounds ListCaptures.
 	maxListedCaptures = 100
 	// maxArmedCaptures bounds one refresh of the armed-capture cache.
@@ -78,6 +78,15 @@ var (
 	// ErrCaptureFinished means the capture completed, expired, failed, or was
 	// cancelled before this request reached it.
 	ErrCaptureFinished = errors.New("connection capture is already finished")
+	// ErrSourceUnavailable (SOURCE_UNAVAILABLE) means a stream capture names a
+	// source the tap could never see: no MLLP or HTTP adapter of this replica
+	// admits it, and no compiled MLLP or HTTP source connection names it. A
+	// batch source is read with a peek; its runner's frames are not tapped.
+	ErrSourceUnavailable = errors.New("capture source unavailable")
+	// ErrPeekUnrecorded means a peek's outcome could not be written to its
+	// audit row because the row was no longer armed at the version the peek
+	// inserted. The samples it wrote stay in the session.
+	ErrPeekUnrecorded = errors.New("the peek's outcome could not be recorded on its audit row")
 )
 
 // Problem codes a peek or a capture can finish with. They are recorded on the
@@ -98,6 +107,9 @@ const (
 	// CodeSampleWriteFailed: the session refused a sample. A stream capture
 	// stops on it.
 	CodeSampleWriteFailed = "SAMPLE_WRITE_FAILED"
+	// CodeCaptureCountFailed: a stream capture's sample was written but its
+	// count did not commit. The capture stops, with the sample counted.
+	CodeCaptureCountFailed = "CAPTURE_COUNT_FAILED"
 )
 
 // SessionSink is the part of the Integration Session store sample intake
@@ -237,7 +249,8 @@ type StartCaptureRequest struct {
 }
 
 // StartCapture arms a capture of the next MaxMessages frames the source
-// admits on any replica, into an active session, for at most TTLSeconds.
+// admits on any replica, into an active session, for at most TTLSeconds. The
+// source must be one the tap can see (ErrSourceUnavailable).
 func (s *Service) StartCapture(ctx context.Context, request StartCaptureRequest) (Capture, error) {
 	security, intake, err := s.authorizeIntake(ctx)
 	if err != nil {
@@ -258,6 +271,9 @@ func (s *Service) StartCapture(ctx context.Context, request StartCaptureRequest)
 	if err := intake.activeSession(ctx, request.SessionID); err != nil {
 		return Capture{}, err
 	}
+	if err := s.tappableSource(ctx, security.TenantID, request.SourceID); err != nil {
+		return Capture{}, err
+	}
 	now := s.store.Now()
 	capture, err := s.store.InsertCapture(ctx, Capture{
 		TenantID: security.TenantID, ID: uuid.NewString(), SessionID: request.SessionID,
@@ -272,8 +288,31 @@ func (s *Service) StartCapture(ctx context.Context, request StartCaptureRequest)
 	return capture, nil
 }
 
-// CancelCapture stops an armed capture. The row keeps what it captured; who
-// cancelled it and why are recorded beside it.
+// tappableSource accepts a source an MLLP or HTTP adapter of this replica
+// admits, and otherwise one a compiled MLLP or HTTP source connection names —
+// mounted, then, on some other replica, or about to be. Anything else is
+// ErrSourceUnavailable: an armed capture of it could only sit until its TTL.
+func (s *Service) tappableSource(ctx context.Context, tenantID, sourceID string) error {
+	if s.runtime != nil {
+		for _, adapter := range s.runtime.Adapters {
+			if adapter.Enabled && (adapter.Kind == AdapterMLLP || adapter.Kind == AdapterHTTP) && adapter.SourceID == sourceID {
+				return nil
+			}
+		}
+	}
+	compiled, err := s.store.HasCompiledStreamSource(ctx, tenantID, sourceID)
+	if err != nil {
+		return err
+	}
+	if !compiled {
+		return ErrSourceUnavailable
+	}
+	return nil
+}
+
+// CancelCapture stops an armed stream capture. The row keeps what it
+// captured; who cancelled it and why are recorded beside it. A peek is one
+// request that finishes its own row, so it cannot be cancelled.
 func (s *Service) CancelCapture(ctx context.Context, captureID, reason string) (Capture, error) {
 	security, intake, err := s.authorizeIntake(ctx)
 	if err != nil {
@@ -288,11 +327,14 @@ func (s *Service) CancelCapture(ctx context.Context, captureID, reason string) (
 	}
 	now := s.store.Now()
 	cancelled, applied, err := s.store.FinishCapture(ctx, security.TenantID, captureID, 0, captureFinish{
-		status: CaptureStatusCancelled, at: now,
+		mode: CaptureModeStream, status: CaptureStatusCancelled, at: now,
 		cancellation: &captureCancellation{Principal: auditPrincipal(security), Reason: trimmed, At: now},
 	})
 	if err != nil {
 		return Capture{}, err
+	}
+	if !applied && cancelled.Mode == CaptureModePeek {
+		return Capture{}, ErrInvalidRequest
 	}
 	intake.registry.forget(captureID)
 	if !applied {
@@ -397,10 +439,11 @@ func newCaptureRegistry(ledger captureLedger, tenantID string, interval time.Dur
 	}
 }
 
-// Run refreshes the cache now and then every interval until ctx is done. A
-// failed refresh keeps the previous view and is reported, never returned: a
-// capture that goes stale this way still stops at its TTL, which the tap
-// checks from memory.
+// Run refreshes the cache now and then every interval until ctx is done, each
+// refresh bounded by the interval itself, so a hung query costs one refresh
+// rather than stopping them all. A failed refresh keeps the previous view and
+// is reported, never returned: a capture that goes stale this way still stops
+// at its TTL, which the tap checks from memory.
 func (r *CaptureRegistry) Run(ctx context.Context) error {
 	if r == nil || ctx == nil {
 		return nil
@@ -408,7 +451,10 @@ func (r *CaptureRegistry) Run(ctx context.Context) error {
 	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
 	for {
-		if err := r.Refresh(ctx); err != nil && ctx.Err() == nil {
+		refreshCtx, cancel := context.WithTimeout(ctx, r.interval)
+		err := r.Refresh(refreshCtx)
+		cancel()
+		if err != nil && ctx.Err() == nil {
 			r.observer.tapFailed(TapFailureRefresh, err)
 		}
 		select {
@@ -576,15 +622,16 @@ func (b *CaptureTapBinding) capture(ctx context.Context, request integration.Pro
 	if !ok {
 		return
 	}
-	// The tap's own budget, detached from the request's: a frame admitted
+	// The fill's own budget, detached from the request's: a frame admitted
 	// just before its processing deadline must not turn every capture of it
 	// into a failure, and a slow session store must not hold the ACK longer
-	// than captureTapTimeout.
-	tapCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), captureTapTimeout)
+	// than the fill's bound (FillCaptureSlot).
+	fillCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), captureFillTimeout)
 	defer cancel()
-	fill, err := registry.ledger.FillCaptureSlot(tapCtx, registry.tenantID, armed.id, now,
+	fill, err := registry.ledger.FillCaptureSlot(fillCtx, registry.tenantID, armed.id, now,
 		func(writeCtx context.Context, slot int) error {
 			_, err := b.Sessions.AddSample(writeCtx, armed.sessionID, session.AddSampleRequest{
+				ID:        captureSampleID(armed.id, slot),
 				Name:      fmt.Sprintf("capture %s #%d", armed.id, slot),
 				Format:    request.Envelope.Format,
 				Source:    "capture:" + armed.id,
@@ -594,23 +641,25 @@ func (b *CaptureTapBinding) capture(ctx context.Context, request integration.Pro
 			})
 			return err
 		})
-	if fill.outcome == fillWriteFailed {
-		b.Observer.tapFailed(TapFailureSessionStore, fill.writeErr)
-		registry.forget(armed.id)
-	}
-	if err != nil {
-		b.Observer.tapFailed(TapFailureLedger, err)
-		return
-	}
 	switch fill.outcome {
-	case fillWritten:
-		b.Observer.captured(CaptureModeStream, 1)
-	case fillCompleted:
-		b.Observer.captured(CaptureModeStream, 1)
-		registry.forget(armed.id)
-	case fillSkipped, fillWriteFailed:
+	case fillWriteFailed:
+		b.Observer.tapFailed(TapFailureSessionStore, fill.cause)
+	case fillCountFailed:
+		b.Observer.tapFailed(TapFailureLedger, fill.cause)
+	case fillSkipped, fillWritten, fillCompleted:
 		// Skipped: finished elsewhere since the last refresh, or another
 		// frame is being written right now; either way this frame is not
 		// captured. The next refresh settles which.
+	}
+	if err != nil {
+		// The slot could not be locked, or a failed fill could not be
+		// recorded; the row may still be armed, so the cache keeps it.
+		b.Observer.tapFailed(TapFailureLedger, err)
+	}
+	if fill.counted {
+		b.Observer.captured(CaptureModeStream, 1)
+	}
+	if fill.finished {
+		registry.forget(armed.id)
 	}
 }

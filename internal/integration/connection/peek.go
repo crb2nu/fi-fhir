@@ -40,10 +40,16 @@ const (
 	// peekLookupObjects bounds the listing a peek searches for objectPath: the
 	// batch source's own per-poll bound.
 	peekLookupObjects = batchMaxFilesPerPoll
-	// peekTimeout bounds one peek end to end; the audit row expires with it.
+	// peekTimeout bounds a peek's read, counted from before its audit row is
+	// inserted; the row's expires_at is the same instant.
 	peekTimeout = 60 * time.Second
 	// peekFinishTimeout bounds writing the peek's outcome to its audit row.
 	peekFinishTimeout = 5 * time.Second
+	// peekOrphanGrace is how long after its expires_at a peek row still armed
+	// is taken for orphaned — its replica died between insert and finish — and
+	// expired (ExpireCaptures). A live peek has finished by peekFinishTimeout
+	// after expires_at; the minute is margin for clock skew between replicas.
+	peekOrphanGrace = peekFinishTimeout + time.Minute
 	// maxObjectPathBytes bounds the objectPath a caller names.
 	maxObjectPathBytes = 1024
 )
@@ -119,23 +125,24 @@ func (s *Service) PeekBatch(ctx context.Context, request PeekRequest) (PeekResul
 
 	// The audit row is written before anything is resolved or contacted, so an
 	// attempt that fails part-way is on record as failed rather than absent.
+	// The read's deadline is fixed first, so the read ends by the row's
+	// expires_at however long the insert takes.
+	peekCtx, cancel := context.WithDeadline(ctx, time.Now().Add(peekTimeout))
+	defer cancel()
 	requestedAt := s.store.Now()
 	audit, err := s.store.InsertCapture(ctx, Capture{
 		TenantID: security.TenantID, ID: uuid.NewString(), SessionID: request.SessionID,
 		Mode: CaptureModePeek, SourceID: source.SourceID, ConnectionArtifactID: draft.ID,
-		ConnectionDigest: revision.Digest, Status: CaptureStatusArmed, MaxMessages: maxMessages,
-		Version: 1, RequestedBy: auditPrincipal(security), Reason: reason,
+		ConnectionDigest: revision.Digest, ObjectPath: request.ObjectPath, Status: CaptureStatusArmed,
+		MaxMessages: maxMessages, Version: 1, RequestedBy: auditPrincipal(security), Reason: reason,
 		RequestedAt: requestedAt, ExpiresAt: requestedAt.Add(peekTimeout),
 	})
 	if err != nil {
 		return PeekResult{}, err
 	}
-	peekCtx, cancel := context.WithTimeout(ctx, peekTimeout)
-	defer cancel()
 	run := peekRun{
 		intake: intake, source: source, audit: audit, request: request,
 		maxObjects: maxObjects, maxMessages: maxMessages,
-		provenance: fmt.Sprintf("peek:%s@%s:%s", draft.ID, revision.Digest, request.ObjectPath),
 	}
 	run.read(peekCtx, draft.SecretBindings)
 
@@ -145,14 +152,20 @@ func (s *Service) PeekBatch(ctx context.Context, request PeekRequest) (PeekResul
 	}
 	captured := len(run.samples)
 	// The finish is detached from the caller's cancellation, so a client that
-	// goes away mid-peek still leaves the row saying what the peek wrote.
+	// goes away mid-peek still leaves the row saying what the peek wrote. The
+	// row is this peek's alone until peekOrphanGrace after expires_at (a peek
+	// cannot be cancelled, and ExpireCaptures waits that long), so a finish
+	// that does not apply is a fault, not a race.
 	finishCtx, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), peekFinishTimeout)
 	defer cancelFinish()
-	finished, _, err := s.store.FinishCapture(finishCtx, security.TenantID, audit.ID, audit.Version, captureFinish{
-		status: status, captured: &captured, problems: run.problems, at: s.store.Now(),
+	finished, applied, err := s.store.FinishCapture(finishCtx, security.TenantID, audit.ID, audit.Version, captureFinish{
+		mode: CaptureModePeek, status: status, captured: &captured, problems: run.problems, at: s.store.Now(),
 	})
 	if err != nil {
 		return PeekResult{}, err
+	}
+	if !applied {
+		return PeekResult{}, fmt.Errorf("%w: %s is %s at version %d", ErrPeekUnrecorded, audit.ID, finished.Status, finished.Version)
 	}
 	intake.observer.captured(CaptureModePeek, captured)
 	problems := run.problems
@@ -197,7 +210,6 @@ type peekRun struct {
 	request     PeekRequest
 	maxObjects  int
 	maxMessages int
-	provenance  string
 
 	objects  []PeekObject
 	samples  []session.Sample
@@ -281,10 +293,12 @@ func (p *peekRun) readObject(ctx context.Context, provider batch.Provider, objec
 			return
 		}
 		number := len(p.samples) + 1
+		// The sample names its audit row and nothing else; which connection,
+		// revision, and object it came from is recorded on that row.
 		sample, err := p.intake.sessions.AddSample(ctx, p.request.SessionID, session.AddSampleRequest{
 			Name:      fmt.Sprintf("peek %s #%d", p.audit.ID, number),
 			Format:    events.FormatHL7v2,
-			Source:    fmt.Sprintf("%s#%d", p.provenance, number),
+			Source:    "peek:" + p.audit.ID,
 			Raw:       string(message.Payload),
 			PHIPolicy: session.PHIPolicyRedact,
 			Redaction: session.SampleRedactionCapture,
