@@ -4560,6 +4560,7 @@ func runServe(args []string) error {
 		TenantID: securePreviewRuntime.tenantID,
 	})
 	warnTransportGrantWithoutControlPlaneRole(serveLog, securePreviewRuntime.configuredGraphQLPrincipals())
+	warnTrustedNetworkAdmitsAnyAddress(serveLog, securePreviewRuntime.trustedNetwork)
 
 	// Enforce terminology version pins (if configured)
 	dbURL, pins, policy := loadTerminologyPinConfigFromEnv()
@@ -5538,6 +5539,10 @@ OIDC authentication environment:
 Optional static-mode trusted-network access:
   FI_FHIR_GRAPHQL_TRUSTED_CIDRS      Comma-separated LAN CIDRs allowed without
                                      a bearer token; never include pod/service CIDRs
+  FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY  true admits a prefix of length 0
+    (0.0.0.0/0, ::/0), which gives FI_FHIR_GRAPHQL_ROLES to every caller; refused
+    at startup without it. For a public least-privilege deployment only (the
+    hosted demo: integration:preview, no database); serve logs a WARN naming the roles.
 
 Optional operator control-plane environment:
   FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED  true initializes PostgreSQL-backed

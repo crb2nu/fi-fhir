@@ -10,7 +10,7 @@
 # not an option; `playwright install --with-deps chromium` is, and the browser
 # download is cached per Playwright version.
 #
-# Three stacks, one Playwright project each (ui/playwright.config.ts):
+# Four stacks, one Playwright project each (ui/playwright.config.ts):
 #   operator-bundle        checks 1-5 — auth status (network, operatorRead,
 #                          streaming, integrationSessionEvents listed); the
 #                          operator Messages list with no pre-flight and no
@@ -26,8 +26,18 @@
 #                          streaming false, streaming-unavailable
 #                          [data-stream=integrationSessionEvents] on HL7 intake,
 #                          and Preview still works on the stateless path
+#   preview-only           checks P1-P9 (.loom/40 D-3) — the hosted demo's
+#                          identity (integration:preview only, principal
+#                          fi-fhir-demo-visitor, no database): HL7 Preview of
+#                          the built-in sample works, and every other route
+#                          shows its pre-flight or "not configured" state with
+#                          no query it cannot run, no error toast, no console
+#                          error
 #
-# Plus project `visual` (.loom/37 U-4) on the operator-bundle stack, run last:
+# Every stack runs `serve --no-playground --no-introspection`, as production.
+#
+# Plus project `visual` (.loom/37 U-4) on the operator-bundle stack (V17-V21 on
+# the preview-only stack: the demo's honest states), run last:
 # 1440x900 PNGs of every route, the bottom panel on Problems and the command
 # palette, written to ui/e2e-results/visual/ as review evidence (no pixel
 # diffing, no golden files), and the copy register (FORBIDDEN_COPY in
@@ -65,7 +75,7 @@ test:ui-e2e:
     E2E_PG_HOST: postgres
     PLAYWRIGHT_BROWSERS_PATH: ${CI_PROJECT_DIR}/.cache/ms-playwright
     # The Vite build is lint:ui's memory profile (V8 peak ~1.2Gi, container
-    # ~1.7Gi); the run adds Chromium and three API processes.
+    # ~1.7Gi); the run adds Chromium and four API processes.
     KUBERNETES_CPU_REQUEST: "500m"
     KUBERNETES_CPU_LIMIT: "2"
     KUBERNETES_MEMORY_REQUEST: "2Gi"

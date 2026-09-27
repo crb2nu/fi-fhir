@@ -298,6 +298,7 @@ func TestLoadGraphQLAuthenticationModesFailClosed(t *testing.T) {
 		"FI_FHIR_GRAPHQL_PRINCIPAL_ID",
 		"FI_FHIR_GRAPHQL_ROLES",
 		"FI_FHIR_GRAPHQL_TRUSTED_CIDRS",
+		envGraphQLTrustedCIDRsAllowAny,
 	} {
 		t.Run("oidc rejects "+name, func(t *testing.T) {
 			clearGraphQLAuthenticationEnv(t)
@@ -633,6 +634,7 @@ func clearGraphQLAuthenticationEnv(t *testing.T) {
 		"FI_FHIR_GRAPHQL_PRINCIPAL_ID",
 		"FI_FHIR_GRAPHQL_ROLES",
 		"FI_FHIR_GRAPHQL_TRUSTED_CIDRS",
+		envGraphQLTrustedCIDRsAllowAny,
 		"FI_FHIR_GRAPHQL_OIDC_ISSUER_URL",
 		"FI_FHIR_GRAPHQL_OIDC_AUDIENCE",
 		"FI_FHIR_GRAPHQL_OIDC_TENANT_CLAIM",

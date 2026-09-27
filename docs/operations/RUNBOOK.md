@@ -230,6 +230,39 @@ Remove a stale header to use an existing headerless LAN/Access session; valid
 IDE credentials are unchanged. This prevents service callers from inheriting
 the broader IDE roles through network trust.
 
+### Trusted network that admits every address
+
+`FI_FHIR_GRAPHQL_TRUSTED_CIDRS` gives `FI_FHIR_GRAPHQL_ROLES` to every caller
+whose ingress-reported address it contains, with no bearer and no Access
+session. An entry of prefix length 0 (`0.0.0.0/0`, `::/0`, or any `x/0`)
+therefore gives those roles to everyone who can reach the listener, and
+`serve` refuses it at startup:
+
+```text
+configure GraphQL trusted network: trusted network admits every address (0.0.0.0/0): ...; set FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY=true only for a public least-privilege deployment
+```
+
+The only deployment that sets `FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY=true` is
+the public hosted demo (`fi-fhir-demo.flexinfer.ai`, gitops
+`k3s/fi-fhir-demo/`): its roles are exactly `integration:preview` (the
+transport gate admits only `health` and `previewIntegrationMessage` for that
+role) and it has no database, sessions, control plane, or LLM. With the opt-in,
+`serve` logs one WARN naming the principal and the roles every caller
+receives:
+
+```bash
+kubectl -n fi-fhir-demo logs deployment/fi-fhir | \
+  grep 'trusted network admits every address'
+#   "principal_id":"fi-fhir-demo-visitor","grant":"integration:preview"
+```
+
+If that line ever names a role other than `integration:preview` — or appears in
+the `fi-fhir` namespace — remove the opt-in and the `/0` entry through GitOps;
+the allowlist belongs to the LAN (`192.168.50.0/24`) everywhere else. The opt-in
+is rejected in OIDC mode like the rest of the static-mode trust settings, and
+the Engine tab reports it (`engineRuntime` property
+`FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY`, default `false`).
+
 ### Durable HL7v2 Ingress
 
 Check whether the endpoint is intentionally enabled:

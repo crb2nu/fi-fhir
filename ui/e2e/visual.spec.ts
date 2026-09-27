@@ -18,6 +18,8 @@ import { expect, test, type Locator, type Page, type Request } from '@playwright
 import { FORBIDDEN_COPY, hl7PreviewButton, openHL7Samples, openIDE } from './support';
 
 const VISUAL_DIR = path.resolve(process.env.E2E_RESULTS_DIR ?? 'e2e-results', 'visual');
+/** The preview-only stack (run.sh), for the hosted demo's captures. */
+const PREVIEW_ONLY_URL = process.env.E2E_PREVIEW_ONLY_URL ?? 'http://127.0.0.1:3003';
 
 interface Capture {
   /** Leading check id; `check-report.mjs` requires each one to run and pass. */
@@ -242,7 +244,37 @@ const CAPTURES: Capture[] = [
         dialog.getByRole('button', { name: 'Retry' })
       );
     }
-  }
+  },
+  // The hosted demo's honest states (.loom/40 D-3), on the preview-only stack:
+  // HL7 Preview on the stateless path, and the role pre-flights that stand in
+  // for the surfaces its integration:preview identity cannot reach.
+  {
+    id: 'V17',
+    name: 'demo-hl7-preview',
+    reach: async (page) => {
+      await openIDE(page, `${PREVIEW_ONLY_URL}/hl7`);
+      await expect(page.getByTestId('code-editor').locator('.cm-content')).toContainText('MSH|');
+      await hl7PreviewButton(page).click();
+      await expect(page.getByTestId('hl7-run-status')).toHaveText('Parsed');
+    }
+  },
+  ...(
+    [
+      ['V18', 'demo-events-preflight', '/events', 'events-preflight'],
+      ['V19', 'demo-profiles-preflight', '/profiles', 'profiles-preflight'],
+      ['V20', 'demo-terminology-preflight', '/terminology', 'terminology-preflight'],
+      ['V21', 'demo-workflows-preflight', '/workflows', 'workflows-preflight']
+    ] as const
+  ).map(
+    ([id, name, route, testid]): Capture => ({
+      id,
+      name,
+      reach: async (page) => {
+        await openIDE(page, `${PREVIEW_ONLY_URL}${route}`);
+        await expect(page.getByTestId(testid)).toBeVisible();
+      }
+    })
+  )
 ];
 
 /**

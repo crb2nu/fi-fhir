@@ -37,7 +37,8 @@ npx --no-install playwright install --with-deps chromium
 
 section "Build the UI with the session engine on"
 # The engine still runs only when the API reports capabilities.integrationSessions
-# (resolveIntegrationSessionEngine); the sessions-off stack proves that.
+# (resolveIntegrationSessionEngine); the sessions-off and preview-only stacks
+# prove that.
 VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED=true \
 VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east \
   npm run build
@@ -45,7 +46,7 @@ VITE_FI_FHIR_PREVIEW_INTEGRATION_ID=adt-east \
 section "Type-check the specs"
 npx --no-install tsc -p e2e/tsconfig.json
 
-section "Run the three stacks and Playwright"
+section "Run the four stacks and Playwright"
 # Arguments narrow the Playwright run for local iteration (e.g. --project
 # sessions-off); CI passes none, which also turns on the existence guard.
 bash e2e/run.sh "$@"

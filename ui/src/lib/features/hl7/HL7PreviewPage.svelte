@@ -66,6 +66,8 @@
   import { accessCapabilities } from '$lib/graphql/accessCapabilities';
   import { createIntakeController } from '$lib/features/hl7/intake/intakeController';
   import { intakeEntry } from '$lib/features/hl7/intake/intakeState';
+  import { compatibilityGrantPreflight, roleBlockedReason } from '$lib/features/access/rolePreflight';
+  import RolePreflightNotice from '$lib/features/access/RolePreflightNotice.svelte';
   import SessionRunProgress from '$lib/features/integration-session/SessionRunProgress.svelte';
   import SessionStreamNotice from '$lib/features/integration-session/SessionStreamNotice.svelte';
   import {
@@ -77,6 +79,12 @@
   // Build flag AND the API's integrationSessions capability (see
   // resolveIntegrationSessionEngine); otherwise Run uses the stateless preview.
   $: sessionEngineEnabled = $integrationSessionEngineEnabled;
+  // Profiles and legacy submit (Process) sit behind the graphql:operator
+  // compatibility grant. Without it (a preview-only identity) the Profile
+  // draft tab shows the pre-flight and Process is disabled with the reason,
+  // instead of each discovering "forbidden" by failing. Preview is unaffected.
+  $: grantPreflight = compatibilityGrantPreflight($accessCapabilities);
+  $: processBlocked = roleBlockedReason(grantPreflight, 'Process (submit to the pipeline)');
 
   let fileInputEl: HTMLInputElement | null = null;
   let dragDepth = 0;
@@ -290,7 +298,7 @@
   }
 
   async function processFromPalette(): Promise<void> {
-    if ($state.loading) return;
+    if ($state.loading || processBlocked) return;
     if (!$state.data.trim()) return;
     await processMessage();
   }
@@ -346,7 +354,7 @@
   }
 
   async function processMessage(): Promise<void> {
-    if ($state.loading) return;
+    if ($state.loading || processBlocked) return;
     if (!($state.data ?? '').trim()) return;
 
     const snapshot = getSnapshot();
@@ -780,7 +788,7 @@
       {
         id: 'process',
         label: 'Process message',
-        hint: 'Submit to pipeline',
+        hint: grantPreflight ? `Needs ${grantPreflight.missingRoles.join(', ')}` : 'Submit to pipeline',
         keywords: ['submit', 'process', 'workflow'],
         run: processFromPalette
       },
@@ -1105,9 +1113,9 @@
       </Button>
       <Button
         icon={Send}
-        title="Submit the message to the pipeline"
+        title={processBlocked ?? 'Submit the message to the pipeline'}
         loading={processState.state === 'running'}
-        disabled={$state.loading || !$state.data.trim()}
+        disabled={$state.loading || !$state.data.trim() || !!processBlocked}
         onclick={processMessage}
       >
         Process
@@ -1237,7 +1245,7 @@
             </div>
           {:else}
             <span class="run-state">
-              <Badge tone={runTone} dot>{runLabel}</Badge>
+              <Badge tone={runTone} dot data-testid="hl7-run-status">{runLabel}</Badge>
               <span class="status-text" aria-live="polite">
                 {#if $state.loading}
                   Parsing the message…
@@ -1444,9 +1452,19 @@
               on:selectPath={(e) => inspectPath(e.detail.path)}
             />
           {:else if activeTab === 'profile'}
-            <ProfileDraftPanel {fixes} onApplyFix={applyFix} />
+            {#if grantPreflight}
+              <RolePreflightNotice preflight={grantPreflight} testid="hl7-profile-preflight" lead="Source profiles need" />
+            {:else}
+              <ProfileDraftPanel {fixes} onApplyFix={applyFix} />
+            {/if}
           {:else if activeTab === 'process'}
-            {#if processState.state === 'idle'}
+            {#if grantPreflight && processState.state === 'idle'}
+              <RolePreflightNotice
+                preflight={grantPreflight}
+                testid="hl7-process-preflight"
+                lead="Process (submitting to the backend pipeline) needs"
+              />
+            {:else if processState.state === 'idle'}
               <EmptyState align="start" icon={Send} message="Process submits this message to the backend pipeline." />
             {:else if processState.state === 'running'}
               <p class="muted-line">

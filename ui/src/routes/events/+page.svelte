@@ -1,7 +1,9 @@
 <!--
   Events — the event store, four views under one toolbar. Browse is the
   table + details pattern; Live Stream is honest about what this deployment
-  can stream; Patient Timeline and Statistics are plain panels.
+  can stream; Patient Timeline and Statistics are plain panels. Every view
+  reads the event store, so an identity without `clinical:read` sees the
+  pre-flight and none of them is mounted.
 -->
 <script lang="ts">
   import { Badge, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
@@ -9,6 +11,8 @@
   import EventStats from '$lib/features/events/EventStats.svelte';
   import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import PatientTimeline from '$lib/features/events/PatientTimeline.svelte';
+  import RoleGatedPage from '$lib/features/access/RoleGatedPage.svelte';
+  import { clinicalReadPreflight } from '$lib/features/access/rolePreflight';
 
   const views: TabItem[] = [
     { id: 'browse', label: 'Browse', controls: 'events-view' },
@@ -26,6 +30,12 @@
   <title>Events | fi-fhir</title>
 </svelte:head>
 
+<RoleGatedPage
+  check={clinicalReadPreflight}
+  title="Events"
+  testid="events-preflight"
+  lead="The event store (browse, live stream, patient timeline, statistics) needs"
+>
 <div class="events-page">
   <Toolbar title="Events">
     {#snippet tabs()}
@@ -52,6 +62,7 @@
     {/if}
   </div>
 </div>
+</RoleGatedPage>
 
 <style>
   .events-page {

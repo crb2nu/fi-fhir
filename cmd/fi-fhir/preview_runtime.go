@@ -809,6 +809,12 @@ func loadGraphQLAuthenticationFromEnv(ctx context.Context, tenantID string) (req
 	return authenticator, trustedNetwork, accessIdentity, nil
 }
 
+// envGraphQLTrustedCIDRsAllowAny is the explicit opt-in for a trusted-network
+// allowlist entry of prefix length 0 (0.0.0.0/0, ::/0): every caller that
+// reaches the listener receives FI_FHIR_GRAPHQL_ROLES. Only the public demo
+// (preview-only roles, no database) sets it; serve logs a WARN when it applies.
+const envGraphQLTrustedCIDRsAllowAny = "FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY"
+
 const (
 	envGraphQLAccessTeamDomain = "FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN"
 	envGraphQLAccessAudience   = "FI_FHIR_GRAPHQL_ACCESS_AUDIENCE"
@@ -921,13 +927,21 @@ func loadStaticGraphQLAuthenticationFromEnv(tenantID string) (requestsecurity.Au
 		return nil, nil, err
 	}
 	var trustedNetwork *requestsecurity.TrustedNetworkAuthenticator
+	allowAnyAddress, err := optionalBoolEnv(envGraphQLTrustedCIDRsAllowAny)
+	if err != nil {
+		return nil, nil, err
+	}
 	if trustedCIDRs := strings.TrimSpace(os.Getenv("FI_FHIR_GRAPHQL_TRUSTED_CIDRS")); trustedCIDRs != "" {
 		trustedNetwork, err = requestsecurity.NewTrustedNetworkAuthenticator(requestsecurity.TrustedNetworkConfig{
-			CIDRs:       trustedCIDRs,
-			TenantID:    tenantID,
-			PrincipalID: principalID,
-			Roles:       roles,
+			CIDRs:           trustedCIDRs,
+			TenantID:        tenantID,
+			PrincipalID:     principalID,
+			Roles:           roles,
+			AllowAnyAddress: allowAnyAddress,
 		})
+		if errors.Is(err, requestsecurity.ErrTrustedNetworkAdmitsAnyAddress) {
+			return nil, nil, fmt.Errorf("configure GraphQL trusted network: %w; set %s=true only for a public least-privilege deployment", err, envGraphQLTrustedCIDRsAllowAny)
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("configure GraphQL trusted network: %w", err)
 		}
@@ -944,6 +958,7 @@ func loadGraphQLOIDCSettingsFromEnv() (graphQLOIDCSettings, error) {
 		"FI_FHIR_GRAPHQL_SERVICE_PRINCIPAL_ID",
 		"FI_FHIR_GRAPHQL_ROLES",
 		"FI_FHIR_GRAPHQL_TRUSTED_CIDRS",
+		envGraphQLTrustedCIDRsAllowAny,
 	); err != nil {
 		return graphQLOIDCSettings{}, err
 	}
@@ -1102,6 +1117,28 @@ func (r *previewRuntime) configuredGraphQLPrincipals() []integration.Principal {
 	}
 	principals = append(principals, r.trustedNetwork.ConfiguredPrincipals()...)
 	return append(principals, r.accessIdentity.ConfiguredPrincipals()...)
+}
+
+// trustedNetworkAdmitsAnyWarning is the startup line for a trusted network
+// whose allowlist contains a prefix of length 0: no bearer, no Access session,
+// no LAN boundary stands between the internet and the roles it names.
+const trustedNetworkAdmitsAnyWarning = "trusted network admits every address: every caller receives these roles"
+
+// warnTrustedNetworkAdmitsAnyAddress logs one WARN when the trusted network was
+// allowed (FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY=true) to admit every
+// address, naming the principal and the roles every caller receives.
+func warnTrustedNetworkAdmitsAnyAddress(logger *slog.Logger, trustedNetwork *requestsecurity.TrustedNetworkAuthenticator) {
+	if !trustedNetwork.AdmitsAnyAddress() {
+		return
+	}
+	for _, principal := range trustedNetwork.ConfiguredPrincipals() {
+		logger.Warn(trustedNetworkAdmitsAnyWarning,
+			observability.F(observability.FieldComponent, "trusted-network"),
+			observability.F(observability.FieldMode, principal.AuthMethod),
+			observability.F(observability.FieldPrincipalID, principal.ID),
+			observability.F(observability.FieldGrant, strings.Join(principal.Roles, ",")),
+			observability.F(observability.FieldReason, envGraphQLTrustedCIDRsAllowAny+"=true"))
+	}
 }
 
 // warnTransportGrantWithoutControlPlaneRole logs one WARN per configured

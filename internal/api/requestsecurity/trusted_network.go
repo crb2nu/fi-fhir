@@ -1,6 +1,7 @@
 package requestsecurity
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,13 +18,25 @@ type TrustedNetworkConfig struct {
 	TenantID    string
 	PrincipalID string
 	Roles       []string
+	// AllowAnyAddress admits an allowlist entry with prefix length 0
+	// (0.0.0.0/0, ::/0), which grants the configured identity to every caller
+	// that can reach the listener. It exists for a deliberately public,
+	// least-privilege deployment (the hosted demo) and is refused otherwise.
+	AllowAnyAddress bool
 }
 
+// ErrTrustedNetworkAdmitsAnyAddress is returned when the allowlist contains a
+// prefix of length 0 and AllowAnyAddress is not set.
+var ErrTrustedNetworkAdmitsAnyAddress = errors.New("trusted network admits every address")
+
 // TrustedNetworkAuthenticator authenticates requests by their ingress-reported
-// client address. It is intended for single-tenant LAN deployments only.
+// client address. It is intended for single-tenant LAN deployments, and for a
+// public least-privilege deployment only through the explicit
+// AllowAnyAddress opt-in.
 type TrustedNetworkAuthenticator struct {
-	networks []netip.Prefix
-	security integration.SecurityContext
+	networks  []netip.Prefix
+	admitsAny bool
+	security  integration.SecurityContext
 }
 
 // NewTrustedNetworkAuthenticator validates the complete allowlist and identity.
@@ -36,6 +49,15 @@ func NewTrustedNetworkAuthenticator(config TrustedNetworkConfig) (*TrustedNetwor
 	}
 	if len(networks) == 0 {
 		return nil, fmt.Errorf("at least one trusted network is required")
+	}
+	admitsAny := false
+	for _, network := range networks {
+		if network.Bits() == 0 {
+			admitsAny = true
+			if !config.AllowAnyAddress {
+				return nil, fmt.Errorf("%w (%s): every caller would receive the configured roles; set the explicit opt-in to allow it", ErrTrustedNetworkAdmitsAnyAddress, network)
+			}
+		}
 	}
 	if err := validateIdentity("tenant ID", config.TenantID); err != nil {
 		return nil, err
@@ -61,7 +83,8 @@ func NewTrustedNetworkAuthenticator(config TrustedNetworkConfig) (*TrustedNetwor
 	}
 
 	return &TrustedNetworkAuthenticator{
-		networks: networks,
+		networks:  networks,
+		admitsAny: admitsAny,
 		security: integration.SecurityContext{
 			TenantID: config.TenantID,
 			Principal: integration.Principal{
@@ -90,6 +113,13 @@ func (a *TrustedNetworkAuthenticator) AuthenticateRequest(request *http.Request)
 		}
 	}
 	return integration.SecurityContext{}, false
+}
+
+// AdmitsAnyAddress reports whether the allowlist contains a prefix of length 0,
+// i.e. whether every caller that reaches the listener receives the configured
+// identity. Startup logs a warning naming the roles when it does.
+func (a *TrustedNetworkAuthenticator) AdmitsAnyAddress() bool {
+	return a != nil && a.admitsAny
 }
 
 func parseTrustedNetworks(value string) ([]netip.Prefix, error) {

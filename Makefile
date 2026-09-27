@@ -1194,16 +1194,18 @@ event-backends:
 	go test -tags=integration -race -count=1 -timeout=180s ./pkg/eventbus
 
 # IDE repair Lane R-D: the browser smoke gate (ci/test-ui-e2e.yml). Playwright
-# (Chromium) against the BUILT UI served by its nginx template and three real
-# `fi-fhir serve` stacks on PostgreSQL 16 — the operator bundle with streaming
-# on, and two negative controls (no integration.operator; sessions off). This
+# (Chromium) against the BUILT UI served by its nginx template and four real
+# `fi-fhir serve` stacks — on PostgreSQL 16 the operator bundle with streaming
+# on and two negative controls (no integration.operator; sessions off), and
+# with no database the hosted demo's preview-only identity (.loom/40 D-3). This
 # runs ui/e2e/ci.sh, the job's whole script, in the job's image on a docker
 # context with PostgreSQL sharing its network namespace, so nothing but docker
-# and go is needed here. Results land in ui/e2e-results/. A fourth project,
+# and go is needed here. Results land in ui/e2e-results/. A fifth project,
 # `visual` (.loom/37 U-4), captures every route at 1440x900 into
 # ui/e2e-results/visual/ and asserts the copy register.
 #
-#   make ui-e2e                                      # all four projects
+#   make ui-e2e                                      # all five projects
+#   make ui-e2e UI_E2E_ARGS="--project preview-only" # the demo identity only
 #   make ui-e2e UI_E2E_ARGS="--project sessions-off" # one project, no existence guard
 #   make ui-e2e UI_E2E_ARGS="--project visual"       # just the review screenshots
 #   UI_E2E_DOCKER_CONTEXT=other make ui-e2e          # another docker host
