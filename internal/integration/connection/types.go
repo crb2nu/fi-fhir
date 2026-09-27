@@ -346,4 +346,7 @@ type Capture struct {
 	RequestedAt          time.Time
 	ExpiresAt            time.Time
 	CompletedAt          *time.Time
+	// Problems says why the capture finished as it did (Lane C-2,
+	// problems_json); empty while it is armed and when it completed cleanly.
+	Problems []Problem
 }
