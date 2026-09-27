@@ -296,7 +296,8 @@ against what the running replica mounted; it does not hot-load anything
   [Connection catalog operations](docs/operations/CONNECTION-CATALOG.md), the
   lifecycle doc's exposure line, seven ledgers in `AGENTS.md`, this roadmap,
   the decision and worklog entries, and the new captures in
-  `ui/docs/DESIGN.md`. MR !C4_IID.
+  `ui/docs/DESIGN.md`. Merged in
+  [MR !248](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/248).
 - [x] **`.loom/39` configuration-plane brainstorm** — reopens Decision 1
   deliberately; see Then. Merged in
   [MR !244](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/244).

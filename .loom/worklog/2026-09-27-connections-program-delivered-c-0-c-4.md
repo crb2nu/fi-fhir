@@ -19,7 +19,7 @@
     intake — mounted and catalog sources with their state, capture rows polling
     every 2.5 s while armed, audited batch list/read, preview by `sampleId`;
     visual captures V15–V16, e2e checks 9, 10 and 6d.
-  - **C-4** (MR !C4_IID): `docs/user-guide/connections.md`,
+  - **C-4** (MR !248): `docs/user-guide/connections.md`,
     `docs/operations/CONNECTION-CATALOG.md`, the lifecycle doc's exposure line,
     "seven ledgers" in `AGENTS.md`, `testing.md`, `PRODUCTION-HARDENING.md`
     and `SUPPORTED-1.0.md`, ROADMAP Delivered/Now/Then, the decision entry,
