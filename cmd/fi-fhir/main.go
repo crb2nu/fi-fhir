@@ -5078,6 +5078,18 @@ func runServe(args []string) error {
 		serveLog.Info("connection catalog configured",
 			observability.F(observability.FieldComponent, "connection-catalog"),
 			observability.F(observability.FieldDriver, "postgres"))
+		// .loom/38 C-2: sample intake rides this service, and the capture
+		// taps wrapped around admission become active here.
+		intakeEnabled, err := securePreviewRuntime.connectionIntake.bind(serveCtx, connectionIntakeBinding{
+			tenantID: securePreviewRuntime.tenantID, service: connectionService, store: connectionStore,
+			sessions: securePreviewRuntime.sessionStore, metrics: serveMetrics, logger: serveLog,
+		})
+		if err != nil {
+			return err
+		}
+		serveLog.Info("connection sample intake",
+			observability.F(observability.FieldComponent, "connection-capture"),
+			observability.F(observability.FieldEnabled, intakeEnabled))
 	}
 
 	// Create resolver

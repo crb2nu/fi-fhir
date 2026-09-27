@@ -132,8 +132,19 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 	metrics.SetSchemaLedgerVersion(SchemaLedgerSession, 6)
 	metrics.SetSchemaLedgerVersion(SchemaLedgerTerminology, 3)
 	metrics.SetRetentionBacklog(RetentionClassCanonicalEvent, 41)
+	metrics.RecordConnectionCaptureMessages(CaptureModeStream, 2)
+	metrics.RecordConnectionCaptureMessages(CaptureModePeek, 3)
+	metrics.RecordConnectionCaptureMessages("mrn-123456", 1)
+	metrics.RecordConnectionCaptureTapError(CaptureTapErrorSessionStore)
+	metrics.RecordConnectionCaptureTapError("PID-5 Synthetic^Name")
 
 	allowed := map[string]struct{}{"1.2.3": {}}
+	for mode := range allCaptureModes {
+		allowed[mode] = struct{}{}
+	}
+	for reason := range allCaptureTapErrors {
+		allowed[reason] = struct{}{}
+	}
 	for outcome := range allOutcomes {
 		allowed[outcome] = struct{}{}
 	}
