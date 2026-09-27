@@ -307,10 +307,16 @@ func (s *MemoryStore) AddSample(_ context.Context, sessionID string, req AddSamp
 	if policy != PHIPolicyRetain && policy != PHIPolicyRedact {
 		return nil, fmt.Errorf("%w: unsupported PHI policy %q", ErrInvalid, policy)
 	}
+	if err := validateSampleRedaction(req.Redaction, policy); err != nil {
+		return nil, err
+	}
 	raw := req.Raw
 	redacted := false
 	if policy == PHIPolicyRedact {
-		raw = redactSample(req.Format, raw)
+		var err error
+		if raw, err = redactSampleWith(req.Redaction, req.Format, raw); err != nil {
+			return nil, err
+		}
 		redacted = raw != req.Raw
 	}
 	now := s.now()
@@ -323,6 +329,7 @@ func (s *MemoryStore) AddSample(_ context.Context, sessionID string, req AddSamp
 		Raw:         raw,
 		PHIPolicy:   policy,
 		PHIRedacted: redacted,
+		Redaction:   req.Redaction,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}

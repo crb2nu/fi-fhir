@@ -89,8 +89,12 @@ type Sample struct {
 	Raw         string              `json:"raw"`
 	PHIPolicy   PHIPolicy           `json:"phi_policy"`
 	PHIRedacted bool                `json:"phi_redacted"`
-	CreatedAt   time.Time           `json:"created_at"`
-	UpdatedAt   time.Time           `json:"updated_at"`
+	// Redaction records which redactor produced Raw under PHIPolicyRedact.
+	// Empty is the pasted-sample redactor; every record written before the
+	// capture redactor existed reads as that.
+	Redaction SampleRedaction `json:"redaction,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 type AddSampleRequest struct {
@@ -99,6 +103,10 @@ type AddSampleRequest struct {
 	Source    string
 	Raw       string
 	PHIPolicy PHIPolicy
+	// Redaction selects the redactor under PHIPolicyRedact. The zero value is
+	// the pasted-sample redactor, so every existing caller is unchanged;
+	// SampleRedactionCapture is for captured and peeked messages only.
+	Redaction SampleRedaction
 }
 
 type ArtifactDraft struct {

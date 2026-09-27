@@ -251,6 +251,88 @@ window would turn every reconnect into one. `UPDATE` remains blanket-blocked.
 Pruned envelopes write no purge-audit row. They carry no clinical content, and
 one audit row per envelope would replace one unbounded table with another.
 
+### Captured and peeked samples
+
+`.loom/38` Lane C-2 adds the two paths by which a **real** message, rather than
+an engineer's synthetic one, can reach a session: `peekBatchConnection` reads
+the first messages of one object of a compiled batch connection, and
+`startConnectionCapture` arms a tap that copies the next frames a source admits
+(`internal/integration/connection/peek.go`, `capture.go`). Production raw bytes
+stay ephemeral (section 1): the tap copies a frame only after its admission
+committed, and only into a session.
+
+Both paths store samples through `session.AddSample` with `PHIPolicyRedact` and
+`Redaction: SampleRedactionCapture`, which selects
+`session.RedactCapturedHL7v2` (`internal/integration/session/redact_capture.go`)
+instead of the pasted-sample redactor. A captured sample is never retained:
+`SampleRedactionCapture` with `PHIPolicyRetain` is refused before anything is
+written. The pasted-sample redactor, `redactHL7v2`, is unchanged, and
+`TestRedactHL7v2_BehaviourPin` pins its exact output.
+
+The capture redactor masks every field that names, locates, contacts, dates, or
+numbers a person — the patient, the next of kin and associated parties, the
+insured, the guarantor, and their employers and household — and every person
+name in these segments whoever it belongs to: the HIPAA Safe Harbor identifier
+categories (names, geography below the state, dates, telephone and fax, email,
+SSN, MRN, health plan beneficiary, account, certificate and licence numbers, and
+any other unique identifying number). Rules:
+
+- A masked field is replaced whole — every repetition and component — by
+  `REDACTED`; an empty field stays empty.
+- **Dates are masked whole, year included.** That is stricter than Safe Harbor's
+  year exception, and it is what makes the redactor a strict superset:
+  `redactHL7v2` already masks PID-7 whole, and
+  `TestRedactCapturedHL7v2_IsASupersetOfTheLegacyRedactor` holds the superset.
+- The field separator is read from MSH-1, so a message that declares another
+  one is masked by field rather than passed through.
+- Fields that identify the payer's organisation and product (IN1-2 through
+  IN1-5, IN1-7, IN2-25, IN2-58) are kept: they name no person, and a profile
+  maps them to Coverage.
+
+The table, HL7 v2.5.1 field numbers and names (104 fields):
+
+| Segment | Masked fields |
+|---|---|
+| PID (17) | 2 Patient ID · 3 Patient Identifier List · 4 Alternate Patient ID · 5 Patient Name · 6 Mother's Maiden Name · 7 Date/Time of Birth · 9 Patient Alias · 11 Patient Address · 12 County Code · 13 Phone Number - Home · 14 Phone Number - Business · 18 Patient Account Number · 19 SSN Number - Patient · 20 Driver's License Number - Patient · 21 Mother's Identifier · 23 Birth Place · 29 Patient Death Date and Time |
+| NK1 (16) | 2 Name · 4 Address · 5 Phone Number · 6 Business Phone Number · 8 Start Date · 9 End Date · 12 Associated Parties Employee Number · 13 Organization Name - NK1 · 16 Date/Time of Birth · 26 Mother's Maiden Name · 30 Contact Person's Name · 31 Contact Person's Telephone Number · 32 Contact Person's Address · 33 Associated Party's Identifiers · 37 Contact Person Social Security Number · 38 Next of Kin Birth Place |
+| IN1 (21) | 6 Insurance Co Contact Person · 8 Group Number · 9 Group Name · 10 Insured's Group Emp ID · 11 Insured's Group Emp Name · 12 Plan Effective Date · 13 Plan Expiration Date · 14 Authorization Information · 16 Name Of Insured · 18 Insured's Date Of Birth · 19 Insured's Address · 24 Notice Of Admission Date · 26 Report Of Eligibility Date · 28 Pre-Admit Cert (PAC) · 29 Verification Date/Time · 30 Verification By · 36 Policy Number · 44 Insured's Employer's Address · 49 Insured's ID Number · 51 Signature Code Date · 52 Insured's Birth Place |
+| IN2 (26) | 1 Insured's Employee ID · 2 Insured's Social Security Number · 3 Insured's Employer's Name and ID · 6 Medicare Health Ins Card Number · 7 Medicaid Case Name · 8 Medicaid Case Number · 9 Military Sponsor Name · 10 Military ID Number · 13 Military Station · 17 Military Retire Date · 22 Special Coverage Approval Name · 26 Payor Subscriber ID · 40 Mother's Maiden Name · 44 Insured's Employment Start Date · 45 Employment Stop Date · 49 Employer Contact Person Name · 50 Employer Contact Person Phone Number · 52 Insured's Contact Person's Name · 53 Insured's Contact Person Phone Number · 55 Relationship to the Patient Start Date · 56 Relationship to the Patient Stop Date · 61 Patient Member Number · 63 Insured's Phone Number - Home · 64 Insured's Employer Phone Number · 69 Insured Organization Name and ID · 70 Insured Employer Organization Name and ID |
+| GT1 (24) | 2 Guarantor Number · 3 Guarantor Name · 4 Guarantor Spouse Name · 5 Guarantor Address · 6 Guarantor Ph Num - Home · 7 Guarantor Ph Num - Business · 8 Guarantor Date/Time Of Birth · 12 Guarantor SSN · 13 Guarantor Date - Begin · 14 Guarantor Date - End · 16 Guarantor Employer Name · 17 Guarantor Employer Address · 18 Guarantor Employer Phone Number · 19 Guarantor Employee ID Number · 21 Guarantor Organization Name · 24 Guarantor Death Date And Time · 29 Guarantor Employer ID Number · 31 Guarantor Hire Effective Date · 32 Employment Stop Date · 42 Mother's Maiden Name · 45 Contact Person's Name · 46 Contact Person's Telephone Number · 51 Guarantor Employer's Organization Name · 56 Guarantor Birth Place |
+
+`session.CaptureRedactedFields` is this table in code;
+`TestCaptureRedactedFieldsMatchesThePublishedTable` holds the two equal, and
+`TestRedactCapturedHL7v2_MasksEveryTableField` puts a synthetic value in every
+field of the five segments and requires every listed field masked with no
+fragment surviving, and every other field unchanged.
+
+**What is not masked, and why a captured sample is still PHI.** Segments outside
+the five pass through: MSH and EVN timestamps, PV1/PV2 (visit number,
+admission and discharge dates, attending clinicians), ORC/OBR/OBX/NTE (orders,
+results, free text), DG1, AL1, and every Z-segment. Free text can name anyone.
+A captured sample is therefore **minimised, not de-identified**: it stays in the
+session under the session's own retention (`purge_after`, above) and is treated
+as PHI everywhere the session is.
+
+**Who can read the text.** `SessionSample.redactedPayload` returns the stored
+text of a capture-redacted sample and nothing else — a pasted sample's stored
+text, redacted by the narrower pasted-sample redactor, is still never returned.
+`exportIntegrationBundle` without `integration.phi.export` strips it with
+`rawPayload`.
+
+**Audit.** Every peek and every capture is one reason-required row in
+`integration_connection_captures`
+(`internal/integration/connection/migrations/0001_connection_catalog.sql`,
+`0002_connection_capture_intake.sql`): the verified principal, the reason, the
+session, the runtime source or the connection and the revision digest a peek
+read, the limits, the count, the status, why it finished (`problems_json`), and
+who cancelled it and why (`cancellation_json`). A trigger freezes the row's
+provenance; while the row is armed, `status`, `captured`, and `completed_at`
+advance — and the finishing update writes `problems_json` and
+`cancellation_json` — each by an update that raises `version` by exactly one;
+once the row is finished it is frozen whole. No row is ever deleted.
+`make connection-capture` proves the tap and the peek against PostgreSQL, a
+real MLLP listener, and MinIO.
+
 ## 4. Session exports are attributed disclosures
 
 Before Slice 4.1d C1, `integration_session_exports` carried only

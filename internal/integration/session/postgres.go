@@ -363,12 +363,18 @@ func (s *PostgresStore) AddSample(ctx context.Context, sessionID string, req Add
 	if policy == "" {
 		policy = PHIPolicyRedact
 	}
+	if err := validateSampleRedaction(req.Redaction, policy); err != nil {
+		return nil, err
+	}
 	sampleID := newID("sample")
 	raw := req.Raw
 	redacted := false
 	var cipher []byte
 	if policy == PHIPolicyRedact {
-		raw = redactSample(req.Format, raw)
+		var err error
+		if raw, err = redactSampleWith(req.Redaction, req.Format, raw); err != nil {
+			return nil, err
+		}
 		redacted = raw != req.Raw
 	} else if policy == PHIPolicyRetain {
 		if s.protector == nil {
@@ -387,7 +393,7 @@ func (s *PostgresStore) AddSample(ctx context.Context, sessionID string, req Add
 	record := &Sample{
 		ID: sampleID, SessionID: sessionID, Name: strings.TrimSpace(req.Name),
 		Format: req.Format, Source: req.Source, Raw: raw, PHIPolicy: policy,
-		PHIRedacted: redacted, CreatedAt: now, UpdatedAt: now,
+		PHIRedacted: redacted, Redaction: req.Redaction, CreatedAt: now, UpdatedAt: now,
 	}
 	stored := *record
 	if stored.PHIPolicy == PHIPolicyRetain {
