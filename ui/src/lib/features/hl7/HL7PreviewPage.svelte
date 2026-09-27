@@ -111,7 +111,7 @@
 
   async function ensurePageSession(): Promise<string> {
     if (pageSessionId) return pageSessionId;
-    creatingSession ??= createSession().finally(() => {
+    creatingSession ??= createSession({ inlineErrors: true }).finally(() => {
       creatingSession = null;
     });
     const id = await creatingSession;

@@ -245,15 +245,19 @@ async function waitForStreamOpen(open: Promise<void>): Promise<void> {
 /**
  * Creates the page's Integration Session. Preview calls it on the first run;
  * sample intake calls it when a capture or peek comes before any Preview, and
- * the page then reuses that session for its runs.
+ * the page then reuses that session for its runs (with `inlineErrors`, since
+ * the intake dialog shows the failure itself).
  */
-export async function createSession(): Promise<string> {
+export async function createSession(options: { inlineErrors?: boolean } = {}): Promise<string> {
   const response = await graphqlFetch<
     CreateStreamingIntegrationSessionMutation,
     CreateStreamingIntegrationSessionMutationVariables
-  >(CreateStreamingIntegrationSessionDocument, {
-    input: { name: 'HL7 source profile workspace', description: 'Mapping Studio live preview session' }
-  });
+  >(
+    CreateStreamingIntegrationSessionDocument,
+    { input: { name: 'HL7 source profile workspace', description: 'Mapping Studio live preview session' } },
+    // Intake renders a failure inside its dialog; a toast would repeat it.
+    options.inlineErrors ? { showErrorToast: false } : undefined
+  );
   return response.createIntegrationSession.id;
 }
 
