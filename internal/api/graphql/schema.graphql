@@ -2758,3 +2758,290 @@ extend type Mutation {
   retireIntegrationDeployment(input: OperatorDeploymentCommandInput!): OperatorDeployment!
   deployIntegrationRelease(input: OperatorDeploymentCommandInput!): OperatorDeployment!
 }
+
+# =============================================================================
+# Connection catalog (.loom/38 C-0)
+#
+# Named, editable declarations of the endpoints the engine listens on (sources:
+# MLLP, HTTP, BATCH_S3, BATCH_SFTP) and delivers to (destinations: HTTPS, FHIR,
+# KAFKA). A draft is mutable under an optimistic version. Compiling it runs the
+# kind's own document constructor and stores the exact bytes `serve` mounts as
+# an immutable, content-addressed revision. Secrets are bindings end to end:
+# no field here can carry a secret value, and a spec key that looks like one is
+# refused. Nothing here hot-loads a connection; engineRuntime reports what this
+# replica actually composed at startup.
+#
+# Reads require integration.operator; writes additionally require
+# integration.deployment.operator, re-checked by the catalog service.
+# =============================================================================
+
+enum ConnectionDirection {
+  SOURCE
+  DESTINATION
+}
+
+enum ConnectionKind {
+  MLLP
+  HTTP
+  BATCH_S3
+  BATCH_SFTP
+  HTTPS
+  FHIR
+  KAFKA
+}
+
+type Connection {
+  """The connection's artifact ID; every compiled revision carries it."""
+  id: ID!
+  direction: ConnectionDirection!
+  kind: ConnectionKind!
+  name: String!
+  description: String!
+  """The kind's spec: snake_case, non-secret, and possibly incomplete (compile reports what is missing)."""
+  spec: JSON!
+  secretBindings: [ConnectionSecretBinding!]!
+  """Optimistic draft version, starting at 1. Every update and archive advances it; compile does not."""
+  version: Int!
+  archived: Boolean!
+  latestRevision: ConnectionRevision
+  """Lifecycle definition revisions that name any revision of this connection."""
+  references: [ConnectionReference!]!
+  runtime: ConnectionRuntimeState!
+  createdBy: OperatorPrincipal!
+  createdAt: DateTime!
+  updatedBy: OperatorPrincipal!
+  updatedReason: String!
+  updatedAt: DateTime!
+}
+
+"""A reference to a secret: never its value."""
+type ConnectionSecretBinding {
+  name: String!
+  """env, file, vault, aws-ssm, or k8s."""
+  provider: String!
+  key: String!
+  version: String
+}
+
+type ConnectionRevision {
+  artifactId: ID!
+  """Revision IDs are 1, 2, ... per connection."""
+  revisionId: ID!
+  digest: String!
+  direction: ConnectionDirection!
+  kind: ConnectionKind!
+  """The exact bytes serve mounts."""
+  revisionJson: String!
+  """The draft version this revision was compiled from."""
+  compiledFromVersion: Int!
+  createdBy: OperatorPrincipal!
+  createdReason: String!
+  createdAt: DateTime!
+}
+
+"""
+One lifecycle definition revision that names a revision of this connection,
+as its source or as one of its destinations.
+"""
+type ConnectionReference {
+  definitionId: ID!
+  """The referencing definition's revision ID."""
+  revisionId: ID!
+  """The digest of this connection's revision that the definition names."""
+  digest: String!
+  """The definition revision's lifecycle state (draft ... deployed, paused, retired)."""
+  state: String!
+  health: String!
+}
+
+type ConnectionRuntimeState {
+  """True when this replica runs a revision of this connection."""
+  mounted: Boolean!
+  """mllp-listener, batch-runner, http-ingress, or delivery-registry; null when not mounted."""
+  role: String
+  """Which revision is mounted, and by what; null when not mounted."""
+  detail: String
+}
+
+"""
+One field-level finding. path is JSON dot form relative to the spec
+(timeouts.read_seconds, s3.bucket, clients.allowed_cidrs[0]) or
+secret_bindings[i].<field>; empty for the document as a whole. Every code but
+UNUSED_BINDING blocks compile.
+"""
+type ConnectionProblem {
+  code: String!
+  path: String!
+  message: String!
+}
+
+type ConnectionCompileResult {
+  connection: Connection!
+  """Null exactly when a blocking problem was found; nothing was written then."""
+  revision: ConnectionRevision
+  problems: [ConnectionProblem!]!
+}
+
+input CreateConnectionInput {
+  id: ID!
+  direction: ConnectionDirection!
+  kind: ConnectionKind!
+  name: String!
+  description: String
+  spec: JSON!
+  secretBindings: [ConnectionSecretBindingInput!]
+  reason: String!
+}
+
+input UpdateConnectionInput {
+  id: ID!
+  """Optimistic concurrency guard; a stale version is rejected, never retried."""
+  expectedVersion: Int!
+  name: String
+  description: String
+  """Replaces the stored spec when present."""
+  spec: JSON
+  """Replaces the stored bindings when present, including with an empty list."""
+  secretBindings: [ConnectionSecretBindingInput!]
+  reason: String!
+}
+
+input ConnectionSecretBindingInput {
+  name: String!
+  provider: String!
+  key: String!
+  version: String
+}
+
+input ConnectionCommandInput {
+  id: ID!
+  expectedVersion: Int!
+  reason: String!
+}
+
+input ValidateConnectionSpecInput {
+  kind: ConnectionKind!
+  spec: JSON!
+  secretBindings: [ConnectionSecretBindingInput!]
+}
+
+"""
+What this replica composed at startup: PHI-free and secret-free. Process
+properties are an allowlist of the documented serve settings; a secret one
+renders only as "set" or "unset".
+"""
+type EngineRuntime {
+  version: String!
+  tenantId: ID!
+  """hostname-pid, as the MLLP rate quota derives it."""
+  replicaId: String!
+  """GraphQL authentication mode: static or oidc."""
+  authMode: String!
+  trustedNetwork: Boolean!
+  accessIdentity: Boolean!
+  controlPlane: Boolean!
+  integrationSessions: Boolean!
+  streaming: Boolean!
+  retentionPurge: Boolean!
+  llmConfigured: Boolean!
+  registry: EngineRegistry!
+  """Exactly four rows, enabled or not: http, mllp, batch, delivery."""
+  adapters: [EngineAdapter!]!
+  """Null when no delivery identity registry is loaded."""
+  destinationIdentity: EngineDestinationIdentity
+  """Every forward-only migration ledger and the version this binary expects."""
+  ledgers: [EngineLedger!]!
+  properties: [EngineProperty!]!
+}
+
+type EngineRegistry {
+  integrationCount: Int!
+  integrations: [EngineRegistryIntegration!]!
+}
+
+type EngineRegistryIntegration {
+  integrationId: ID!
+  definitionId: ID!
+  revisionId: ID!
+  digest: String!
+  sourceId: ID!
+  format: String!
+}
+
+"""
+One ingress or egress adapter. Every field but kind and enabled is null when
+the adapter is disabled or the field does not apply to its kind.
+"""
+type EngineAdapter {
+  """http, mllp, batch, or delivery."""
+  kind: String!
+  enabled: Boolean!
+  definitionId: ID
+  integrationId: ID
+  sourceId: ID
+  sourceRevisionId: ID
+  sourceDigest: String
+  listenAddress: String
+  path: String
+  authMode: String
+  tlsMode: String
+  provider: String
+  pollSeconds: Int
+  maxConnections: Int
+  maxMessageBytes: Int
+  maxBodyBytes: Int
+  requireClientIdentity: Boolean
+  requireWorkloadIdentity: Boolean
+  queueDriver: String
+  maxAttempts: Int
+  workerId: String
+}
+
+type EngineDestinationIdentity {
+  """strict or compatibility."""
+  mode: String!
+  destinations: [EngineDestination!]!
+}
+
+type EngineDestination {
+  artifactId: ID!
+  revisionId: ID!
+  digest: String!
+  """kafka, https, or fhir."""
+  transport: String!
+  """production or sandbox."""
+  class: String!
+  """Scheme, host, and path only; advisory, never a trust input."""
+  endpointAdvisory: String!
+}
+
+type EngineLedger {
+  name: String!
+  version: Int!
+}
+
+type EngineProperty {
+  """The environment variable that sets it; change it in GitOps."""
+  key: String!
+  """The value, the documented default, or "" when neither; set/unset when secret."""
+  value: String!
+  secret: Boolean!
+  """env or default."""
+  source: String!
+}
+
+extend type Query {
+  connections(direction: ConnectionDirection, includeArchived: Boolean): [Connection!]!
+  connection(id: ID!): Connection
+  connectionRevisions(id: ID!): [ConnectionRevision!]!
+  connectionRevision(artifactId: ID!, revisionId: ID!): ConnectionRevision
+  engineRuntime: EngineRuntime!
+}
+
+extend type Mutation {
+  createConnection(input: CreateConnectionInput!): Connection!
+  updateConnection(input: UpdateConnectionInput!): Connection!
+  archiveConnection(input: ConnectionCommandInput!): Connection!
+  compileConnection(input: ConnectionCommandInput!): ConnectionCompileResult!
+  validateConnectionSpec(input: ValidateConnectionSpecInput!): [ConnectionProblem!]!
+}

@@ -33,19 +33,29 @@ type authStatus struct {
 	MissingRoles  missingRoles       `json:"missingRoles"`
 }
 
-// accessCapabilities has two halves. The four role capabilities describe the
-// caller. integrationSessions, streaming, subscriptions, and llm describe the
-// deployment: they are the same for every caller except that subscriptions is
-// filtered by what this caller's roles clear at the transport gate.
+// accessCapabilities has two halves. The six role capabilities describe the
+// caller. integrationSessions, streaming, subscriptions, llm, controlPlane, and
+// connectionCatalog describe the deployment: they are the same for every
+// caller except that subscriptions is filtered by what this caller's roles
+// clear at the transport gate.
+//
+// controlPlane and connectionCatalog exist so a surface can say "not
+// configured on this deployment" instead of "forbidden" (.loom/38 Decision
+// 4): an unconfigured control plane and a missing role both fail closed at
+// the GraphQL layer, and this is where they are told apart.
 type accessCapabilities struct {
 	OperatorRead        bool     `json:"operatorRead"`
 	OperatorDelivery    bool     `json:"operatorDelivery"`
 	OperatorDeployment  bool     `json:"operatorDeployment"`
 	ClinicalRead        bool     `json:"clinicalRead"`
+	ConnectionsRead     bool     `json:"connectionsRead"`
+	ConnectionsWrite    bool     `json:"connectionsWrite"`
 	IntegrationSessions bool     `json:"integrationSessions"`
 	Streaming           bool     `json:"streaming"`
 	Subscriptions       []string `json:"subscriptions"`
 	LLM                 llmState `json:"llm"`
+	ControlPlane        bool     `json:"controlPlane"`
+	ConnectionCatalog   bool     `json:"connectionCatalog"`
 }
 
 type llmState struct {
@@ -60,6 +70,8 @@ type missingRoles struct {
 	OperatorDelivery   []string `json:"operatorDelivery"`
 	OperatorDeployment []string `json:"operatorDeployment"`
 	ClinicalRead       []string `json:"clinicalRead"`
+	ConnectionsRead    []string `json:"connectionsRead"`
+	ConnectionsWrite   []string `json:"connectionsWrite"`
 }
 
 // roleCapability is one IDE surface expressed as the two gates a request to it
@@ -89,6 +101,11 @@ var (
 	operatorDeliveryCapability   = roleCapability{operation: ast.Mutation, field: "replayDelivery", serviceRoles: operatorRecovery}
 	operatorDeploymentCapability = roleCapability{operation: ast.Mutation, field: "deployIntegrationRelease", serviceRoles: operatorDeployment}
 	clinicalReadCapability       = roleCapability{operation: ast.Query, field: "events"}
+	// The connection catalog (.loom/38 C-0). connection.Service re-checks the
+	// same role lists the transport gate names, so the service half equals the
+	// transport half, as it does for the operator plane.
+	connectionsReadCapability  = roleCapability{operation: ast.Query, field: "connections", serviceRoles: operatorRead}
+	connectionsWriteCapability = roleCapability{operation: ast.Mutation, field: "createConnection", serviceRoles: operatorDeployment}
 )
 
 // evaluate reports whether roles clear both gates and, if not, the roles that
@@ -134,11 +151,15 @@ func deriveAuthStatus(security integration.SecurityContext, config *ServerConfig
 	status.Capabilities.OperatorDelivery, status.MissingRoles.OperatorDelivery = operatorDeliveryCapability.evaluate(roles)
 	status.Capabilities.OperatorDeployment, status.MissingRoles.OperatorDeployment = operatorDeploymentCapability.evaluate(roles)
 	status.Capabilities.ClinicalRead, status.MissingRoles.ClinicalRead = clinicalReadCapability.evaluate(roles)
+	status.Capabilities.ConnectionsRead, status.MissingRoles.ConnectionsRead = connectionsReadCapability.evaluate(roles)
+	status.Capabilities.ConnectionsWrite, status.MissingRoles.ConnectionsWrite = connectionsWriteCapability.evaluate(roles)
 
 	status.Capabilities.IntegrationSessions = config.IntegrationSessionsConfigured
 	status.Capabilities.Streaming = config.IntegrationSessionStreaming
 	status.Capabilities.Subscriptions = streamSubscriptions(roles, config.IntegrationSessionStreaming)
 	status.Capabilities.LLM.Configured = config.LLMConfigured
+	status.Capabilities.ControlPlane = config.OperatorControlPlaneConfigured
+	status.Capabilities.ConnectionCatalog = config.ConnectionCatalogConfigured
 	return status
 }
 

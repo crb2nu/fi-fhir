@@ -15,6 +15,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/projections"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	integrationpreview "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
 	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
@@ -148,6 +149,16 @@ type Resolver struct {
 	// It is nil until a PostgreSQL submission database and lifecycle catalog
 	// are configured, which keeps the control plane fail-closed by default.
 	OperatorControlPlane *operator.Service
+
+	// ConnectionCatalog is the durable connection catalog (.loom/38 C-0). It is
+	// nil until serve wires it beside the operator control plane, which keeps
+	// every catalog field fail-closed by default.
+	ConnectionCatalog *connection.Service
+
+	// EngineRuntimeDescription is what serve composed at startup. Only serve
+	// knows what it mounted, so every other composition leaves it nil and
+	// engineRuntime fails closed.
+	EngineRuntimeDescription *connection.RuntimeDescription
 
 	// False in every production composition. Superseded helper tests opt in
 	// directly so the public server remains fail-closed by default.
