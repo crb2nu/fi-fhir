@@ -26,6 +26,8 @@ var captureRedactionTable = []struct {
 	{segment: "IN1", fields: 53, masked: []int{6, 8, 9, 10, 11, 12, 13, 14, 16, 18, 19, 24, 26, 28, 29, 30, 36, 44, 49, 51, 52}},
 	{segment: "IN2", fields: 72, masked: []int{1, 2, 3, 6, 7, 8, 9, 10, 13, 17, 22, 26, 40, 44, 45, 49, 50, 52, 53, 55, 56, 61, 63, 64, 69, 70}},
 	{segment: "GT1", fields: 57, masked: []int{2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 16, 17, 18, 19, 21, 24, 29, 31, 32, 42, 45, 46, 51, 56}},
+	{segment: "MRG", fields: 7, masked: []int{1, 2, 3, 4, 5, 6, 7}},
+	{segment: "PV1", fields: 52, masked: []int{19, 50}},
 }
 
 // syntheticField is a unique, obviously synthetic value for one field. It has a
@@ -46,19 +48,23 @@ func syntheticSegment(segment string, fields int, separator string) string {
 	return strings.Join(values, separator)
 }
 
-// syntheticCaptureMessage is one ADT message whose PID, NK1, IN1, IN2, and GT1
-// carry a synthetic value in every field.
+// syntheticMSH is an MSH segment declaring separator as its field separator.
+func syntheticMSH(separator string) string {
+	return "MSH" + separator + `^~\&` + separator + "SENDER" + separator + "FAC" + separator + "FI-FHIR" + separator + "FAC" +
+		separator + "20260926120000" + separator + separator + "ADT^A01^ADT_A01" + separator + "control-1" +
+		separator + "P" + separator + "2.5.1"
+}
+
+// syntheticCaptureMessage is one ADT message whose PID, NK1, IN1, IN2, GT1,
+// MRG, and PV1 carry a synthetic value in every field.
 func syntheticCaptureMessage(separator string) string {
 	segments := []string{
-		"MSH" + separator + `^~\&` + separator + "SENDER" + separator + "FAC" + separator + "FI-FHIR" + separator + "FAC" +
-			separator + "20260926120000" + separator + separator + "ADT^A01^ADT_A01" + separator + "control-1" +
-			separator + "P" + separator + "2.5.1",
+		syntheticMSH(separator),
 		"EVN" + separator + "A01" + separator + "20260926120000",
 	}
 	for _, row := range captureRedactionTable {
 		segments = append(segments, syntheticSegment(row.segment, row.fields, separator))
 	}
-	segments = append(segments, "PV1"+separator+"1"+separator+"I")
 	return strings.Join(segments, "\r") + "\r"
 }
 
@@ -91,7 +97,7 @@ func TestCaptureRedactedFieldsMatchesThePublishedTable(t *testing.T) {
 }
 
 // TestRedactCapturedHL7v2_MasksEveryTableField is the capture redactor's pin:
-// with a synthetic value in every field of the five segments, every table field
+// with a synthetic value in every field of the table's segments, every table field
 // is replaced whole and no fragment of its value survives anywhere in the
 // output, while every field the table does not list survives byte for byte.
 func TestRedactCapturedHL7v2_MasksEveryTableField(t *testing.T) {
@@ -127,44 +133,62 @@ func TestRedactCapturedHL7v2_MasksEveryTableField(t *testing.T) {
 	if strings.Contains(redacted, "\r") {
 		t.Fatal("the redacted output kept a carriage return; segments are LF-separated like redactHL7v2's")
 	}
-	for _, kept := range []string{"MSH|", "EVN|A01|20260926120000", "PV1|1|I"} {
+	for _, kept := range []string{syntheticMSH("|"), "EVN|A01|20260926120000"} {
 		if !strings.Contains(redacted, kept) {
-			t.Fatalf("a segment outside the five changed: %q is missing", kept)
+			t.Fatalf("a segment outside the table changed: %q is missing", kept)
 		}
 	}
 }
 
 // TestRedactCapturedHL7v2_IsASupersetOfTheLegacyRedactor: every field the
-// pasted-sample redactor masks, the capture redactor masks too.
+// pasted-sample redactor masks, the capture redactor masks too — including on
+// a literal "PID|" line of a message whose MSH-1 declares another separator,
+// which redactHL7v2 masks because it never reads MSH-1.
 func TestRedactCapturedHL7v2_IsASupersetOfTheLegacyRedactor(t *testing.T) {
-	message := syntheticCaptureMessage("|")
-	legacy := strings.Split(redactHL7v2(message), "\n")
-	capture := strings.Split(RedactCapturedHL7v2(message), "\n")
-	if len(legacy) != len(capture) {
-		t.Fatalf("line counts differ: legacy %d, capture %d", len(legacy), len(capture))
-	}
-	checked := 0
-	for line := range legacy {
-		legacyFields := strings.Split(legacy[line], "|")
-		captureFields := strings.Split(capture[line], "|")
-		for field, value := range legacyFields {
-			if value != redactedValue {
-				continue
+	for name, message := range map[string]string{
+		"every table segment populated": syntheticCaptureMessage("|"),
+		"a PID| line under an MSH-1 of '#'": syntheticMSH("#") + "\r" +
+			syntheticSegment("PID", 39, "|") + "\r" + syntheticSegment("NK1", 39, "#") + "\r",
+	} {
+		t.Run(name, func(t *testing.T) {
+			legacy := strings.Split(redactHL7v2(message), "\n")
+			captured := RedactCapturedHL7v2(message)
+			capture := strings.Split(captured, "\n")
+			if len(legacy) != len(capture) {
+				t.Fatalf("line counts differ: legacy %d, capture %d", len(legacy), len(capture))
 			}
-			checked++
-			if field >= len(captureFields) || captureFields[field] != redactedValue {
-				t.Errorf("%s-%d is masked by redactHL7v2 but not by RedactCapturedHL7v2", legacyFields[0], field)
+			checked := 0
+			for line := range legacy {
+				legacyFields := strings.Split(legacy[line], "|")
+				captureFields := strings.Split(capture[line], "|")
+				for field, value := range legacyFields {
+					if value != redactedValue {
+						continue
+					}
+					checked++
+					if field >= len(captureFields) || captureFields[field] != redactedValue {
+						t.Errorf("%s-%d is masked by redactHL7v2 but not by RedactCapturedHL7v2", legacyFields[0], field)
+					}
+				}
 			}
-		}
-	}
-	if checked != 6 {
-		t.Fatalf("the legacy redactor masked %d fields of the fixture, want its six PID fields", checked)
+			if checked != 6 {
+				t.Fatalf("the legacy redactor masked %d fields of the fixture, want its six PID fields", checked)
+			}
+			for _, field := range CaptureRedactedFields["PID"] {
+				if stem := fmt.Sprintf("SYN-PID%02d", field); strings.Contains(captured, stem) {
+					t.Errorf("PID-%d survived the capture redactor (%s)", field, stem)
+				}
+			}
+		})
 	}
 }
 
 func TestRedactCapturedHL7v2_ReadsTheFieldSeparatorFromMSH(t *testing.T) {
 	message := syntheticCaptureMessage("#")
 	redacted := RedactCapturedHL7v2(message)
+	if !strings.Contains(redacted, syntheticMSH("#")) {
+		t.Fatal("MSH changed under a non-default field separator")
+	}
 	fields := segmentFields(t, redacted, "PID", "#")
 	if fields[5] != redactedValue || fields[3] != redactedValue || fields[8] != syntheticField("PID", 8) {
 		t.Fatalf("a message declaring '#' as its field separator was not masked by field: %q", fields[:9])

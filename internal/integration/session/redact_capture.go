@@ -40,50 +40,57 @@ const redactedValue = "REDACTED"
 // The rule it encodes: every field that names, locates, contacts, dates, or
 // numbers a person — the patient, the next of kin and associated parties, the
 // insured, the guarantor, and their employers and household — and every person
-// name in these segments whoever it belongs to. Dates are masked whole, year
-// included: stricter than Safe Harbor's year exception, and required for the
-// superset, because redactHL7v2 already masks PID-7 whole. Fields that identify
-// the payer's organisation and product (IN1-2 through IN1-5, IN1-7, IN2-25,
-// IN2-58) are kept: they name no person, and a profile maps them to Coverage.
+// name in these segments whoever it belongs to; the whole of MRG, which is the
+// patient's prior identity; and PV1's visit numbers (PV1-19, PV1-50). Dates are
+// masked whole, year included: stricter than Safe Harbor's year exception, and
+// required for the superset, because redactHL7v2 already masks PID-7 whole.
+// Fields that identify the payer's organisation and product (IN1-2 through
+// IN1-5, IN1-7, IN2-25, IN2-58) are kept: they name no person, and a profile
+// maps them to Coverage.
 var CaptureRedactedFields = map[string][]int{
 	"PID": {2, 3, 4, 5, 6, 7, 9, 11, 12, 13, 14, 18, 19, 20, 21, 23, 29},
 	"NK1": {2, 4, 5, 6, 8, 9, 12, 13, 16, 26, 30, 31, 32, 33, 37, 38},
 	"IN1": {6, 8, 9, 10, 11, 12, 13, 14, 16, 18, 19, 24, 26, 28, 29, 30, 36, 44, 49, 51, 52},
 	"IN2": {1, 2, 3, 6, 7, 8, 9, 10, 13, 17, 22, 26, 40, 44, 45, 49, 50, 52, 53, 55, 56, 61, 63, 64, 69, 70},
 	"GT1": {2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 16, 17, 18, 19, 21, 24, 29, 31, 32, 42, 45, 46, 51, 56},
+	"MRG": {1, 2, 3, 4, 5, 6, 7},
+	"PV1": {19, 50},
 }
 
 // RedactCapturedHL7v2 masks every field CaptureRedactedFields lists in the PID,
-// NK1, IN1, IN2, and GT1 segments of one HL7v2 message. It is a superset of
-// redactHL7v2: every PID field that redactor masks is in the table.
+// NK1, IN1, IN2, GT1, MRG, and PV1 segments of one HL7v2 message. It is a
+// superset of redactHL7v2: every PID field that redactor masks is in the
+// table, and every line that redactor masks this one masks too.
 //
-// The field separator is read from MSH-1 rather than assumed, because a
-// message that declares a different one would otherwise pass through with
-// nothing masked. Segments are normalised to LF-separated lines, as
-// redactHL7v2 normalises them. Segments outside the five — MSH, EVN, PV1, OBX,
-// NTE, Z-segments — are not masked; a captured sample therefore stays PHI in
-// the session and is governed by the session's retention, not treated as
-// de-identified.
+// A segment is split on the field separator MSH-1 declares, because a message
+// that declares another one would otherwise pass through with nothing masked,
+// and also on '|', because redactHL7v2 masks a literal "PID|" line whatever
+// MSH-1 says and the superset must hold for that line too. Segments are
+// normalised to LF-separated lines, as redactHL7v2 normalises them. PV1 beyond
+// its visit numbers, and MSH, EVN, OBX, NTE, and Z-segments, are not masked; a
+// captured sample therefore stays PHI in the session and is governed by the
+// session's retention, not treated as de-identified.
 func RedactCapturedHL7v2(raw string) string {
 	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
 	normalized = strings.ReplaceAll(normalized, "\r", "\n")
 	lines := strings.Split(normalized, "\n")
-	separator := hl7FieldSeparator(lines)
+	declared := hl7FieldSeparator(lines)
 	for index, line := range lines {
-		if len(line) < 4 || line[3] != separator {
+		if len(line) < 4 || (line[3] != declared && line[3] != '|') {
 			continue
 		}
 		masked, ok := CaptureRedactedFields[line[:3]]
 		if !ok {
 			continue
 		}
-		fields := strings.Split(line, string(separator))
+		separator := string(line[3])
+		fields := strings.Split(line, separator)
 		for _, field := range masked {
 			if field < len(fields) && fields[field] != "" {
 				fields[field] = redactedValue
 			}
 		}
-		lines[index] = strings.Join(fields, string(separator))
+		lines[index] = strings.Join(fields, separator)
 	}
 	return strings.Join(lines, "\n")
 }

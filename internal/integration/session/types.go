@@ -98,6 +98,15 @@ type Sample struct {
 }
 
 type AddSampleRequest struct {
+	// ID, when set, names the sample instead of a generated ID and makes the
+	// write idempotent: if the ID already names a sample of this session, that
+	// sample is returned unchanged and nothing is written — the first write
+	// wins, whatever a retried request carries. An ID naming a sample of
+	// another session is refused. The connection capture tap derives it from
+	// the capture and the slot, so a slot written twice is one sample. It must
+	// be "sample_" followed by ASCII letters, digits, '-', or '_', at most
+	// maxSampleIDBytes in all. Empty keeps the generated ID.
+	ID        string
 	Name      string
 	Format    events.SourceFormat
 	Source    string
