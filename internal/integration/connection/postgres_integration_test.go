@@ -631,9 +631,11 @@ func TestConnectionCatalog_StoredRecordsAreGuardedBySchemaTriggers(t *testing.T)
 
 // TestConnectionCatalog_SecretValueIsRefusedAndNotPersisted: a draft write —
 // create or update — that would persist secret material, a key the kind does
-// not define, or a malformed secret binding reference is refused with the
+// not define, a malformed secret binding reference, or a binding field that
+// names no declared binding (a credential pasted into it) is refused with the
 // problem's code and path, and no row changes. Validate reports the same
-// problem in its result instead of refusing.
+// problem in its result instead of refusing. A binding field that names a
+// declared binding saves.
 func TestConnectionCatalog_SecretValueIsRefusedAndNotPersisted(t *testing.T) {
 	catalog := newCatalogUnderTest(t)
 	ctx := writerContext("tenant-a")
@@ -662,6 +664,8 @@ func TestConnectionCatalog_SecretValueIsRefusedAndNotPersisted(t *testing.T) {
 		{"malformed binding reference", `{"destination_id":"leaky"}`, []integration.SecretBinding{{
 			Name: "t", Reference: integration.SecretReference{Provider: "keychain", Key: marker},
 		}}, CodeInvalidEnum, "secret_bindings[0].provider"},
+		{"credential pasted into a binding field", `{"destination_id":"leaky","https":{"token_binding":"` + marker + `"}}`, nil,
+			CodeUnboundSecret, "https.token_binding"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -713,6 +717,42 @@ func TestConnectionCatalog_SecretValueIsRefusedAndNotPersisted(t *testing.T) {
 			}
 		})
 	}
+	t.Run("a binding field naming a declared binding saves", func(t *testing.T) {
+		envBinding := func(name string) []integration.SecretBinding {
+			return []integration.SecretBinding{{Name: name, Reference: integration.SecretReference{
+				Provider: integration.SecretProviderEnvironment, Key: "FI_FHIR_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_")),
+			}}}
+		}
+		created, err := catalog.service.Create(ctx, CreateRequest{
+			ID: "declared-https", Direction: DirectionDestination, Kind: KindHTTPS, Name: "declared",
+			Spec:           json.RawMessage(`{"destination_id":"declared","https":{"token_binding":"declared-token"}}`),
+			SecretBindings: envBinding("declared-token"), Reason: "name a declared binding",
+		})
+		if err != nil || created.Version != 1 {
+			t.Fatalf("create naming a declared binding = %+v, %v", created, err)
+		}
+		// One update may rename the binding and point the field at the new name.
+		rotated := envBinding("rotated-token")
+		updated, err := catalog.service.Update(ctx, UpdateRequest{
+			ID: "declared-https", ExpectedVersion: 1, SecretBindings: &rotated, Reason: "rotate the binding",
+			Spec: json.RawMessage(`{"destination_id":"declared","https":{"token_binding":"rotated-token"}}`),
+		})
+		if err != nil || updated.Version != 2 || len(updated.SecretBindings) != 1 || updated.SecretBindings[0].Name != "rotated-token" {
+			t.Fatalf("update renaming the binding = %+v, %v", updated, err)
+		}
+		// Dropping the binding the field still names leaves the field unbound.
+		none := []integration.SecretBinding{}
+		var specErr *SpecError
+		if _, err := catalog.service.Update(ctx, UpdateRequest{
+			ID: "declared-https", ExpectedVersion: 2, SecretBindings: &none, Reason: "drop the binding",
+		}); !errors.As(err, &specErr) || !hasCode(specErr.Problems, CodeUnboundSecret, "https.token_binding") {
+			t.Fatalf("dropping a named binding = %v, want UNBOUND_SECRET at https.token_binding", err)
+		}
+		if stored, err := catalog.service.Get(ctx, "declared-https"); err != nil || stored.Version != 2 {
+			t.Fatalf("a refused update changed the draft: %+v, %v", stored, err)
+		}
+	})
+
 	var leaked int
 	if err := catalog.db.QueryRowContext(t.Context(), `
 		SELECT count(*) FROM integration_connection_drafts
