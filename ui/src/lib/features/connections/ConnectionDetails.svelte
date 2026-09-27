@@ -227,6 +227,9 @@
     if (writeRefusal?.path.startsWith('secret_bindings')) {
       return 'Complete or remove the secret binding marked in Secrets first.';
     }
+    if (writeRefusal?.code === 'UNBOUND_SECRET') {
+      return 'Choose a declared binding in every binding field first.';
+    }
     if (writeRefusal) return 'Remove the key this connection kind does not have first.';
     return null;
   });

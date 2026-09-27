@@ -72,11 +72,15 @@ describe('specRejectionProblems', () => {
     expect(refusedAtWrite({ code: 'REQUIRED', path: 'secret_bindings[0].key' })).toBe(true);
     expect(refusedAtWrite({ code: 'OUT_OF_RANGE', path: 'secret_bindings' })).toBe(true);
     expect(refusedAtWrite({ code: 'UNUSED_BINDING', path: 'secret_bindings[0].name' })).toBe(false);
-    expect(refusedAtWrite({ code: 'UNBOUND_SECRET', path: 'tls.client_ca_binding' })).toBe(false);
+    // C-0 refuses a binding field that names no declared binding at write, too.
+    expect(refusedAtWrite({ code: 'UNBOUND_SECRET', path: 'tls.client_ca_binding' })).toBe(true);
     expect(refusedAtWrite({ code: 'REQUIRED', path: 'listen_address' })).toBe(false);
     expect(refusedAtWrite({ code: 'INVALID_TYPE', path: 'max_connections' })).toBe(false);
     expect(describeRefusal([{ code: 'REQUIRED', path: 'secret_bindings[0].key' }])).toMatch(
       /Complete or remove the secret bindings marked in Secrets\.$/
+    );
+    expect(describeRefusal([{ code: 'UNBOUND_SECRET', path: 'https.token_binding' }])).toMatch(
+      /Each binding field must name a binding declared in Secrets\.$/
     );
   });
 

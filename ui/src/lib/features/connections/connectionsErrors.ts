@@ -141,17 +141,27 @@ export function describeRefusal(problems: ReadonlyArray<{ code: string; path: st
   if (problems.some((problem) => problem.path.startsWith('secret_bindings'))) {
     return `${base} Complete or remove the secret bindings marked in Secrets.`;
   }
+  if (problems.some((problem) => problem.code === 'UNBOUND_SECRET')) {
+    return `${base} Each binding field must name a binding declared in Secrets.`;
+  }
   return base;
 }
 
 /**
  * Whether a problem is one a draft write is refused for (C-0 writeProblems):
- * secret material, a key the kind does not define, or a malformed secret
- * binding reference. Everything else — a missing or out-of-range value, an
- * unbound or unused binding — is a compile problem, and the draft still saves.
+ * secret material, a key the kind does not define, a `*_binding` field that
+ * names no declared binding, or a malformed secret binding reference.
+ * Everything else — a missing or out-of-range value, an unused binding — is
+ * a compile problem, and the draft still saves.
  */
 export function refusedAtWrite(problem: { code: string; path: string }): boolean {
-  if (problem.code === 'SECRET_VALUE_FORBIDDEN' || problem.code === 'UNKNOWN_FIELD') return true;
+  if (
+    problem.code === 'SECRET_VALUE_FORBIDDEN' ||
+    problem.code === 'UNKNOWN_FIELD' ||
+    problem.code === 'UNBOUND_SECRET'
+  ) {
+    return true;
+  }
   const binding = problem.path === 'secret_bindings' || problem.path.startsWith('secret_bindings[');
   return binding && problem.code !== 'UNUSED_BINDING';
 }
