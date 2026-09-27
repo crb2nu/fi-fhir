@@ -18,7 +18,7 @@ This directory contains the (future) mapping frontend for fi-fhir.
 - `ui/docs/FEATURES.md`
 - `ui/docs/ITERATION-LOOP.md`
 - `ui/docs/DEVELOPER-GUIDE.md`
-- `ui/docs/USER-GUIDE.md`
+- User guide: `docs/user-guide/ide.md` (repo root; `ui/docs/USER-GUIDE.md` points there)
 
 ## Commands
 

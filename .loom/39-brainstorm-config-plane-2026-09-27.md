@@ -357,7 +357,7 @@ a hot swap the runtime cannot do safely.
 
 ## Handoff
 
-- If chosen → next step is: `plan-loom-core` for a `.loom/40-config-plane-execution-specs.md` with lanes P-0 (observed status), P-1 (baseline import), P-2 (kill-test spike, then catalog activation), P-3 (promotion MR bridge), plus a flexinfer ownership-rule lane and a loom-core registry-consolidation lane in their own repos.
+- If chosen → next step is: `plan-loom-core` for a `.loom/41-config-plane-execution-specs.md` (40 is taken by the public-demo spec) with lanes P-0 (observed status), P-1 (baseline import), P-2 (kill-test spike, then catalog activation), P-3 (promotion MR bridge), plus a flexinfer ownership-rule lane and a loom-core registry-consolidation lane in their own repos.
 - Linked spec/plan doc: not yet; `.loom/38-connections-execution-specs.md` is the predecessor (Decision 1 and Decision 5 are what this document reopens).
 
 ---

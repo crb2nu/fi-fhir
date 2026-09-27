@@ -13,7 +13,9 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 7. [FHIR Output](fhir-output.md)
 8. [LLM-Powered Features](llm-features.md)
 9. [Playground Tutorial](playground-tutorial.md)
-10. [Connections](connections.md)
+10. [Browser Playground](playground.md)
+11. [Mapping Studio (IDE)](ide.md)
+12. [Connections](connections.md)
 
 ## Quick Links
 
@@ -31,7 +33,10 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 | Generate workflows from natural language | [LLM-Powered Features](llm-features.md#workflow-generation) |
 | Search terminology by meaning | [LLM-Powered Features](llm-features.md#semantic-terminology-search) |
 | Try it in the browser | [Playground Tutorial](playground-tutorial.md) |
+| Know what the browser playground runs, and what needs the IDE | [Browser Playground](playground.md) |
+| Find my way around the IDE | [Mapping Studio (IDE)](ide.md) |
 | Define a source or destination connection | [Connections](connections.md) |
+| See what this replica is actually running | [Connections](connections.md#6-see-it-mounted) |
 | Pull real messages from a source into a session | [Connections](connections.md#sampling-from-a-connection) |
 
 ## What is fi-fhir?
