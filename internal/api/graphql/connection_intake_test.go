@@ -2,6 +2,8 @@ package graphql_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 )
 
 // The .loom/38 C-2 sample-intake fields at the GraphQL boundary: the transport
@@ -72,6 +75,90 @@ func TestConnectionIntakeFailsClosed(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestSessionSampleRedactedPayloadOverTheWire is review C1 end to end: the
+// same session read returns a captured sample's text to a caller holding
+// integration.operator and null to a caller holding only the legacy
+// graphql:operator role that gates session reads; a pasted sample's text is
+// never returned; and an export carries no captured text whatever the grants.
+func TestSessionSampleRedactedPayloadOverTheWire(t *testing.T) {
+	ctx := context.Background()
+	store := session.NewMemoryStore()
+	workspace, err := store.CreateSession(ctx, session.CreateSessionRequest{Name: "capture gate"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const message = "MSH|^~\\&|S|F|R|F|20260926||ADT^A01|c-1|P|2.5.1\rPID|1||MRN-SYNTH^^^HOSP^MR||Zyxwpat^Quorbina\r"
+	captured, err := store.AddSample(ctx, workspace.ID, session.AddSampleRequest{
+		ID: "sample_capture_c-1_1", Name: "capture c-1 #1", Format: events.FormatHL7v2, Source: "capture:c-1",
+		Raw: message, PHIPolicy: session.PHIPolicyRedact, Redaction: session.SampleRedactionCapture,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AddSample(ctx, workspace.ID, session.AddSampleRequest{Name: "pasted", Format: events.FormatHL7v2, Raw: message}); err != nil {
+		t.Fatal(err)
+	}
+	serverWith := func(roles ...string) (http.Handler, string) {
+		config := secureServerConfig(testAuthenticator(t))
+		config.MaxRequestBodyBytes = 1 << 16
+		config.TrustedNetworkAuthenticator = trustedNetwork(t, roles...)
+		server, err := graphqlapi.NewServer(resolvers.NewResolver(resolvers.WithIntegrationSessionStore(store)), config)
+		if err != nil {
+			t.Fatalf("NewServer: %v", err)
+		}
+		return server.Handler(), config.Path
+	}
+	read := `query Op { integrationSession(id: "` + workspace.ID + `") { samples { name redactedPayload } } }`
+	payloads := func(body string) map[string]*string {
+		t.Helper()
+		var decoded struct {
+			Data struct {
+				IntegrationSession struct {
+					Samples []struct {
+						Name            string  `json:"name"`
+						RedactedPayload *string `json:"redactedPayload"`
+					} `json:"samples"`
+				} `json:"integrationSession"`
+			} `json:"data"`
+			Errors []any `json:"errors"`
+		}
+		if err := json.Unmarshal([]byte(body), &decoded); err != nil || len(decoded.Errors) != 0 {
+			t.Fatalf("session read = %s (%v)", body, err)
+		}
+		byName := map[string]*string{}
+		for _, sample := range decoded.Data.IntegrationSession.Samples {
+			byName[sample.Name] = sample.RedactedPayload
+		}
+		if len(byName) != 2 {
+			t.Fatalf("session read returned %d samples: %s", len(byName), body)
+		}
+		return byName
+	}
+
+	legacy, legacyPath := serverWith(graphqlapi.GraphQLOperatorRole)
+	for name, payload := range payloads(postTrusted(t, legacy, legacyPath, read)) {
+		if payload != nil {
+			t.Errorf("graphql:operator alone read %s's text", name)
+		}
+	}
+	operatorHandler, operatorPath := serverWith(graphqlapi.GraphQLOperatorRole, operator.ReadRole)
+	granted := payloads(postTrusted(t, operatorHandler, operatorPath, read))
+	if granted["capture c-1 #1"] == nil || *granted["capture c-1 #1"] != captured.Raw || granted["pasted"] != nil {
+		t.Fatalf("integration.operator read captured %v, pasted %v; want the captured text only",
+			granted["capture c-1 #1"], granted["pasted"])
+	}
+	if strings.Contains(*granted["capture c-1 #1"], "Zyxwpat") {
+		t.Fatal("the captured text is not the capture redactor's output")
+	}
+
+	exporter, exportPath := serverWith(append(operatorBundle(), session.PHIExportRole)...)
+	body := postTrusted(t, exporter, exportPath, `mutation Op { exportIntegrationBundle(input: {sessionId: "`+workspace.ID+
+		`", reason: "hand over", includeRawPayload: true}) { samples { name redactedPayload } } }`)
+	if !strings.Contains(body, `"capture c-1 #1"`) || strings.Contains(body, "REDACTED") || strings.Contains(body, "MSH|") {
+		t.Fatalf("an export carried captured text: %s", body)
+	}
 }
 
 // sessionsThatExist reports every session as active and never writes.

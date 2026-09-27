@@ -42,6 +42,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	SessionSample() SessionSampleResolver
 	Subscription() SubscriptionResolver
 }
 
@@ -1942,6 +1943,9 @@ type QueryResolver interface {
 	ConnectionRevision(ctx context.Context, artifactID string, revisionID string) (*model.ConnectionRevision, error)
 	EngineRuntime(ctx context.Context) (*model.EngineRuntime, error)
 	ConnectionCaptures(ctx context.Context, sessionID string) ([]model.ConnectionCapture, error)
+}
+type SessionSampleResolver interface {
+	RedactedPayload(ctx context.Context, obj *model.SessionSample) (*string, error)
 }
 type SubscriptionResolver interface {
 	EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error)
@@ -47997,7 +48001,7 @@ func (ec *executionContext) _SessionSample_redactedPayload(ctx context.Context, 
 		field,
 		ec.fieldContext_SessionSample_redactedPayload,
 		func(ctx context.Context) (any, error) {
-			return obj.RedactedPayload, nil
+			return ec.resolvers.SessionSample().RedactedPayload(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -48010,8 +48014,8 @@ func (ec *executionContext) fieldContext_SessionSample_redactedPayload(_ context
 	fc = &graphql.FieldContext{
 		Object:     "SessionSample",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -70690,40 +70694,71 @@ func (ec *executionContext) _SessionSample(ctx context.Context, sel ast.Selectio
 		case "id":
 			out.Values[i] = ec._SessionSample_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "sessionId":
 			out.Values[i] = ec._SessionSample_sessionId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._SessionSample_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "format":
 			out.Values[i] = ec._SessionSample_format(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "source":
 			out.Values[i] = ec._SessionSample_source(ctx, field, obj)
 		case "rawPayload":
 			out.Values[i] = ec._SessionSample_rawPayload(ctx, field, obj)
 		case "redactedPayload":
-			out.Values[i] = ec._SessionSample_redactedPayload(ctx, field, obj)
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._SessionSample_redactedPayload(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "payloadChecksum":
 			out.Values[i] = ec._SessionSample_payloadChecksum(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "payloadRef":
 			out.Values[i] = ec._SessionSample_payloadRef(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._SessionSample_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))

@@ -3472,6 +3472,11 @@ func (r *queryResolver) ConnectionCaptures(ctx context.Context, sessionID string
 	return r.connectionCaptures(ctx, sessionID)
 }
 
+// RedactedPayload is the resolver for the redactedPayload field.
+func (r *sessionSampleResolver) RedactedPayload(ctx context.Context, obj *model.SessionSample) (*string, error) {
+	return r.sessionSampleRedactedPayload(ctx, obj)
+}
+
 // EventStream is the resolver for the eventStream field.
 func (r *subscriptionResolver) EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error) {
 	return r.Store.Subscribe(ctx, filter)
@@ -3593,9 +3598,13 @@ func (r *Resolver) Mutation() graphql1.MutationResolver { return &mutationResolv
 // Query returns graphql1.QueryResolver implementation.
 func (r *Resolver) Query() graphql1.QueryResolver { return &queryResolver{r} }
 
+// SessionSample returns graphql1.SessionSampleResolver implementation.
+func (r *Resolver) SessionSample() graphql1.SessionSampleResolver { return &sessionSampleResolver{r} }
+
 // Subscription returns graphql1.SubscriptionResolver implementation.
 func (r *Resolver) Subscription() graphql1.SubscriptionResolver { return &subscriptionResolver{r} }
 
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type sessionSampleResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }

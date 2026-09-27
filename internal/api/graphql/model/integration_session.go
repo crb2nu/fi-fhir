@@ -26,10 +26,14 @@ type SessionSample struct {
 	Format          SourceFormat `json:"format"`
 	Source          *string      `json:"source,omitempty"`
 	RawPayload      *string      `json:"rawPayload,omitempty"`
-	RedactedPayload *string      `json:"redactedPayload,omitempty"`
 	PayloadChecksum string       `json:"payloadChecksum"`
 	PayloadRef      *string      `json:"payloadRef,omitempty"`
 	CreatedAt       time.Time    `json:"createdAt"`
+	// CapturedText is a peeked or captured sample's capture-redacted text
+	// (.loom/38 C-2). It is never serialised: the redactedPayload field
+	// resolver returns it only to a caller whose verified roles include
+	// integration.operator.
+	CapturedText *string `json:"-"`
 }
 
 type SessionArtifact struct {

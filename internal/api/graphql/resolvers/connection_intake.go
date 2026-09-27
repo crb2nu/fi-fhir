@@ -5,8 +5,13 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/vektah/gqlparser/v2/gqlerror"
+
+	graphqlapi "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
+	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 )
 
 // Sample intake from connections (.loom/38 C-2): the batch peek and the stream
@@ -40,6 +45,13 @@ func intakeConnectionError(err error) error {
 		return errors.New("connection capture is already finished")
 	case errors.Is(err, connection.ErrPeekUnsupported):
 		return errors.New("peek requires a compiled batch source connection")
+	case errors.Is(err, connection.ErrSourceUnavailable):
+		// The one intake refusal with a code: C-3 names the fix (mount or
+		// compile the source, or peek a batch one) from SOURCE_UNAVAILABLE.
+		return &gqlerror.Error{
+			Message:    graphqlapi.ConnectionCaptureSourceUnavailableMessage,
+			Extensions: map[string]any{"code": connection.CodeSourceUnavailable},
+		}
 	case errors.Is(err, connection.ErrInvalidRequest):
 		return errors.New("invalid connection sample intake request")
 	case errors.Is(err, connection.ErrUnauthenticated), errors.Is(err, connection.ErrForbidden),
@@ -49,6 +61,24 @@ func intakeConnectionError(err error) error {
 	default:
 		return errors.New("connection sample intake request failed")
 	}
+}
+
+// sessionSampleRedactedPayload is SessionSample.redactedPayload: a captured
+// sample's text, returned only to a caller whose verified roles include
+// integration.operator — the grant that could have peeked or captured it.
+// Session reads are gated by the legacy graphql:operator role, which does not
+// imply that grant, so every other caller reads null. Roles come from the
+// server-owned security context, never from the request.
+func (r *Resolver) sessionSampleRedactedPayload(ctx context.Context, obj *model.SessionSample) (*string, error) {
+	if obj == nil || obj.CapturedText == nil {
+		return nil, nil
+	}
+	security, authenticated := requestsecurity.SecurityContextFromContext(ctx)
+	if !authenticated || !enginesession.HasRole(security.Principal.Roles, connection.ReadRole) {
+		return nil, nil
+	}
+	text := *obj.CapturedText
+	return &text, nil
 }
 
 // optionalBound reads an optional count argument: absent is the service's
