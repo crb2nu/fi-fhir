@@ -26,15 +26,46 @@
   import Search from '@lucide/svelte/icons/search';
   import Trash2 from '@lucide/svelte/icons/trash-2';
   import Upload from '@lucide/svelte/icons/upload';
+  import Cable from '@lucide/svelte/icons/cable';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
   import type { HL7RedactionMode } from '$lib/domain/hl7Redact';
   import { createEventDispatcher, tick } from 'svelte';
+  import ConnectionIntakeDialog from '$lib/features/hl7/intake/ConnectionIntakeDialog.svelte';
+  import CaptureRows from '$lib/features/hl7/intake/CaptureRows.svelte';
+  import type { IntakeController } from '$lib/features/hl7/intake/intakeController';
+  import type { ConnectionCaptureRow } from '$lib/features/hl7/intake/intakeApi';
+  import { INTAKE_ROLE } from '$lib/features/hl7/intake/intakeErrors';
 
   export let samples: readonly HL7Sample[];
   export let activeId: string | null;
   export let disabled = false;
 
   export let currentRaw: string;
+  /**
+   * Sample intake from connections (.loom/38 C-3): the page's controller when
+   * the session engine is on, else null and "From connection…" is absent.
+   */
+  export let intake: IntakeController | null = null;
+  /** Why "From connection…" is disabled (the catalog is not configured), or null. */
+  export let intakeDisabledReason: string | null = null;
+
+  let intakeOpen = false;
+  let intakeCancel: ConnectionCaptureRow | null = null;
+
+  function openIntake(): void {
+    intakeCancel = null;
+    intakeOpen = true;
+  }
+
+  function cancelCapture(capture: ConnectionCaptureRow): void {
+    intakeCancel = capture;
+    intakeOpen = true;
+  }
+
+  function closeIntake(): void {
+    intakeOpen = false;
+    intakeCancel = null;
+  }
 
   const dispatch = createEventDispatcher<{
     select: { id: string };
@@ -369,6 +400,18 @@
     <Button variant="ghost" icon={Files} onclick={() => dispatch('loadExamples', {})} {disabled}>
       Load examples
     </Button>
+    {#if intake}
+      <Button
+        variant="ghost"
+        icon={Cable}
+        data-testid="sample-from-connection"
+        onclick={openIntake}
+        disabled={disabled || intakeDisabledReason !== null}
+        title={intakeDisabledReason ?? 'Capture or peek messages from a source connection into this session'}
+      >
+        From connection…
+      </Button>
+    {/if}
     <Button
       variant="ghost"
       icon={Eraser}
@@ -391,6 +434,10 @@
   <p class="note">
     Samples stay in this tab's memory and clear on reload. Paste PHI only on an approved machine and profile.
   </p>
+
+  {#if intake}
+    <CaptureRows controller={intake} {disabled} oncancel={cancelCapture} />
+  {/if}
 
   <Panel title="Samples" titleTag="h3" flush>
     {#snippet actions()}
@@ -501,7 +548,9 @@
                 {/each}
               </Td>
               <Td>
-                {#if s.redactionMode && s.redactionMode !== 'none'}
+                {#if s.session}
+                  <Badge tone="warning" title={`Capture redaction on the server (${s.session.provenance})`}>Redacted</Badge>
+                {:else if s.redactionMode && s.redactionMode !== 'none'}
                   <Badge tone="warning" title={redactionLabel(s.redactionMode)}>Redacted</Badge>
                 {/if}
               </Td>
@@ -561,9 +610,30 @@
             { key: 'Saved', value: new Date(detailSample.createdAt).toLocaleString(), mono: true },
             { key: 'Segments', value: segmentCount(detailSample.raw), mono: true },
             { key: 'Size', value: formatSize(detailSample.raw), mono: true },
-            { key: 'Redaction', value: redactionLabel(detailSample.redactionMode) }
+            {
+              key: 'Redaction',
+              value: detailSample.session ? 'Capture redactor (server)' : redactionLabel(detailSample.redactionMode)
+            },
+            ...(detailSample.session
+              ? [
+                  { key: 'Provenance', value: detailSample.session.provenance, mono: true, truncate: true },
+                  { key: 'Session sample', value: detailSample.session.sampleId, mono: true, truncate: true }
+                ]
+              : [])
           ]}
         />
+        {#if detailSample.session?.payloadWithheld}
+          <p class="session-note" role="note" data-testid="sample-payload-withheld">
+            The API withheld this sample's text: the caller lacks <code>{INTAKE_ROLE}</code>, which reading a
+            captured or peeked sample requires.
+          </p>
+        {:else if detailSample.session}
+          <p class="session-note" role="note">
+            Captured from a connection and masked on the server: names, identifiers and dates read
+            <code>REDACTED</code>, so a preview shows them that way. Preview runs it from the session while the
+            editor holds it unchanged.
+          </p>
+        {/if}
         <div class="form-grid" role="group" aria-label="Edit sample metadata">
           <div bind:this={editNameEl}>
             <Field label="Name" required>
@@ -603,6 +673,10 @@
       </Field>
     </div>
   </Panel>
+
+  {#if intake}
+    <ConnectionIntakeDialog open={intakeOpen} controller={intake} cancelTarget={intakeCancel} onclose={closeIntake} />
+  {/if}
 
   <ConfirmModal
     bind:open={bulkDeleteOpen}
@@ -746,5 +820,18 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .session-note {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-tertiary);
+  }
+
+  .session-note code {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-text-secondary);
   }
 </style>

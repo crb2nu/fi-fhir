@@ -1,4 +1,5 @@
 export {
+  createSession,
   integrationSessionEngineEnabled,
   isIntegrationSessionBuildEnabled,
   isIntegrationSessionEngineEnabled,
