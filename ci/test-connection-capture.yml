@@ -1,0 +1,55 @@
+# .loom/38 Lane C-2: sample intake from connections.
+#
+# The stream-capture proofs run a real MLLP listener over a lifecycle-deployed
+# integration and the durable PostgreSQL processor, with the capture tap wrapped
+# around the processor exactly as `serve` wraps it. Armed for adt-east at
+# maxMessages 2, three admitted frames become exactly two session samples, each
+# the capture redactor's output of its frame with no synthetic identifier left,
+# while every frame is durably received and ACKed exactly as the same frames
+# were unarmed. The negative control arms another source and must capture
+# nothing; a closed session store must change no ACK or receipt and must count
+# fi_fhir_connection_capture_tap_errors_total{reason="session_store"}; a 1 s TTL
+# must expire the capture.
+#
+# The peek proof runs the batch ingestion harness's shape over MinIO: a
+# compiled batch_s3 connection lists the waiting objects and reads redacted
+# samples — NK1-2 and IN1-16 included — while integration_batch_objects,
+# integration_batch_audit, and every object version in the bucket stay
+# byte-identical and no receipt is written; the runner then ingests and archives
+# the object as it would have without the peek.
+#
+# Two services, so `services:` is restated in full (`extends:` merges maps but
+# replaces arrays). The MinIO image is the mirror test:batch-ingestion pins,
+# since quay.io and docker.io stopped serving minio/minio.
+test:connection-capture:
+  extends: .integration-proof
+  services:
+    - name: ${DOCKERHUB_CACHE_PREFIX}/library/postgres:16-alpine
+      alias: postgres
+    - name: registry.harbor.lan/library/minio@sha256:d4697ac468840851c8b79511001d9889f6a9b2cf1ce9f9184ec0620e59041bdb
+      alias: minio
+      command: ["server", "/data"]
+  variables:
+    POSTGRES_DB: fi_fhir_connection_capture_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_connection_capture_test?sslmode=disable"
+    MINIO_ROOT_USER: batchaccess
+    MINIO_ROOT_PASSWORD: batchsecret123
+    BATCH_S3_ENDPOINT: "localhost:9000"
+    BATCH_S3_ACCESS_KEY: batchaccess
+    BATCH_S3_SECRET_KEY: batchsecret123
+    PROOF_FAILURE_SUMMARY: "sample intake changed an admission outcome, captured past its bounds or from the wrong source, leaked an identifier the capture redactor masks, or a peek touched batch state."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... BATCH_S3_ENDPOINT=... BATCH_S3_ACCESS_KEY=... BATCH_S3_SECRET_KEY=... make connection-capture"
+    PROOF_DOCS: "docs/operations/PHI-RETENTION.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Every proof t.Skips without its services, so a renamed or
+    # deleted proof would make this job greener rather than redder without this
+    # step (AGENTS.md). Five names, and the count is asserted so a rename cannot
+    # silently shrink the set.
+    - >-
+      go test -tags=integration
+      -list '^(TestConnectionCapture_(TapCapturesRedactedSamplesWithoutTouchingAdmission|OtherSourceCapturesNothing|TapFailureNeverChangesTheAck|ExpiresByTTL)|TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive)$'
+      ./internal/integration/connection
+      | rg -x '(TestConnectionCapture_(TapCapturesRedactedSamplesWithoutTouchingAdmission|OtherSourceCapturesNothing|TapFailureNeverChangesTheAck|ExpiresByTTL)|TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive)'
+      | awk 'END { if (NR != 5) exit 1 }'
+    - make connection-capture

@@ -32,6 +32,7 @@ include:
   - local: ci/test-fhir-official.yml
   - local: ci/test-ui-e2e.yml
   - local: ci/test-connection-catalog.yml
+  - local: ci/test-connection-capture.yml
 stages:
   - lint
   - test
