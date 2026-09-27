@@ -94,17 +94,20 @@
   );
 
   let tab = $state<DetailsTab>('settings');
+  // Unique per instance: Sources and Destinations each keep a details pane mounted.
+  const uid = $props.id();
+  const panelId = `${uid}-details-panel`;
 
   const tabs = $derived<TabItem[]>([
-    { id: 'settings', label: 'Settings', controls: 'connection-details-panel' },
+    { id: 'settings', label: 'Settings', controls: panelId },
     {
       id: 'secrets',
       label: 'Secrets',
       count: buffer.bindings.length > 0 ? buffer.bindings.length : undefined,
-      controls: 'connection-details-panel'
+      controls: panelId
     },
-    { id: 'revisions', label: 'Revisions', disabled: creating, controls: 'connection-details-panel' },
-    { id: 'usage', label: 'Usage', disabled: creating, controls: 'connection-details-panel' }
+    { id: 'revisions', label: 'Revisions', disabled: creating, controls: panelId },
+    { id: 'usage', label: 'Usage', disabled: creating, controls: panelId }
   ]);
 
   // ── validation: debounced, no write, no toast ──
@@ -450,7 +453,7 @@
     <Tabs label="Connection details" items={tabs} bind:value={tab} />
   </div>
 
-  <div class="details-body" id="connection-details-panel" role="tabpanel" aria-label={tabs.find((item) => item.id === tab)?.label}>
+  <div class="details-body" id={panelId} role="tabpanel" aria-label={tabs.find((item) => item.id === tab)?.label}>
     {#if tab === 'settings'}
       <ConnectionForm {schema} bind:buffer {placed} {readOnly} {identityErrors} {checkStatus} />
     {:else if tab === 'secrets'}
