@@ -49,6 +49,10 @@ func TestNewRuntimePropertyRendersSecretsAsSetOrUnset(t *testing.T) {
 		{"plain without default", false, "", false, "", RuntimeProperty{Value: "", Source: "default"}},
 		{"url credentials stripped", false, "https://user:pw@issuer.example.org/realm", true, "",
 			RuntimeProperty{Value: "https://issuer.example.org/realm", Source: "env"}},
+		{"url query and fragment stripped", false, "https://collector.example.org/v1?api_key=synthetic#sig=synthetic", true, "",
+			RuntimeProperty{Value: "https://collector.example.org/v1", Source: "env"}},
+		{"a value that is not a url is kept", false, "localhost:4317", true, "",
+			RuntimeProperty{Value: "localhost:4317", Source: "env"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

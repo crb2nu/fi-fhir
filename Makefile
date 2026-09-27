@@ -1215,10 +1215,12 @@ ui-e2e:
 # decode with the kind's existing Decode function to the stored digest; a
 # lifecycle definition draft naming that digest appears in references; a
 # restart preserves every row; the schema refuses an UPDATE on a revision; a
-# spec carrying `token` is refused (SECRET_VALUE_FORBIDDEN); a cross-tenant read
-# is not found; a write without integration.deployment.operator is forbidden.
-# Requires POSTGRES_TEST_URL; every proof skips without it, which is why the CI
-# job asserts the names exist first.
+# create or update carrying secret material, an unknown key, or a malformed
+# binding reference is refused and writes nothing; a cross-tenant read is not
+# found; a write or validate without integration.deployment.operator is
+# forbidden; racing compiles claim one revision, and a compile racing an
+# archive reports archived. Requires POSTGRES_TEST_URL; every proof skips
+# without it, which is why the CI job asserts the names exist first.
 connection-catalog:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run 'TestConnectionCatalog_' ./internal/integration/connection/...

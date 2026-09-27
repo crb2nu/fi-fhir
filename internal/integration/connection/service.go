@@ -14,13 +14,13 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
-// DefinitionCatalog is the lifecycle read the reference projection needs.
+// DefinitionCatalog is the lifecycle read the reference projection needs: one
+// query for every definition revision that names any of a set of digests.
 // *lifecycle.PostgresCatalog satisfies it. It is optional: without it every
 // connection reports no references, which is also the honest answer on a
 // deployment whose lifecycle catalog nobody seeded (.loom/38, "What exists").
 type DefinitionCatalog interface {
-	ListSnapshots(ctx context.Context, tenantID string, limit int) ([]lifecycle.Snapshot, error)
-	LoadDefinitionRevision(ctx context.Context, tenantID, definitionID, revisionID string) ([]byte, error)
+	ListDigestReferences(ctx context.Context, tenantID string, digests []string) ([]lifecycle.DigestReference, error)
 }
 
 // Service is the authorization boundary of the connection catalog. Every
@@ -169,7 +169,13 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Connection, er
 	if err != nil {
 		return nil, err
 	}
-	references, err := s.referencesByDigest(ctx, security.TenantID, len(digests) > 0)
+	named := make([]string, 0)
+	for _, draft := range drafts {
+		for _, revision := range digests[draft.ID] {
+			named = append(named, revision.Digest)
+		}
+	}
+	references, err := s.referencesByDigest(ctx, security.TenantID, named)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +217,11 @@ func (s *Service) connection(ctx context.Context, draft Draft) (Connection, erro
 	if err != nil {
 		return Connection{}, err
 	}
-	references, err := s.referencesByDigest(ctx, draft.TenantID, len(digests[draft.ID]) > 0)
+	named := make([]string, 0, len(digests[draft.ID]))
+	for _, revision := range digests[draft.ID] {
+		named = append(named, revision.Digest)
+	}
+	references, err := s.referencesByDigest(ctx, draft.TenantID, named)
 	if err != nil {
 		return Connection{}, err
 	}
@@ -261,7 +271,7 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (Connection
 	if !validName(request.Name) || !validDescription(request.Description) {
 		return Connection{}, ErrInvalidRequest
 	}
-	spec, err := writableSpec(request.Spec, request.SecretBindings)
+	spec, err := writableSpec(request.Kind, request.Spec, request.SecretBindings)
 	if err != nil {
 		return Connection{}, err
 	}
@@ -320,7 +330,7 @@ func (s *Service) Update(ctx context.Context, request UpdateRequest) (Connection
 	if request.Spec != nil {
 		draft.Spec = request.Spec
 	}
-	spec, err := writableSpec(draft.Spec, draft.SecretBindings)
+	spec, err := writableSpec(draft.Kind, draft.Spec, draft.SecretBindings)
 	if err != nil {
 		return Connection{}, err
 	}
@@ -444,73 +454,34 @@ func (s *Service) audit(security integration.SecurityContext, reason string) int
 	}
 }
 
-// referencesByDigest maps every connection-revision digest a lifecycle
-// definition revision names — as its source or as one of its destinations —
-// to the definitions that name it. It reads at most maxDefinitionSnapshots
-// snapshots. Without a lifecycle catalog, or when needed is false, it reads
-// nothing and every connection has no references.
-func (s *Service) referencesByDigest(ctx context.Context, tenantID string, needed bool) (map[string][]Reference, error) {
+// referencesByDigest maps each of digests that a lifecycle definition revision
+// names — as its source or as one of its destinations — to the definitions
+// that name it, with their lifecycle state and health. It is one catalog
+// query, whatever the number of definitions, and nothing is truncated.
+// Without a lifecycle catalog, or with no digests, it reads nothing and every
+// connection has no references.
+func (s *Service) referencesByDigest(ctx context.Context, tenantID string, digests []string) (map[string][]Reference, error) {
 	references := make(map[string][]Reference)
-	if s.catalog == nil || !needed {
+	if s.catalog == nil || len(digests) == 0 {
 		return references, nil
 	}
-	snapshots, err := s.catalog.ListSnapshots(ctx, tenantID, maxDefinitionSnapshots)
+	listed, err := s.catalog.ListDigestReferences(ctx, tenantID, digests)
 	if errors.Is(err, lifecycle.ErrUnavailable) {
 		return references, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("list lifecycle snapshots for connection references: %w", err)
+		return nil, fmt.Errorf("list lifecycle definitions for connection references: %w", err)
 	}
-	for _, snapshot := range snapshots {
-		raw, err := s.catalog.LoadDefinitionRevision(ctx, tenantID,
-			snapshot.DefinitionRevision.ArtifactID, snapshot.DefinitionRevision.RevisionID)
-		if errors.Is(err, lifecycle.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("load definition revision for connection references: %w", err)
-		}
-		var named namedDigests
-		if err := json.Unmarshal(raw, &named); err != nil {
-			return nil, fmt.Errorf("decode definition revision for connection references: %w", err)
-		}
-		for _, digest := range named.all() {
-			references[digest] = append(references[digest], Reference{
-				DefinitionID: snapshot.DefinitionRevision.ArtifactID,
-				RevisionID:   snapshot.DefinitionRevision.RevisionID,
-				Digest:       digest,
-				State:        string(snapshot.State),
-				Health:       string(snapshot.Health),
-			})
-		}
+	for _, reference := range listed {
+		references[reference.Digest] = append(references[reference.Digest], Reference{
+			DefinitionID: reference.DefinitionID,
+			RevisionID:   reference.RevisionID,
+			Digest:       reference.Digest,
+			State:        string(reference.State),
+			Health:       string(reference.Health),
+		})
 	}
 	return references, nil
-}
-
-// digestRef is the one member of an artifact reference the projection reads.
-type digestRef struct {
-	Digest string `json:"digest"`
-}
-
-// namedDigests is the part of an integration definition revision that names
-// connection revisions. Only these two digest sets matter here; the lifecycle
-// catalog validated the whole document when its draft was created.
-type namedDigests struct {
-	Source       digestRef   `json:"source"`
-	Destinations []digestRef `json:"destinations"`
-}
-
-func (n namedDigests) all() []string {
-	digests := make([]string, 0, 1+len(n.Destinations))
-	if n.Source.Digest != "" {
-		digests = append(digests, n.Source.Digest)
-	}
-	for _, destination := range n.Destinations {
-		if destination.Digest != "" {
-			digests = append(digests, destination.Digest)
-		}
-	}
-	return digests
 }
 
 // project assembles the read view of one draft. revisions must be ordered
@@ -559,13 +530,12 @@ func printable(value string, multiline bool) bool {
 	return true
 }
 
-// writableSpec is the write-time gate on a draft's spec: one JSON object,
-// bounded, compacted, and free of secret material. Everything else about the
-// spec is a compile-time Problem, so an incomplete draft can be saved.
-func writableSpec(raw json.RawMessage, bindings []integration.SecretBinding) (json.RawMessage, error) {
-	if len(bindings) > MaxSecretBindings {
-		return nil, ErrInvalidRequest
-	}
+// writableSpec is the write-time gate on a draft: one JSON object, bounded,
+// compacted, holding only keys its kind defines, free of secret material,
+// with well-formed secret binding references (writeProblems). Everything else
+// about the spec is a compile-time Problem, so an incomplete draft can be
+// saved.
+func writableSpec(kind Kind, raw json.RawMessage, bindings []integration.SecretBinding) (json.RawMessage, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
 		trimmed = []byte("{}")
@@ -573,25 +543,11 @@ func writableSpec(raw json.RawMessage, bindings []integration.SecretBinding) (js
 	if len(trimmed) > MaxSpecBytes {
 		return nil, ErrInvalidRequest
 	}
-	scratch := &checker{}
-	if _, ok := decodeSpecTree(trimmed, scratch); !ok {
+	tree, ok := decodeSpecTree(trimmed, &checker{})
+	if !ok {
 		return nil, ErrInvalidRequest
 	}
-	problems := SecretValueProblems(trimmed)
-	for index, binding := range bindings {
-		fields := []struct{ name, value string }{
-			{"name", binding.Name}, {"key", binding.Reference.Key}, {"version", binding.Reference.Version},
-		}
-		for _, field := range fields {
-			if strings.Contains(field.value, pemMarker) {
-				problems = append(problems, Problem{
-					Code: CodeSecretValueForbidden, Path: fmt.Sprintf("secret_bindings[%d].%s", index, field.name),
-					Message: "a binding names a secret; it never carries certificate or key material",
-				})
-			}
-		}
-	}
-	if len(problems) > 0 {
+	if problems := writeProblems(kind, tree, bindings); len(problems) > 0 {
 		return nil, &SpecError{Problems: problems}
 	}
 	var compact bytes.Buffer
