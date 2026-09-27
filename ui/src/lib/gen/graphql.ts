@@ -2852,7 +2852,9 @@ export type SessionSample = {
   /**
    * The stored text of a sample peeked or captured from a connection, as the
    * capture redactor left it (docs/operations/PHI-RETENTION.md, "Captured and
-   * peeked samples"). Null for every other sample.
+   * peeked samples"). Gated on integration.operator: null unless the caller's
+   * verified roles include it, never carried by an export, and null for every
+   * other sample.
    */
   redactedPayload: Maybe<Scalars['String']['output']>;
   sessionId: Scalars['ID']['output'];
