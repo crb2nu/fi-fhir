@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-09-26
+> Last Updated: 2026-09-27
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -40,6 +40,14 @@ access and connection in the status bar, and every route rebuilt as a
 toolbar over tables with details panes. No surface shows simulated data.
 `test:ui-e2e` now captures every route at 1440×900 as review evidence and
 fails if the retired marketing copy returns.
+
+Source and destination connections are authorable in the IDE since
+2026-09-27 (`.loom/38`): a durable catalog of drafts that compile, with the
+existing document constructors, into the exact revision bytes `serve` mounts,
+labelled against what each replica actually mounted, plus an Engine view of
+the replica's composition and sample intake from a live source into an
+Integration Session. Activation stays a GitOps rollout; whether the catalog
+should ever activate configuration is the open question in `.loom/39`.
 
 This update records repository state through merge `38d87a5aa` on 2026-09-26.
 [Pipeline 29328](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29328)
@@ -239,6 +247,60 @@ reviewed screenshots first, then diff.
 - [x] **Close-out (`docs/ide-uplift-close-out`)** — this roadmap, one
   CHANGELOG block and the worklog entry.
 
+## Delivered — Connections and engine properties (2026-09-26 → 2026-09-27)
+
+Spec: `.loom/38-connections-execution-specs.md`
+([MR !240](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/240)).
+The brief was to view and configure the engine's properties, define source and
+destination connections, and sample messages from a source to build a profile
+against. Connections had no durable home and no API: sources, destinations and
+definitions were immutable JSON documents `serve` mounted at startup. The
+program makes them authorable, compilable, exportable, and honestly labelled
+against what the running replica mounted; it does not hot-load anything
+(Decision 1).
+
+- [x] **C-0 connection catalog, engine runtime, capabilities** —
+  `internal/integration/connection`, the seventh forward-only ledger
+  (`integration_connection_schema_migrations`): drafts under an optimistic
+  version, append-only revisions compiled by the existing MLLP, batch and
+  destination constructors (plus a new content-addressed HTTP source document)
+  and stored as exact bytes, the capture audit table, secret bindings as
+  references only with a write gate that refuses secret material; GraphQL
+  catalog fields and the allowlisted, secret-free `engineRuntime`;
+  `/api/auth/status` gains `connectionsRead`, `connectionsWrite`,
+  `controlPlane` and `connectionCatalog`; `test:connection-catalog`. Merged in
+  [MR !241](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/241).
+- [x] **C-1 `/connections`** — Sources, Destinations and Engine tabs built only
+  from the design-system primitives: tables with the honest status (Draft,
+  Compiled rN, Referenced, Deployed, Mounted here), a settings form generated
+  from each kind's spec with server problems on their fields, a Secrets table
+  with no value column, reason-required save/compile/archive, Download and
+  Copy JSON of the exact `revisionJson`, and an Engine view with the env key
+  behind every property. Merged in
+  [MR !243](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/243).
+- [x] **C-2 sample intake backend** — `peekBatchConnection` (no lease,
+  checkpoint, archive or delete; proved byte-identical on MinIO) and an
+  admission-time capture tap on the MLLP listener and HTTP ingress that never
+  changes a result, ACK or receipt, with a 2 s armed-capture cache, a
+  `SKIP LOCKED` slot protocol, one armed capture per source, a superset capture
+  redactor (113 Safe Harbor fields, dates whole), a peek secret allow-list, and
+  `test:connection-capture`. Merged in
+  [MR !242](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/242).
+- [x] **C-3 sample intake UI** — **From connection…** in HL7 intake's Samples
+  panel: mounted and catalog sources with their state, an armed-capture row
+  that polls while armed, audited batch browse and read, and captured samples
+  that open from `redactedPayload` and preview by `sampleId`. Merged in
+  [MR !245](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/245).
+- [x] **C-4 close-out (`docs/connections-4-close-out`)** — the
+  [Connections guide](docs/user-guide/connections.md),
+  [Connection catalog operations](docs/operations/CONNECTION-CATALOG.md), the
+  lifecycle doc's exposure line, seven ledgers in `AGENTS.md`, this roadmap,
+  the decision and worklog entries, and the new captures in
+  `ui/docs/DESIGN.md`. MR !C4_IID.
+- [x] **`.loom/39` configuration-plane brainstorm** — reopens Decision 1
+  deliberately; see Then. Merged in
+  [MR !244](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/244).
+
 ## Now
 
 - [ ] **Stale capabilities in an open tab** — a tab reads `/api/auth/status`
@@ -258,15 +320,33 @@ reviewed screenshots first, then diff.
   fi-fhir first. Implementation waits on an owner decision (it writes shared
   platform resources and secrets). Then verify
   `capabilities.llm.configured: true` and `copilot-llm-state` = ready.
-- [ ] **Operator-plane and terminology-store availability as capabilities** —
-  the IDE cannot yet tell "the control plane is not configured"
-  (`FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED` unset) from "this identity is
-  forbidden"; both read as a refusal. Terminology without a mapping store
-  shows only "GraphQL request failed" and an error toast, because the API's
-  reason ("terminology mapping store not configured") does not reach the UI.
-  Add both to the status contract and say so on the page; then give the
-  `test:ui-e2e` operator-bundle stack a mapping store so its Terminology
-  capture shows a real Browse view.
+- [ ] **Terminology-store availability as a capability** — terminology without
+  a mapping store shows only "GraphQL request failed" and an error toast,
+  because the API's reason ("terminology mapping store not configured") does
+  not reach the UI. Add it to the status contract and say so on the page; then
+  give the `test:ui-e2e` operator-bundle stack a mapping store so its
+  Terminology capture shows a real Browse view. (The operator-plane half of
+  this item closed with the Connections program: `/api/auth/status` reports
+  `controlPlane` and `connectionCatalog`, so "not configured on this
+  deployment" is told apart from "forbidden".)
+- [ ] **Stream capture of real ADT feeds** — the v1 production kernel admits
+  only ADT^A01 frames with MSH/EVN/PID/PV1 (+NTE); a frame carrying NK1, IN1 or
+  any other segment is answered `AR` and never durably accepted, so a stream
+  capture of a typical ADT feed sits armed with nothing captured until it
+  expires. Batch peek is unaffected. Widening admission is a kernel change with
+  its own profile-compile rules (`processor/profile_compile.go` refuses the
+  unknown-segments tolerance).
+- [ ] **Engine properties the Engine tab cannot show** — the `engineRuntime`
+  allowlist is held equal to the keys `serve --help` documents, and the help
+  omits `FI_FHIR_INTEGRATION_SESSION_ENABLED`, the `FI_FHIR_DELIVERY_IDENTITY_*`
+  keys, `FI_FHIR_CONNECTION_SECRET_*` and
+  `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE`. Document them in the help
+  and the allowlist follows (`docs/operations/CONNECTION-CATALOG.md`, "Adding a
+  property").
+- [ ] **`operator-bundle` e2e timing budget** — check 2's 10 s
+  `waitForResponse` starts before `page.goto`, so a slow first load on a
+  saturated runner consumes it (one retry on MR !242's pipeline; 15/15 locally).
+  Start the wait after navigation or give navigation its own budget.
 - [ ] **Events browser reads the legacy store** — `/events` Browse, Patient
   Timeline and Statistics query `graphql_events`, which `serve` never writes
   (only the test-only legacy `submitMessage` path does); durable admissions
@@ -402,6 +482,26 @@ reviewed screenshots first, then diff.
   `.loom/worklog/`.
 
 ## Then — the 1.0 remainder
+- [ ] **Integration definition editor** (`.loom/38` Decision 5) — bind a
+  source connection revision, a Source Profile, a workflow and destination
+  revisions into a definition draft in the lifecycle catalog, from the IDE.
+  Nothing in production writes definition drafts today, so a connection's
+  Referenced and Deployed states are honestly absent on every deployment
+  nobody seeded. Doing it honestly also moves profile and workflow resolution
+  off the static registry (they load only from it today), which removes the
+  two-truths hazard between the static registry and the lifecycle catalog.
+- [ ] **Configuration-plane execution spec** — turn
+  `.loom/39-brainstorm-config-plane-2026-09-27.md` into a `.loom/` execution
+  spec if chosen: the recommendation is a provisioned GitOps baseline plus a
+  catalog overlay for the hot-reloadable class, observed per replica, with
+  operational verbs always in the database and listeners/TLS kept in GitOps
+  (lanes: observed status, baseline import, catalog activation, promotion MR
+  bridge). **Blocked on its kill-test**, not yet run: two `serve` replicas
+  swap an `https` destination compiled in the catalog into the live delivery
+  registry without a restart, both deliver to the new endpoint and report the
+  new digest within 5 s, and a revision whose digest the definition does not
+  name is refused by `ValidateAgainst` with the observed digest unchanged.
+  If it fails, the catalog stays authoring-only and activation stays a rollout.
 - [ ] 5.2 SMART Backend Services and Bulk Data 3.0.0; 5.3 extension and
   compatibility contract.
 - [ ] Phase 6 release evidence: budget 7 on Kubernetes 1.36, all six golden

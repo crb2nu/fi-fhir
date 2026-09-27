@@ -1197,7 +1197,8 @@ Slice 4.4c strengthened three of those and added two:
   the session fanout log, and all three retention tables. Their absence was not
   a row-count gap: an empty table has no rows to mutate, so five of the newest
   immutability triggers were never exercised after a restore at all;
-- the **restored** database's six schema ledgers are asserted at their declared
+- the **restored** database's schema ledgers (seven since the connection
+  catalog) are asserted at their declared
   versions. A restore that lost them used to pass every other assertion;
 - the recovery time is measured and archived (above).
 

@@ -1,5 +1,12 @@
 # Connections and engine properties — execution specs (2026-09-26)
 
+> **Delivered 2026-09-27.** Spec MR !240; C-0 MR !241 (merged 2026-09-27,
+> `eef1907ed`); C-1 MR !243 (2026-09-27, `907281c70`); C-2 MR !242
+> (2026-09-27, `78f1e385f`); C-3 MR !245; C-4 MR !C4_IID. Where the merged
+> code differs from this spec, `docs/operations/CONNECTION-CATALOG.md` and
+> `docs/user-guide/connections.md` follow the code (worklog 2026-09-27,
+> "Connections program delivered"). Decision 1 is reopened by `.loom/39`.
+
 Brief (Cody, 2026-09-26, after the IDE design uplift shipped and verified):
 "now we need to build out the UI to view/configure the integration engine
 properties and define source and destination connections. We should be able

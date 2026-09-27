@@ -5,8 +5,19 @@
 Slice 2.1 adds a durable backend catalog for exact integration releases. The
 catalog separates immutable tested content from mutable operational state.
 
-Lifecycle controls are not yet exposed through GraphQL, REST, the CLI, or the
-Mapping Studio. Slice 2.2's optional production MLLP adapter consumes the
+Lifecycle controls are exposed through GraphQL and the Mapping Studio: the
+operator control plane deploys, pauses, resumes, and retires a release
+(`deployIntegrationRelease`, `pauseIntegrationDeployment`,
+`resumeIntegrationDeployment`, `retireIntegrationDeployment`; the Operator
+page), Integration Session publication publishes, approves, and deploys a
+session's release when publication signing is configured
+(`publishIntegrationSession`, `approveSessionPublication`,
+`deploySessionPublication`), and the connection catalog shows which definition
+revisions name each connection revision and their state (`Connection.references`,
+the Connections page's Usage tab; see
+[Connection catalog operations](CONNECTION-CATALOG.md)). REST and the CLI
+expose none of them, and nothing outside tests creates or validates a
+definition draft. Slice 2.2's optional production MLLP adapter consumes the
 catalog's deployed binding; authenticated HTTP ingress remains on the verified
 startup registry.
 

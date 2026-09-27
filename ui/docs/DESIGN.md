@@ -416,6 +416,11 @@ the operator-bundle stack (`e2e/visual.spec.ts`, Playwright project `visual`):
    | `operator-messages.png` | `/operator`, Messages |
    | `home-panel-problems.png` | `/` with the bottom panel open on Problems |
    | `home-command-palette.png` | `/` with the command palette open |
+   | `connections-sources.png` | `/connections`, Sources, with the first connection's details open once its spec was checked (or the honest empty state) |
+   | `connections-destinations.png` | `/connections`, Destinations |
+   | `connections-engine.png` | `/connections`, Engine: what the replica composed (on the e2e stack: one registry integration, four disabled adapters) |
+   | `hl7-samples.png` | `/hl7`, the Samples tab with **From connection…** beside Load examples |
+   | `hl7-intake-dialog.png` | `/hl7`, the **From connection…** dialog settled on its source list (after operator-bundle check 7: its compiled MLLP source, "Compiled r1 · not mounted here") or, on a fresh stack, its honest empty state ("No source connection is mounted on this deployment.") |
 
 3. Judge them against the rules in this file. Nothing diffs pixels and no
    golden image is kept in git, so a surface that looks wrong is a review
