@@ -3,6 +3,8 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -28,6 +30,15 @@ type Engine struct {
 	metrics      Metrics
 	tracer       Tracer
 	llmClient    llm.Client
+
+	// execAllowlist is the deployment-owned exec allowlist
+	// (FI_FHIR_WORKFLOW_EXEC_ALLOWLIST). Workflow YAML cannot widen it.
+	execAllowlist   []string
+	execAllowlistMu sync.RWMutex
+
+	// debugStubbed is non-nil only on engines built by NewDebugEngine: action
+	// type -> whether the debugger replaced it with a recording no-op.
+	debugStubbed map[string]bool
 
 	totalEventsProcessed int64
 	totalErrors          int64
@@ -119,13 +130,14 @@ func NewEngine(workflow *Workflow) (*Engine, error) {
 		metrics:      &NoOpMetrics{},      // Default to no-op metrics
 		tracer:       &NoOpTracer{},       // Default to no-op tracer
 	}
+	e.execAllowlist = ExecAllowlistFromEnv()
 
 	// Register built-in action handlers
 	e.RegisterAction("log", ActionHandlerFunc(logAction))
 	e.RegisterAction("webhook", ContextActionHandlerFunc(webhookAction))
 	e.RegisterAction("fhir", ContextActionHandlerFunc(fhirAction))
 	e.RegisterAction("email", ContextActionHandlerFunc(emailAction))
-	e.RegisterAction("exec", ContextActionHandlerFunc(execAction))
+	e.RegisterAction("exec", makeExecAction(e.ExecAllowlist))
 	e.RegisterAction("file", ActionHandlerFunc(fileAction))
 	e.RegisterAction("database", ActionHandlerFunc(databaseAction))
 	e.RegisterAction("queue", ContextActionHandlerFunc(queueActionWithContext))
@@ -227,6 +239,33 @@ func (e *Engine) GetStats() WorkflowStats {
 	}
 }
 
+// SetExecAllowlist replaces the deployment-owned exec allowlist this engine
+// was built with (FI_FHIR_WORKFLOW_EXEC_ALLOWLIST). Entries are parsed with
+// ParseExecAllowlist semantics: only absolute, clean paths are kept.
+func (e *Engine) SetExecAllowlist(paths []string) {
+	parsed := ParseExecAllowlist(strings.Join(paths, ","))
+	e.execAllowlistMu.Lock()
+	e.execAllowlist = parsed
+	e.execAllowlistMu.Unlock()
+}
+
+// ExecAllowlist returns a copy of the deployment-owned exec allowlist.
+func (e *Engine) ExecAllowlist() []string {
+	e.execAllowlistMu.RLock()
+	defer e.execAllowlistMu.RUnlock()
+	return append([]string(nil), e.execAllowlist...)
+}
+
+// RegisteredActionTypes returns the registered action type names, sorted.
+func (e *Engine) RegisteredActionTypes() []string {
+	names := make([]string, 0, len(e.actions))
+	for name := range e.actions {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // RegisterAction registers a custom action handler.
 func (e *Engine) RegisterAction(name string, handler ActionHandler) {
 	e.actions[name] = handler
@@ -310,11 +349,13 @@ func (e *Engine) ProcessWithContext(ctx context.Context, event interface{}) *Res
 
 		// Execute actions
 		for _, action := range route.Actions {
+			actionAttrs := []SpanAttribute{
+				Attr(AttrActionType, action.Type),
+				Attr(AttrRouteName, route.Name),
+			}
+			actionAttrs = append(actionAttrs, e.debugActionAttributes(action, transformed)...)
 			actionCtx, actionSpan := e.tracer.StartSpan(routeCtx, SpanNameAction,
-				WithAttributes(
-					Attr(AttrActionType, action.Type),
-					Attr(AttrRouteName, route.Name),
-				),
+				WithAttributes(actionAttrs...),
 			)
 
 			handler, ok := e.actions[action.Type]

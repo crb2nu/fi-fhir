@@ -197,6 +197,17 @@ func (r *WorkflowRouter) Route(ctx context.Context, event interface{}) error {
 }
 ```
 
+### GraphQL subscription management: destination allowlist
+
+`createFhirSubscription`, `deleteFhirSubscription`, `pauseFhirSubscription` and
+`resumeFhirSubscription` (`graphql:operator` only) contact only FHIR servers the
+deployment allows in `FI_FHIR_FHIR_SUBSCRIPTION_ALLOWED_HOSTS` (comma-separated
+exact hosts or `*.suffix`, https only). The default is empty: every destination
+is refused with "FHIR subscription destination not allowed" and no request is
+made. Redirects are re-checked against the same list, and cached clients are
+bounded by `FI_FHIR_FHIR_SUBSCRIPTION_MAX_CLIENTS` (default 32). See
+[SEC-2026-09-27-2](../operations/SECURITY.md#sec-2026-09-27-2-createfhirsubscription-connected-to-any-url).
+
 ## Configuration
 
 ### Subscription Definition (YAML)

@@ -5,6 +5,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 ## Contents
 
 - [Production Hardening](PRODUCTION-HARDENING.md) - Security best practices
+- [Security Findings Register](SECURITY.md) - Closed findings and the deployment-owned allowlists that close them
 - [Operations Runbook](RUNBOOK.md) - Troubleshooting and procedures
 - [Event Backends](EVENT-BACKENDS.md) - Kafka, Redis Streams, Pub/Sub, and workflow consumers
 - [Supported 1.0 Baseline](SUPPORTED-1.0.md) - Pinned release target and evidence gaps
@@ -17,6 +18,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 | Task | Document |
 |------|----------|
 | Secure a deployment | [Production Hardening](PRODUCTION-HARDENING.md) |
+| Review closed security findings | [Security Findings Register](SECURITY.md) |
 | Troubleshoot issues | [Operations Runbook](RUNBOOK.md) |
 | Review the 1.0 support target | [Supported 1.0 Baseline](SUPPORTED-1.0.md) |
 | Review integration lifecycle state | [Integration Deployment Lifecycle](INTEGRATION-DEPLOYMENT-LIFECYCLE.md) |

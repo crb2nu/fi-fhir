@@ -403,14 +403,19 @@ func (dt *DebugTracer) StartSpan(ctx context.Context, name string, opts ...SpanO
 		dt.session.mu.Lock()
 		dt.session.Steps = append(dt.session.Steps, step)
 		dt.session.State = DebugStatePaused
+		// Observers get their own copy of the variables: the recorded step
+		// keeps the live map, which span.SetAttribute updates (under the
+		// session lock) after execution resumes.
+		observed := step
+		observed.Variables = copyInterfaceMap(attrs)
 		dt.session.mu.Unlock()
 
 		// Send step to subscriber
 		select {
-		case dt.session.stepCh <- step:
+		case dt.session.stepCh <- observed:
 		default:
 		}
-		dt.session.broadcastStep(step)
+		dt.session.broadcastStep(observed)
 
 		// Wait for control command
 		cmd := <-dt.session.controlCh
@@ -440,8 +445,12 @@ type debugSpan struct {
 	attrs  map[string]interface{}
 }
 
-func (s *debugSpan) End()                                         {}
-func (s *debugSpan) SetAttribute(key string, value interface{})   { s.attrs[key] = value }
+func (s *debugSpan) End() {}
+func (s *debugSpan) SetAttribute(key string, value interface{}) {
+	s.tracer.session.mu.Lock()
+	defer s.tracer.session.mu.Unlock()
+	s.attrs[key] = value
+}
 func (s *debugSpan) SetStatus(code SpanStatus, message string)    {}
 func (s *debugSpan) RecordError(err error)                        {}
 func (s *debugSpan) AddEvent(name string, attrs ...SpanAttribute) {}

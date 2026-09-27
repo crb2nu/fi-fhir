@@ -8,6 +8,7 @@ package resolvers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -850,6 +851,9 @@ func (r *mutationResolver) RejectWorkflowVersion(ctx context.Context, input mode
 func (r *mutationResolver) CreateFhirSubscription(ctx context.Context, input model.CreateSubscriptionInput) (*model.FhirSubscription, error) {
 	// Get or create a client for this FHIR server
 	client, err := r.getOrCreateSubscriptionClient(input.Server)
+	if errors.Is(err, ErrFHIRSubscriptionDestinationNotAllowed) {
+		return nil, ErrFHIRSubscriptionDestinationNotAllowed
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create subscription client: %w", err)
 	}
@@ -1764,37 +1768,12 @@ func (r *mutationResolver) CancelTemporalWorkflow(ctx context.Context, workflowI
 
 // StartDebugSession is the resolver for the startDebugSession mutation.
 func (r *mutationResolver) StartDebugSession(ctx context.Context, input model.StartDebugSessionInput) (*model.DebugSessionModel, error) {
-	// Parse the workflow YAML
-	parsed, err := workflow.ParseWorkflow([]byte(input.WorkflowYaml))
-	if err != nil {
-		return nil, fmt.Errorf("parse workflow yaml: %w", err)
-	}
-
-	engine, err := workflow.NewEngine(parsed)
-	if err != nil {
-		return nil, fmt.Errorf("create workflow engine: %w", err)
-	}
-
-	sessionID := uuid.New().String()
-	session := workflow.NewDebugSession(sessionID, engine)
-	session.WorkflowID = parsed.Name
-
-	r.debugSessionsMu.Lock()
-	r.debugSessions[sessionID] = session
-	r.debugSessionsMu.Unlock()
-
-	// Start processing the event
-	session.Start(ctx, input.Event)
-
-	return toDebugSessionModel(session), nil
+	return r.startDebugSession(ctx, input)
 }
 
 // DebugStep is the resolver for the debugStep mutation.
 func (r *mutationResolver) DebugStep(ctx context.Context, sessionID string) (*model.DebugStepModel, error) {
-	r.debugSessionsMu.RLock()
-	session, ok := r.debugSessions[sessionID]
-	r.debugSessionsMu.RUnlock()
-
+	session, ok := r.lookupDebugSession(sessionID)
 	if !ok {
 		return nil, fmt.Errorf("debug session %s not found", sessionID)
 	}
@@ -1809,10 +1788,7 @@ func (r *mutationResolver) DebugStep(ctx context.Context, sessionID string) (*mo
 
 // DebugContinue is the resolver for the debugContinue mutation.
 func (r *mutationResolver) DebugContinue(ctx context.Context, sessionID string) (*model.DebugStepModel, error) {
-	r.debugSessionsMu.RLock()
-	session, ok := r.debugSessions[sessionID]
-	r.debugSessionsMu.RUnlock()
-
+	session, ok := r.lookupDebugSession(sessionID)
 	if !ok {
 		return nil, fmt.Errorf("debug session %s not found", sessionID)
 	}
@@ -1827,10 +1803,7 @@ func (r *mutationResolver) DebugContinue(ctx context.Context, sessionID string) 
 
 // DebugSetBreakpoint is the resolver for the debugSetBreakpoint mutation.
 func (r *mutationResolver) DebugSetBreakpoint(ctx context.Context, input model.SetBreakpointInput) (*model.BreakpointModel, error) {
-	r.debugSessionsMu.RLock()
-	session, ok := r.debugSessions[input.SessionID]
-	r.debugSessionsMu.RUnlock()
-
+	session, ok := r.lookupDebugSession(input.SessionID)
 	if !ok {
 		return nil, fmt.Errorf("debug session %s not found", input.SessionID)
 	}
@@ -1855,10 +1828,7 @@ func (r *mutationResolver) DebugSetBreakpoint(ctx context.Context, input model.S
 
 // DebugRemoveBreakpoint is the resolver for the debugRemoveBreakpoint mutation.
 func (r *mutationResolver) DebugRemoveBreakpoint(ctx context.Context, sessionID string, breakpointID string) (bool, error) {
-	r.debugSessionsMu.RLock()
-	session, ok := r.debugSessions[sessionID]
-	r.debugSessionsMu.RUnlock()
-
+	session, ok := r.lookupDebugSession(sessionID)
 	if !ok {
 		return false, fmt.Errorf("debug session %s not found", sessionID)
 	}
@@ -1869,18 +1839,9 @@ func (r *mutationResolver) DebugRemoveBreakpoint(ctx context.Context, sessionID 
 
 // DebugEndSession is the resolver for the debugEndSession mutation.
 func (r *mutationResolver) DebugEndSession(ctx context.Context, sessionID string) (bool, error) {
-	r.debugSessionsMu.Lock()
-	session, ok := r.debugSessions[sessionID]
-	if ok {
-		delete(r.debugSessions, sessionID)
-	}
-	r.debugSessionsMu.Unlock()
-
-	if !ok {
+	if !r.endDebugSession(sessionID) {
 		return false, fmt.Errorf("debug session %s not found", sessionID)
 	}
-
-	session.Close()
 	return true, nil
 }
 
@@ -3371,10 +3332,7 @@ func (r *queryResolver) TemporalWorkflows(ctx context.Context, filter *model.Tem
 
 // DebugSession is the resolver for the debugSession query.
 func (r *queryResolver) DebugSession(ctx context.Context, id string) (*model.DebugSessionModel, error) {
-	r.debugSessionsMu.RLock()
-	session, ok := r.debugSessions[id]
-	r.debugSessionsMu.RUnlock()
-
+	session, ok := r.lookupDebugSession(id)
 	if !ok {
 		return nil, nil
 	}
@@ -3557,10 +3515,7 @@ func (r *subscriptionResolver) LiveParseStream(ctx context.Context, input model.
 
 // DebugStepEvent is the resolver for the debugStepEvent subscription.
 func (r *subscriptionResolver) DebugStepEvent(ctx context.Context, sessionID string) (<-chan *model.DebugStepModel, error) {
-	r.debugSessionsMu.RLock()
-	session, ok := r.debugSessions[sessionID]
-	r.debugSessionsMu.RUnlock()
-
+	session, ok := r.lookupDebugSession(sessionID)
 	if !ok {
 		return nil, fmt.Errorf("debug session %s not found", sessionID)
 	}

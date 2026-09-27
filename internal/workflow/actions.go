@@ -369,18 +369,30 @@ func buildEmailMessage(from string, to []string, subject string, body string, co
 	return b.String()
 }
 
+// makeExecAction binds the exec action to a deployment-owned allowlist
+// (FI_FHIR_WORKFLOW_EXEC_ALLOWLIST, see exec_policy.go). The allowlist is read
+// through the getter at call time so Engine.SetExecAllowlist takes effect for
+// an engine already built.
+func makeExecAction(deploymentAllowlist func() []string) ContextActionHandlerFunc {
+	return func(ctx context.Context, event interface{}, config map[string]string) error {
+		return execAction(ctx, event, config, deploymentAllowlist())
+	}
+}
+
 // execAction runs an external command (no shell) for custom integrations.
-// This is intentionally strict: the command must be in an allowlist.
+// This is intentionally strict: the command must be in the deployment-owned
+// allowlist AND in the action's own allowlist. The action's list can only
+// narrow the deployment's; an empty deployment list refuses every command.
 //
 // Config options:
 //   - command: absolute path to executable (required)
-//   - allowlist: comma-separated absolute paths allowed to run (required)
+//   - allowlist: comma-separated absolute paths allowed to run (required; narrows only)
 //   - args: command args as JSON array (e.g. ["--flag","x"]) or a whitespace-separated string
 //   - timeout: execution timeout (default: 30s)
 //   - stdin: json (default), none, template
 //   - stdin_template: used when stdin=template (supports templates)
 //   - env_*: environment variables to set for the process (e.g. env_FOO: "bar")
-func execAction(ctx context.Context, event interface{}, config map[string]string) error {
+func execAction(ctx context.Context, event interface{}, config map[string]string, deploymentAllowlist []string) error {
 	command := strings.TrimSpace(config["command"])
 	if command == "" {
 		return fmt.Errorf("exec action requires 'command' config")
@@ -393,18 +405,10 @@ func execAction(ctx context.Context, event interface{}, config map[string]string
 	if allowlist == "" {
 		return fmt.Errorf("exec action requires 'allowlist' config")
 	}
-	allowed := false
-	for _, item := range strings.Split(allowlist, ",") {
-		item = strings.TrimSpace(item)
-		if item == "" {
-			continue
-		}
-		if item == command {
-			allowed = true
-			break
-		}
+	if len(deploymentAllowlist) == 0 {
+		return fmt.Errorf("exec action is disabled on this deployment (%s is empty)", EnvExecAllowlist)
 	}
-	if !allowed {
+	if !execCommandAllowed(command, deploymentAllowlist, allowlist) {
 		return fmt.Errorf("exec action command %q is not in allowlist", command)
 	}
 

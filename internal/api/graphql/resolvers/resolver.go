@@ -120,14 +120,21 @@ type Resolver struct {
 	// TemporalWorker manages the Temporal worker for terminology workflows
 	TemporalWorker *termworkflow.Worker
 
-	// SubscriptionClients maps FHIR server URLs to clients
-	subscriptionClients map[string]*subscription.Client
+	// subscriptionPolicy is the deployment-owned FHIR subscription destination
+	// allowlist; the zero-allowlist default refuses every server.
+	subscriptionPolicy FHIRSubscriptionPolicy
+	// subscriptionClients is a bounded LRU of clients keyed by canonical
+	// server URL.
+	subscriptionClients *subscriptionClientCache
 	subscriptionRecords map[string]*SubscriptionRecord
 	subscriptionMu      sync.RWMutex
 
-	// Debug sessions
+	// Debug sessions, bounded by debugPolicy (count and TTL).
 	debugSessions   map[string]*workflow.DebugSession
 	debugSessionsMu sync.RWMutex
+	debugPolicy     WorkflowDebugPolicy
+	debugObserver   WorkflowDebugObserver
+	debugNow        func() time.Time
 
 	// Recorded workflow run traces keyed by workflow run ID.
 	workflowRunTraces   map[string][]model.TraceSpanModel
@@ -191,7 +198,8 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 		workflowRunTraces:      make(map[string][]model.TraceSpanModel),
 		integrationSessions:    newIntegrationSessionService(),
 		Projections:            projections.NewService(nil), // In-memory projections by default
-		subscriptionClients:    make(map[string]*subscription.Client),
+		subscriptionPolicy:     DefaultFHIRSubscriptionPolicy(),
+		debugPolicy:            DefaultWorkflowDebugPolicy(),
 		subscriptionRecords:    make(map[string]*SubscriptionRecord),
 		LLMCapability:          DefaultLLMCapability(),
 		Version:                "0.1.0",
@@ -201,6 +209,7 @@ func NewResolver(opts ...ResolverOption) *Resolver {
 	for _, opt := range opts {
 		opt(r)
 	}
+	r.subscriptionClients = newSubscriptionClientCache(r.subscriptionPolicy.maxClients())
 	r.integrationSessions.publisher = r.sessionPublication
 	if enableLegacyUnsafeExecutionForTests != nil {
 		enableLegacyUnsafeExecutionForTests(r)
@@ -524,33 +533,42 @@ func WithTemporalWorker(w *termworkflow.Worker) ResolverOption {
 	}
 }
 
-// getOrCreateSubscriptionClient returns an existing client for the server or creates a new one.
-func (r *Resolver) getOrCreateSubscriptionClient(serverURL string) (*subscription.Client, error) {
-	r.subscriptionMu.RLock()
-	client, exists := r.subscriptionClients[serverURL]
-	r.subscriptionMu.RUnlock()
-
-	if exists {
-		return client, nil
+// WithFHIRSubscriptionPolicy sets the deployment-owned FHIR subscription
+// destination allowlist and client-cache bound.
+func WithFHIRSubscriptionPolicy(policy FHIRSubscriptionPolicy) ResolverOption {
+	return func(r *Resolver) {
+		policy.AllowedHosts = append([]string(nil), policy.AllowedHosts...)
+		r.subscriptionPolicy = policy
 	}
+}
+
+// getOrCreateSubscriptionClient returns the client for an allowed FHIR server,
+// creating it if needed. A destination outside the policy returns
+// ErrFHIRSubscriptionDestinationNotAllowed and no request is made. Clients
+// live in a bounded LRU; an evicted client is simply rebuilt on next use.
+func (r *Resolver) getOrCreateSubscriptionClient(serverURL string) (*subscription.Client, error) {
+	destination, err := r.subscriptionPolicy.CheckDestination(serverURL)
+	if err != nil {
+		return nil, err
+	}
+	key := destination.String()
 
 	r.subscriptionMu.Lock()
 	defer r.subscriptionMu.Unlock()
 
-	// Double-check after acquiring write lock
-	if client, exists = r.subscriptionClients[serverURL]; exists {
+	if client, exists := r.subscriptionClients.get(key); exists {
 		return client, nil
 	}
 
-	// Create new client for this server
 	newClient, err := subscription.NewClient(&subscription.ClientConfig{
-		FHIREndpoint: serverURL,
+		FHIREndpoint: key,
+		HTTPClient:   newSubscriptionHTTPClient(r.subscriptionPolicy),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	r.subscriptionClients[serverURL] = newClient
+	r.subscriptionClients.add(key, newClient)
 	return newClient, nil
 }
 

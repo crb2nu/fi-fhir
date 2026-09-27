@@ -137,6 +137,9 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 	metrics.RecordConnectionCaptureMessages("mrn-123456", 1)
 	metrics.RecordConnectionCaptureTapError(CaptureTapErrorSessionStore)
 	metrics.RecordConnectionCaptureTapError("PID-5 Synthetic^Name")
+	metrics.RecordWorkflowDebugSession(OutcomeAccepted)
+	metrics.RecordWorkflowDebugSession(Outcome("debug-session-uuid"))
+	metrics.SetWorkflowDebugSessions(3)
 
 	allowed := map[string]struct{}{"1.2.3": {}}
 	for mode := range allCaptureModes {
@@ -176,6 +179,26 @@ func TestEveryLabelValueIsDrawnFromABoundedSet(t *testing.T) {
 			t.Fatalf("label value %q is outside the declared bounded set", value)
 		}
 	}
+}
+
+func TestWorkflowDebugSessionMetrics(t *testing.T) {
+	metrics := NewMetrics("test")
+	metrics.RecordWorkflowDebugSession(OutcomeAccepted)
+	metrics.RecordWorkflowDebugSession(OutcomeRejected)
+	metrics.SetWorkflowDebugSessions(1)
+	exposition := gather(t, metrics)
+	for _, want := range []string{
+		`fi_fhir_workflow_debug_sessions 1`,
+		`fi_fhir_workflow_debug_sessions_total{outcome="accepted"} 1`,
+		`fi_fhir_workflow_debug_sessions_total{outcome="rejected"} 1`,
+	} {
+		if !strings.Contains(exposition, want) {
+			t.Fatalf("exposition missing %q", want)
+		}
+	}
+	var nilMetrics *Metrics
+	nilMetrics.SetWorkflowDebugSessions(1)
+	nilMetrics.RecordWorkflowDebugSession(OutcomeAccepted)
 }
 
 func TestIngressMiddlewareClassifiesByResponseStatus(t *testing.T) {

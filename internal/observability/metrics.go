@@ -219,6 +219,8 @@ type Metrics struct {
 	retentionBacklog       *prometheus.GaugeVec
 	captureMessages        *prometheus.CounterVec
 	captureTapErrors       *prometheus.CounterVec
+	workflowDebugActive    prometheus.Gauge
+	workflowDebugSessions  *prometheus.CounterVec
 
 	mu sync.Mutex
 }
@@ -310,6 +312,15 @@ func NewMetrics(version string) *Metrics {
 			Help: "Failures the capture tap and its armed-capture cache swallowed, by reason. " +
 				"None of them changed an admission result, an ACK, or a receipt.",
 		}, []string{"reason"}),
+		workflowDebugActive: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "fi_fhir_workflow_debug_sessions",
+			Help: "Interactive workflow debugger sessions this process holds (bounded by FI_FHIR_WORKFLOW_DEBUG_MAX_SESSIONS).",
+		}),
+		workflowDebugSessions: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fi_fhir_workflow_debug_sessions_total",
+			Help: "Workflow debugger session transitions by outcome: accepted (started), rejected (at capacity), " +
+				"processed (ended by the caller), dropped (expired by FI_FHIR_WORKFLOW_DEBUG_SESSION_TTL).",
+		}, []string{"outcome"}),
 	}
 
 	registry.MustRegister(
@@ -319,6 +330,7 @@ func NewMetrics(version string) *Metrics {
 		m.sessionStreamEvents, m.autorouteSweeps, m.autorouteExpired, m.autorouteNotifications,
 		m.retentionPurges, m.retentionRecordsPurged, m.retentionBacklog,
 		m.captureMessages, m.captureTapErrors,
+		m.workflowDebugActive, m.workflowDebugSessions,
 	)
 	m.buildInfo.WithLabelValues(version).Set(1)
 	return m
@@ -482,6 +494,23 @@ func (m *Metrics) RecordConnectionCaptureTapError(reason string) {
 		return
 	}
 	m.captureTapErrors.WithLabelValues(reason).Inc()
+}
+
+// SetWorkflowDebugSessions publishes how many workflow debugger sessions the
+// process holds.
+func (m *Metrics) SetWorkflowDebugSessions(active int) {
+	if m == nil || m.workflowDebugActive == nil {
+		return
+	}
+	m.workflowDebugActive.Set(float64(active))
+}
+
+// RecordWorkflowDebugSession counts one debugger session transition.
+func (m *Metrics) RecordWorkflowDebugSession(outcome Outcome) {
+	if m == nil {
+		return
+	}
+	inc(m, m.workflowDebugSessions, outcome)
 }
 
 func inc(m *Metrics, vec *prometheus.CounterVec, outcome Outcome) {
