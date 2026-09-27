@@ -13,6 +13,7 @@ import {
   fetchAuthStatus,
   hl7PreviewButton,
   isStreamRequest,
+  openHL7Samples,
   openIDE,
   selects,
   watchPage
@@ -52,5 +53,24 @@ test('6b. with sessions off: no subscriptions, streaming false, the session surf
     watch.graphql.filter((request) => selects(request, 'createIntegrationSession')),
     'no session was created'
   ).toHaveLength(0);
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('6d. with sessions off, HL7 Samples has no "From connection…": intake needs a session to capture into', async ({
+  page,
+  request
+}, testInfo) => {
+  const status = await fetchAuthStatus(request, testInfo);
+  expect(status.capabilities.integrationSessions).toBe(false);
+  // The catalog is on here; only the session workspace is off.
+  expect(status.capabilities.connectionCatalog).toBe(true);
+
+  const watch = await watchPage(page);
+  await openHL7Samples(page);
+  await expect(page.getByTestId('sample-from-connection')).toHaveCount(0);
+  await expect(page.getByTestId('connection-capture-row')).toHaveCount(0);
+  for (const field of ['engineRuntime', 'connections', 'connectionCaptures']) {
+    expect(watch.graphql.filter((request) => selects(request, field)), `${field} was not issued`).toHaveLength(0);
+  }
   expect(watch.errorToasts).toEqual([]);
 });

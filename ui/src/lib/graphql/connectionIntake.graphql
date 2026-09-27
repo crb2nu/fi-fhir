@@ -1,0 +1,91 @@
+# Sample intake from connections (.loom/38 C-3), against the surface C-2
+# ships in internal/api/graphql/schema.graphql ("Connection sample intake").
+# One root field per operation: the transport gate authorizes whole
+# operations, so a read never rides with a write it could be refused for.
+#
+# Every intake field requires integration.operator and a session workspace.
+# The sources the dialog lists come from connections.graphql (the catalog and
+# engineRuntime); this file only adds the intake calls and the session reads.
+
+fragment ConnectionCaptureFields on ConnectionCapture {
+  id
+  sessionId
+  sourceId
+  connectionId
+  mode
+  status
+  captured
+  maxMessages
+  expiresAt
+  requestedBy {
+    id
+    kind
+  }
+  reason
+  requestedAt
+  completedAt
+  problems {
+    code
+    path
+    message
+  }
+}
+
+# A session sample as the inbox takes it: redactedPayload is the capture
+# redactor's text (null without integration.operator, and for pasted samples).
+# rawPayload is deliberately not selected: it is the retain policy's field.
+fragment IntakeSessionSampleFields on SessionSample {
+  id
+  sessionId
+  name
+  format
+  source
+  redactedPayload
+  createdAt
+}
+
+query ConnectionCaptures($sessionId: ID!) {
+  connectionCaptures(sessionId: $sessionId) {
+    ...ConnectionCaptureFields
+  }
+}
+
+query IntakeSessionSamples($sessionId: ID!) {
+  sessionSamples(sessionId: $sessionId) {
+    ...IntakeSessionSampleFields
+  }
+}
+
+mutation PeekBatchConnection($input: PeekBatchConnectionInput!) {
+  peekBatchConnection(input: $input) {
+    objects {
+      path
+      size
+      version
+      modifiedAt
+    }
+    samples {
+      ...IntakeSessionSampleFields
+    }
+    capture {
+      ...ConnectionCaptureFields
+    }
+    problems {
+      code
+      path
+      message
+    }
+  }
+}
+
+mutation StartConnectionCapture($input: StartConnectionCaptureInput!) {
+  startConnectionCapture(input: $input) {
+    ...ConnectionCaptureFields
+  }
+}
+
+mutation CancelConnectionCapture($id: ID!, $reason: String!) {
+  cancelConnectionCapture(id: $id, reason: $reason) {
+    ...ConnectionCaptureFields
+  }
+}

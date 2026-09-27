@@ -52,6 +52,12 @@ export type AuthenticatedIntegrationPreviewInput = {
   source?: string | null;
   profileId?: string | null;
   sessionId?: string | null;
+  /**
+   * A sample already in `sessionId` (captured or peeked from a connection)
+   * whose text is exactly what the editor holds: the run uses it by id instead
+   * of adding the editor text as a new sample. Ignored without `sessionId`.
+   */
+  sessionSampleId?: string | null;
   profile?: SourceProfile | null;
   onSessionUpdate?: (session: IntegrationSessionPreviewMeta) => void;
 };
@@ -137,8 +143,12 @@ export async function runAuthenticatedIntegrationPreview(
 async function runStreamingSessionPreview(
   input: AuthenticatedIntegrationPreviewInput
 ): Promise<AuthenticatedIntegrationPreviewResult> {
-  const sessionId = input.sessionId?.trim() || (await createSession());
-  const sampleId = await addSessionSample(sessionId, input);
+  const existingSessionId = input.sessionId?.trim() || null;
+  const sessionId = existingSessionId ?? (await createSession());
+  const sampleId =
+    existingSessionId && input.sessionSampleId?.trim()
+      ? input.sessionSampleId.trim()
+      : await addSessionSample(sessionId, input);
   if (input.profile) {
     await updateSessionProfile(sessionId, input.profile);
   }
@@ -232,7 +242,12 @@ async function waitForStreamOpen(open: Promise<void>): Promise<void> {
   }
 }
 
-async function createSession(): Promise<string> {
+/**
+ * Creates the page's Integration Session. Preview calls it on the first run;
+ * sample intake calls it when a capture or peek comes before any Preview, and
+ * the page then reuses that session for its runs.
+ */
+export async function createSession(): Promise<string> {
   const response = await graphqlFetch<
     CreateStreamingIntegrationSessionMutation,
     CreateStreamingIntegrationSessionMutationVariables

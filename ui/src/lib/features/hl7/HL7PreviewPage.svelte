@@ -17,7 +17,7 @@
   import { createHL7SampleStore } from '$lib/features/hl7/samples/sampleStore';
   import { rememberRecentSource } from '$lib/features/hl7/samples/recentSources';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import ProfileDraftPanel from '$lib/features/hl7/components/ProfileDraftPanel.svelte';
   import { suggestFixes } from '$lib/features/hl7/profile/fixes';
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
@@ -62,7 +62,10 @@
   import { resolveMapping } from '$lib/features/terminology/terminologyApi';
   import { toasts } from '$lib/ui/toastStore';
   import { SvelteSet } from 'svelte/reactivity';
-  import { integrationSessionEngineEnabled } from '$lib/features/integration-session';
+  import { createSession, integrationSessionEngineEnabled } from '$lib/features/integration-session';
+  import { accessCapabilities } from '$lib/graphql/accessCapabilities';
+  import { createIntakeController } from '$lib/features/hl7/intake/intakeController';
+  import { intakeEntry } from '$lib/features/hl7/intake/intakeState';
   import SessionRunProgress from '$lib/features/integration-session/SessionRunProgress.svelte';
   import SessionStreamNotice from '$lib/features/integration-session/SessionStreamNotice.svelte';
   import {
@@ -100,6 +103,33 @@
       lastUsedProfileVersion !== $selectedProfile.version);
   const { state, warningsByPhase, events, sessionDiagnostics, hl7, updateWarningExplanation } = store;
   const samplesStore = createHL7SampleStore();
+
+  // The page's Integration Session: created by the first Preview, or by sample
+  // intake when a capture or peek comes first, and reused by both after that.
+  let pageSessionId: string | null = null;
+  let creatingSession: Promise<string> | null = null;
+
+  async function ensurePageSession(): Promise<string> {
+    if (pageSessionId) return pageSessionId;
+    creatingSession ??= createSession().finally(() => {
+      creatingSession = null;
+    });
+    const id = await creatingSession;
+    pageSessionId ??= id;
+    return pageSessionId;
+  }
+
+  // Sample intake from connections (.loom/38 C-3). The controller lives here,
+  // not in the Samples tab, so a capture keeps arriving while another tab is open.
+  const intake = createIntakeController({
+    currentSession: () => pageSessionId,
+    ensureSession: ensurePageSession,
+    onSamples: (samples, { activate }) => {
+      samplesStore.addSessionSamples(samples, activate);
+    }
+  });
+  onDestroy(() => intake.dispose());
+  $: intakeEntryState = intakeEntry($accessCapabilities, sessionEngineEnabled);
 
   // LLM explanation state - tracks which warning codes are currently loading
   let explainLoadingCodes = new SvelteSet<string>();
@@ -350,7 +380,8 @@
     // A new run starts from no session state, so a run that fails before its
     // first session update never leaves the previous run's "Preview complete"
     // (or its diagnostics) on screen. The server session itself is reused.
-    const previousSessionId = $state.session?.mode === 'session' ? $state.session.id : null;
+    const previousSessionId =
+      pageSessionId ?? ($state.session?.mode === 'session' ? $state.session.id : null);
     state.update((s) => ({ ...s, loading: true, error: null, result: null, session: null }));
     setSessionDiagnostics(null);
     selectedPath = null;
@@ -362,6 +393,7 @@
       useRedactionForPreview && editorRedactionMode !== 'none'
         ? redactHL7(snapshot.data, editorRedactionMode)
         : snapshot.data;
+    const sessionSampleId = sessionSampleFor($activeSample, previousSessionId, data);
 
     try {
       const result = await parseHL7Preview({
@@ -370,7 +402,9 @@
         profileId,
         profile: $selectedProfile,
         sessionId: previousSessionId,
+        sessionSampleId,
         onSessionUpdate: (session) => {
+          if (session.mode === 'session' && session.id) pageSessionId ??= session.id;
           state.update((current) => ({ ...current, session }));
           setSessionDiagnostics(session);
         }
@@ -384,6 +418,18 @@
       const msg = e instanceof Error ? e.message : String(e);
       state.update((s) => ({ ...s, loading: false, error: msg }));
     }
+  }
+
+  /**
+   * The session sample a run can use by id: the active sample came from this
+   * session (captured or peeked) and the text about to be sent is exactly its
+   * text. Anything else — an edit, a client-side redaction — takes the editor
+   * path and is added as a new sample.
+   */
+  function sessionSampleFor(sample: HL7Sample | null, sessionId: string | null, data: string): string | null {
+    const ref = sample?.session;
+    if (!sample || !ref || !sessionId || ref.sessionId !== sessionId) return null;
+    return normalizeHL7Newlines(sample.raw) === normalizeHL7Newlines(data) ? ref.sampleId : null;
   }
 
   function onSelectWarning(
@@ -1307,6 +1353,8 @@
               activeId={$activeId}
               disabled={$state.loading}
               currentRaw={$state.data}
+              intake={sessionEngineEnabled && intakeEntryState.visible ? intake : null}
+              intakeDisabledReason={intakeEntryState.visible ? intakeEntryState.disabledReason : null}
               on:importFiles={async (e) => importFiles(e.detail.files, 'first', e.detail)}
               on:saveCurrent={(e) => {
                 const n = e.detail.name;

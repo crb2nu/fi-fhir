@@ -15,7 +15,7 @@
  */
 import path from 'node:path';
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
-import { FORBIDDEN_COPY, hl7PreviewButton, openIDE } from './support';
+import { FORBIDDEN_COPY, hl7PreviewButton, openHL7Samples, openIDE } from './support';
 
 const VISUAL_DIR = path.resolve(process.env.E2E_RESULTS_DIR ?? 'e2e-results', 'visual');
 
@@ -214,6 +214,32 @@ const CAPTURES: Capture[] = [
         view.getByTestId('engine-properties'),
         view.getByTestId('connections-preflight'),
         view.getByRole('button', { name: 'Retry' })
+      );
+    }
+  },
+  {
+    id: 'V15',
+    name: 'hl7-samples',
+    reach: async (page) => {
+      // The Samples inbox with "From connection…" beside "Load examples" (.loom/38 C-3).
+      await openHL7Samples(page);
+      await expect(page.getByText(/^No saved samples/)).toBeVisible();
+    }
+  },
+  {
+    id: 'V16',
+    name: 'hl7-intake-dialog',
+    reach: async (page) => {
+      await openHL7Samples(page);
+      await page.getByTestId('sample-from-connection').click();
+      const dialog = page.getByTestId('connection-intake-dialog');
+      // After the operator-bundle project, check 7's MLLP source is listed;
+      // on a fresh stack the dialog is in its honest empty state.
+      await expectOneOf(
+        dialog.getByTestId('connection-intake-sources'),
+        dialog.getByTestId('connection-intake-empty'),
+        dialog.getByTestId('connection-intake-preflight'),
+        dialog.getByRole('button', { name: 'Retry' })
       );
     }
   }

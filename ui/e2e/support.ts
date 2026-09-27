@@ -187,6 +187,17 @@ export function hl7PreviewButton(page: Page) {
 }
 
 /**
+ * HL7 intake's Samples tab (the results pane's first tab), where "From
+ * connection…" sits beside "Load examples" (.loom/38 C-3). Resolves once the
+ * inbox has rendered.
+ */
+export async function openHL7Samples(page: Page): Promise<void> {
+  await openIDE(page, '/hl7');
+  await page.getByRole('region', { name: 'Results' }).getByRole('tab', { name: /^Samples/ }).click();
+  await expect(page.getByRole('button', { name: 'Load examples' })).toBeVisible();
+}
+
+/**
  * Loads a route and waits until the credential gate has stepped aside for the
  * trusted network — the IDE renders nothing before that. The gate shows no
  * strip once signed in; the access state is the status bar's chip (its
