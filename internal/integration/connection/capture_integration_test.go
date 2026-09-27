@@ -60,11 +60,11 @@ routes:
 )
 
 // proofIdentifiers are the synthetic identifiers the proofs' messages carry —
-// the patient's MRN, name, birth date, address, phone, account, and SSN, and
-// (in proofKinADT) the next of kin's and the insured's names. None may survive
-// into a stored sample.
+// the patient's MRN, name, birth date, address, phone, account, SSN, and visit
+// number (PV1-19), and (in proofKinADT) the next of kin's and the insured's
+// names. None may survive into a stored sample.
 var proofIdentifiers = []string{
-	"MRN-", "Zyxwpat", "Quorbina", "19800101", "Zyxwton", "555-0199", "ACCT-", "000-00-0000",
+	"MRN-", "Zyxwpat", "Quorbina", "19800101", "Zyxwton", "555-0199", "ACCT-", "000-00-0000", "visit-",
 	"Zyxwkin", "Morvath", "Zyxwins", "Tallowby",
 }
 
@@ -247,6 +247,32 @@ func proofAudit(now time.Time) integration.AuditEnvelope {
 	}
 }
 
+// proofProtector is a synthetic session retention key. The capture proofs run
+// with one, so captured text is sealed at rest; the peek proof runs without,
+// so its samples are stored as pasted samples are (review W4).
+func proofProtector(t *testing.T) session.PayloadProtector {
+	t.Helper()
+	protector, err := session.NewAESGCMProtector(bytes.Repeat([]byte{0x43}, 32))
+	if err != nil {
+		t.Fatalf("NewAESGCMProtector: %v", err)
+	}
+	return protector
+}
+
+// proofRuntime is the replica the harness stands for: an MLLP listener for
+// adt-east — the one the proofs' frames arrive on — and an HTTP ingress for
+// adt-west, so both are sources the tap can see (review S7).
+func proofRuntime() *RuntimeDescription {
+	description := &RuntimeDescription{TenantID: proofTenant}
+	description.Adapters = [4]RuntimeAdapter{
+		{Kind: AdapterHTTP, Enabled: true, SourceID: "adt-west"},
+		{Kind: AdapterMLLP, Enabled: true, SourceID: proofSource},
+		{Kind: AdapterBatch},
+		{Kind: AdapterDelivery},
+	}
+	return description
+}
+
 // mllpCaptureHarness is one migrated schema, a deployed MLLP integration for
 // adt-east, the durable processor wrapped in a capture tap, and a listener.
 type mllpCaptureHarness struct {
@@ -309,7 +335,7 @@ func newMLLPCaptureHarness(t *testing.T, closedTapSessions bool) *mllpCaptureHar
 	if err != nil || submissions.Migrate(ctx) != nil {
 		t.Fatalf("submission store: %v", err)
 	}
-	sessions, err := session.NewPostgresStore(db, session.PostgresConfig{TenantID: proofTenant})
+	sessions, err := session.NewPostgresStore(db, session.PostgresConfig{TenantID: proofTenant, Protector: proofProtector(t)})
 	if err != nil || sessions.Migrate(ctx) != nil {
 		t.Fatalf("session store: %v", err)
 	}
@@ -370,7 +396,7 @@ func newMLLPCaptureHarness(t *testing.T, closedTapSessions bool) *mllpCaptureHar
 		metrics: observability.NewMetrics("capture-proof"), admission: &admissionErrors{inner: durable},
 	}
 	observer := meteredObserver(harness.recorded, harness.metrics)
-	harness.service, err = NewService(store, nil, nil, proofTenant)
+	harness.service, err = NewService(store, nil, proofRuntime(), proofTenant)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -388,7 +414,7 @@ func newMLLPCaptureHarness(t *testing.T, closedTapSessions bool) *mllpCaptureHar
 			t.Fatal(err)
 		}
 		_ = closed.Close()
-		tapSessions, err = session.NewPostgresStore(closed, session.PostgresConfig{TenantID: proofTenant})
+		tapSessions, err = session.NewPostgresStore(closed, session.PostgresConfig{TenantID: proofTenant, Protector: proofProtector(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -537,12 +563,13 @@ func (h *mllpCaptureHarness) assertAllAccepted(t *testing.T, label string, acks 
 
 // TestConnectionCapture_TapCapturesRedactedSamplesWithoutTouchingAdmission is
 // the kill-test: armed for adt-east at maxMessages 2, three frames carrying a
-// synthetic patient (PID-3, -5, -7, -11, -13, -18, -19) produce exactly two
-// session samples, each exactly the capture redactor's output of its frame
-// with none of the identifiers, while all three frames are durably admitted
-// and ACKed exactly as the same frames were before the capture was armed.
-// NK1-2 and IN1-16 are proved by the peek: the v1 kernel admits no NK1 or IN1
-// (proofKinADT), so no frame carrying one is ever captured.
+// synthetic patient (PID-3, -5, -7, -11, -13, -18, -19, and PV1-19) produce
+// exactly two session samples, each exactly the capture redactor's output of
+// its frame with none of the identifiers and sealed at rest under the
+// retention key, while all three frames are durably admitted and ACKed exactly
+// as the same frames were before the capture was armed. NK1-2 and IN1-16 are
+// proved by the peek: the v1 kernel admits no NK1 or IN1 (proofKinADT), so no
+// frame carrying one is ever captured.
 func TestConnectionCapture_TapCapturesRedactedSamplesWithoutTouchingAdmission(t *testing.T) {
 	h := newMLLPCaptureHarness(t, false)
 	workspace := h.newSession(t)
@@ -578,9 +605,11 @@ func TestConnectionCapture_TapCapturesRedactedSamplesWithoutTouchingAdmission(t 
 			t.Fatalf("sample %d is not the capture redactor's output of frame armed-%d:\n got %q\nwant %q", number, number, sample.Raw, want)
 		}
 		assertNoProofIdentifier(t, fmt.Sprintf("sample %d", number), sample.Raw)
-		if sample.Name != fmt.Sprintf("capture %s #%d", capture.ID, number) || sample.Source != "capture:"+capture.ID ||
-			sample.Redaction != session.SampleRedactionCapture || sample.PHIPolicy != session.PHIPolicyRedact || !sample.PHIRedacted {
-			t.Fatalf("sample %d = name %q source %q redaction %q policy %q", number, sample.Name, sample.Source, sample.Redaction, sample.PHIPolicy)
+		if sample.ID != captureSampleID(capture.ID, number) || sample.Name != fmt.Sprintf("capture %s #%d", capture.ID, number) ||
+			sample.Source != "capture:"+capture.ID || sample.Redaction != session.SampleRedactionCapture ||
+			sample.PHIPolicy != session.PHIPolicyRedact || !sample.PHIRedacted {
+			t.Fatalf("sample %d = id %q name %q source %q redaction %q policy %q",
+				number, sample.ID, sample.Name, sample.Source, sample.Redaction, sample.PHIPolicy)
 		}
 		if strings.Contains(sample.Raw, "armed-3") {
 			t.Fatal("the third frame, past maxMessages, was captured")
@@ -588,9 +617,27 @@ func TestConnectionCapture_TapCapturesRedactedSamplesWithoutTouchingAdmission(t 
 	}
 	var leaked int
 	if err := h.db.QueryRowContext(t.Context(),
-		`SELECT count(*) FROM integration_session_samples WHERE record_json::text ~ 'Zyxw|Quorbina|Morvath|Tallowby'`,
+		`SELECT count(*) FROM integration_session_samples WHERE record_json::text ~ 'Zyxw|Quorbina|Morvath|Tallowby|visit-'`,
 	).Scan(&leaked); err != nil || leaked != 0 {
 		t.Fatalf("stored sample records carrying a synthetic identifier = %d, %v", leaked, err)
+	}
+	// With a retention key the captured text is sealed at rest (review W4):
+	// no record carries it, every captured row has a ciphertext that does not
+	// carry it either, and a store without the key cannot open it.
+	var unsealed int
+	if err := h.db.QueryRowContext(t.Context(), `
+		SELECT count(*) FROM integration_session_samples
+		WHERE raw_cipher IS NULL OR record_json->>'raw' <> ''
+		   OR position(convert_to('REDACTED', 'UTF8') in raw_cipher) > 0
+	`).Scan(&unsealed); err != nil || unsealed != 0 {
+		t.Fatalf("captured samples stored unsealed = %d, %v", unsealed, err)
+	}
+	keyless, err := session.NewPostgresStore(h.db, session.PostgresConfig{TenantID: proofTenant})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := keyless.ListSamples(t.Context(), workspace.ID); !errors.Is(err, session.ErrImmutable) {
+		t.Fatalf("a store without the retention key read sealed captured text: %v", err)
 	}
 
 	row := h.captureRow(t, workspace.ID)
@@ -688,6 +735,173 @@ func TestConnectionCapture_ExpiresByTTL(t *testing.T) {
 	}
 	if total, accepted := h.acceptedReceipts(t); total != 2 || accepted != 2 {
 		t.Fatalf("receipts = %d (%d accepted), want 2", total, accepted)
+	}
+}
+
+// TestConnectionCapture_RacingFramesNeverExceedMaxMessages is review S5's
+// proof of the slot protocol over PostgreSQL, with the tap's own sample
+// writes (deterministic IDs, the capture redactor, the sealed session store):
+//
+//   - two frames racing for the last slot of a capture armed at N-1 leave
+//     exactly N samples: the frame that finds the row locked skips it at once
+//     (SKIP LOCKED) rather than writing slot N a second time;
+//   - a slot written again — the session already holds slot N's sample
+//     because an earlier fill's count did not commit and recording that
+//     failed too — is the first sample, not a second, and is then counted;
+//   - a count that fails after its write finishes the capture failed, with
+//     CAPTURE_COUNT_FAILED and the written sample counted (review W1).
+func TestConnectionCapture_RacingFramesNeverExceedMaxMessages(t *testing.T) {
+	h := newMLLPCaptureHarness(t, false)
+	write := func(capture Capture, controlID string) func(context.Context, int) error {
+		return func(writeCtx context.Context, slot int) error {
+			_, err := h.sessions.AddSample(writeCtx, capture.SessionID, session.AddSampleRequest{
+				ID: captureSampleID(capture.ID, slot), Name: fmt.Sprintf("capture %s #%d", capture.ID, slot),
+				Format: events.FormatHL7v2, Source: "capture:" + capture.ID, Raw: string(proofADT(controlID)),
+				PHIPolicy: session.PHIPolicyRedact, Redaction: session.SampleRedactionCapture,
+			})
+			return err
+		}
+	}
+	fill := func(capture Capture, write func(context.Context, int) error) (captureFill, error) {
+		fillCtx, cancel := context.WithTimeout(t.Context(), captureFillTimeout)
+		defer cancel()
+		return h.store.FillCaptureSlot(fillCtx, proofTenant, capture.ID, h.store.Now(), write)
+	}
+	assertSamples := func(t *testing.T, sessionID string, want map[int]string) {
+		t.Helper()
+		samples := h.samples(t, sessionID)
+		if len(samples) != len(want) {
+			t.Fatalf("session holds %d samples, want %d", len(samples), len(want))
+		}
+		for _, sample := range samples {
+			var slot int
+			if _, err := fmt.Sscanf(sample.Name[strings.LastIndex(sample.Name, "#"):], "#%d", &slot); err != nil {
+				t.Fatalf("sample name %q: %v", sample.Name, err)
+			}
+			if sample.Raw != session.RedactCapturedHL7v2(string(proofADT(want[slot]))) {
+				t.Fatalf("slot %d holds another frame than %s", slot, want[slot])
+			}
+		}
+	}
+
+	t.Run("two frames racing for the last slot", func(t *testing.T) {
+		workspace := h.newSession(t)
+		capture := h.arm(t, proofSource, workspace.ID, 3, 0)
+		for slot, controlID := range []string{"race-1", "race-2"} {
+			if got, err := fill(capture, write(capture, controlID)); err != nil || got.outcome != fillWritten || got.slot != slot+1 {
+				t.Fatalf("fill %d = %+v, %v", slot+1, got, err)
+			}
+		}
+		// Frame A locks slot 3 and holds it, mid-write, while frame B races.
+		locked, raced := make(chan struct{}), make(chan struct{})
+		var first captureFill
+		var firstErr error
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			first, firstErr = fill(capture, func(writeCtx context.Context, slot int) error {
+				close(locked)
+				<-raced
+				return write(capture, "race-a")(writeCtx, slot)
+			})
+		}()
+		<-locked
+		second, secondErr := fill(capture, write(capture, "race-b"))
+		close(raced)
+		<-done
+		if secondErr != nil || second.outcome != fillSkipped {
+			t.Fatalf("the frame that raced = %+v, %v; want it to skip the locked row", second, secondErr)
+		}
+		if firstErr != nil || first.outcome != fillCompleted || first.slot != 3 || !first.counted {
+			t.Fatalf("the frame that held the slot = %+v, %v; want it to complete the capture", first, firstErr)
+		}
+		assertSamples(t, workspace.ID, map[int]string{1: "race-1", 2: "race-2", 3: "race-a"})
+		if row := h.captureRow(t, workspace.ID); row.Status != CaptureStatusComplete || row.Captured != 3 {
+			t.Fatalf("capture row = %+v, want complete with 3", row)
+		}
+	})
+
+	t.Run("a slot written again is one sample", func(t *testing.T) {
+		workspace := h.newSession(t)
+		capture := h.arm(t, proofSource, workspace.ID, 1, 0)
+		// The earlier fill's write of slot 1 landed; its count and the record
+		// of that failure did not, so the row is still armed at 0.
+		if err := write(capture, "first-try")(t.Context(), 1); err != nil {
+			t.Fatal(err)
+		}
+		got, err := fill(capture, write(capture, "retry"))
+		if err != nil || got.outcome != fillCompleted || got.slot != 1 || !got.counted {
+			t.Fatalf("the retried slot = %+v, %v", got, err)
+		}
+		assertSamples(t, workspace.ID, map[int]string{1: "first-try"})
+		if row := h.captureRow(t, workspace.ID); row.Status != CaptureStatusComplete || row.Captured != 1 {
+			t.Fatalf("capture row = %+v, want complete with 1", row)
+		}
+	})
+
+	t.Run("a count that fails after its write fails the capture with the sample counted", func(t *testing.T) {
+		workspace := h.newSession(t)
+		capture := h.arm(t, proofSource, workspace.ID, 3, 0)
+		fillCtx, cancel := context.WithTimeout(t.Context(), captureFillTimeout)
+		defer cancel()
+		got, err := h.store.FillCaptureSlot(fillCtx, proofTenant, capture.ID, h.store.Now(),
+			func(writeCtx context.Context, slot int) error {
+				err := write(capture, "counted")(writeCtx, slot)
+				cancel() // the fill's context ends between the write and the count
+				return err
+			})
+		if err != nil || got.outcome != fillCountFailed || !got.counted || !got.finished {
+			t.Fatalf("fill = %+v, %v; want a count failure recorded with the sample counted", got, err)
+		}
+		assertSamples(t, workspace.ID, map[int]string{1: "counted"})
+		row := h.captureRow(t, workspace.ID)
+		if row.Status != CaptureStatusFailed || row.Captured != 1 || len(row.Problems) != 1 || row.Problems[0].Code != CodeCaptureCountFailed {
+			t.Fatalf("capture row = %+v, want failed with CAPTURE_COUNT_FAILED and 1 counted", row)
+		}
+	})
+}
+
+// TestConnectionCapture_StartRefusesASourceTheTapCannotSee is review S7: a
+// capture is armed for a source an MLLP or HTTP adapter of this replica admits
+// (adt-east, adt-west), or one a compiled MLLP or HTTP source connection names
+// (a listener on another replica); a batch source, whose runner's frames the
+// tap never sees, and an unknown source are refused with ErrSourceUnavailable
+// and leave no row.
+func TestConnectionCapture_StartRefusesASourceTheTapCannotSee(t *testing.T) {
+	h := newMLLPCaptureHarness(t, false)
+	writer := callerContext(proofTenant, ReadRole, WriteRole)
+	for kind, sourceID := range map[Kind]string{KindMLLP: "adt-catalog", KindBatchS3: "batch-east"} {
+		fixture := loadSpecFixture(t, kind)
+		fixture.Spec["source_id"] = sourceID
+		created, err := h.service.Create(writer, CreateRequest{
+			ID: sourceID, Direction: DirectionSource, Kind: kind, Name: "S7 " + string(kind), Spec: fixture.specJSON(t),
+			SecretBindings: fixture.SecretBindings, Reason: "declare a source for the capture refusal proof",
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", kind, err)
+		}
+		compiled, err := h.service.Compile(writer, CommandRequest{ID: created.ID, ExpectedVersion: created.Version, Reason: "compile it"})
+		if err != nil || compiled.Revision == nil {
+			t.Fatalf("compile %s = %+v, %v", kind, compiled.Problems, err)
+		}
+	}
+
+	workspace := h.newSession(t)
+	for _, sourceID := range []string{"batch-east", "adt-nowhere"} {
+		_, err := h.service.StartCapture(callerContext(proofTenant, ReadRole), StartCaptureRequest{
+			SourceID: sourceID, SessionID: workspace.ID, Reason: "capture a source the tap cannot see",
+		})
+		if !errors.Is(err, ErrSourceUnavailable) {
+			t.Fatalf("capture of %s = %v, want ErrSourceUnavailable", sourceID, err)
+		}
+	}
+	if captures, err := h.service.ListCaptures(callerContext(proofTenant, ReadRole), workspace.ID); err != nil || len(captures) != 0 {
+		t.Fatalf("refused captures left %d rows, %v", len(captures), err)
+	}
+	for _, sourceID := range []string{proofSource, "adt-west", "adt-catalog"} {
+		if capture := h.arm(t, sourceID, workspace.ID, 1, 0); capture.Status != CaptureStatusArmed || capture.SourceID != sourceID {
+			t.Fatalf("capture of %s = %+v", sourceID, capture)
+		}
 	}
 }
 
@@ -817,8 +1031,10 @@ func TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive(t *testing.T) {
 		}
 		_ = client.RemoveBucket(cleanup, bucket)
 	})
-	t.Setenv("FI_FHIR_C2_PROOF_S3_ACCESS_KEY", accessKey)
-	t.Setenv("FI_FHIR_C2_PROOF_S3_SECRET_KEY", secretKey)
+	// The bindings resolve from the env family serve's connection resolver
+	// allows (FI_FHIR_CONNECTION_SECRET_*, review W3).
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_C2_PROOF_S3_ACCESS", accessKey)
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_C2_PROOF_S3_SECRET", secretKey)
 
 	// The catalog connection: declared, compiled, and the compiled bytes are
 	// what both the peek and the runner read.
@@ -848,8 +1064,8 @@ func TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive(t *testing.T) {
 	created, err := service.Create(writer, CreateRequest{
 		ID: "adt-drop", Direction: DirectionSource, Kind: KindBatchS3, Name: "ADT east drop", Spec: spec,
 		SecretBindings: []integration.SecretBinding{
-			{Name: "peek-s3-access", Reference: integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: "FI_FHIR_C2_PROOF_S3_ACCESS_KEY"}},
-			{Name: "peek-s3-secret", Reference: integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: "FI_FHIR_C2_PROOF_S3_SECRET_KEY"}},
+			{Name: "peek-s3-access", Reference: integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: "FI_FHIR_CONNECTION_SECRET_C2_PROOF_S3_ACCESS"}},
+			{Name: "peek-s3-secret", Reference: integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: "FI_FHIR_CONNECTION_SECRET_C2_PROOF_S3_SECRET"}},
 		},
 		Reason: "declare the east drop",
 	})
@@ -962,7 +1178,8 @@ func TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive(t *testing.T) {
 		t.Fatalf("list-only peek objects = %+v, samples %d", listed.Objects, len(listed.Samples))
 	}
 	if listed.Capture.Mode != CaptureModePeek || listed.Capture.Status != CaptureStatusComplete || listed.Capture.Captured != 0 ||
-		listed.Capture.ConnectionArtifactID != "adt-drop" || listed.Capture.ConnectionDigest != compiled.Revision.Digest {
+		listed.Capture.ConnectionArtifactID != "adt-drop" || listed.Capture.ConnectionDigest != compiled.Revision.Digest ||
+		listed.Capture.ObjectPath != "" {
 		t.Fatalf("list-only peek audit row = %+v", listed.Capture)
 	}
 
@@ -978,12 +1195,14 @@ func TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive(t *testing.T) {
 				t.Fatalf("%s sample %d is not the capture redactor's output of its message:\n got %q\nwant %q", object, number, sample.Raw, expected)
 			}
 			assertNoProofIdentifier(t, fmt.Sprintf("%s sample %d", object, number), sample.Raw)
-			wantSource := fmt.Sprintf("peek:adt-drop@%s:%s#%d", compiled.Revision.Digest, object, number)
-			if sample.Source != wantSource || sample.Redaction != session.SampleRedactionCapture {
-				t.Fatalf("%s sample %d source %q redaction %q", object, number, sample.Source, sample.Redaction)
+			// The sample names its audit row and nothing else; the object
+			// path is on the row (review S4).
+			if sample.Source != "peek:"+result.Capture.ID || sample.Redaction != session.SampleRedactionCapture ||
+				strings.Contains(sample.Source+sample.Name, object) {
+				t.Fatalf("%s sample %d source %q name %q redaction %q", object, number, sample.Source, sample.Name, sample.Redaction)
 			}
 		}
-		if result.Capture.Status != CaptureStatusComplete || result.Capture.Captured != want {
+		if result.Capture.Status != CaptureStatusComplete || result.Capture.Captured != want || result.Capture.ObjectPath != object {
 			t.Fatalf("peek of %s audit row = %+v", object, result.Capture)
 		}
 	}
@@ -1013,7 +1232,17 @@ func TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive(t *testing.T) {
 		}
 	}
 
-	t.Setenv("FI_FHIR_C2_PROOF_S3_SECRET_KEY", "")
+	// Without a retention key the peeked text is stored as a pasted sample's
+	// is: in the record, with no ciphertext (docs/operations/PHI-RETENTION.md).
+	var plaintext, sealed int
+	if err := db.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE record_json->>'raw' LIKE 'MSH|%'), count(*) FILTER (WHERE raw_cipher IS NOT NULL)
+		FROM integration_session_samples
+	`).Scan(&plaintext, &sealed); err != nil || plaintext != 3 || sealed != 0 {
+		t.Fatalf("keyless peeked samples: %d stored as text, %d sealed, %v; want 3 and 0", plaintext, sealed, err)
+	}
+
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_C2_PROOF_S3_SECRET", "")
 	refused, err := service.PeekBatch(operator, PeekRequest{
 		ConnectionID: "adt-drop", SessionID: workspace.ID, ObjectPath: "incoming/peek.hl7", Reason: "try without the secret",
 	})
@@ -1022,7 +1251,7 @@ func TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive(t *testing.T) {
 		len(refused.Samples) != 0 || len(refused.Objects) != 0 {
 		t.Fatalf("peek with an unresolvable binding = %+v, %v", refused, err)
 	}
-	t.Setenv("FI_FHIR_C2_PROOF_S3_SECRET_KEY", secretKey)
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_C2_PROOF_S3_SECRET", secretKey)
 
 	if after := tableSnapshot(t, db, "integration_batch_objects"); after != objectsBefore {
 		t.Fatalf("a peek changed integration_batch_objects:\nbefore %s\nafter  %s", objectsBefore, after)

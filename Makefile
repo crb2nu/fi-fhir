@@ -1229,16 +1229,19 @@ connection-catalog:
 # .loom/38 Lane C-2: sample intake (ci/test-connection-capture.yml). Over a real
 # MLLP listener and the durable PostgreSQL processor, a capture armed for
 # adt-east at maxMessages 2 turns three admitted frames into exactly two
-# capture-redacted session samples while every receipt and ACK is what an
-# unarmed run produces; a capture armed for another source captures nothing
-# (the negative control); a closed session store changes no ACK or receipt and
-# counts fi_fhir_connection_capture_tap_errors_total; a 1 s TTL expires. Over
-# MinIO, a batch peek reads redacted samples with the batch tables and the
-# bucket byte-identical before and after, and the runner then ingests the
-# object as it would have. Requires POSTGRES_TEST_URL, plus BATCH_S3_* for the
-# peek; every proof skips without them, which is why the CI job asserts the
-# names exist first.
+# capture-redacted session samples, sealed at rest, while every receipt and ACK
+# is what an unarmed run produces; a capture armed for another source captures
+# nothing (the negative control); a closed session store changes no ACK or
+# receipt and counts fi_fhir_connection_capture_tap_errors_total; a 1 s TTL
+# expires; two frames racing for the last slot leave exactly maxMessages
+# samples, a retried slot is one sample, and a failed count fails the capture
+# with its sample counted; a source the tap cannot see is refused. Over MinIO,
+# a batch peek reads redacted samples with the batch tables and the bucket
+# byte-identical before and after, and the runner then ingests the object as it
+# would have. Requires POSTGRES_TEST_URL, plus BATCH_S3_* for the peek; every
+# proof skips without them, which is why the CI job asserts the names exist
+# first.
 connection-capture:
 	go test -tags=integration -race -count=1 -timeout=300s \
-		-run '^(TestConnectionCapture_(TapCapturesRedactedSamplesWithoutTouchingAdmission|OtherSourceCapturesNothing|TapFailureNeverChangesTheAck|ExpiresByTTL)|TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive)$$' \
+		-run '^(TestConnectionCapture_(TapCapturesRedactedSamplesWithoutTouchingAdmission|OtherSourceCapturesNothing|TapFailureNeverChangesTheAck|ExpiresByTTL|RacingFramesNeverExceedMaxMessages|StartRefusesASourceTheTapCannotSee)|TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive)$$' \
 		./internal/integration/connection
