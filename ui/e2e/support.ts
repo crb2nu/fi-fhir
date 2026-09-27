@@ -2,7 +2,15 @@
  * Shared helpers for the browser smoke gate. See playwright.config.ts for the
  * four stacks and e2e/run.sh for how they are started.
  */
-import { expect, type APIRequestContext, type Page, type Request, type TestInfo } from '@playwright/test';
+import {
+  expect,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+  type TestInfo
+} from '@playwright/test';
 
 /** The documented operator bundle, in the order the stack grants it. */
 export const OPERATOR_BUNDLE = [
@@ -184,6 +192,86 @@ export function hl7PreviewButton(page: Page) {
     .getByRole('button', { name: 'Process', exact: true })
     .locator('xpath=..')
     .getByRole('button', { name: 'Preview', exact: true });
+}
+
+/**
+ * A session Preview, from the click, in two budgets that follow the run's own
+ * lifecycle rather than one fixed wait (`previewOnSessionStream`, then
+ * `expectPreviewComplete`).
+ *
+ * What one 10 s `toHaveClass(/state-complete/)` was really covering, per the
+ * traces of the two jobs that failed under runner saturation on 2026-09-27
+ * (pipelines 29733 and 29713): createIntegrationSession and addSessionSample
+ * at ~3 s each, the stream opening, and then runSessionPreview — some 25
+ * sequential store round trips, each committed — still unanswered when the
+ * budget ran out. The run is slow under load, not broken; the retries passed.
+ *
+ * PREVIEW_STREAM_OPEN_TIMEOUT: from the click to the SSE response — the
+ * session and its sample created, the stream answered 200 text/event-stream.
+ * `runStreamingSessionPreview` itself abandons a stream that has not opened
+ * in 5 s, so this already holds the client's own limit.
+ */
+export const PREVIEW_STREAM_OPEN_TIMEOUT = 10_000;
+
+/**
+ * PREVIEW_RUN_TIMEOUT: from an open stream to the run's terminal state. The
+ * run's own budget, separate from the stream's, sized for the saturated
+ * runner rather than the idle one.
+ */
+export const PREVIEW_RUN_TIMEOUT = 60_000;
+
+/**
+ * Clicks HL7 intake's Preview and proves the run went to the session engine
+ * on an open stream: the `integrationSessionEvents` SSE POST answered 200
+ * `text/event-stream` within PREVIEW_STREAM_OPEN_TIMEOUT of the click. The
+ * wait is armed with the click, so the budget is the stream's alone.
+ *
+ * The response, not the progression region, is the "stream opened" signal:
+ * `SessionRunProgress` stays `state-connecting` until the first event of the
+ * run arrives, which is the run's business (job 322278 sat in `connecting`
+ * for 10 s with the stream long open).
+ */
+export async function previewOnSessionStream(page: Page): Promise<Response> {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        isStreamRequest(response.request()) && selects(response.request(), 'integrationSessionEvents'),
+      { timeout: PREVIEW_STREAM_OPEN_TIMEOUT }
+    ),
+    hl7PreviewButton(page).click()
+  ]);
+  expect(response.status(), 'SSE POST /graphql for integrationSessionEvents').toBe(200);
+  expect(response.headers()['content-type'] ?? '').toMatch(/^text\/event-stream/);
+  return response;
+}
+
+/**
+ * Waits for a session Preview whose stream is open to complete, and returns
+ * the progression region.
+ *
+ * `SessionRunProgress` puts `state-{streamState}` on the region: `connecting`
+ * until the run's first event, `running` from then, and `complete` only when
+ * the run mutation answered `completed` and the stream raised no error
+ * (`error` otherwise). So:
+ *
+ *   1. the region reaches a terminal state within PREVIEW_RUN_TIMEOUT — the
+ *      run finished, however slow the host;
+ *   2. that state is `complete`, with the wording and no `.stream-error` —
+ *      an `error` fails here at once instead of idling out the run budget.
+ *
+ * The run's budget is added to the test's, so the test timeout (60 s) never
+ * pre-empts step 1's own, more specific, failure.
+ */
+export async function expectPreviewComplete(page: Page, testInfo: TestInfo): Promise<Locator> {
+  testInfo.setTimeout(testInfo.timeout + PREVIEW_RUN_TIMEOUT);
+  const progress = page.getByRole('region', { name: 'Server preview progression' });
+  await expect(progress, 'the run reached a terminal state').toHaveClass(/state-(complete|error)/, {
+    timeout: PREVIEW_RUN_TIMEOUT
+  });
+  await expect(progress, 'the run completed on a stream that raised no error').toHaveClass(/state-complete/);
+  await expect(progress).toContainText('Preview complete');
+  await expect(progress.locator('.stream-error')).toHaveCount(0);
+  return progress;
 }
 
 /**
