@@ -223,6 +223,28 @@ default:
     - npm --version
     - npm config set cache "${CI_PROJECT_DIR}/ui/.npm" --global
 
+# Build identity: the one rule for what an image calls itself. Splice it into a
+# job's script with `- *build-identity` before any line that reads these names.
+#
+#   HARBOR_SEMVER_TAG  the Harbor tag deploy:docker{,-ui} push on main, which is
+#                      what Flux rolls out. CI_PIPELINE_ID is the instance-wide
+#                      pipeline id (e.g. 29328). CI_PIPELINE_IID is the
+#                      per-project counter (e.g. 1575) and is only the fallback
+#                      for a run outside GitLab: stamping it made the Health
+#                      panel name a tag that was never pushed.
+#   BUILD_TAG          the tag an image is published under. A tag pipeline's
+#                      release:docker{,-ui} push the image as CI_COMMIT_TAG, so
+#                      that wins there; otherwise it is HARBOR_SEMVER_TAG.
+#
+# The UI bakes BUILD_TAG and the short SHA as two values (VITE_BUILD_TAG,
+# VITE_BUILD_SHA). The API has one version string, so it carries both as
+# BUILD_TAG+SHA (semver build metadata) and still names its commit.
+.build-identity: &build-identity
+  - |
+    HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_ID:-${CI_PIPELINE_IID}}"
+    BUILD_TAG="${CI_COMMIT_TAG:-${HARBOR_SEMVER_TAG}}"
+    API_VERSION="${BUILD_TAG}+${CI_COMMIT_SHORT_SHA}"
+
 # =============================================================================
 # Lint Stage
 # =============================================================================
@@ -590,7 +612,8 @@ test:binary:
   script:
     - apk add --no-cache git
     - mkdir -p bin
-    - go build -ldflags="-s -w -X main.version=${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" -o bin/fi-fhir ./cmd/fi-fhir
+    - *build-identity
+    - go build -ldflags="-s -w -X main.version=${API_VERSION}" -o bin/fi-fhir ./cmd/fi-fhir
     - ./bin/fi-fhir version
   artifacts:
     paths:
@@ -1799,9 +1822,9 @@ build:binary:
       optional: true
   script:
     - apk add --no-cache git
+    - *build-identity
     - |
-      VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
-      go build -ldflags="-s -w -X main.version=${VERSION}" -o bin/fi-fhir ./cmd/fi-fhir
+      go build -ldflags="-s -w -X main.version=${API_VERSION}" -o bin/fi-fhir ./cmd/fi-fhir
     - ./bin/fi-fhir version
   artifacts:
     paths:
@@ -1849,12 +1872,13 @@ build:docker:
       else
         IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
       fi
+    - *build-identity
     - |
       docker build \
         --pull \
         --network=host \
         --build-arg GO_IMAGE="${DOCKERHUB_CACHE_PREFIX}/library/golang:${GO_VERSION}-alpine" \
-        --build-arg VERSION="${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}" \
+        --build-arg VERSION="${API_VERSION}" \
         -t "${IMAGE_TAG}" \
         .
     - docker save "${IMAGE_TAG}" > docker-image.tar
@@ -1903,8 +1927,8 @@ build:docker-ui:
       else
         IMAGE_TAG="${IMAGE_BASE}:${CI_COMMIT_SHORT_SHA}"
       fi
+    - *build-identity
     - |
-      BUILD_TAG="v0.1.${CI_PIPELINE_IID}"
       docker build \
         --pull \
         --network=host \
@@ -2000,6 +2024,7 @@ deploy:docker:
 
       export HARBOR_REGISTRY="${harbor_registry_push}"
   script:
+    - *build-identity
     - |
       published=0
 
@@ -2024,7 +2049,6 @@ deploy:docker:
         HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
         HARBOR_PROJECT="${HARBOR_PROJECT:-library}"
         HARBOR_IMAGE="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/fi-fhir"
-        HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_ID:-${CI_PIPELINE_IID}}"
         echo "Publishing fi-fhir to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         harbor_ok=0
         crane_retry() {
@@ -2140,6 +2164,7 @@ deploy:docker-ui:
 
       export HARBOR_REGISTRY="${harbor_registry_push}"
   script:
+    - *build-identity
     - |
       published=0
 
@@ -2164,7 +2189,6 @@ deploy:docker-ui:
         HARBOR_REGISTRY="${HARBOR_REGISTRY:-registry.harbor.lan}"
         HARBOR_PROJECT="${HARBOR_PROJECT:-library}"
         HARBOR_IMAGE="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/fi-fhir-ui"
-        HARBOR_SEMVER_TAG="v0.1.${CI_PIPELINE_ID:-${CI_PIPELINE_IID}}"
         echo "Publishing fi-fhir-ui to Harbor: ${HARBOR_IMAGE}:${HARBOR_SEMVER_TAG}"
         harbor_ok=0
         crane_retry() {
