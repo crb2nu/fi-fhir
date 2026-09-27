@@ -60,6 +60,9 @@ type previewRuntime struct {
 	ingressHandler   http.Handler
 	mllpServer       *mllp.Server
 	mllpRateQuota    *mllp.QuotaCoordinator
+	// connectionIntake taps the MLLP and HTTP admission processors for
+	// .loom/38 C-2 sample capture; runServe binds it (connection_intake_runtime.go).
+	connectionIntake *connectionIntakeRuntime
 	batchRunner      *integrationbatch.Runner
 	batchProvider    integrationbatch.Provider
 	deliveryWorker   *integrationdelivery.Dispatcher
@@ -180,6 +183,9 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if operatorControlPlaneEnabled && !allowProductionIngress {
 		return nil, fmt.Errorf("FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED is available only with serve")
 	}
+	// .loom/38 C-2: decided before the listener and the ingress service are
+	// built, so their processors can be tapped where they are constructed.
+	connectionIntake := newConnectionIntakeRuntime(sessionWorkspaceEnabled)
 
 	var (
 		ingressAuthenticator integrationingress.RequestAuthenticator
@@ -247,7 +253,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			ingressHandler, err = newHTTPIngressHandler(
 				tenantID,
 				staticRegistry,
-				messageProcessor,
+				connectionIntake.tapIngress(messageProcessor),
 				ingressAuthenticator,
 				maxBodyBytes,
 			)
@@ -306,7 +312,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			mllpServer, err = mllp.NewServer(mllp.ServerConfig{
 				Service: mllp.ServiceConfig{
 					TenantID: tenantID, DefinitionID: mllpDefinitionID, PrincipalID: mllpPrincipalID,
-					Source: mllpSource, Resolver: catalog, Processor: mllpProcessor,
+					Source: mllpSource, Resolver: catalog, Processor: connectionIntake.tapMLLP(mllpProcessor),
 					RateQuota: mllpRateQuota,
 				},
 				TLSMaterial: mllpTLSMaterial,
@@ -381,6 +387,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		ingressHandler:   ingressHandler,
 		mllpServer:       mllpServer,
 		mllpRateQuota:    mllpRateQuota,
+		connectionIntake: connectionIntake,
 		batchRunner:      batchRunner,
 		batchProvider:    batchProvider,
 		deliveryWorker:   deliveryWorker,
@@ -692,7 +699,7 @@ func rejectHTTPIngressConfiguredEnv(mode integrationingress.AuthMode, names ...s
 func newHTTPIngressHandler(
 	tenantID string,
 	staticRegistry *registry.StaticRegistry,
-	messageProcessor *processor.MessageProcessor,
+	messageProcessor integrationingress.Processor,
 	authenticator integrationingress.RequestAuthenticator,
 	maxBodyBytes int64,
 ) (http.Handler, error) {

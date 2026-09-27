@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"unicode"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
@@ -33,6 +34,9 @@ type Service struct {
 	catalog  DefinitionCatalog
 	runtime  *RuntimeDescription
 	tenantID string
+	// intake is Lane C-2's sample intake (capture.go, peek.go); nil until
+	// EnableSampleIntake, and every intake method refuses until then.
+	intake atomic.Pointer[sampleIntake]
 }
 
 // NewService binds the catalog to one deployment tenant. catalog and runtime

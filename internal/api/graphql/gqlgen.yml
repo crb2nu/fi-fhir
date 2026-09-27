@@ -181,6 +181,11 @@ models:
   SessionSample:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SessionSample
+    fields:
+      # .loom/38 C-2 review C1: captured text is gated per field on
+      # integration.operator, not on the legacy role that gates session reads.
+      redactedPayload:
+        resolver: true
   SessionArtifact:
     model:
       - gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model.SessionArtifact

@@ -356,6 +356,9 @@ func (s *PostgresStore) AddSample(ctx context.Context, sessionID string, req Add
 	if strings.TrimSpace(req.Name) == "" || req.Format == "" {
 		return nil, fmt.Errorf("%w: sample name and format are required", ErrInvalid)
 	}
+	if req.ID != "" && !validSampleID(req.ID) {
+		return nil, fmt.Errorf("%w: sample id is not a sample identifier", ErrInvalid)
+	}
 	if _, err := s.GetSession(ctx, sessionID); err != nil {
 		return nil, err
 	}
@@ -363,13 +366,32 @@ func (s *PostgresStore) AddSample(ctx context.Context, sessionID string, req Add
 	if policy == "" {
 		policy = PHIPolicyRedact
 	}
-	sampleID := newID("sample")
+	if err := validateSampleRedaction(req.Redaction, policy); err != nil {
+		return nil, err
+	}
+	sampleID := req.ID
+	if sampleID == "" {
+		sampleID = newID("sample")
+	}
 	raw := req.Raw
 	redacted := false
 	var cipher []byte
 	if policy == PHIPolicyRedact {
-		raw = redactSample(req.Format, raw)
+		var err error
+		if raw, err = redactSampleWith(req.Redaction, req.Format, raw); err != nil {
+			return nil, err
+		}
 		redacted = raw != req.Raw
+		// Captured text is still PHI, so with a retention key it is sealed
+		// at rest exactly as retained raw is, under the same AAD; the record
+		// then carries no text. Without a key it is stored as pasted samples
+		// are.
+		if sealsCapturedText(policy, req.Redaction, s.protector) {
+			cipher, err = s.protector.Protect(ctx, []byte(raw), s.sampleAAD(sessionID, sampleID))
+			if err != nil {
+				return nil, fmt.Errorf("protect captured sample: %w", err)
+			}
+		}
 	} else if policy == PHIPolicyRetain {
 		if s.protector == nil {
 			return nil, fmt.Errorf("%w: raw retention protector is required", ErrInvalid)
@@ -387,23 +409,40 @@ func (s *PostgresStore) AddSample(ctx context.Context, sessionID string, req Add
 	record := &Sample{
 		ID: sampleID, SessionID: sessionID, Name: strings.TrimSpace(req.Name),
 		Format: req.Format, Source: req.Source, Raw: raw, PHIPolicy: policy,
-		PHIRedacted: redacted, CreatedAt: now, UpdatedAt: now,
+		PHIRedacted: redacted, Redaction: req.Redaction, CreatedAt: now, UpdatedAt: now,
 	}
 	stored := *record
-	if stored.PHIPolicy == PHIPolicyRetain {
+	if stored.PHIPolicy == PHIPolicyRetain || len(cipher) > 0 {
 		stored.Raw = ""
 	}
 	encoded, err := encodeRecord(stored)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.db.ExecContext(ctx, `
+	insert := `
 		INSERT INTO integration_session_samples
 			(tenant_id, session_id, sample_id, created_at, record_json, raw_cipher)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, s.tenantID, sessionID, record.ID, record.CreatedAt, encoded, nullableBytes(cipher))
+		VALUES ($1, $2, $3, $4, $5, $6)`
+	if req.ID != "" {
+		insert += ` ON CONFLICT (tenant_id, sample_id) DO NOTHING`
+	}
+	result, err := s.db.ExecContext(ctx, insert, s.tenantID, sessionID, record.ID, record.CreatedAt, encoded, nullableBytes(cipher))
 	if err != nil {
 		return nil, fmt.Errorf("create session sample: %w", err)
+	}
+	if req.ID != "" {
+		inserted, err := result.RowsAffected()
+		if err != nil {
+			return nil, fmt.Errorf("create session sample: %w", err)
+		}
+		if inserted == 0 {
+			// The caller-named ID already names a sample: the first write won.
+			existing, err := s.GetSample(ctx, sessionID, record.ID)
+			if errors.Is(err, ErrNotFound) {
+				return nil, fmt.Errorf("%w: sample id belongs to another session", ErrInvalid)
+			}
+			return existing, err
+		}
 	}
 	if policy == PHIPolicyRetain {
 		record.Raw = req.Raw
@@ -465,6 +504,17 @@ func (s *PostgresStore) decodeSample(ctx context.Context, raw, cipher []byte, se
 		plaintext, err := s.protector.Unprotect(ctx, cipher, s.sampleAAD(record.SessionID, record.ID))
 		if err != nil {
 			return nil, fmt.Errorf("unprotect retained sample: %w", err)
+		}
+		record.Raw = string(plaintext)
+	} else if record.Redaction == SampleRedactionCapture && len(cipher) > 0 {
+		// Captured text sealed at write (sealsCapturedText). A store without
+		// the key cannot open it, exactly as it cannot open retained raw.
+		if s.protector == nil {
+			return nil, ErrImmutable
+		}
+		plaintext, err := s.protector.Unprotect(ctx, cipher, s.sampleAAD(record.SessionID, record.ID))
+		if err != nil {
+			return nil, fmt.Errorf("unprotect captured sample: %w", err)
 		}
 		record.Raw = string(plaintext)
 	}
@@ -953,8 +1003,9 @@ func (s *PostgresStore) ExportBundle(ctx context.Context, req ExportRequest) (*E
 	// Retained-policy raw stays stripped unconditionally. Slice 4.1d C1 does not
 	// lift that: req.IncludeRawPayload governs only the redacted raw the GraphQL
 	// layer returns, and is recorded here so the disclosure is auditable.
+	// Captured text is stripped the same way (strippedFromExport).
 	for index := range samples {
-		if samples[index].PHIPolicy == PHIPolicyRetain {
+		if strippedFromExport(samples[index]) {
 			samples[index].Raw = ""
 		}
 	}

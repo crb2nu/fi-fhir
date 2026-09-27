@@ -23,11 +23,14 @@ const connectionMigrationLockKey = int64(5064657639792058909)
 // SchemaVersion is the connection ledger version this binary expects. It is
 // the seventh ledger `fi-fhir version` and fi_fhir_schema_ledger_version
 // report; the migrationcompat proof asserts it equals the highest version
-// actually applied.
-const SchemaVersion = 1
+// actually applied. Version 2 is Lane C-2's capture intake columns.
+const SchemaVersion = 2
 
 //go:embed migrations/0001_connection_catalog.sql
 var connectionCatalogMigration string
+
+//go:embed migrations/0002_connection_capture_intake.sql
+var connectionCaptureIntakeMigration string
 
 // connectionMigration is one numbered step in this package's own forward-only
 // ledger, integration_connection_schema_migrations.
@@ -42,6 +45,7 @@ type connectionMigration struct {
 func connectionMigrations() []connectionMigration {
 	return []connectionMigration{
 		{version: 1, name: "0001_connection_catalog", statements: connectionCatalogMigration},
+		{version: 2, name: "0002_connection_capture_intake", statements: connectionCaptureIntakeMigration},
 	}
 }
 

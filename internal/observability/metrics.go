@@ -156,6 +156,39 @@ func KnownRetentionClass(value string) bool {
 	return ok
 }
 
+// Connection sample intake (.loom/38 C-2). CaptureMode* are the only values of
+// the `mode` label and CaptureTapError* the only values of the `reason` label;
+// they mirror internal/integration/connection's CaptureMode and TapFailure,
+// which cmd/ pins equal, because this package imports no integration package.
+const (
+	CaptureModePeek   = "peek"
+	CaptureModeStream = "stream"
+
+	CaptureTapErrorLedger       = "ledger"
+	CaptureTapErrorSessionStore = "session_store"
+	CaptureTapErrorRefresh      = "refresh"
+	CaptureTapErrorPanic        = "panic"
+)
+
+var allCaptureModes = map[string]struct{}{CaptureModePeek: {}, CaptureModeStream: {}}
+
+var allCaptureTapErrors = map[string]struct{}{
+	CaptureTapErrorLedger: {}, CaptureTapErrorSessionStore: {}, CaptureTapErrorRefresh: {}, CaptureTapErrorPanic: {},
+}
+
+// KnownCaptureMode reports whether a `mode` label value is in the allowlist.
+func KnownCaptureMode(value string) bool {
+	_, ok := allCaptureModes[value]
+	return ok
+}
+
+// KnownCaptureTapError reports whether a `reason` label value is in the
+// allowlist.
+func KnownCaptureTapError(value string) bool {
+	_, ok := allCaptureTapErrors[value]
+	return ok
+}
+
 // Metrics owns the one Prometheus registry the serve process exposes.
 //
 // It deliberately does not reuse internal/workflow's Prometheus adapter: that
@@ -184,6 +217,8 @@ type Metrics struct {
 	retentionPurges        *prometheus.CounterVec
 	retentionRecordsPurged *prometheus.CounterVec
 	retentionBacklog       *prometheus.GaugeVec
+	captureMessages        *prometheus.CounterVec
+	captureTapErrors       *prometheus.CounterVec
 
 	mu sync.Mutex
 }
@@ -266,6 +301,15 @@ func NewMetrics(version string) *Metrics {
 			Name: "fi_fhir_retention_backlog_records",
 			Help: "Records past their retention deadline and not yet purged, by record class.",
 		}, []string{"record_class"}),
+		captureMessages: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fi_fhir_connection_capture_messages_total",
+			Help: "Messages a batch peek or a stream capture added to an Integration Session, by mode.",
+		}, []string{"mode"}),
+		captureTapErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fi_fhir_connection_capture_tap_errors_total",
+			Help: "Failures the capture tap and its armed-capture cache swallowed, by reason. " +
+				"None of them changed an admission result, an ACK, or a receipt.",
+		}, []string{"reason"}),
 	}
 
 	registry.MustRegister(
@@ -274,6 +318,7 @@ func NewMetrics(version string) *Metrics {
 		m.mllpRateClaims,
 		m.sessionStreamEvents, m.autorouteSweeps, m.autorouteExpired, m.autorouteNotifications,
 		m.retentionPurges, m.retentionRecordsPurged, m.retentionBacklog,
+		m.captureMessages, m.captureTapErrors,
 	)
 	m.buildInfo.WithLabelValues(version).Set(1)
 	return m
@@ -419,6 +464,24 @@ func (m *Metrics) SetRetentionBacklog(recordClass string, records int64) {
 		return
 	}
 	m.retentionBacklog.WithLabelValues(recordClass).Set(float64(records))
+}
+
+// RecordConnectionCaptureMessages counts messages a peek or a capture added to
+// a session. An unknown mode is dropped rather than emitted.
+func (m *Metrics) RecordConnectionCaptureMessages(mode string, messages int) {
+	if m == nil || m.captureMessages == nil || messages <= 0 || !KnownCaptureMode(mode) {
+		return
+	}
+	m.captureMessages.WithLabelValues(mode).Add(float64(messages))
+}
+
+// RecordConnectionCaptureTapError counts one failure the capture tap or its
+// cache swallowed. An unknown reason is dropped rather than emitted.
+func (m *Metrics) RecordConnectionCaptureTapError(reason string) {
+	if m == nil || m.captureTapErrors == nil || !KnownCaptureTapError(reason) {
+		return
+	}
+	m.captureTapErrors.WithLabelValues(reason).Inc()
 }
 
 func inc(m *Metrics, vec *prometheus.CounterVec, outcome Outcome) {

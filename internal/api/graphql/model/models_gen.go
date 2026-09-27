@@ -58,6 +58,26 @@ type AutorouteTrace struct {
 	TotalDurationMs int             `json:"totalDurationMs"`
 }
 
+// One object under a batch source's input prefix or directory.
+type BatchPeekObject struct {
+	Path string `json:"path"`
+	Size int    `json:"size"`
+	// The provider's exact version: an S3 version ID, or an SFTP change stamp.
+	Version string `json:"version"`
+	// The provider's modification time. Advisory: never a trust input.
+	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
+}
+
+type BatchPeekResult struct {
+	// At most maxObjects objects, in the provider's listing order.
+	Objects []BatchPeekObject `json:"objects"`
+	// The samples this peek added to the session; empty without objectPath.
+	Samples []SessionSample `json:"samples"`
+	// The peek's audit row, finished.
+	Capture  *ConnectionCapture  `json:"capture"`
+	Problems []ConnectionProblem `json:"problems"`
+}
+
 type BulkApproveInput struct {
 	MinConfidence *float64 `json:"minConfidence,omitempty"`
 	MaxCount      *int     `json:"maxCount,omitempty"`
@@ -122,6 +142,33 @@ type Connection struct {
 	UpdatedBy     *OperatorPrincipal      `json:"updatedBy"`
 	UpdatedReason string                  `json:"updatedReason"`
 	UpdatedAt     time.Time               `json:"updatedAt"`
+}
+
+// One audited peek or stream capture.
+type ConnectionCapture struct {
+	ID        string `json:"id"`
+	SessionID string `json:"sessionId"`
+	// The runtime source ID a stream capture taps, or the peeked revision's source_id.
+	SourceID string `json:"sourceId"`
+	// The catalog connection a peek read; null for a stream capture, which names a runtime source.
+	ConnectionID *string                 `json:"connectionId,omitempty"`
+	Mode         ConnectionCaptureMode   `json:"mode"`
+	Status       ConnectionCaptureStatus `json:"status"`
+	// Messages that reached the session.
+	Captured    int `json:"captured"`
+	MaxMessages int `json:"maxMessages"`
+	// When an armed capture stops by itself; a peek's own deadline.
+	ExpiresAt   time.Time          `json:"expiresAt"`
+	RequestedBy *OperatorPrincipal `json:"requestedBy"`
+	Reason      string             `json:"reason"`
+	RequestedAt time.Time          `json:"requestedAt"`
+	// Null while armed.
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	// Why it finished as it did: SECRET_UNRESOLVABLE (path is the spec field naming
+	// the binding), SOURCE_UNAVAILABLE, OBJECT_NOT_FOUND, MESSAGE_UNREADABLE, or
+	// SAMPLE_WRITE_FAILED (path is the input field, or empty). Empty when it did all
+	// it was asked.
+	Problems []ConnectionProblem `json:"problems"`
 }
 
 type ConnectionCommandInput struct {
@@ -844,6 +891,20 @@ type PagingInput struct {
 	Offset *int `json:"offset,omitempty"`
 }
 
+type PeekBatchConnectionInput struct {
+	// A catalog batch_s3 or batch_sftp connection with a compiled revision.
+	ConnectionID string `json:"connectionId"`
+	// An active session.
+	SessionID string `json:"sessionId"`
+	// An object path from a previous listing. Without it the peek lists and reads nothing.
+	ObjectPath *string `json:"objectPath,omitempty"`
+	// 1-50; 10 when omitted.
+	MaxObjects *int `json:"maxObjects,omitempty"`
+	// 1-50; 5 when omitted.
+	MaxMessages *int   `json:"maxMessages,omitempty"`
+	Reason      string `json:"reason"`
+}
+
 type PendingAutoroute struct {
 	ID               string                 `json:"id"`
 	SourceSystem     string                 `json:"sourceSystem"`
@@ -1097,6 +1158,18 @@ type SourceProfile struct {
 	Hl7v2       *HL7v2Config       `json:"hl7v2,omitempty"`
 	Identifiers *IdentifierConfig  `json:"identifiers,omitempty"`
 	Terminology *TerminologyConfig `json:"terminology,omitempty"`
+}
+
+type StartConnectionCaptureInput struct {
+	// The runtime source ID frames are admitted under (engineRuntime.adapters.sourceId).
+	SourceID string `json:"sourceId"`
+	// An active session.
+	SessionID string `json:"sessionId"`
+	// 1-100; 5 when omitted.
+	MaxMessages *int `json:"maxMessages,omitempty"`
+	// 1-900; 300 when omitted.
+	TTLSeconds *int   `json:"ttlSeconds,omitempty"`
+	Reason     string `json:"reason"`
 }
 
 type StartTerminologyReviewInput struct {
@@ -1454,6 +1527,122 @@ func (e *AutorouteDecision) UnmarshalJSON(b []byte) error {
 }
 
 func (e AutorouteDecision) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ConnectionCaptureMode string
+
+const (
+	ConnectionCaptureModePeek   ConnectionCaptureMode = "PEEK"
+	ConnectionCaptureModeStream ConnectionCaptureMode = "STREAM"
+)
+
+var AllConnectionCaptureMode = []ConnectionCaptureMode{
+	ConnectionCaptureModePeek,
+	ConnectionCaptureModeStream,
+}
+
+func (e ConnectionCaptureMode) IsValid() bool {
+	switch e {
+	case ConnectionCaptureModePeek, ConnectionCaptureModeStream:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionCaptureMode) String() string {
+	return string(e)
+}
+
+func (e *ConnectionCaptureMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionCaptureMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionCaptureMode", str)
+	}
+	return nil
+}
+
+func (e ConnectionCaptureMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionCaptureMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionCaptureMode) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ConnectionCaptureStatus string
+
+const (
+	ConnectionCaptureStatusArmed     ConnectionCaptureStatus = "ARMED"
+	ConnectionCaptureStatusComplete  ConnectionCaptureStatus = "COMPLETE"
+	ConnectionCaptureStatusExpired   ConnectionCaptureStatus = "EXPIRED"
+	ConnectionCaptureStatusCancelled ConnectionCaptureStatus = "CANCELLED"
+	ConnectionCaptureStatusFailed    ConnectionCaptureStatus = "FAILED"
+)
+
+var AllConnectionCaptureStatus = []ConnectionCaptureStatus{
+	ConnectionCaptureStatusArmed,
+	ConnectionCaptureStatusComplete,
+	ConnectionCaptureStatusExpired,
+	ConnectionCaptureStatusCancelled,
+	ConnectionCaptureStatusFailed,
+}
+
+func (e ConnectionCaptureStatus) IsValid() bool {
+	switch e {
+	case ConnectionCaptureStatusArmed, ConnectionCaptureStatusComplete, ConnectionCaptureStatusExpired, ConnectionCaptureStatusCancelled, ConnectionCaptureStatusFailed:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionCaptureStatus) String() string {
+	return string(e)
+}
+
+func (e *ConnectionCaptureStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionCaptureStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionCaptureStatus", str)
+	}
+	return nil
+}
+
+func (e ConnectionCaptureStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionCaptureStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionCaptureStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
