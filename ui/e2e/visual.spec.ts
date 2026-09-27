@@ -164,6 +164,58 @@ const CAPTURES: Capture[] = [
       await expect(palette).toBeVisible();
       await expect(palette.getByRole('textbox', { name: 'Search commands' })).toBeFocused();
     }
+  },
+  {
+    id: 'V12',
+    name: 'connections-sources',
+    reach: async (page) => {
+      await openIDE(page, '/connections');
+      const view = page.getByRole('tabpanel', { name: 'Sources' });
+      const table = view.getByTestId('connections-table');
+      await expectOneOf(
+        table,
+        view.getByText('No source connections are defined.'),
+        view.getByTestId('connections-preflight'),
+        view.getByRole('button', { name: 'Retry' })
+      );
+      // With a connection in the catalog (operator-bundle check 7 made one),
+      // open it: the details pane settles once its spec has been checked.
+      if (await table.isVisible()) {
+        await table.locator('tbody tr').first().click();
+        const status = page.getByTestId('connection-form').getByRole('status');
+        await expect(status).toBeVisible();
+        await expect(status).not.toHaveText('Checking the spec…');
+      }
+    }
+  },
+  {
+    id: 'V13',
+    name: 'connections-destinations',
+    reach: async (page) => {
+      await openIDE(page, '/connections');
+      await page.getByRole('tab', { name: 'Destinations', exact: true }).click();
+      const view = page.getByRole('tabpanel', { name: 'Destinations' });
+      await expectOneOf(
+        view.getByTestId('connections-table'),
+        view.getByText('No destination connections are defined.'),
+        view.getByTestId('connections-preflight'),
+        view.getByRole('button', { name: 'Retry' })
+      );
+    }
+  },
+  {
+    id: 'V14',
+    name: 'connections-engine',
+    reach: async (page) => {
+      await openIDE(page, '/connections');
+      await page.getByRole('tab', { name: 'Engine', exact: true }).click();
+      const view = page.getByRole('tabpanel', { name: 'Engine' });
+      await expectOneOf(
+        view.getByTestId('engine-properties'),
+        view.getByTestId('connections-preflight'),
+        view.getByRole('button', { name: 'Retry' })
+      );
+    }
   }
 ];
 

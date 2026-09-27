@@ -46,8 +46,33 @@ export interface AuthStatus {
     streaming: boolean;
     subscriptions: string[];
     llm: { configured: boolean };
+    /** The connection catalog (.loom/38 C-0). */
+    connectionsRead?: boolean;
+    connectionsWrite?: boolean;
+    controlPlane?: boolean;
+    connectionCatalog?: boolean;
   };
   missingRoles: Record<string, string[]>;
+}
+
+/**
+ * Runs one GraphQL operation through nginx — the path the browser takes, as
+ * the trusted network (no credential) — and returns its `data`, failing on
+ * any GraphQL error. For reading back what the UI wrote.
+ */
+export async function graphqlData<T>(
+  request: APIRequestContext,
+  query: string,
+  variables: Record<string, unknown> = {}
+): Promise<T> {
+  const response = await request.post('/graphql', {
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    data: { query, variables }
+  });
+  expect(response.status(), 'POST /graphql through nginx').toBe(200);
+  const body = (await response.json()) as { data?: T; errors?: unknown[] };
+  expect(body.errors ?? [], 'GraphQL answered without errors').toEqual([]);
+  return body.data as T;
 }
 
 /**
