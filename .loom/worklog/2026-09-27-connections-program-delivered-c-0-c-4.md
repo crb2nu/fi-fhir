@@ -15,7 +15,10 @@
     capture redactor and its 113-field table in `PHI-RETENTION.md`, the peek
     secret allow-list, two Prometheus counters, `test:connection-capture`
     (seven proofs).
-  - **C-3** (MR !245): **From connection…** in HL7 intake.
+  - **C-3** (MR !245, merge `b365f9511`): **From connection…** in HL7
+    intake — mounted and catalog sources with their state, capture rows polling
+    every 2.5 s while armed, audited batch list/read, preview by `sampleId`;
+    visual captures V15–V16, e2e checks 9, 10 and 6d.
   - **C-4** (MR !C4_IID): `docs/user-guide/connections.md`,
     `docs/operations/CONNECTION-CATALOG.md`, the lifecycle doc's exposure line,
     "seven ledgers" in `AGENTS.md`, `testing.md`, `PRODUCTION-HARDENING.md`

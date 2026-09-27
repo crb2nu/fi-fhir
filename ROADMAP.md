@@ -49,7 +49,7 @@ the replica's composition and sample intake from a live source into an
 Integration Session. Activation stays a GitOps rollout; whether the catalog
 should ever activate configuration is the open question in `.loom/39`.
 
-This update records repository state through merge `38d87a5aa` on 2026-09-26.
+This update records repository state through merge `b365f9511` on 2026-09-27.
 [Pipeline 29328](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29328)
 built and deployed the redesigned UI (`v0.1.29328`, merge `4480af9ab`);
 [Pipeline 29194](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29194)
@@ -360,8 +360,10 @@ against what the running replica mounted; it does not hot-load anything
   Problems only once it differs from the default (opening Workflows shows
   "Problems 3" for an untouched draft); the workflow builder's baseline hides
   divergence when `yamlToDraft` drops nested action config; `PID-3[0].1`
-  resolves empty for the built-in sample; the Health panel's UI build tag
-  uses `CI_PIPELINE_IID` while the image tag uses `CI_PIPELINE_ID`.
+  resolves empty for the built-in sample. (The Health panel's build-tag
+  mismatch closed in
+  [MR !238](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/238):
+  UI and API builds now carry the Harbor tag Flux deploys.)
 - [ ] **Budgets 2 and 3** — budget 2 needs a one-hour, two-replica run at the
   declared 250 msg/s (the single-process harness cannot certify it); budget 3
   needs a 1-GiB batch-import workload reading cgroup RSS on runner 8. The
@@ -491,8 +493,9 @@ against what the running replica mounted; it does not hot-load anything
   off the static registry (they load only from it today), which removes the
   two-truths hazard between the static registry and the lifecycle catalog.
 - [ ] **Configuration-plane execution spec** — turn
-  `.loom/39-brainstorm-config-plane-2026-09-27.md` into a `.loom/` execution
-  spec if chosen: the recommendation is a provisioned GitOps baseline plus a
+  `.loom/39-brainstorm-config-plane-2026-09-27.md`
+  ([MR !244](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/244))
+  into a `.loom/` execution spec if chosen: the recommendation is a provisioned GitOps baseline plus a
   catalog overlay for the hot-reloadable class, observed per replica, with
   operational verbs always in the database and listeners/TLS kept in GitOps
   (lanes: observed status, baseline import, catalog activation, promotion MR
@@ -502,6 +505,15 @@ against what the running replica mounted; it does not hot-load anything
   new digest within 5 s, and a revision whose digest the definition does not
   name is refused by `ValidateAgainst` with the observed digest unchanged.
   If it fails, the catalog stays authoring-only and activation stays a rollout.
+- [ ] **Public demo, portfolio links and docs coverage** — planned in
+  `.loom/40-public-demo-execution-specs.md`
+  ([MR !247](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/247)):
+  a WASM build of the slim preview kernel in the browser (size kill-test
+  passed; parity kill-test first), the flexinfer-site playground on the real
+  kernel, docs coverage of the new features with a docs-sync drift check, a
+  preview-only hosted demo with no database, and a hardening lane for the
+  workflow debugger's caller-supplied actions and `createFhirSubscription`'s
+  unrestricted egress.
 - [ ] 5.2 SMART Backend Services and Bulk Data 3.0.0; 5.3 extension and
   compatibility contract.
 - [ ] Phase 6 release evidence: budget 7 on Kubernetes 1.36, all six golden
