@@ -37,6 +37,7 @@
 .PHONY: event-backends
 .PHONY: fhir-official fhir-official-negative-control              # 5.1c   — S7-B
 .PHONY: ui-e2e                                                         # IDE repair — R-D
+.PHONY: connection-catalog                                             # .loom/38 — C-0
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -256,7 +257,7 @@ mllp-rate-quota:
 		./internal/integration/mllp
 
 # Slice 4.4a migration compatibility kill-test: concurrent replica startup
-# across all six forward-only ledgers, one-version rollback safety, and a
+# across all seven forward-only ledgers, one-version rollback safety, and a
 # pg_dump/restore round-trip that must preserve every durable row, every audit
 # immutability trigger, the NOT VALID provenance CHECK, and resumable delivery
 # work. Runs the two proofs AND their negative controls in one invocation: a
@@ -1207,3 +1208,17 @@ event-backends:
 #   UI_E2E_DOCKER_CONTEXT=other make ui-e2e          # another docker host
 ui-e2e:
 	NPM_VERSION=$(NPM_VERSION) bash ui/e2e/docker.sh $(UI_E2E_ARGS)
+
+# .loom/38 Lane C-0: the connection catalog's PostgreSQL proofs
+# (ci/test-connection-catalog.yml). Two replicas migrate the seventh ledger
+# concurrently; create -> stale update refused -> compile, and the stored bytes
+# decode with the kind's existing Decode function to the stored digest; a
+# lifecycle definition draft naming that digest appears in references; a
+# restart preserves every row; the schema refuses an UPDATE on a revision; a
+# spec carrying `token` is refused (SECRET_VALUE_FORBIDDEN); a cross-tenant read
+# is not found; a write without integration.deployment.operator is forbidden.
+# Requires POSTGRES_TEST_URL; every proof skips without it, which is why the CI
+# job asserts the names exist first.
+connection-catalog:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run 'TestConnectionCatalog_' ./internal/integration/connection/...

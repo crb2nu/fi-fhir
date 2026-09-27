@@ -36,26 +36,43 @@ func loadDeliveryDispatcherFromEnv(
 	ctx context.Context,
 	db *sql.DB,
 ) (*integrationdelivery.Dispatcher, integrationdestination.Mode, error) {
-	identity, err := loadDestinationIdentityFromEnv(ctx, db)
+	dispatcher, facts, err := loadDeliveryRuntimeFromEnv(ctx, db)
 	if err != nil {
 		return nil, "", err
 	}
-	dispatcher, err := buildDeliveryDispatcher(db, identity)
-	if err != nil {
-		return nil, "", err
-	}
-	if identity == nil {
-		return dispatcher, "", nil
-	}
-	return dispatcher, identity.mode, nil
+	return dispatcher, facts.identityMode, nil
 }
 
+// loadDeliveryRuntimeFromEnv is loadDeliveryDispatcherFromEnv that also
+// reports what it composed — the worker identity, the attempt budget, and the
+// loaded destination registry — for the engine runtime description.
+func loadDeliveryRuntimeFromEnv(
+	ctx context.Context,
+	db *sql.DB,
+) (*integrationdelivery.Dispatcher, deliveryFacts, error) {
+	identity, err := loadDestinationIdentityFromEnv(ctx, db)
+	if err != nil {
+		return nil, deliveryFacts{}, err
+	}
+	dispatcher, facts, err := buildDeliveryDispatcher(db, identity)
+	if err != nil {
+		return nil, deliveryFacts{}, err
+	}
+	if identity != nil {
+		facts.identityMode = identity.mode
+		facts.identity = identity.registry
+	}
+	return dispatcher, facts, nil
+}
+
+// buildDeliveryDispatcher composes the durable delivery worker and reports
+// the worker identity and attempt budget it composed with.
 func buildDeliveryDispatcher(
 	db *sql.DB,
 	identity *destinationIdentityRuntime,
-) (*integrationdelivery.Dispatcher, error) {
+) (*integrationdelivery.Dispatcher, deliveryFacts, error) {
 	if db == nil {
-		return nil, fmt.Errorf("delivery worker requires the PostgreSQL submission database")
+		return nil, deliveryFacts{}, fmt.Errorf("delivery worker requires the PostgreSQL submission database")
 	}
 	// The broker stays required even when every destination in the loaded
 	// registry declares transport: https. The registry is one server-owned file
@@ -65,50 +82,50 @@ func buildDeliveryDispatcher(
 	// dead letter. Recorded in `.loom/40-decisions.md` (2026-08-09) with a named
 	// follow-up, and documented in .env.example and DESTINATION-IDENTITY.md.
 	if os.Getenv("FI_FHIR_QUEUE_DRIVER") != "kafka" {
-		return nil, fmt.Errorf("delivery worker requires FI_FHIR_QUEUE_DRIVER=kafka")
+		return nil, deliveryFacts{}, fmt.Errorf("delivery worker requires FI_FHIR_QUEUE_DRIVER=kafka")
 	}
 	brokers, err := parseCSVConfig("FI_FHIR_QUEUE_BROKERS", os.Getenv("FI_FHIR_QUEUE_BROKERS"))
 	if err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	workerID := os.Getenv("FI_FHIR_DELIVERY_WORKER_ID")
 	if workerID == "" {
 		hostname, hostnameErr := os.Hostname()
 		if hostnameErr != nil || strings.TrimSpace(hostname) == "" {
-			return nil, fmt.Errorf("FI_FHIR_DELIVERY_WORKER_ID is required when hostname is unavailable")
+			return nil, deliveryFacts{}, fmt.Errorf("FI_FHIR_DELIVERY_WORKER_ID is required when hostname is unavailable")
 		}
 		workerID = fmt.Sprintf("%s-%d", hostname, os.Getpid())
 	}
 
 	workerConfig := integrationdelivery.DefaultConfig()
 	if err := applyDeliveryDurationEnv("FI_FHIR_DELIVERY_LEASE_DURATION", &workerConfig.LeaseDuration); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	if err := applyDeliveryDurationEnv("FI_FHIR_DELIVERY_POLL_INTERVAL", &workerConfig.PollInterval); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	if err := applyDeliveryDurationEnv("FI_FHIR_DELIVERY_PUBLISH_TIMEOUT", &workerConfig.PublishTimeout); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	if err := applyDeliveryDurationEnv("FI_FHIR_DELIVERY_RETRY_BASE_DELAY", &workerConfig.RetryBaseDelay); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	if err := applyDeliveryDurationEnv("FI_FHIR_DELIVERY_RETRY_MAX_DELAY", &workerConfig.RetryMaxDelay); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	if err := applyDeliveryDurationEnv("FI_FHIR_DELIVERY_CIRCUIT_OPEN_DURATION", &workerConfig.CircuitOpenDuration); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	if err := applyDeliveryIntEnv("FI_FHIR_DELIVERY_MAX_ATTEMPTS", &workerConfig.MaxAttempts); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	if err := applyDeliveryIntEnv("FI_FHIR_DELIVERY_CIRCUIT_FAILURE_THRESHOLD", &workerConfig.CircuitFailureThreshold); err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 
 	tlsEnabled, err := optionalBoolEnv("FI_FHIR_QUEUE_TLS")
 	if err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	kafkaConfig := integrationdelivery.KafkaConfig{
 		Brokers:         brokers,
@@ -125,27 +142,27 @@ func buildDeliveryDispatcher(
 			"Kafka password",
 		)
 		if err != nil {
-			return nil, err
+			return nil, deliveryFacts{}, err
 		}
 	} else if os.Getenv("FI_FHIR_QUEUE_PASSWORD") != "" || os.Getenv("FI_FHIR_QUEUE_PASSWORD_FILE") != "" {
-		return nil, fmt.Errorf("FI_FHIR_QUEUE_USERNAME is required with a Kafka password")
+		return nil, deliveryFacts{}, fmt.Errorf("FI_FHIR_QUEUE_USERNAME is required with a Kafka password")
 	}
 	if caPath := os.Getenv("FI_FHIR_QUEUE_TLS_ROOT_CA_FILE"); caPath != "" {
 		if !kafkaConfig.TLS {
-			return nil, fmt.Errorf("FI_FHIR_QUEUE_TLS_ROOT_CA_FILE requires FI_FHIR_QUEUE_TLS=true")
+			return nil, deliveryFacts{}, fmt.Errorf("FI_FHIR_QUEUE_TLS_ROOT_CA_FILE requires FI_FHIR_QUEUE_TLS=true")
 		}
 		kafkaConfig.RootCAPEM, err = loadBoundedKafkaCA(caPath)
 		if err != nil {
-			return nil, err
+			return nil, deliveryFacts{}, err
 		}
 	}
 	store, err := integrationdelivery.NewPostgresStore(db, nil)
 	if err != nil {
-		return nil, fmt.Errorf("configure delivery store: %w", err)
+		return nil, deliveryFacts{}, fmt.Errorf("configure delivery store: %w", err)
 	}
 	publisher, err := integrationdelivery.NewKafkaPublisher(kafkaConfig)
 	if err != nil {
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
 	var decider integrationdelivery.DestinationDecider
 	var transport integrationdelivery.DestinationTransport
@@ -154,7 +171,7 @@ func buildDeliveryDispatcher(
 		transport, err = buildDestinationTransport(identity)
 		if err != nil {
 			_ = publisher.Close()
-			return nil, err
+			return nil, deliveryFacts{}, err
 		}
 	}
 	dispatcher, err := integrationdelivery.NewDispatcherWithDestination(
@@ -162,9 +179,13 @@ func buildDeliveryDispatcher(
 	)
 	if err != nil {
 		_ = publisher.Close()
-		return nil, err
+		return nil, deliveryFacts{}, err
 	}
-	return dispatcher, nil
+	return dispatcher, deliveryFacts{
+		workerID:    workerID,
+		maxAttempts: workerConfig.MaxAttempts,
+		queueDriver: os.Getenv("FI_FHIR_QUEUE_DRIVER"),
+	}, nil
 }
 
 // buildDestinationTransport wires the destination transport when the deployed

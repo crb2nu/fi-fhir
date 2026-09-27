@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
@@ -49,6 +50,7 @@ func schemaLedgers() []schemaLedger {
 		{Name: observability.SchemaLedgerBatch, Version: batch.SchemaVersion},
 		{Name: observability.SchemaLedgerDestination, Version: destination.SchemaVersion},
 		{Name: observability.SchemaLedgerTerminology, Version: termdb.SchemaVersion},
+		{Name: observability.SchemaLedgerConnection, Version: connection.SchemaVersion},
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	graphqlstore "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
@@ -64,7 +65,7 @@ import (
 //
 // It is NOT the compatibility boundary. There are no git tags in this
 // repository, and a commit SHA says nothing about which database schema a
-// process can run against. `fi-fhir version` therefore also prints the six
+// process can run against. `fi-fhir version` therefore also prints the seven
 // migration ledger versions, which do — see schema_versions.go and
 // `.loom/40-decisions.md` (2026-08-09, "What one version means").
 var version = "0.0.0-dev"
@@ -4611,6 +4612,11 @@ func runServe(args []string) error {
 	// lifecycle catalog over the durable submission database. It is built once
 	// and only when that database exists, so both stay fail-closed otherwise.
 	var lifecycleCatalog *lifecycle.PostgresCatalog
+	// .loom/38 C-0: the connection catalog's ledger is migrated with the other
+	// control-plane ledgers; its service is built at the end of composition,
+	// once the engine runtime description it labels connections against exists.
+	var connectionStore *connection.PostgresStore
+	operatorControlPlaneConfigured := false
 	if securePreviewRuntime.submissionDB != nil {
 		lifecycleCatalog, err = lifecycle.NewPostgresCatalog(securePreviewRuntime.submissionDB, lifecycle.Config{})
 		if err != nil {
@@ -4646,9 +4652,17 @@ func runServe(args []string) error {
 			return fmt.Errorf("configure operator control plane: %w", err)
 		}
 		resolverOpts = append(resolverOpts, resolvers.WithOperatorControlPlane(operatorService))
+		operatorControlPlaneConfigured = true
 		serveLog.Info("operator control plane configured",
 			observability.F(observability.FieldComponent, "operator-control-plane"),
 			observability.F(observability.FieldDriver, "postgres"))
+		connectionStore, err = connection.NewPostgresStore(securePreviewRuntime.submissionDB, nil)
+		if err != nil {
+			return fmt.Errorf("configure connection catalog: %w", err)
+		}
+		if err := connectionStore.Migrate(context.Background()); err != nil {
+			return fmt.Errorf("migrate connection catalog: %w", err)
+		}
 	}
 	publicationCrypto, publicationConfigured, err := loadSessionPublicationCrypto()
 	if err != nil {
@@ -4754,7 +4768,7 @@ func runServe(args []string) error {
 	observabilityConfig := runtimeConfig.Observability
 	serveHealth := observability.NewHealth(version, 3*time.Second)
 	serveMetrics := observability.NewMetrics(version)
-	// Slice 4.4a: publish the six migration ledger versions this binary
+	// Slice 4.4a: publish the seven migration ledger versions this binary
 	// expects, so two replicas mid-rolling-upgrade are distinguishable in
 	// Prometheus. The build stamp cannot do that (there are no git tags, and a
 	// SHA says nothing about schema compatibility).
@@ -5031,6 +5045,41 @@ func runServe(args []string) error {
 		resolverOpts = append(resolverOpts, resolvers.WithHealthReporter(serveHealth))
 	}
 
+	// .loom/38 C-0: every adapter, the LLM client, and the retention purge are
+	// decided by now, so this is the one point that can describe what this
+	// replica composed. The resolver and the connection catalog share the
+	// same description; neither reads the environment itself.
+	engineRuntime, err := buildEngineRuntimeDescription(securePreviewRuntime, engineRuntimeFacts{
+		version:             version,
+		host:                host,
+		port:                port,
+		controlPlane:        operatorControlPlaneConfigured,
+		integrationSessions: securePreviewRuntime.sessionStore != nil,
+		streaming:           securePreviewRuntime.sessionStore != nil,
+		retentionPurge:      retentionPurger != nil,
+		llmConfigured:       llmConfigured,
+	})
+	if err != nil {
+		return fmt.Errorf("describe engine runtime: %w", err)
+	}
+	resolverOpts = append(resolverOpts, resolvers.WithEngineRuntime(engineRuntime))
+	connectionCatalogConfigured := false
+	if connectionStore != nil {
+		var definitions connection.DefinitionCatalog
+		if lifecycleCatalog != nil {
+			definitions = lifecycleCatalog
+		}
+		connectionService, err := connection.NewService(connectionStore, definitions, engineRuntime, securePreviewRuntime.tenantID)
+		if err != nil {
+			return fmt.Errorf("configure connection catalog: %w", err)
+		}
+		resolverOpts = append(resolverOpts, resolvers.WithConnectionCatalog(connectionService))
+		connectionCatalogConfigured = true
+		serveLog.Info("connection catalog configured",
+			observability.F(observability.FieldComponent, "connection-catalog"),
+			observability.F(observability.FieldDriver, "postgres"))
+	}
+
 	// Create resolver
 	resolver := resolvers.NewResolver(resolverOpts...)
 
@@ -5100,28 +5149,30 @@ func runServe(args []string) error {
 
 	// Create server config
 	serverConfig := &graphql.ServerConfig{
-		Host:                          host,
-		Port:                          port,
-		Path:                          path,
-		PlaygroundEnabled:             playground,
-		PlaygroundPath:                playgroundPath,
-		WebSocketPath:                 path + "/ws",
-		MaxDepth:                      maxDepth,
-		MaxComplexity:                 maxComplexity,
-		Timeout:                       timeout,
-		Introspection:                 introspection,
-		AllowedOrigins:                securePreviewRuntime.allowedOrigins,
-		MaxRequestBodyBytes:           graphqlRequestBodyLimit,
-		IntegrationSessionStreaming:   securePreviewRuntime.sessionStore != nil,
-		IntegrationSessionsConfigured: securePreviewRuntime.sessionStore != nil,
-		LLMConfigured:                 llmConfigured,
-		Authenticator:                 securePreviewRuntime.authenticator,
-		TrustedNetworkAuthenticator:   securePreviewRuntime.trustedNetwork,
-		CloudflareAccessAuthenticator: securePreviewRuntime.accessIdentity,
-		HL7IngressPath:                securePreviewRuntime.ingressPath,
-		HL7IngressHandler:             serveMetrics.IngressMiddleware(securePreviewRuntime.ingressHandler),
-		SoftwareVersion:               version,
-		Logger:                        serveLog,
+		Host:                           host,
+		Port:                           port,
+		Path:                           path,
+		PlaygroundEnabled:              playground,
+		PlaygroundPath:                 playgroundPath,
+		WebSocketPath:                  path + "/ws",
+		MaxDepth:                       maxDepth,
+		MaxComplexity:                  maxComplexity,
+		Timeout:                        timeout,
+		Introspection:                  introspection,
+		AllowedOrigins:                 securePreviewRuntime.allowedOrigins,
+		MaxRequestBodyBytes:            graphqlRequestBodyLimit,
+		IntegrationSessionStreaming:    securePreviewRuntime.sessionStore != nil,
+		IntegrationSessionsConfigured:  securePreviewRuntime.sessionStore != nil,
+		LLMConfigured:                  llmConfigured,
+		OperatorControlPlaneConfigured: operatorControlPlaneConfigured,
+		ConnectionCatalogConfigured:    connectionCatalogConfigured,
+		Authenticator:                  securePreviewRuntime.authenticator,
+		TrustedNetworkAuthenticator:    securePreviewRuntime.trustedNetwork,
+		CloudflareAccessAuthenticator:  securePreviewRuntime.accessIdentity,
+		HL7IngressPath:                 securePreviewRuntime.ingressPath,
+		HL7IngressHandler:              serveMetrics.IngressMiddleware(securePreviewRuntime.ingressHandler),
+		SoftwareVersion:                version,
+		Logger:                         serveLog,
 	}
 	if !observabilityMode.Legacy() {
 		serverConfig.Health = serveHealth
@@ -5398,8 +5449,9 @@ func llmConfigFromRuntime(runtime config.LLMConfig) llm.Config {
 	return cfg
 }
 
-func printServeUsage() {
-	fmt.Println(`fi-fhir serve - Start GraphQL API server
+// serveUsage is `serve --help`. The engine runtime's property allowlist is pinned to
+// exactly the environment keys it documents (TestServePropertiesAreExactlyTheDocumentedKeys).
+const serveUsage = `fi-fhir serve - Start GraphQL API server
 
 Start a GraphQL API server for healthcare event management. The server provides:
 - An authenticated, side-effect-free integration preview mutation
@@ -5566,5 +5618,8 @@ GraphQL Query Examples:
       }
       correlations { correlationId eventIds }
     }
-  }`)
+  }`
+
+func printServeUsage() {
+	fmt.Println(serveUsage)
 }

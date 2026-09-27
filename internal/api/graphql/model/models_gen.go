@@ -100,6 +100,118 @@ type CodeMappingConnection struct {
 	PageInfo   *PageInfo     `json:"pageInfo"`
 }
 
+type Connection struct {
+	// The connection's artifact ID; every compiled revision carries it.
+	ID          string              `json:"id"`
+	Direction   ConnectionDirection `json:"direction"`
+	Kind        ConnectionKind      `json:"kind"`
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	// The kind's spec: snake_case, non-secret, and possibly incomplete (compile reports what is missing).
+	Spec           map[string]any            `json:"spec"`
+	SecretBindings []ConnectionSecretBinding `json:"secretBindings"`
+	// Optimistic draft version, starting at 1. Every update and archive advances it; compile does not.
+	Version        int                 `json:"version"`
+	Archived       bool                `json:"archived"`
+	LatestRevision *ConnectionRevision `json:"latestRevision,omitempty"`
+	// Lifecycle definition revisions that name any revision of this connection.
+	References    []ConnectionReference   `json:"references"`
+	Runtime       *ConnectionRuntimeState `json:"runtime"`
+	CreatedBy     *OperatorPrincipal      `json:"createdBy"`
+	CreatedAt     time.Time               `json:"createdAt"`
+	UpdatedBy     *OperatorPrincipal      `json:"updatedBy"`
+	UpdatedReason string                  `json:"updatedReason"`
+	UpdatedAt     time.Time               `json:"updatedAt"`
+}
+
+type ConnectionCommandInput struct {
+	ID              string `json:"id"`
+	ExpectedVersion int    `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+}
+
+type ConnectionCompileResult struct {
+	Connection *Connection `json:"connection"`
+	// Null exactly when a blocking problem was found; nothing was written then.
+	Revision *ConnectionRevision `json:"revision,omitempty"`
+	Problems []ConnectionProblem `json:"problems"`
+}
+
+// One field-level finding. path is JSON dot form relative to the spec
+// (timeouts.read_seconds, s3.bucket, clients.allowed_cidrs[0]) or
+// secret_bindings[i].<field>; empty for the document as a whole. Every code but
+// UNUSED_BINDING blocks compile.
+type ConnectionProblem struct {
+	Code    string `json:"code"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
+}
+
+// One lifecycle definition revision that names a revision of this connection,
+// as its source or as one of its destinations.
+type ConnectionReference struct {
+	DefinitionID string `json:"definitionId"`
+	// The referencing definition's revision ID.
+	RevisionID string `json:"revisionId"`
+	// The digest of this connection's revision that the definition names.
+	Digest string `json:"digest"`
+	// The definition revision's lifecycle state (draft ... deployed, paused, retired).
+	State  string `json:"state"`
+	Health string `json:"health"`
+}
+
+type ConnectionRevision struct {
+	ArtifactID string `json:"artifactId"`
+	// Revision IDs are 1, 2, ... per connection.
+	RevisionID string              `json:"revisionId"`
+	Digest     string              `json:"digest"`
+	Direction  ConnectionDirection `json:"direction"`
+	Kind       ConnectionKind      `json:"kind"`
+	// The exact bytes serve mounts.
+	RevisionJSON string `json:"revisionJson"`
+	// The draft version this revision was compiled from.
+	CompiledFromVersion int                `json:"compiledFromVersion"`
+	CreatedBy           *OperatorPrincipal `json:"createdBy"`
+	CreatedReason       string             `json:"createdReason"`
+	CreatedAt           time.Time          `json:"createdAt"`
+}
+
+type ConnectionRuntimeState struct {
+	// True when this replica runs a revision of this connection.
+	Mounted bool `json:"mounted"`
+	// mllp-listener, batch-runner, http-ingress, or delivery-registry; null when not mounted.
+	Role *string `json:"role,omitempty"`
+	// Which revision is mounted, and by what; null when not mounted.
+	Detail *string `json:"detail,omitempty"`
+}
+
+// A reference to a secret: never its value.
+type ConnectionSecretBinding struct {
+	Name string `json:"name"`
+	// env, file, vault, aws-ssm, or k8s.
+	Provider string  `json:"provider"`
+	Key      string  `json:"key"`
+	Version  *string `json:"version,omitempty"`
+}
+
+type ConnectionSecretBindingInput struct {
+	Name     string  `json:"name"`
+	Provider string  `json:"provider"`
+	Key      string  `json:"key"`
+	Version  *string `json:"version,omitempty"`
+}
+
+type CreateConnectionInput struct {
+	ID             string                         `json:"id"`
+	Direction      ConnectionDirection            `json:"direction"`
+	Kind           ConnectionKind                 `json:"kind"`
+	Name           string                         `json:"name"`
+	Description    *string                        `json:"description,omitempty"`
+	Spec           map[string]any                 `json:"spec"`
+	SecretBindings []ConnectionSecretBindingInput `json:"secretBindings,omitempty"`
+	Reason         string                         `json:"reason"`
+}
+
 type CreateMappingInput struct {
 	SourceSystem  string              `json:"sourceSystem"`
 	SourceCode    string              `json:"sourceCode"`
@@ -141,6 +253,107 @@ type DataQualityScore struct {
 	Recommendations  []QualityRecommendation `json:"recommendations"`
 	ProcessingTimeMs *int                    `json:"processingTimeMs,omitempty"`
 	Model            *string                 `json:"model,omitempty"`
+}
+
+// One ingress or egress adapter. Every field but kind and enabled is null when
+// the adapter is disabled or the field does not apply to its kind.
+type EngineAdapter struct {
+	// http, mllp, batch, or delivery.
+	Kind                    string  `json:"kind"`
+	Enabled                 bool    `json:"enabled"`
+	DefinitionID            *string `json:"definitionId,omitempty"`
+	IntegrationID           *string `json:"integrationId,omitempty"`
+	SourceID                *string `json:"sourceId,omitempty"`
+	SourceRevisionID        *string `json:"sourceRevisionId,omitempty"`
+	SourceDigest            *string `json:"sourceDigest,omitempty"`
+	ListenAddress           *string `json:"listenAddress,omitempty"`
+	Path                    *string `json:"path,omitempty"`
+	AuthMode                *string `json:"authMode,omitempty"`
+	TLSMode                 *string `json:"tlsMode,omitempty"`
+	Provider                *string `json:"provider,omitempty"`
+	PollSeconds             *int    `json:"pollSeconds,omitempty"`
+	MaxConnections          *int    `json:"maxConnections,omitempty"`
+	MaxMessageBytes         *int    `json:"maxMessageBytes,omitempty"`
+	MaxBodyBytes            *int    `json:"maxBodyBytes,omitempty"`
+	RequireClientIdentity   *bool   `json:"requireClientIdentity,omitempty"`
+	RequireWorkloadIdentity *bool   `json:"requireWorkloadIdentity,omitempty"`
+	QueueDriver             *string `json:"queueDriver,omitempty"`
+	MaxAttempts             *int    `json:"maxAttempts,omitempty"`
+	WorkerID                *string `json:"workerId,omitempty"`
+}
+
+type EngineDestination struct {
+	ArtifactID string `json:"artifactId"`
+	RevisionID string `json:"revisionId"`
+	Digest     string `json:"digest"`
+	// kafka, https, or fhir.
+	Transport string `json:"transport"`
+	// production or sandbox.
+	Class string `json:"class"`
+	// Scheme, host, and path only; advisory, never a trust input.
+	EndpointAdvisory string `json:"endpointAdvisory"`
+}
+
+type EngineDestinationIdentity struct {
+	// strict or compatibility.
+	Mode         string              `json:"mode"`
+	Destinations []EngineDestination `json:"destinations"`
+}
+
+type EngineLedger struct {
+	Name    string `json:"name"`
+	Version int    `json:"version"`
+}
+
+type EngineProperty struct {
+	// The environment variable that sets it; change it in GitOps.
+	Key string `json:"key"`
+	// The value, the documented default, or "" when neither; set/unset when secret.
+	Value  string `json:"value"`
+	Secret bool   `json:"secret"`
+	// env or default.
+	Source string `json:"source"`
+}
+
+type EngineRegistry struct {
+	IntegrationCount int                         `json:"integrationCount"`
+	Integrations     []EngineRegistryIntegration `json:"integrations"`
+}
+
+type EngineRegistryIntegration struct {
+	IntegrationID string `json:"integrationId"`
+	DefinitionID  string `json:"definitionId"`
+	RevisionID    string `json:"revisionId"`
+	Digest        string `json:"digest"`
+	SourceID      string `json:"sourceId"`
+	Format        string `json:"format"`
+}
+
+// What this replica composed at startup: PHI-free and secret-free. Process
+// properties are an allowlist of the documented serve settings; a secret one
+// renders only as "set" or "unset".
+type EngineRuntime struct {
+	Version  string `json:"version"`
+	TenantID string `json:"tenantId"`
+	// hostname-pid, as the MLLP rate quota derives it.
+	ReplicaID string `json:"replicaId"`
+	// GraphQL authentication mode: static or oidc.
+	AuthMode            string          `json:"authMode"`
+	TrustedNetwork      bool            `json:"trustedNetwork"`
+	AccessIdentity      bool            `json:"accessIdentity"`
+	ControlPlane        bool            `json:"controlPlane"`
+	IntegrationSessions bool            `json:"integrationSessions"`
+	Streaming           bool            `json:"streaming"`
+	RetentionPurge      bool            `json:"retentionPurge"`
+	LlmConfigured       bool            `json:"llmConfigured"`
+	Registry            *EngineRegistry `json:"registry"`
+	// Exactly four rows, enabled or not: http, mllp, batch, delivery.
+	Adapters []EngineAdapter `json:"adapters"`
+	// Null when no delivery identity registry is loaded.
+	DestinationIdentity *EngineDestinationIdentity `json:"destinationIdentity,omitempty"`
+	// Every forward-only migration ledger and the version this binary expects.
+	Ledgers    []EngineLedger   `json:"ledgers"`
+	Properties []EngineProperty `json:"properties"`
 }
 
 type EventClassificationRule struct {
@@ -990,6 +1203,19 @@ type ToleranceConfigInput struct {
 	NonStandardDelimiters *bool    `json:"nonStandardDelimiters,omitempty"`
 }
 
+type UpdateConnectionInput struct {
+	ID string `json:"id"`
+	// Optimistic concurrency guard; a stale version is rejected, never retried.
+	ExpectedVersion int     `json:"expectedVersion"`
+	Name            *string `json:"name,omitempty"`
+	Description     *string `json:"description,omitempty"`
+	// Replaces the stored spec when present.
+	Spec map[string]any `json:"spec,omitempty"`
+	// Replaces the stored bindings when present, including with an empty list.
+	SecretBindings []ConnectionSecretBindingInput `json:"secretBindings,omitempty"`
+	Reason         string                         `json:"reason"`
+}
+
 type UpdateMappingInput struct {
 	ID            string              `json:"id"`
 	SourceDisplay *string             `json:"sourceDisplay,omitempty"`
@@ -1050,6 +1276,12 @@ type UploadValidationError struct {
 	Row     int     `json:"row"`
 	Column  *string `json:"column,omitempty"`
 	Message string  `json:"message"`
+}
+
+type ValidateConnectionSpecInput struct {
+	Kind           ConnectionKind                 `json:"kind"`
+	Spec           map[string]any                 `json:"spec"`
+	SecretBindings []ConnectionSecretBindingInput `json:"secretBindings,omitempty"`
 }
 
 type ValidationSettingsConfig struct {
@@ -1222,6 +1454,126 @@ func (e *AutorouteDecision) UnmarshalJSON(b []byte) error {
 }
 
 func (e AutorouteDecision) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ConnectionDirection string
+
+const (
+	ConnectionDirectionSource      ConnectionDirection = "SOURCE"
+	ConnectionDirectionDestination ConnectionDirection = "DESTINATION"
+)
+
+var AllConnectionDirection = []ConnectionDirection{
+	ConnectionDirectionSource,
+	ConnectionDirectionDestination,
+}
+
+func (e ConnectionDirection) IsValid() bool {
+	switch e {
+	case ConnectionDirectionSource, ConnectionDirectionDestination:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionDirection) String() string {
+	return string(e)
+}
+
+func (e *ConnectionDirection) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionDirection(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionDirection", str)
+	}
+	return nil
+}
+
+func (e ConnectionDirection) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionDirection) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionDirection) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type ConnectionKind string
+
+const (
+	ConnectionKindMllp      ConnectionKind = "MLLP"
+	ConnectionKindHTTP      ConnectionKind = "HTTP"
+	ConnectionKindBatchS3   ConnectionKind = "BATCH_S3"
+	ConnectionKindBatchSftp ConnectionKind = "BATCH_SFTP"
+	ConnectionKindHTTPS     ConnectionKind = "HTTPS"
+	ConnectionKindFhir      ConnectionKind = "FHIR"
+	ConnectionKindKafka     ConnectionKind = "KAFKA"
+)
+
+var AllConnectionKind = []ConnectionKind{
+	ConnectionKindMllp,
+	ConnectionKindHTTP,
+	ConnectionKindBatchS3,
+	ConnectionKindBatchSftp,
+	ConnectionKindHTTPS,
+	ConnectionKindFhir,
+	ConnectionKindKafka,
+}
+
+func (e ConnectionKind) IsValid() bool {
+	switch e {
+	case ConnectionKindMllp, ConnectionKindHTTP, ConnectionKindBatchS3, ConnectionKindBatchSftp, ConnectionKindHTTPS, ConnectionKindFhir, ConnectionKindKafka:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionKind) String() string {
+	return string(e)
+}
+
+func (e *ConnectionKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionKind", str)
+	}
+	return nil
+}
+
+func (e ConnectionKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

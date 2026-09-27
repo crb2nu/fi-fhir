@@ -66,6 +66,9 @@ type previewRuntime struct {
 	deliveryIdentity integrationdestination.Mode
 	submissionDB     *sql.DB
 	sessionStore     integrationsession.Store
+	// composition is what this replica mounted, recorded for the engine
+	// runtime description (engine_runtime.go). No credential, no PHI.
+	composition runtimeComposition
 }
 
 // replicaHolderID identifies this replica in the durable MLLP rate quota.
@@ -112,6 +115,10 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if err != nil {
 		return nil, err
 	}
+	// Already validated by loadGraphQLAuthenticationFromEnv; recorded for the
+	// engine runtime description.
+	graphQLAuthMode, _ := canonicalEnvOrDefault("FI_FHIR_GRAPHQL_AUTH_MODE", graphqlAuthModeStatic)
+	composition := runtimeComposition{graphQLAuthMode: graphQLAuthMode}
 
 	registryPath, err := requiredEnv("FI_FHIR_INTEGRATION_REGISTRY_PATH")
 	if err != nil {
@@ -132,6 +139,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 	if staticRegistry.DeploymentTenantID() != tenantID {
 		return nil, fmt.Errorf("integration registry tenant does not match deployment tenant")
 	}
+	composition.registry = staticRegistry
 	definitionResolver, err := processor.NewDefinitionRevisionResolver(tenantID, staticRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("configure definition resolver: %w", err)
@@ -197,6 +205,11 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		if err != nil {
 			return nil, err
 		}
+		// loadMLLPRuntimeFromEnv already refused a malformed value.
+		requireClientIdentity, _ := optionalBoolEnv("FI_FHIR_MLLP_REQUIRE_CLIENT_IDENTITY")
+		composition.mllp = &mllpFacts{
+			source: mllpSource, definitionID: mllpDefinitionID, requireClientIdentity: requireClientIdentity,
+		}
 	}
 	if productionHTTPEnabled || productionMLLPEnabled || productionBatchEnabled || productionDeliveryEnabled || sessionWorkspaceEnabled || operatorControlPlaneEnabled {
 		submissionDB, err = openSubmissionDatabaseFromEnv(ctx)
@@ -240,6 +253,11 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			)
 			if err != nil {
 				return nil, err
+			}
+			composition.http = &httpIngressFacts{
+				integrationID: ingressAuthenticator.IntegrationID(),
+				authMode:      ingressMode,
+				maxBodyBytes:  maxBodyBytes,
 			}
 		}
 
@@ -298,18 +316,23 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			}
 		}
 		if productionBatchEnabled {
-			batchRunner, batchProvider, err = loadBatchRuntimeFromEnv(
+			var batch batchFacts
+			batchRunner, batchProvider, batch, err = loadBatchRuntimeFromEnv(
 				ctx, tenantID, batchSourcePath, submissionDB, artifactResolver,
 			)
 			if err != nil {
 				return nil, err
 			}
+			composition.batch = &batch
 		}
 		if productionDeliveryEnabled {
-			deliveryWorker, deliveryIdentity, err = loadDeliveryDispatcherFromEnv(ctx, submissionDB)
+			var delivery deliveryFacts
+			deliveryWorker, delivery, err = loadDeliveryRuntimeFromEnv(ctx, submissionDB)
 			if err != nil {
 				return nil, err
 			}
+			deliveryIdentity = delivery.identityMode
+			composition.delivery = &delivery
 		}
 		if sessionWorkspaceEnabled {
 			protector, err := loadSessionRetentionProtector()
@@ -364,6 +387,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		deliveryIdentity: deliveryIdentity,
 		submissionDB:     submissionDB,
 		sessionStore:     sessionStore,
+		composition:      composition,
 	}, nil
 }
 

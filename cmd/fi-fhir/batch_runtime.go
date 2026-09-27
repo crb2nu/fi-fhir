@@ -13,47 +13,55 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 )
 
+// loadBatchRuntimeFromEnv builds the lifecycle-gated batch runner and reports
+// what it mounted for the engine runtime description.
 func loadBatchRuntimeFromEnv(
 	ctx context.Context,
 	tenantID string,
 	sourcePath string,
 	db *sql.DB,
 	artifactResolver *processor.RevisionResolver,
-) (*integrationbatch.Runner, integrationbatch.Provider, error) {
+) (*integrationbatch.Runner, integrationbatch.Provider, batchFacts, error) {
 	if ctx == nil || tenantID == "" || sourcePath == "" || db == nil || artifactResolver == nil {
-		return nil, nil, fmt.Errorf("configure batch runtime: invalid dependencies")
+		return nil, nil, batchFacts{}, fmt.Errorf("configure batch runtime: invalid dependencies")
 	}
 	file, err := os.Open(sourcePath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open batch source revision: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("open batch source revision: %w", err)
 	}
 	source, decodeErr := integrationbatch.DecodeSourceRevision(file)
 	closeErr := file.Close()
 	if decodeErr != nil {
-		return nil, nil, fmt.Errorf("load batch source revision: %w", decodeErr)
+		return nil, nil, batchFacts{}, fmt.Errorf("load batch source revision: %w", decodeErr)
 	}
 	if closeErr != nil {
-		return nil, nil, fmt.Errorf("close batch source revision: %w", closeErr)
+		return nil, nil, batchFacts{}, fmt.Errorf("close batch source revision: %w", closeErr)
 	}
 	if err := requireBatchWorkloadIdentity(source); err != nil {
-		return nil, nil, err
+		return nil, nil, batchFacts{}, err
 	}
+	// requireBatchWorkloadIdentity just refused a malformed value.
+	requireWorkloadIdentity, _ := optionalBoolEnv("FI_FHIR_BATCH_REQUIRE_WORKLOAD_IDENTITY")
 	definitionID, err := requiredEnv("FI_FHIR_BATCH_DEFINITION_ID")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, batchFacts{}, err
 	}
 	principalID, err := requiredEnv("FI_FHIR_BATCH_PRINCIPAL_ID")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, batchFacts{}, err
 	}
 	workerID, err := resolveBatchWorkerID(observability.ModeFromEnv())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, batchFacts{}, err
+	}
+	facts := batchFacts{
+		source: source, definitionID: definitionID, workerID: workerID,
+		requireWorkloadIdentity: requireWorkloadIdentity,
 	}
 
 	provider, err := loadBatchProviderFromEnv(source)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, batchFacts{}, err
 	}
 	closeProvider := true
 	defer func() {
@@ -64,31 +72,31 @@ func loadBatchRuntimeFromEnv(
 
 	catalog, err := lifecycle.NewPostgresCatalog(db, lifecycle.Config{})
 	if err != nil {
-		return nil, nil, fmt.Errorf("configure batch lifecycle catalog: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("configure batch lifecycle catalog: %w", err)
 	}
 	if err := catalog.Migrate(ctx); err != nil {
-		return nil, nil, fmt.Errorf("migrate batch lifecycle catalog: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("migrate batch lifecycle catalog: %w", err)
 	}
 	checkpointStore, err := integrationbatch.NewPostgresStore(db, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("configure batch checkpoint store: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("configure batch checkpoint store: %w", err)
 	}
 	if err := checkpointStore.Migrate(ctx); err != nil {
-		return nil, nil, fmt.Errorf("migrate batch checkpoint store: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("migrate batch checkpoint store: %w", err)
 	}
 	submissionStore, err := processor.NewPostgresSubmissionStore(db, processor.PostgresSubmissionConfig{
 		Authorize: catalog.AuthorizeRunnableSubmission,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("configure durable batch submission store: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("configure durable batch submission store: %w", err)
 	}
 	definitionResolver, err := processor.NewDefinitionRevisionResolver(tenantID, catalog)
 	if err != nil {
-		return nil, nil, fmt.Errorf("configure batch definition resolver: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("configure batch definition resolver: %w", err)
 	}
 	messageProcessor, err := processor.NewDurableMessageProcessor(definitionResolver, artifactResolver, submissionStore)
 	if err != nil {
-		return nil, nil, fmt.Errorf("configure durable batch message processor: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("configure durable batch message processor: %w", err)
 	}
 	runner, err := integrationbatch.NewRunner(integrationbatch.RunnerConfig{
 		TenantID: tenantID, DefinitionID: definitionID, PrincipalID: principalID,
@@ -96,10 +104,10 @@ func loadBatchRuntimeFromEnv(
 		Processor: messageProcessor, Store: checkpointStore, Provider: provider,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("configure batch ingestion runner: %w", err)
+		return nil, nil, batchFacts{}, fmt.Errorf("configure batch ingestion runner: %w", err)
 	}
 	closeProvider = false
-	return runner, provider, nil
+	return runner, provider, facts, nil
 }
 
 // requireBatchWorkloadIdentity enforces the deployment-owned switch that

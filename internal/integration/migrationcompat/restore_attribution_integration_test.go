@@ -83,6 +83,19 @@ func guardedMutations(fixture durableFixture) []guardedMutation {
 		{"delete a retention policy audit row",
 			`DELETE FROM integration_retention_policy_audit WHERE tenant_id = $1 AND policy_version = $2`,
 			[]any{compatTenantID, fixture.PolicyVersion}},
+
+		// .loom/38 C-0 connection catalog. The draft-delete targets the
+		// never-compiled draft, because a compiled one is also held by its
+		// revisions' foreign key and would stay refused with the guard gone.
+		{"rewrite a connection revision",
+			`UPDATE integration_connection_revisions SET revision_text = revision_text WHERE tenant_id = $1 AND artifact_id = $2`,
+			[]any{compatTenantID, fixture.ConnectionID}},
+		{"delete a connection draft",
+			`DELETE FROM integration_connection_drafts WHERE tenant_id = $1 AND artifact_id = $2`,
+			[]any{compatTenantID, fixture.GuardConnectionID}},
+		{"delete a connection capture",
+			`DELETE FROM integration_connection_captures WHERE tenant_id = $1 AND capture_id = $2`,
+			[]any{compatTenantID, fixture.CaptureID}},
 	}
 }
 

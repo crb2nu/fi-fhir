@@ -6,6 +6,7 @@ import (
 
 	"github.com/vektah/gqlparser/v2/ast"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 )
@@ -64,11 +65,13 @@ func TestTransportGateRoleMapIsExhaustive(t *testing.T) {
 // of the surface is still ungoverned.
 func TestTransportGateRoleMapShape(t *testing.T) {
 	total, fineGrained, compatibility := transportGatePolicySummary()
-	if total != 131 {
-		t.Errorf("mapped root fields = %d, want 131", total)
+	// .loom/38 C-0 added ten fine-grained root fields (the connection catalog
+	// and engineRuntime) and nothing to the compatibility bucket.
+	if total != 141 {
+		t.Errorf("mapped root fields = %d, want 141", total)
 	}
-	if fineGrained != 26 {
-		t.Errorf("fine-grained root fields = %d, want 26", fineGrained)
+	if fineGrained != 36 {
+		t.Errorf("fine-grained root fields = %d, want 36", fineGrained)
 	}
 	if compatibility != 105 {
 		t.Errorf("compatibility-bucket root fields = %d, want 105", compatibility)
@@ -112,6 +115,12 @@ func TestTransportGateRequirementsMatchTheServiceLayer(t *testing.T) {
 			"operatorAttemptAudit":     {operator.ReadRole},
 			"operatorDeployments":      {operator.ReadRole},
 			"operatorDeploymentEvents": {operator.ReadRole},
+			// connection.Service's read role and engineRuntime's resolver check.
+			"connections":         {connection.ReadRole},
+			"connection":          {connection.ReadRole},
+			"connectionRevisions": {connection.ReadRole},
+			"connectionRevision":  {connection.ReadRole},
+			"engineRuntime":       {connection.ReadRole},
 		},
 		ast.Mutation: {
 			"replayDelivery":              {operator.ReadRole, delivery.OperatorRole},
@@ -121,6 +130,12 @@ func TestTransportGateRequirementsMatchTheServiceLayer(t *testing.T) {
 			"resumeIntegrationDeployment": {operator.ReadRole, operator.DeploymentOperatorRole},
 			"retireIntegrationDeployment": {operator.ReadRole, operator.DeploymentOperatorRole},
 			"deployIntegrationRelease":    {operator.ReadRole, operator.DeploymentOperatorRole},
+			// connection.Service's write roles.
+			"createConnection":       {connection.ReadRole, connection.WriteRole},
+			"updateConnection":       {connection.ReadRole, connection.WriteRole},
+			"archiveConnection":      {connection.ReadRole, connection.WriteRole},
+			"compileConnection":      {connection.ReadRole, connection.WriteRole},
+			"validateConnectionSpec": {connection.ReadRole, connection.WriteRole},
 		},
 	}
 	for operation, fields := range expected {
