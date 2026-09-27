@@ -26,9 +26,10 @@ export default [
     }
   },
 
-  // Svelte files
+  // Svelte files, and rune modules (*.svelte.ts), which the Svelte parser
+  // hands to the TypeScript parser for their script.
   {
-    files: ['**/*.svelte'],
+    files: ['**/*.svelte', '**/*.svelte.ts'],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser

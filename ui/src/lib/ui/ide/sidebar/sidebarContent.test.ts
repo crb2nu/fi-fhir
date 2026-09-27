@@ -20,11 +20,21 @@ describe('sidebarContent', () => {
 
   it('keeps the copy register: no journey or marketing phrases', () => {
     const banned = /mission control|continue to|recommended move|next up|journey/i;
-    for (const view of ['/', '/hl7', '/profiles', '/terminology', '/workflows', '/events', '/operator']) {
+    for (const view of ['/', '/hl7', '/profiles', '/terminology', '/workflows', '/events', '/connections', '/operator']) {
       const context = getSidebarContext(view);
       const copy = [context.title, context.description, ...context.actions.flatMap((a) => [a.label, a.hint])];
       for (const text of copy) expect(text).not.toMatch(banned);
     }
+  });
+
+  it('gives Connections its own view outside the five stages', () => {
+    expect(getSidebarView('/connections')).toBe('connections');
+    const context = getSidebarContext('/connections');
+    expect(context.title).toBe('Connections');
+    expect(context.actions).toHaveLength(3);
+    // Off the stage routes, like Operator: no stage and no next stage.
+    expect(context.journey.stage).toBeNull();
+    expect(context.journey.nextStage).toBeNull();
   });
 
   it('returns the top-level navigation entries in route order', () => {
@@ -37,6 +47,7 @@ describe('sidebarContent', () => {
       '/terminology',
       '/workflows',
       '/events',
+      '/connections',
       '/operator',
     ]);
   });

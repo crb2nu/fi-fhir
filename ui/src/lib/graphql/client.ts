@@ -26,9 +26,37 @@ export function isErrorToasted(err: unknown): err is ToastedError {
   return err instanceof Error && TOASTED in err;
 }
 
+/** One entry of a GraphQL response's `errors`, as the server presented it. */
+export interface GraphQLResponseErrorEntry {
+  message?: string;
+  extensions?: Record<string, unknown>;
+}
+
 type GraphQLErrorResponse = {
-  errors?: Array<{ message?: string }>;
+  errors?: GraphQLResponseErrorEntry[];
 };
+
+/**
+ * The error `graphqlFetch` throws when the response carries GraphQL `errors`.
+ * Its message is the joined messages (unchanged for every existing caller);
+ * `errors` keeps each entry's `extensions`, which a few catalog-safe errors use
+ * to say which input field they refused (e.g. the connection catalog's
+ * `extensions.problems`).
+ */
+export class GraphQLResponseError extends Error {
+  readonly errors: readonly GraphQLResponseErrorEntry[];
+
+  constructor(message: string, errors: readonly GraphQLResponseErrorEntry[]) {
+    super(message);
+    this.name = 'GraphQLResponseError';
+    this.errors = errors;
+  }
+}
+
+/** The GraphQL error entries behind a thrown value, or [] when it is not one. */
+export function graphQLErrorEntries(err: unknown): readonly GraphQLResponseErrorEntry[] {
+  return err instanceof GraphQLResponseError ? err.errors : [];
+}
 
 export interface GraphQLFetchOptions {
   /** Show error toast on failure. Default: true */
@@ -84,7 +112,7 @@ export async function graphqlFetch<TData, TVars>(
     const json = (await res.json()) as { data?: TData } & GraphQLErrorResponse;
     if (json.errors?.length) {
       const msg = json.errors.map((e) => e.message ?? 'Unknown error').join('; ');
-      const error = new Error(msg);
+      const error = new GraphQLResponseError(msg, json.errors);
       if (showErrorToast) {
         toasts.error(msg);
         markToasted(error);

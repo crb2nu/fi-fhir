@@ -3,6 +3,10 @@ import { get } from 'svelte/store';
 import {
   accessCapabilities,
   capabilityOf,
+  connectionCatalogCapability,
+  connectionsReadCapability,
+  connectionsWriteCapability,
+  controlPlaneCapability,
   missingRoles,
   missingRolesFor,
   operatorDeliveryCapability,
@@ -82,10 +86,52 @@ describe('parseAuthStatus', () => {
       integrationSessions: true,
       streaming: true,
       subscriptions: ['integrationSessionEvents', 'sessionRunEvents'],
-      llmConfigured: true
+      llmConfigured: true,
+      // An R-A body predates the connection catalog: those four are unknown, never false.
+      connectionsRead: null,
+      connectionsWrite: null,
+      controlPlane: null,
+      connectionCatalog: null
     });
     expect(missingRolesFor(state, 'operatorRead')).toEqual(['integration.operator']);
     expect(missingRolesFor(state, 'clinicalRead')).toEqual([]);
+  });
+
+  it('reads the connection catalog capabilities and their missing roles (.loom/38 C-0)', () => {
+    const state = parseAuthStatus(
+      contractStatus({
+        capabilities: {
+          ...contractStatus().capabilities,
+          connectionsRead: true,
+          connectionsWrite: false,
+          controlPlane: true,
+          connectionCatalog: true
+        },
+        missingRoles: {
+          ...contractStatus().missingRoles,
+          connectionsRead: [],
+          connectionsWrite: ['integration.deployment.operator']
+        }
+      })
+    );
+    expect(state.state).toBe('known');
+    if (state.state !== 'known') return;
+    expect(capabilityOf(state, 'connectionsRead')).toBe(true);
+    expect(capabilityOf(state, 'connectionsWrite')).toBe(false);
+    expect(capabilityOf(state, 'controlPlane')).toBe(true);
+    expect(capabilityOf(state, 'connectionCatalog')).toBe(true);
+    expect(missingRolesFor(state, 'connectionsWrite')).toEqual(['integration.deployment.operator']);
+    expect(missingRolesFor(state, 'connectionsRead')).toEqual([]);
+  });
+
+  it('keeps a connection capability unknown when its value is not a boolean', () => {
+    const state = parseAuthStatus(
+      contractStatus({
+        capabilities: { ...contractStatus().capabilities, connectionsRead: 'yes', controlPlane: 1 }
+      })
+    );
+    expect(state.state === 'known' && state.capabilities.connectionsRead).toBeNull();
+    expect(state.state === 'known' && state.capabilities.controlPlane).toBeNull();
   });
 
   it('reports subscriptions and the LLM bit as unreported when absent', () => {
@@ -116,6 +162,28 @@ describe('accessCapabilities store selectors', () => {
     expect(get(subscriptionRoots)).toEqual([]);
     expect(get(missingRoles).operatorRead).toEqual(['integration.operator']);
     expect(capabilityOf(get(accessCapabilities), 'clinicalRead')).toBe(true);
+  });
+
+  it('exposes the connection capability stores: null when unknown or unreported', () => {
+    expect(get(connectionsReadCapability)).toBeNull();
+    setAccessStatus(contractStatus());
+    expect(get(connectionsReadCapability)).toBeNull();
+    expect(get(controlPlaneCapability)).toBeNull();
+    setAccessStatus(
+      contractStatus({
+        capabilities: {
+          ...contractStatus().capabilities,
+          connectionsRead: false,
+          connectionsWrite: false,
+          controlPlane: false,
+          connectionCatalog: false
+        }
+      })
+    );
+    expect(get(connectionsReadCapability)).toBe(false);
+    expect(get(connectionsWriteCapability)).toBe(false);
+    expect(get(controlPlaneCapability)).toBe(false);
+    expect(get(connectionCatalogCapability)).toBe(false);
   });
 
   it('goes back to unknown on reset', () => {

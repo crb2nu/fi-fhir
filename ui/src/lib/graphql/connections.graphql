@@ -1,0 +1,225 @@
+# Connection catalog and engine runtime (.loom/38 C-1), against the surface
+# C-0 ships in internal/api/graphql/schema.graphql. One root field per
+# operation: the transport gate authorizes whole operations, so a read never
+# rides with a write it could be refused for.
+#
+# Secret bindings are references ({name, provider, key, version}); no field
+# here can carry a secret value.
+
+fragment ConnectionPrincipalFields on OperatorPrincipal {
+  id
+  kind
+}
+
+# What the list needs of a revision: which one, its digest, and the draft
+# version it came from. The exact bytes (revisionJson) are read per connection.
+fragment ConnectionRevisionSummaryFields on ConnectionRevision {
+  artifactId
+  revisionId
+  digest
+  compiledFromVersion
+  createdAt
+}
+
+fragment ConnectionRevisionFields on ConnectionRevision {
+  artifactId
+  revisionId
+  digest
+  direction
+  kind
+  revisionJson
+  compiledFromVersion
+  createdBy {
+    ...ConnectionPrincipalFields
+  }
+  createdReason
+  createdAt
+}
+
+fragment ConnectionProblemFields on ConnectionProblem {
+  code
+  path
+  message
+}
+
+fragment ConnectionFields on Connection {
+  id
+  direction
+  kind
+  name
+  description
+  spec
+  secretBindings {
+    name
+    provider
+    key
+    version
+  }
+  version
+  archived
+  latestRevision {
+    ...ConnectionRevisionSummaryFields
+  }
+  references {
+    definitionId
+    revisionId
+    digest
+    state
+    health
+  }
+  runtime {
+    mounted
+    role
+    detail
+  }
+  createdBy {
+    ...ConnectionPrincipalFields
+  }
+  createdAt
+  updatedBy {
+    ...ConnectionPrincipalFields
+  }
+  updatedReason
+  updatedAt
+}
+
+fragment EngineAdapterFields on EngineAdapter {
+  kind
+  enabled
+  definitionId
+  integrationId
+  sourceId
+  sourceRevisionId
+  sourceDigest
+  listenAddress
+  path
+  authMode
+  tlsMode
+  provider
+  pollSeconds
+  maxConnections
+  maxMessageBytes
+  maxBodyBytes
+  requireClientIdentity
+  requireWorkloadIdentity
+  queueDriver
+  maxAttempts
+  workerId
+}
+
+fragment EngineRuntimeFields on EngineRuntime {
+  version
+  tenantId
+  replicaId
+  authMode
+  trustedNetwork
+  accessIdentity
+  controlPlane
+  integrationSessions
+  streaming
+  retentionPurge
+  llmConfigured
+  registry {
+    integrationCount
+    integrations {
+      integrationId
+      definitionId
+      revisionId
+      digest
+      sourceId
+      format
+    }
+  }
+  adapters {
+    ...EngineAdapterFields
+  }
+  destinationIdentity {
+    mode
+    destinations {
+      artifactId
+      revisionId
+      digest
+      transport
+      class
+      endpointAdvisory
+    }
+  }
+  ledgers {
+    name
+    version
+  }
+  properties {
+    key
+    value
+    secret
+    source
+  }
+}
+
+query Connections($direction: ConnectionDirection, $includeArchived: Boolean) {
+  connections(direction: $direction, includeArchived: $includeArchived) {
+    ...ConnectionFields
+  }
+}
+
+query Connection($id: ID!) {
+  connection(id: $id) {
+    ...ConnectionFields
+  }
+}
+
+query ConnectionRevisions($id: ID!) {
+  connectionRevisions(id: $id) {
+    ...ConnectionRevisionFields
+  }
+}
+
+query ConnectionRevision($artifactId: ID!, $revisionId: ID!) {
+  connectionRevision(artifactId: $artifactId, revisionId: $revisionId) {
+    ...ConnectionRevisionFields
+  }
+}
+
+query EngineRuntime {
+  engineRuntime {
+    ...EngineRuntimeFields
+  }
+}
+
+mutation CreateConnection($input: CreateConnectionInput!) {
+  createConnection(input: $input) {
+    ...ConnectionFields
+  }
+}
+
+mutation UpdateConnection($input: UpdateConnectionInput!) {
+  updateConnection(input: $input) {
+    ...ConnectionFields
+  }
+}
+
+mutation ArchiveConnection($input: ConnectionCommandInput!) {
+  archiveConnection(input: $input) {
+    ...ConnectionFields
+  }
+}
+
+mutation CompileConnection($input: ConnectionCommandInput!) {
+  compileConnection(input: $input) {
+    connection {
+      ...ConnectionFields
+    }
+    revision {
+      ...ConnectionRevisionFields
+    }
+    problems {
+      ...ConnectionProblemFields
+    }
+  }
+}
+
+mutation ValidateConnectionSpec($input: ValidateConnectionSpecInput!) {
+  validateConnectionSpec(input: $input) {
+    ...ConnectionProblemFields
+  }
+}

@@ -1,7 +1,15 @@
 import type { IDEAppRoute } from '../types';
 import { getJourneyState } from '../journey';
 
-export type SidebarView = 'home' | 'events' | 'hl7' | 'profiles' | 'terminology' | 'workflows' | 'operator';
+export type SidebarView =
+  | 'home'
+  | 'events'
+  | 'hl7'
+  | 'profiles'
+  | 'terminology'
+  | 'workflows'
+  | 'connections'
+  | 'operator';
 
 export type SidebarAction = {
   label: string;
@@ -32,6 +40,7 @@ const viewLinks: SidebarViewLink[] = [
   { view: 'terminology', label: 'Terminology', href: '/terminology' },
   { view: 'workflows', label: 'Workflows', href: '/workflows' },
   { view: 'events', label: 'Events', href: '/events' },
+  { view: 'connections', label: 'Connections', href: '/connections' },
   { view: 'operator', label: 'Operator', href: '/operator' },
 ];
 
@@ -96,6 +105,16 @@ const contexts: Record<SidebarView, SidebarContext> = {
       { label: 'Operator', href: '/operator', hint: 'Receipts, delivery attempts and dead letters.' },
     ],
   },
+  connections: {
+    view: 'connections',
+    title: 'Connections',
+    description: 'Source and destination endpoints, compiled into the documents the engine mounts.',
+    actions: [
+      { label: 'HL7 / Intake', href: '/hl7', hint: 'Preview messages a source sends.' },
+      { label: 'Workflows', href: '/workflows', hint: 'Routes that deliver to a destination.' },
+      { label: 'Operator', href: '/operator', hint: 'Deployments that reference a revision.' },
+    ],
+  },
   operator: {
     view: 'operator',
     title: 'Operator',
@@ -123,6 +142,7 @@ export function getSidebarView(pathname: string): SidebarView {
   if (normalized.startsWith('/terminology')) return 'terminology';
   if (normalized.startsWith('/workflows')) return 'workflows';
   if (normalized.startsWith('/events')) return 'events';
+  if (normalized.startsWith('/connections')) return 'connections';
   if (normalized.startsWith('/operator')) return 'operator';
   return 'home';
 }

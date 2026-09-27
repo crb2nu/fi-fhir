@@ -6,6 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { get, writable } from 'svelte/store';
 import { ideState, resetIDEState } from './ideStore';
+import { takeConnectionsIntent } from '$lib/features/connections/connectionsIntent';
 
 const pageStore = writable({ url: new URL('http://localhost/hl7') });
 
@@ -112,6 +113,34 @@ describe('IDEShell workspace', () => {
     // No document types without an editor behind them.
     expect(palette).not.toHaveTextContent('Documents');
     expect(screen.queryByRole('option', { name: /Open active trace|Compare events/ })).not.toBeInTheDocument();
+  });
+
+  it('offers the Connections commands and hands the page what to open', async () => {
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    render(IDEShell);
+    await tick();
+
+    await fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    await screen.findByRole('dialog', { name: 'Commands' });
+    for (const name of ['Go to Connections', 'New source connection', 'New destination connection', 'Engine properties']) {
+      expect(screen.getByRole('option', { name: new RegExp(name) })).toBeInTheDocument();
+    }
+
+    await fireEvent.click(screen.getByRole('option', { name: /Engine properties/ }));
+    expect(gotoMock).toHaveBeenCalledWith('/connections');
+    expect(takeConnectionsIntent()).toEqual({ view: 'engine' });
+  });
+
+  it('opens a Connections tab titled Connections, outside the five stages', async () => {
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    render(IDEShell);
+    await tick();
+
+    expect(screen.getByRole('tab', { name: 'Connections' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Connections' })).toHaveAttribute('aria-current', 'true');
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(crumbs.querySelector('.crumb-stage')).toBeNull();
+    expect(crumbs.querySelector('[aria-current="page"]')).toHaveTextContent('Connections');
   });
 
   it('keeps connection state in the status bar only and offers no editor-less documents', async () => {

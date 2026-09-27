@@ -340,6 +340,25 @@ describe('ideStore', () => {
       expect(get(ideState).activeTabId).toBe('/operator');
     });
 
+    it('restores a layout saved on the Connections view', () => {
+      localStorage.setItem(
+        'fi-fhir-ide-layout',
+        JSON.stringify({
+          openTabs: [createWorkspaceTab('/connections')],
+          activeTabId: '/connections',
+          workspaceSplit: false,
+          bottomPanelOpen: false,
+          activePanelTab: 'output',
+          activeView: 'connections',
+        })
+      );
+
+      expect(restoreLayout()).toBe(true);
+      expect(get(ideState).activeView).toBe('connections');
+      expect(get(ideState).activeTabId).toBe('/connections');
+      expect(get(ideState).openTabs.map((tab) => tab.title)).toEqual(['Connections']);
+    });
+
     it('restores tab titles from the route, so renamed views come back renamed', () => {
       localStorage.setItem(
         'fi-fhir-ide-layout',

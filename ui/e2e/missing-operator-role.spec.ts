@@ -31,3 +31,31 @@ test('6a. without integration.operator the operator page pre-flights, names the 
   expect(watch.graphql.filter((request) => selects(request, 'operatorReceipts'))).toHaveLength(0);
   expect(watch.errorToasts).toEqual([]);
 });
+
+test('6c. without integration.operator the connections page pre-flights, names the role, and queries nothing', async ({
+  page,
+  request
+}, testInfo) => {
+  const status = await fetchAuthStatus(request, testInfo);
+  // The catalog is configured here; only the role is missing.
+  expect(status.capabilities.controlPlane).toBe(true);
+  expect(status.capabilities.connectionsRead).toBe(false);
+  expect(status.missingRoles['connectionsRead']).toEqual(['integration.operator']);
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/connections');
+
+  const preflight = page.getByTestId('connections-preflight');
+  await expect(preflight).toBeVisible();
+  await expect(preflight).toHaveAttribute('data-reason', 'missing-role');
+  await expect(preflight).toHaveAttribute('data-missing-roles', 'integration.operator');
+  await expect(preflight).toContainText('integration.operator');
+  await expect(page.getByRole('tablist', { name: 'Connection views' })).toHaveCount(0);
+
+  const connectionReads = watch.graphql.filter(
+    (request) => selects(request, 'connections') || selects(request, 'engineRuntime')
+  );
+  expect(connectionReads, 'no connections or engineRuntime query was sent').toHaveLength(0);
+  await expect(page.locator('body')).not.toContainText(/forbidden/i);
+  expect(watch.errorToasts).toEqual([]);
+});
