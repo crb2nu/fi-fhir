@@ -293,31 +293,44 @@ func TestCheckSpecRefusesSecretValues(t *testing.T) {
 		})
 	}
 	for _, allowed := range []struct {
-		kind Kind
-		spec string
+		kind     Kind
+		spec     string
+		bindings []integration.SecretBinding
 	}{
-		{KindHTTP, `{"credential_binding":"c","auth_mode":"bearer"}`},
-		{KindHTTP, `{"auth_mode":"oauth2","oauth":{"issuer_url":"https://issuer.example.org/realm","audience":"a"}}`},
-		{KindBatchS3, `{"s3":{"secret_access_key_binding":"s","access_key_binding":"a"}}`},
-		{KindBatchSFTP, `{"sftp":{"private_key_passphrase_binding":"p","password_binding":"q"}}`},
-		{KindHTTPS, `{"https":{"token_binding":"t","url":"https://hooks.example.org/in?tenant=a&format=hl7"}}`},
-		{KindHTTPS, `{"https":{"token_binding":null}}`},
-		{KindMLLP, `{"clients":{"identities":[{"subject":"s","uri_san":"spiffe://example.org/ns/lab-east"}]}}`},
+		{KindHTTP, `{"credential_binding":"c","auth_mode":"bearer"}`, declared("c")},
+		{KindHTTP, `{"auth_mode":"oauth2","oauth":{"issuer_url":"https://issuer.example.org/realm","audience":"a"}}`, nil},
+		{KindBatchS3, `{"s3":{"secret_access_key_binding":"s","access_key_binding":"a"}}`, declared("s", "a")},
+		{KindBatchSFTP, `{"sftp":{"private_key_passphrase_binding":"p","password_binding":"q"}}`, declared("p", "q")},
+		{KindHTTPS, `{"https":{"token_binding":"t","url":"https://hooks.example.org/in?tenant=a&format=hl7"}}`, declared("t")},
+		{KindHTTPS, `{"https":{"token_binding":null}}`, nil},
+		{KindMLLP, `{"clients":{"identities":[{"subject":"s","uri_san":"spiffe://example.org/ns/lab-east"}]}}`, nil},
 	} {
-		if problems := writeGate(t, allowed.kind, allowed.spec, nil); len(problems) != 0 {
+		if problems := writeGate(t, allowed.kind, allowed.spec, allowed.bindings); len(problems) != 0 {
 			t.Errorf("%s refused at write: %+v", allowed.spec, problems)
 		}
-		if problems := CheckSpec(allowed.kind, json.RawMessage(allowed.spec), nil); hasAnyCode(problems, CodeSecretValueForbidden) {
+		if problems := CheckSpec(allowed.kind, json.RawMessage(allowed.spec), allowed.bindings); hasAnyCode(problems, CodeSecretValueForbidden) {
 			t.Errorf("%s reported as secret material: %+v", allowed.spec, problems)
 		}
 	}
 }
 
+// declared returns well-formed environment bindings with the given names.
+func declared(names ...string) []integration.SecretBinding {
+	bindings := make([]integration.SecretBinding, 0, len(names))
+	for _, name := range names {
+		bindings = append(bindings, integration.SecretBinding{Name: name, Reference: integration.SecretReference{
+			Provider: integration.SecretProviderEnvironment, Key: "FI_FHIR_TEST_" + strings.ToUpper(name),
+		}})
+	}
+	return bindings
+}
+
 // TestWriteGateRefusesWhatADraftMayNeverPersist: a draft may be incomplete,
 // out of range, or hold a scalar of the wrong type, but it never stores a key
-// its kind does not define — even inside a container of the wrong type — or a
-// malformed secret binding reference. Every problem the gate raises is one
-// validate reports too.
+// its kind does not define — even inside a container of the wrong type — a
+// malformed secret binding reference, or a binding field that does not name
+// one of its declared bindings. Every problem the gate raises is one validate
+// reports too.
 func TestWriteGateRefusesWhatADraftMayNeverPersist(t *testing.T) {
 	ref := func(name, provider, key, version string) integration.SecretBinding {
 		return integration.SecretBinding{Name: name, Reference: integration.SecretReference{
@@ -350,6 +363,13 @@ func TestWriteGateRefusesWhatADraftMayNeverPersist(t *testing.T) {
 		{"binding version with a control character", KindKafka, `{}`, []integration.SecretBinding{ref("a", "vault", "k", "v\x01")}, CodeInvalidValue, "secret_bindings[0].version"},
 		{"PEM in a binding key", KindKafka, `{}`, []integration.SecretBinding{ref("a", "file", "-----BEGIN", "")}, CodeSecretValueForbidden, "secret_bindings[0].key"},
 		{"too many bindings", KindKafka, `{}`, bindingsOf(MaxSecretBindings + 1), CodeOutOfRange, "secret_bindings"},
+		{"a credential pasted into a binding field", KindHTTPS, `{"https":{"token_binding":"pasted-credential-value"}}`,
+			declared("https-token"), CodeUnboundSecret, "https.token_binding"},
+		{"a binding field naming an undeclared binding", KindBatchSFTP,
+			`{"sftp":{"known_hosts_binding":"sftp-known-hosts","private_key_binding":"sftp-client-key"}}`,
+			declared("sftp-known-hosts"), CodeUnboundSecret, "sftp.private_key_binding"},
+		{"a binding field naming a malformed binding", KindHTTPS, `{"https":{"token_binding":"a b"}}`,
+			[]integration.SecretBinding{ref("a b", "env", "K", "")}, CodeUnboundSecret, "https.token_binding"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -363,6 +383,9 @@ func TestWriteGateRefusesWhatADraftMayNeverPersist(t *testing.T) {
 					t.Fatalf("validate does not report the write refusal %+v: %+v", problem, checked)
 				}
 			}
+			if strings.Contains(fmt.Sprint(refused, checked), "pasted-credential-value") {
+				t.Fatalf("a problem repeats the value of a binding field: %+v", refused)
+			}
 		})
 	}
 	for name, spec := range map[string]string{
@@ -373,6 +396,18 @@ func TestWriteGateRefusesWhatADraftMayNeverPersist(t *testing.T) {
 		"a JSON null for an optional one": `{"identity":null}`,
 	} {
 		if problems := writeGate(t, KindKafka, spec, nil); len(problems) != 0 {
+			t.Errorf("%s was refused at write: %+v", name, problems)
+		}
+	}
+	for name, tc := range map[string]struct {
+		spec     string
+		bindings []integration.SecretBinding
+	}{
+		"a binding field naming a declared binding": {`{"https":{"token_binding":"https-token"}}`, declared("https-token")},
+		"an empty binding field":                    {`{"https":{"token_binding":""}}`, nil},
+		"a declared binding no field names yet":     {`{"destination_id":"d"}`, declared("https-token")},
+	} {
+		if problems := writeGate(t, KindHTTPS, tc.spec, tc.bindings); len(problems) != 0 {
 			t.Errorf("%s was refused at write: %+v", name, problems)
 		}
 	}

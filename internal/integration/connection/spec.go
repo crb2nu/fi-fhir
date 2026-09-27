@@ -108,9 +108,12 @@ func decodeAndCheck(kind Kind, raw json.RawMessage, bindings []integration.Secre
 // whatever state the rest of its spec is in. A draft may be incomplete — a
 // missing field, a value out of range, or a scalar of the wrong type is a
 // compile problem — but it never stores a key its kind does not define (not
-// even inside a container of the wrong type), secret material in any form,
-// or a malformed secret binding reference. Every problem it returns is one
-// CheckSpec would report too, so validate shows everything a write refuses.
+// even inside a container of the wrong type), secret material in any form, a
+// malformed secret binding reference, or a `*_binding` value that does not
+// name one of the draft's own declared bindings: a string in a binding field
+// that names nothing is indistinguishable from a pasted credential. Every
+// problem it returns is one CheckSpec would report too, so validate shows
+// everything a write refuses.
 func writeProblems(kind Kind, tree map[string]any, bindings []integration.SecretBinding) []Problem {
 	c := &checker{}
 	spec := newKindSpec(kind)
@@ -119,7 +122,8 @@ func writeProblems(kind Kind, tree map[string]any, bindings []integration.Secret
 		return c.problems
 	}
 	inspection{c: c, write: true}.value(tree, reflect.TypeOf(spec).Elem(), "")
-	checkBindingReferences(bindings, c)
+	names := checkBindingReferences(bindings, c)
+	checkBoundFields(bindingFieldValues(tree), names, c)
 	return dropShadowedProblems(c.problems)
 }
 
@@ -592,16 +596,15 @@ func bindingFieldValues(tree map[string]any) []bindingField {
 
 // checkBindings validates the binding references themselves and the two
 // cross rules: every `*_binding` field names a binding (UNBOUND_SECRET), and
-// every binding is named by some field (UNUSED_BINDING, a warning). Only the
-// cross rules wait for compile; a write refuses a malformed reference.
+// every binding is named by some field (UNUSED_BINDING, a warning). A write
+// refuses a malformed reference and an unbound field too; only the unused
+// warning is compile's alone.
 func checkBindings(bindings []integration.SecretBinding, fields []bindingField, c *checker) {
 	names := checkBindingReferences(bindings, c)
+	checkBoundFields(fields, names, c)
 	used := make(map[string]struct{}, len(fields))
 	for _, field := range fields {
 		used[field.name] = struct{}{}
-		if _, bound := names[field.name]; !bound {
-			c.add(CodeUnboundSecret, field.path, fmt.Sprintf("names secret binding %q, which is not declared", field.name))
-		}
 	}
 	for index, binding := range bindings {
 		if binding.Name == "" {
@@ -610,6 +613,17 @@ func checkBindings(bindings []integration.SecretBinding, fields []bindingField, 
 		if _, isUsed := used[binding.Name]; !isUsed {
 			c.add(CodeUnusedBinding, fmt.Sprintf("secret_bindings[%d].name", index),
 				fmt.Sprintf("binding %q is not named by any *_binding field", binding.Name))
+		}
+	}
+}
+
+// checkBoundFields reports every `*_binding` field whose value is not exactly
+// the name of a declared binding. The message never repeats the value: a
+// string that names no binding may be a credential pasted into the field.
+func checkBoundFields(fields []bindingField, names map[string]struct{}, c *checker) {
+	for _, field := range fields {
+		if _, bound := names[field.name]; !bound {
+			c.add(CodeUnboundSecret, field.path, "names a secret binding this draft does not declare")
 		}
 	}
 }
