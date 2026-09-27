@@ -1,0 +1,10 @@
+{
+  "kind": "kafka",
+  "spec": {
+    "destination_id": "dest-kafka-pinned",
+    "class": "sandbox",
+    "kafka": {"topic": "integration.delivery.v1"},
+    "identity": {"subject": "pinned-client", "grants": ["integration.destination.client"]}
+  },
+  "secret_bindings": []
+}

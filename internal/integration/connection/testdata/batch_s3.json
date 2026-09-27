@@ -1,0 +1,25 @@
+{
+  "kind": "batch_s3",
+  "spec": {
+    "source_id": "adt-east",
+    "s3": {
+      "endpoint": "objects.example.com:443",
+      "region": "us-east-1",
+      "bucket": "adt-drop",
+      "input_prefix": "incoming",
+      "archive_prefix": "archive",
+      "use_tls": true,
+      "access_key_binding": "batch-s3-access-key",
+      "secret_access_key_binding": "batch-s3-secret-key"
+    },
+    "poll_seconds": 15,
+    "lease_seconds": 120,
+    "process_seconds": 60,
+    "max_files_per_poll": 100,
+    "max_message_bytes": 1048576
+  },
+  "secret_bindings": [
+    {"name": "batch-s3-access-key", "reference": {"provider": "env", "key": "FI_FHIR_BATCH_S3_ACCESS_KEY"}},
+    {"name": "batch-s3-secret-key", "reference": {"provider": "env", "key": "FI_FHIR_BATCH_S3_SECRET_KEY"}}
+  ]
+}
