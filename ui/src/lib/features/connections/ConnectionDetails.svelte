@@ -30,7 +30,12 @@
     type ConnectionRow
   } from './connectionsApi';
   import { writeBlockedReason } from './connectionsAccess';
-  import { describeConnectionFailure, describeRefusal, specRejectionProblems } from './connectionsErrors';
+  import {
+    describeConnectionFailure,
+    describeRefusal,
+    refusedAtWrite,
+    specRejectionProblems
+  } from './connectionsErrors';
   import { connectionStatus } from './connectionStatus';
   import {
     bindingsOf,
@@ -47,7 +52,6 @@
   type DetailsTab = 'settings' | 'secrets' | 'revisions' | 'usage';
   type WriteAction = 'create' | 'save' | 'compile' | 'archive';
 
-  const WRITE_REFUSED_CODES = new Set(['SECRET_VALUE_FORBIDDEN', 'UNKNOWN_FIELD']);
 
   interface Props {
     buffer: EditBuffer;
@@ -76,10 +80,8 @@
   const fresh = $derived(buffer.problemsKey === key);
   const blocking = $derived(buffer.problems.filter(isBlocking).length);
   const warnings = $derived(buffer.problems.length - blocking);
-  // Codes a draft write is refused for, whatever else the spec lacks (C-0 writableSpec).
-  const writeRefusal = $derived(
-    fresh ? buffer.problems.find((problem) => WRITE_REFUSED_CODES.has(problem.code)) : undefined
-  );
+  // What a draft write is refused for, whatever else the spec lacks (C-0 writeProblems).
+  const writeRefusal = $derived(fresh ? buffer.problems.find(refusedAtWrite) : undefined);
   const tokens = $derived(row ? connectionStatus(row) : []);
 
   const identityErrors = $derived({
@@ -222,6 +224,9 @@
     if (writeRefusal?.code === 'SECRET_VALUE_FORBIDDEN') {
       return 'Remove the secret value first: a spec names a binding, never a value.';
     }
+    if (writeRefusal?.path.startsWith('secret_bindings')) {
+      return 'Complete or remove the secret binding marked in Secrets first.';
+    }
     if (writeRefusal) return 'Remove the key this connection kind does not have first.';
     return null;
   });
@@ -297,12 +302,12 @@
 
   function failed(err: unknown): void {
     const refused = specRejectionProblems(err);
-    if (refused !== null) {
+    if (refused !== null && refused.length > 0) {
       // Every refused path lands on its field (or in the problem list), whatever its code.
       buffer.problems = refused;
       buffer.problemsKey = key;
       tab = 'settings';
-      dialogError = describeRefusal(err, refused.length);
+      dialogError = describeRefusal(refused);
       dialogStale = false;
       return;
     }

@@ -4,6 +4,7 @@ import {
   SPEC_REJECTED_MESSAGE,
   describeConnectionFailure,
   describeRefusal,
+  refusedAtWrite,
   specRejectionProblems
 } from './connectionsErrors';
 
@@ -50,7 +51,9 @@ describe('specRejectionProblems', () => {
       { message: SPEC_REJECTED_MESSAGE, extensions: { code: 'SECRET_VALUE_FORBIDDEN', problems } }
     ]);
     expect(specRejectionProblems(error)).toEqual(problems);
-    expect(describeRefusal(error, 2)).toMatch(/Nothing was saved/);
+    expect(describeRefusal(problems)).toBe(
+      'Nothing was saved: the catalog refused 2 fields of this connection; they are marked on the form. A spec names a secret binding, never a secret value.'
+    );
   });
 
   it('reads extensions.problems even under another message', () => {
@@ -58,8 +61,22 @@ describe('specRejectionProblems', () => {
       { message: 'connection spec rejected', extensions: { code: 'UNKNOWN_FIELD', problems: [problems[1]] } }
     ]);
     expect(specRejectionProblems(error)).toEqual([problems[1]]);
-    expect(describeRefusal(error, 1)).toBe(
-      'Nothing was saved: the catalog refused 1 field of the spec. They are marked on the form.'
+    expect(describeRefusal([problems[1]!])).toBe(
+      'Nothing was saved: the catalog refused 1 field of this connection; they are marked on the form.'
+    );
+  });
+
+  it('knows what a draft write refuses and what only blocks compile', () => {
+    expect(refusedAtWrite({ code: 'SECRET_VALUE_FORBIDDEN', path: 'https.url' })).toBe(true);
+    expect(refusedAtWrite({ code: 'UNKNOWN_FIELD', path: 'timeouts.linger' })).toBe(true);
+    expect(refusedAtWrite({ code: 'REQUIRED', path: 'secret_bindings[0].key' })).toBe(true);
+    expect(refusedAtWrite({ code: 'OUT_OF_RANGE', path: 'secret_bindings' })).toBe(true);
+    expect(refusedAtWrite({ code: 'UNUSED_BINDING', path: 'secret_bindings[0].name' })).toBe(false);
+    expect(refusedAtWrite({ code: 'UNBOUND_SECRET', path: 'tls.client_ca_binding' })).toBe(false);
+    expect(refusedAtWrite({ code: 'REQUIRED', path: 'listen_address' })).toBe(false);
+    expect(refusedAtWrite({ code: 'INVALID_TYPE', path: 'max_connections' })).toBe(false);
+    expect(describeRefusal([{ code: 'REQUIRED', path: 'secret_bindings[0].key' }])).toMatch(
+      /Complete or remove the secret bindings marked in Secrets\.$/
     );
   });
 

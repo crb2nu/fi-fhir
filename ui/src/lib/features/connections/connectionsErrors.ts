@@ -128,14 +128,32 @@ const FALLBACK: ConnectionFailure = {
 };
 
 /**
- * The dialog message for a write refused with field problems: the catalog's
- * own guidance when it names the refusal, else a count of the marked fields.
+ * The dialog message for a write refused with field problems. It is built
+ * from the problems themselves — the catalog says the refusal's message is
+ * not what a surface should render — and the problems are marked on the form.
  */
-export function describeRefusal(error: unknown, count: number): string {
-  if (extractMessage(error).toLowerCase().includes(SPEC_REJECTED_MESSAGE)) {
-    return describeConnectionFailure(error).message;
+export function describeRefusal(problems: ReadonlyArray<{ code: string; path: string }>): string {
+  const count = problems.length;
+  const base = `Nothing was saved: the catalog refused ${count} field${count === 1 ? '' : 's'} of this connection; they are marked on the form.`;
+  if (problems.some((problem) => problem.code === 'SECRET_VALUE_FORBIDDEN')) {
+    return `${base} A spec names a secret binding, never a secret value.`;
   }
-  return `Nothing was saved: the catalog refused ${count} field${count === 1 ? '' : 's'} of the spec. They are marked on the form.`;
+  if (problems.some((problem) => problem.path.startsWith('secret_bindings'))) {
+    return `${base} Complete or remove the secret bindings marked in Secrets.`;
+  }
+  return base;
+}
+
+/**
+ * Whether a problem is one a draft write is refused for (C-0 writeProblems):
+ * secret material, a key the kind does not define, or a malformed secret
+ * binding reference. Everything else — a missing or out-of-range value, an
+ * unbound or unused binding — is a compile problem, and the draft still saves.
+ */
+export function refusedAtWrite(problem: { code: string; path: string }): boolean {
+  if (problem.code === 'SECRET_VALUE_FORBIDDEN' || problem.code === 'UNKNOWN_FIELD') return true;
+  const binding = problem.path === 'secret_bindings' || problem.path.startsWith('secret_bindings[');
+  return binding && problem.code !== 'UNUSED_BINDING';
 }
 
 /** Maps an unknown thrown value onto inline-ready guidance. */
