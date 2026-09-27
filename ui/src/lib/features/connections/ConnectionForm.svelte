@@ -24,11 +24,11 @@
     schema: KindSchema;
     buffer: EditBuffer;
     placed: PlacedProblems;
-    readOnly?: boolean;
+    readOnly?: boolean | undefined;
     /** Client-side checks of the connection's own fields (the server re-checks them). */
     identityErrors: { id: string | null; name: string | null; description: string | null };
     /** One line about the last check of the spec, or null. */
-    checkStatus?: { text: string; tone: 'neutral' | 'warning' | 'danger' | 'success' } | null;
+    checkStatus?: { text: string; tone: 'neutral' | 'warning' | 'danger' | 'success' } | null | undefined;
   }
 
   let {
@@ -148,6 +148,12 @@
     {/if}
   {/each}
 
+  <!--
+    connection-problems holds only the problems with no field of their own on
+    this tab: the document as a whole, a whole group, a repeated item, a hidden
+    or unknown key, and the secret bindings (which the Secrets tab also marks).
+    A problem whose path names a field above is shown on that field instead.
+  -->
   {#if placed.unplaced.length > 0}
     <section class="form-group" aria-label="Other problems">
       <h3 class="group-label">Other problems</h3>

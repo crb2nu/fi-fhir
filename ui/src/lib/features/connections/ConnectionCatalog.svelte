@@ -45,7 +45,7 @@
     /** Roles this identity lacks to change connections, or null. */
     writeBlocked: string[] | null;
     /** Incremented by the page to open the New menu (command palette). */
-    newRequest?: number;
+    newRequest?: number | undefined;
   }
 
   let { direction, writeBlocked, newRequest = 0 }: Props = $props();

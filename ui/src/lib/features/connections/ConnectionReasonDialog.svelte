@@ -19,12 +19,12 @@
     title: string;
     description?: string | undefined;
     confirmText: string;
-    variant?: 'primary' | 'danger';
-    loading?: boolean;
+    variant?: 'primary' | 'danger' | undefined;
+    loading?: boolean | undefined;
     /** Failure of the last attempt, rendered inside the dialog. */
     submitError?: string | null | undefined;
     /** Offer Reload next to the failure (a version conflict or an archived connection). */
-    staleView?: boolean;
+    staleView?: boolean | undefined;
     onconfirm: (reason: string) => void;
     oncancel: () => void;
     onreload?: (() => void) | undefined;

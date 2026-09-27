@@ -15,8 +15,8 @@
   interface Props {
     bindings: BindingDraft[];
     /** Problems by binding index (`secret_bindings[i].<field>`). */
-    problems?: Record<number, SpecProblem[]>;
-    readOnly?: boolean;
+    problems?: Record<number, SpecProblem[]> | undefined;
+    readOnly?: boolean | undefined;
   }
 
   let { bindings = $bindable(), problems = {}, readOnly = false }: Props = $props();
