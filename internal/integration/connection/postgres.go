@@ -354,6 +354,11 @@ func scanRevision(row rowScanner) (Revision, error) {
 // InsertRevision appends one compiled revision, but only while the draft is
 // still at the version it was compiled from and not archived. A concurrent
 // compile that claimed the same revision number loses with ErrVersionConflict.
+//
+// The draft row is read FOR SHARE: an archive or update of the draft that is
+// in flight makes the insert wait for it and then re-check the row, so a
+// compile racing an archive reports ErrArchived instead of appending a
+// revision of a version that was archived under it.
 func (s *PostgresStore) InsertRevision(ctx context.Context, revision Revision) (Revision, error) {
 	if s == nil || s.db == nil || ctx == nil {
 		return Revision{}, ErrUnavailable
@@ -375,6 +380,7 @@ func (s *PostgresStore) InsertRevision(ctx context.Context, revision Revision) (
 			SELECT 1 FROM integration_connection_drafts
 			WHERE tenant_id = $1::text AND artifact_id = $2::text
 			  AND version = $9::bigint AND archived_at IS NULL
+			FOR SHARE
 		)
 		RETURNING `+revisionColumns,
 		revision.TenantID, revision.ArtifactID, revision.RevisionID, revision.Number, revision.Digest,

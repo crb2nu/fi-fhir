@@ -44,9 +44,6 @@ const (
 	MaxConnections = 500
 	// MaxRevisionsPerConnection bounds one ListRevisions call.
 	MaxRevisionsPerConnection = 500
-	// maxDefinitionSnapshots bounds the lifecycle read behind references. It is
-	// the operator plane's inventory bound (internal/integration/operator).
-	maxDefinitionSnapshots = 200
 	// maxNameBytes and maxDescriptionBytes bound the human-facing labels.
 	maxNameBytes        = 256
 	maxDescriptionBytes = 4096
