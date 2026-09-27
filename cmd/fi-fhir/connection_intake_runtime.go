@@ -12,6 +12,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	integrationsession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
 // connectionIntakeRuntime is .loom/38 Lane C-2's composition in serve: the
@@ -87,15 +88,14 @@ func (r *connectionIntakeRuntime) bind(ctx context.Context, binding connectionIn
 	if err != nil {
 		return false, fmt.Errorf("configure connection capture cache: %w", err)
 	}
-	// The destination identity runtime's env/file resolver: env references
-	// resolve from the process environment, file references under
-	// FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR when it is set, and nothing else.
+	// The destination identity runtime's env/file resolver, narrowed to the
+	// secrets provisioned for connections (connectionSecretResolver).
 	resolver, err := newDestinationSecretResolver(strings.TrimSpace(os.Getenv("FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR")))
 	if err != nil {
 		return false, fmt.Errorf("configure connection peek secret resolver: %w", err)
 	}
 	if err := binding.service.EnableSampleIntake(connection.IntakeConfig{
-		Sessions: binding.sessions, Secrets: resolver, Registry: registry, Observer: observer,
+		Sessions: binding.sessions, Secrets: connectionSecretResolver{inner: resolver}, Registry: registry, Observer: observer,
 	}); err != nil {
 		return false, fmt.Errorf("enable connection sample intake: %w", err)
 	}
@@ -106,6 +106,51 @@ func (r *connectionIntakeRuntime) bind(ctx context.Context, binding connectionIn
 	}
 	go func() { _ = registry.Run(ctx) }()
 	return true, nil
+}
+
+// The only secrets a connection peek may resolve. A peek resolves the
+// bindings of a draft any integration.deployment.operator can write, and hands
+// them to a provider that contacts an endpoint the same draft names — an S3
+// request carries the access key in its Authorization header. Without these
+// prefixes a draft could bind any process variable or any destination
+// credential and read it back at an endpoint of its own.
+const (
+	// connectionSecretEnvPrefix names the env family a peek may read.
+	connectionSecretEnvPrefix = "FI_FHIR_CONNECTION_SECRET_"
+	// connectionSecretFilePrefix is the one subtree of
+	// FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR a peek may read; the destination
+	// credentials beside it are not a peek's.
+	connectionSecretFilePrefix = "connections/"
+)
+
+// connectionSecretResolver narrows serve's env/file resolver to the secrets
+// provisioned for connections: env keys named FI_FHIR_CONNECTION_SECRET_*,
+// and files under connections/ in FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR (the
+// inner resolver already refuses a path that escapes the directory). Every
+// other reference is integration.ErrSecretUnresolvable before the inner
+// resolver reads anything, so the peek reports SECRET_UNRESOLVABLE and
+// contacts nothing.
+type connectionSecretResolver struct {
+	inner integration.SecretResolver
+}
+
+func (r connectionSecretResolver) Resolve(ctx context.Context, reference integration.SecretReference) ([]byte, error) {
+	if r.inner == nil {
+		return nil, integration.ErrSecretResolverUnavailable
+	}
+	var allowed bool
+	switch reference.Provider {
+	case integration.SecretProviderEnvironment:
+		name, ok := strings.CutPrefix(reference.Key, connectionSecretEnvPrefix)
+		allowed = ok && name != ""
+	case integration.SecretProviderFile:
+		name, ok := strings.CutPrefix(reference.Key, connectionSecretFilePrefix)
+		allowed = ok && name != ""
+	}
+	if !allowed {
+		return nil, integration.ErrSecretUnresolvable
+	}
+	return r.inner.Resolve(ctx, reference)
 }
 
 // captureObserver meters and logs sample intake. The error text a tap

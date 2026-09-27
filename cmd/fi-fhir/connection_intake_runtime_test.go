@@ -67,6 +67,60 @@ func TestConnectionIntakeWrapsAdmissionOnlyWithASessionWorkspace(t *testing.T) {
 	}
 }
 
+// TestConnectionSecretResolverResolvesOnlyConnectionSecrets is review W3's
+// kill-test: a peek's draft names its own bindings and its own endpoint, so
+// the resolver it gets must refuse the process's credentials — the GraphQL
+// bearer token, any arbitrary variable, a destination's credential file — and
+// resolve only what was provisioned for connections.
+func TestConnectionSecretResolverResolvesOnlyConnectionSecrets(t *testing.T) {
+	root := t.TempDir()
+	writeDestinationSecret(t, root, "connections/adt-drop-access", "synthetic-connection-access")
+	writeDestinationSecret(t, root, "destinations/epic-token", "synthetic-destination-token")
+	t.Setenv("FI_FHIR_GRAPHQL_BEARER_TOKEN", "synthetic-graphql-bearer")
+	t.Setenv("SYNTHETIC_ARBITRARY_VARIABLE", "synthetic-arbitrary-value")
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_ADT_DROP_ACCESS", "synthetic-env-access")
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_", "synthetic-bare-prefix")
+	inner, err := newDestinationSecretResolver(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver := connectionSecretResolver{inner: inner}
+	env := func(key string) integration.SecretReference {
+		return integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: key}
+	}
+	file := func(key string) integration.SecretReference {
+		return integration.SecretReference{Provider: integration.SecretProviderFile, Key: key}
+	}
+	for name, reference := range map[string]integration.SecretReference{
+		"the GraphQL bearer token":           env("FI_FHIR_GRAPHQL_BEARER_TOKEN"),
+		"an arbitrary variable":              env("SYNTHETIC_ARBITRARY_VARIABLE"),
+		"the bare prefix":                    env("FI_FHIR_CONNECTION_SECRET_"),
+		"a destination credential file":      file("destinations/epic-token"),
+		"a path escaping connections/":       file("connections/../destinations/epic-token"),
+		"the connections directory itself":   file("connections/"),
+		"a provider the resolver never uses": {Provider: integration.SecretProviderVault, Key: "FI_FHIR_CONNECTION_SECRET_ADT_DROP_ACCESS"},
+	} {
+		if material, err := resolver.Resolve(context.Background(), reference); !errors.Is(err, integration.ErrSecretUnresolvable) || material != nil {
+			t.Errorf("%s resolved (%d bytes, %v); want ErrSecretUnresolvable", name, len(material), err)
+		}
+	}
+	for name, test := range map[string]struct {
+		reference integration.SecretReference
+		want      string
+	}{
+		"a connection env secret":  {env("FI_FHIR_CONNECTION_SECRET_ADT_DROP_ACCESS"), "synthetic-env-access"},
+		"a connection secret file": {file("connections/adt-drop-access"), "synthetic-connection-access"},
+	} {
+		material, err := resolver.Resolve(context.Background(), test.reference)
+		if err != nil || string(material) != test.want {
+			t.Errorf("%s = %q, %v; want the provisioned value", name, material, err)
+		}
+	}
+	if _, err := (connectionSecretResolver{}).Resolve(context.Background(), env("FI_FHIR_CONNECTION_SECRET_ADT_DROP_ACCESS")); !errors.Is(err, integration.ErrSecretResolverUnavailable) {
+		t.Fatalf("a resolver with nothing inside = %v, want ErrSecretResolverUnavailable", err)
+	}
+}
+
 func TestCaptureObserverMetersBoundedLabels(t *testing.T) {
 	metrics := observability.NewMetrics("test")
 	observer := captureObserver(metrics, nil)
