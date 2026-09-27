@@ -188,7 +188,10 @@ function runtime(overrides: Partial<EngineRuntimeView> = {}): EngineRuntimeView 
     properties: [
       { key: 'FI_FHIR_MLLP_DEFINITION_ID', value: 'adt-to-fhir', secret: false, source: 'env' },
       { key: 'FI_FHIR_HTTP_INGRESS_INTEGRATION_ID', value: '', secret: false, source: 'default' },
-      { key: 'FI_FHIR_GRAPHQL_BEARER_TOKEN', value: 'set', secret: true, source: 'env' }
+      { key: 'FI_FHIR_GRAPHQL_BEARER_TOKEN', value: 'set', secret: true, source: 'env' },
+      // A contract break on purpose: the page must still show only "set".
+      { key: 'FI_FHIR_HTTP_INGRESS_SECRET', value: 'synthetic-raw-secret-value', secret: true, source: 'env' },
+      { key: 'FI_FHIR_DATABASE_PASSWORD', value: 'unset', secret: true, source: 'default' }
     ],
     ...overrides
   };
@@ -464,6 +467,36 @@ describe('Connections — the catalog table and details', () => {
     expect(within(dialog).getByRole('button', { name: 'Reload connection' })).toBeInTheDocument();
   });
 
+  it('blocks Compile and offers Reload when the catalog moved past the version the form holds', async () => {
+    setAccessStatus(status());
+    const first = mllpRow();
+    const moved = mllpRow({ version: 3, updatedReason: 'changed elsewhere' });
+    api.fetchConnections.mockResolvedValueOnce([first]).mockResolvedValue([moved]);
+    api.fetchConnection.mockResolvedValue(moved);
+    render(ConnectionsPage);
+    await selectRow('ADT east');
+
+    // Edit, reload the list (the catalog is now at version 3), then undo the edit.
+    const form = await screen.findByTestId('connection-form');
+    const connections = form.querySelector('[data-path="max_connections"] input') as HTMLInputElement;
+    await fireEvent.input(connections, { target: { value: '32' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh connections' }));
+    await waitFor(() => expect(api.fetchConnections).toHaveBeenCalledTimes(2));
+    await fireEvent.input(connections, { target: { value: '16' } });
+
+    const details = screen.getByTestId('connection-details');
+    const compile = within(details).getByRole('button', { name: 'Compile' });
+    await waitFor(() => expect(compile).toBeDisabled());
+    expect(compile).toHaveAttribute('title', 'Reload first: this connection changed since you opened it.');
+    const stale = within(details).getByTestId('connection-stale');
+    expect(stale).toHaveTextContent('draft version 3');
+
+    await fireEvent.click(within(stale).getByRole('button', { name: 'Reload' }));
+    await waitFor(() => expect(api.fetchConnection).toHaveBeenCalledWith('adt-east-mllp'));
+    await waitFor(() => expect(within(details).queryByTestId('connection-stale')).not.toBeInTheDocument());
+    expect(api.compileConnection).not.toHaveBeenCalled();
+  });
+
   it('compiles, shows the digest in Revisions, and downloads exactly revisionJson as <id>-r<N>.json', async () => {
     setAccessStatus(status());
     const row = mllpRow();
@@ -541,9 +574,10 @@ describe('Connections — Engine', () => {
       'No delivery identity registry is loaded on this replica.'
     );
     const properties = within(engine).getByTestId('engine-properties');
-    const secret = properties.querySelector('[data-secret="true"]') as HTMLElement;
-    expect(secret).toHaveTextContent('FI_FHIR_GRAPHQL_BEARER_TOKEN');
-    expect(secret).toHaveTextContent('set');
+    const secrets = Array.from(properties.querySelectorAll<HTMLElement>('[data-secret="true"]'));
+    expect(secrets.map((row) => row.querySelectorAll('td')[1]?.textContent?.trim())).toEqual(['set', 'set', 'unset']);
+    expect(secrets[1]).toHaveTextContent('FI_FHIR_HTTP_INGRESS_SECRET');
+    expect(document.body.textContent ?? '').not.toContain('synthetic-raw-secret-value');
     expect(within(engine).getByTestId('engine-ledgers')).toHaveTextContent('connection');
     expect(within(engine).getByTestId('engine-registry')).toHaveTextContent('adt-east');
   });

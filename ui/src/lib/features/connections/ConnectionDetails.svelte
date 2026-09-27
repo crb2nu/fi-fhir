@@ -231,10 +231,17 @@
     return null;
   });
 
+  // The catalog moved past the version this form was made from (a list
+  // reload kept the edits). Even with the edits undone the form is not
+  // showing the saved draft, so nothing may act on row.version until reload.
+  const stale = $derived(row !== null && buffer.version !== row.version);
+  const STALE_REASON = 'Reload first: this connection changed since you opened it.';
+
   const compileBlocked = $derived.by((): string | null => {
     if (writeReason) return writeReason;
     if (!row) return 'Create the connection first.';
     if (archived) return 'Archived connections accept no change.';
+    if (stale) return STALE_REASON;
     if (dirty) return 'Save the draft first: compile reads the saved version.';
     const latest = row.latestRevision;
     if (latest && latest.compiledFromVersion === row.version) {
@@ -247,6 +254,7 @@
   const archiveBlocked = $derived.by((): string | null => {
     if (writeReason) return writeReason;
     if (archived) return 'This connection is already archived.';
+    if (stale) return STALE_REASON;
     if (dirty) return 'Save or discard your edits first.';
     return null;
   });
@@ -451,6 +459,11 @@
     </div>
     {#if archived}
       <p class="head-note" role="status">Archived: this connection accepts no change. Its revisions stay readable.</p>
+    {:else if stale && row}
+      <p class="head-note stale" role="status" data-testid="connection-stale">
+        This connection changed since you opened it (draft version {row.version}; this form holds version {buffer.version}).
+        <Button variant="ghost" size="sm" onclick={reload} loading={reloading}>Reload</Button>
+      </p>
     {/if}
   </header>
 
@@ -554,6 +567,13 @@
     margin: 0;
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
+  }
+
+  .head-note.stale {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-warning-text);
   }
 
   .details-tabs {

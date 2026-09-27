@@ -117,6 +117,15 @@ export function listedKey(listed: ReadonlySet<string>, envKey: string | undefine
   return envKey && listed.has(envKey) ? envKey : undefined;
 }
 
+/**
+ * A secret property as the page shows it: exactly `unset` when the runtime
+ * says so and `set` otherwise — never the string the server sent, so a
+ * server that broke its own contract still cannot put a value on screen.
+ */
+export function secretDisplay(value: string): 'set' | 'unset' {
+  return value === 'unset' ? 'unset' : 'set';
+}
+
 export function yesNo(value: boolean | null | undefined): string | null {
   if (value === null || value === undefined) return null;
   return value ? 'Yes' : 'No';

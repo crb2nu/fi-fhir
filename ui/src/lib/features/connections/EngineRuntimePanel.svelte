@@ -19,6 +19,7 @@
     listedKey,
     listedKeys,
     onOff,
+    secretDisplay,
     yesNo
   } from './engineProperties';
 
@@ -247,7 +248,8 @@
             <Tr data-secret={property.secret ? 'true' : 'false'}>
               <Td mono truncate value={property.key} />
               {#if property.secret}
-                <Td><Badge tone="neutral" mono>{property.value}</Badge></Td>
+                <!-- Only ever "set" or "unset", whatever the server sent. -->
+                <Td><Badge tone="neutral" mono>{secretDisplay(property.value)}</Badge></Td>
               {:else}
                 <Td mono truncate muted={property.value === ''} value={property.value === '' ? '—' : property.value} />
               {/if}
