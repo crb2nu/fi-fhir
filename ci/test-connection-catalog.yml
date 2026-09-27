@@ -8,10 +8,13 @@
 # the stored digest; a lifecycle definition draft that names a compiled digest
 # appears in the connection's references; a restart over the same database
 # preserves every row byte for byte; the schema refuses an UPDATE on a
-# revision; a spec carrying `token` is refused with SECRET_VALUE_FORBIDDEN and
-# nothing is written; another tenant's connection reads as not found; a write
-# without integration.deployment.operator is forbidden; racing compiles claim
-# exactly one revision.
+# revision; a create or update carrying secret material (a secret-looking key,
+# a *_binding member holding a value, a URL with a token query), a key the
+# kind does not define, or a malformed binding reference is refused with its
+# code and path and nothing is written; another tenant's connection reads as
+# not found; a write or validate without integration.deployment.operator is
+# forbidden; racing compiles claim exactly one revision, and a compile racing
+# an archive waits for it and reports archived.
 #
 # The field-level checker's mirror of the constructors
 # (TestConnectionChecker_MirrorsConstructorBounds) needs no database and runs

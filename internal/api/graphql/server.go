@@ -75,13 +75,16 @@ type ServerConfig struct {
 	// the server serves; /api/auth/status reports it.
 	LLMConfigured bool
 	// OperatorControlPlaneConfigured reports that serve wired the durable
-	// operator control plane (FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED's
-	// PostgreSQL services). /api/auth/status reports it as controlPlane, so a
-	// surface can say "not configured" instead of "forbidden".
+	// operator control plane. serve wires it whenever the durable submission
+	// database is open — any production ingress, delivery, Integration
+	// Session, or FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED opens it — which is
+	// the existing gate for the operator plane, not only that one flag.
+	// /api/auth/status reports it as controlPlane, so a surface can say "not
+	// configured" instead of "forbidden".
 	OperatorControlPlaneConfigured bool
 	// ConnectionCatalogConfigured reports that serve wired and migrated the
-	// connection catalog beside the control plane. /api/auth/status reports
-	// it as connectionCatalog.
+	// connection catalog, which it does beside the control plane under the
+	// same gate. /api/auth/status reports it as connectionCatalog.
 	ConnectionCatalogConfigured bool
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
@@ -629,8 +632,12 @@ func consumeJSONValue(decoder *json.Decoder) error {
 }
 
 // ConnectionSpecRejectedMessage is the message of the one catalog error that
-// carries extensions: a connection draft write refused because its spec would
-// have persisted secret material (.loom/38 C-0).
+// carries extensions: a connection draft write refused because it would have
+// persisted secret material or something that could carry it — a key the
+// kind does not define, a `*_binding` member holding more than a name, a URL
+// with credentials or a key/token/signature query parameter, or a malformed
+// secret binding reference (.loom/38 C-0). extensions.problems says which,
+// field by field; a surface renders those, not this message.
 const ConnectionSpecRejectedMessage = "connection spec carries secret material"
 
 const connectionSpecRejectedMessage = ConnectionSpecRejectedMessage

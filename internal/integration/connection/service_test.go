@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -209,6 +210,31 @@ func TestServiceRefusesASecretValueBeforeItIsPersisted(t *testing.T) {
 		!hasCode(specErr.Problems, CodeSecretValueForbidden, "secret_bindings[0].key") {
 		t.Fatalf("PEM in a binding key: error = %v", err)
 	}
+
+	// Refused before the store too: a key the kind does not define, and a
+	// malformed binding reference. unitService's store fails every query, so
+	// reaching it would surface errUnreachableStore instead of a SpecError.
+	for name, tc := range map[string]struct {
+		spec     string
+		bindings []integration.SecretBinding
+		code     string
+		path     string
+	}{
+		"unknown key": {`{"destination_id":"fhir-primary","fhir":{"base_url":"https://fhir.example.org","headers":{"x":"y"}}}`,
+			nil, CodeUnknownField, "fhir.headers"},
+		"binding provider": {`{"destination_id":"fhir-primary"}`,
+			[]integration.SecretBinding{{Name: "fhir-token", Reference: integration.SecretReference{Provider: "keychain", Key: "k"}}},
+			CodeInvalidEnum, "secret_bindings[0].provider"},
+		"token in the base url": {`{"fhir":{"base_url":"https://fhir.example.org/r4?access_token=synthetic"}}`,
+			nil, CodeSecretValueForbidden, "fhir.base_url"},
+	} {
+		request.Spec = json.RawMessage(tc.spec)
+		request.SecretBindings = tc.bindings
+		_, err := service.Create(writer, request)
+		if !errors.As(err, &specErr) || !hasCode(specErr.Problems, tc.code, tc.path) || errors.Is(err, errUnreachableStore) {
+			t.Fatalf("%s: error = %v, want %s at %s before any store query", name, err, tc.code, tc.path)
+		}
+	}
 }
 
 func TestValidateSpecReadsNothingAndReturnsAList(t *testing.T) {
@@ -244,89 +270,90 @@ func TestAuthorizeRuntimeRead(t *testing.T) {
 	}
 }
 
-// fakeDefinitionCatalog serves definition revisions by (definition, revision).
+// fakeDefinitionCatalog answers the one reference query from a fixed list and
+// records what it was asked.
 type fakeDefinitionCatalog struct {
-	snapshots []lifecycle.Snapshot
-	documents map[string]string
-	listErr   error
-	loads     int
-	lists     int
+	references []lifecycle.DigestReference
+	err        error
+	calls      int
+	asked      []string
 }
 
-func (f *fakeDefinitionCatalog) ListSnapshots(_ context.Context, _ string, limit int) ([]lifecycle.Snapshot, error) {
-	f.lists++
-	if limit != maxDefinitionSnapshots {
-		return nil, errors.New("unexpected snapshot bound")
+func (f *fakeDefinitionCatalog) ListDigestReferences(_ context.Context, _ string, digests []string) ([]lifecycle.DigestReference, error) {
+	f.calls++
+	f.asked = append([]string(nil), digests...)
+	if f.err != nil {
+		return nil, f.err
 	}
-	return f.snapshots, f.listErr
-}
-
-func (f *fakeDefinitionCatalog) LoadDefinitionRevision(_ context.Context, _, definitionID, revisionID string) ([]byte, error) {
-	f.loads++
-	document, ok := f.documents[definitionID+"/"+revisionID]
-	if !ok {
-		return nil, lifecycle.ErrNotFound
+	wanted := make(map[string]bool, len(digests))
+	for _, digest := range digests {
+		wanted[digest] = true
 	}
-	return []byte(document), nil
-}
-
-func snapshot(definitionID, revisionID string, state integration.DeploymentState, health integration.DeploymentHealthStatus) lifecycle.Snapshot {
-	return lifecycle.Snapshot{
-		DefinitionRevision: integration.ArtifactRevisionRef{ArtifactID: definitionID, RevisionID: revisionID},
-		State:              state, Health: health,
+	matched := make([]lifecycle.DigestReference, 0)
+	for _, reference := range f.references {
+		if wanted[reference.Digest] {
+			matched = append(matched, reference)
+		}
 	}
+	return matched, nil
 }
 
-func TestReferencesByDigestMatchesSourcesAndDestinations(t *testing.T) {
+func digestReference(definitionID, revisionID, digest string, state integration.DeploymentState, health integration.DeploymentHealthStatus) lifecycle.DigestReference {
+	return lifecycle.DigestReference{DefinitionID: definitionID, RevisionID: revisionID, Digest: digest, State: state, Health: health}
+}
+
+// TestReferencesByDigestIsOneCatalogQuery: every reference of every asked
+// digest comes back from one catalog call — no per-definition reads, no
+// truncation — grouped by digest in the catalog's order.
+func TestReferencesByDigestIsOneCatalogQuery(t *testing.T) {
 	source := "sha256:" + strings.Repeat("a", 64)
 	destination := "sha256:" + strings.Repeat("b", 64)
-	catalog := &fakeDefinitionCatalog{
-		snapshots: []lifecycle.Snapshot{
-			snapshot("adt-http", "rev-1", integration.DeploymentStateDeployed, integration.DeploymentHealthHealthy),
-			snapshot("adt-http", "rev-2", integration.DeploymentStateDraft, integration.DeploymentHealthUnknown),
-			snapshot("gone", "rev-1", integration.DeploymentStateDraft, integration.DeploymentHealthUnknown),
-		},
-		documents: map[string]string{
-			"adt-http/rev-1": `{"source":{"digest":"` + source + `"},"destinations":[{"digest":"` + destination + `"}]}`,
-			"adt-http/rev-2": `{"source":{"digest":"sha256:` + strings.Repeat("c", 64) + `"},"destinations":[{"digest":"` + destination + `"}]}`,
-		},
+	catalog := &fakeDefinitionCatalog{}
+	for index := range 250 {
+		catalog.references = append(catalog.references, digestReference(
+			fmt.Sprintf("definition-%03d", index), "rev-1", destination,
+			integration.DeploymentStateDraft, integration.DeploymentHealthUnknown))
 	}
+	catalog.references = append(catalog.references,
+		digestReference("adt-http", "rev-1", source, integration.DeploymentStateDeployed, integration.DeploymentHealthHealthy))
 	service := unitService(t)
 	service.catalog = catalog
-	references, err := service.referencesByDigest(context.Background(), "tenant-a", true)
+	references, err := service.referencesByDigest(context.Background(), "tenant-a", []string{source, destination})
 	if err != nil {
 		t.Fatalf("referencesByDigest: %v", err)
+	}
+	if catalog.calls != 1 || len(catalog.asked) != 2 {
+		t.Fatalf("catalog calls = %d asked %v, want one call for both digests", catalog.calls, catalog.asked)
 	}
 	if got := references[source]; len(got) != 1 || got[0] != (Reference{
 		DefinitionID: "adt-http", RevisionID: "rev-1", Digest: source, State: "deployed", Health: "healthy",
 	}) {
 		t.Fatalf("source references = %+v", got)
 	}
-	if got := references[destination]; len(got) != 2 || got[1].RevisionID != "rev-2" || got[1].State != "draft" {
-		t.Fatalf("destination references = %+v", got)
+	if got := references[destination]; len(got) != 250 || got[249].DefinitionID != "definition-249" || got[0].State != "draft" {
+		t.Fatalf("destination references = %d, want all 250 in catalog order", len(got))
 	}
 
 	projected := project(Draft{ID: "dest"}, nil, []RevisionDigest{
 		{RevisionID: "2", Digest: destination}, {RevisionID: "1", Digest: "sha256:" + strings.Repeat("f", 64)},
 	}, references, nil)
-	if len(projected.References) != 2 || projected.Runtime.Mounted {
-		t.Fatalf("projection = %+v", projected)
+	if len(projected.References) != 250 || projected.Runtime.Mounted {
+		t.Fatalf("projection = %d references, mounted %v", len(projected.References), projected.Runtime.Mounted)
 	}
 
-	loads := catalog.loads
-	if _, err := service.referencesByDigest(context.Background(), "tenant-a", false); err != nil || catalog.loads != loads {
+	if _, err := service.referencesByDigest(context.Background(), "tenant-a", nil); err != nil || catalog.calls != 1 {
 		t.Fatal("references were read for a connection with no revisions")
 	}
-	catalog.listErr = lifecycle.ErrUnavailable
-	if got, err := service.referencesByDigest(context.Background(), "tenant-a", true); err != nil || len(got) != 0 {
+	catalog.err = lifecycle.ErrUnavailable
+	if got, err := service.referencesByDigest(context.Background(), "tenant-a", []string{source}); err != nil || len(got) != 0 {
 		t.Fatalf("an unavailable lifecycle catalog must read as no references: %v, %v", got, err)
 	}
-	catalog.listErr = errors.New("database is down")
-	if _, err := service.referencesByDigest(context.Background(), "tenant-a", true); err == nil {
+	catalog.err = errors.New("database is down")
+	if _, err := service.referencesByDigest(context.Background(), "tenant-a", []string{source}); err == nil {
 		t.Fatal("a lifecycle read failure was reported as no references")
 	}
 	service.catalog = nil
-	if got, err := service.referencesByDigest(context.Background(), "tenant-a", true); err != nil || len(got) != 0 {
+	if got, err := service.referencesByDigest(context.Background(), "tenant-a", []string{source}); err != nil || len(got) != 0 {
 		t.Fatalf("no catalog must read as no references: %v, %v", got, err)
 	}
 }

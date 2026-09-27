@@ -249,6 +249,33 @@ func TestConnectionCatalogSecretValueRejectionOverTheWire(t *testing.T) {
 	}
 }
 
+// TestConnectionCatalogUnknownKeyRejectionOverTheWire: a key the kind does not
+// define is refused at write through the same path — nothing is silently
+// dropped — with UNKNOWN_FIELD and the key's path in extensions.problems.
+func TestConnectionCatalogUnknownKeyRejectionOverTheWire(t *testing.T) {
+	handler, path := catalogServer(t, resolvers.WithConnectionCatalog(unreachableCatalog(t)))
+	body := postTrusted(t, handler, path, `mutation Op { createConnection(input: {
+		id: "typo", direction: DESTINATION, kind: KAFKA, name: "typo", reason: "a key kafka does not have",
+		spec: {destination_id: "d", kafka: {topic: "t", partitions: 3}}
+	}) { id } }`)
+	response := decodeGraphQL(t, body)
+	if len(response.Errors) != 1 || response.Errors[0].Message != graphqlapi.ConnectionSpecRejectedMessage {
+		t.Fatalf("response = %s", body)
+	}
+	extensions := response.Errors[0].Extensions
+	problems, _ := extensions["problems"].([]any)
+	if extensions["code"] != connection.CodeUnknownField || len(problems) != 1 {
+		t.Fatalf("extensions = %v", extensions)
+	}
+	problem, _ := problems[0].(map[string]any)
+	if problem["path"] != "kafka.partitions" || problem["code"] != connection.CodeUnknownField {
+		t.Fatalf("problem = %v", problem)
+	}
+	if strings.Contains(body, "connection catalog request failed") {
+		t.Fatalf("the refusal reached the store: %s", body)
+	}
+}
+
 func TestConnectionCatalogFailsClosedWhenNotConfigured(t *testing.T) {
 	handler, path := catalogServer(t)
 	for _, operation := range append(connectionReadOperations(), connectionWriteOperations()...) {

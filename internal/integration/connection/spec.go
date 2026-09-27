@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
@@ -77,15 +80,14 @@ func decodeAndCheck(kind Kind, raw json.RawMessage, bindings []integration.Secre
 	tree, ok := decodeSpecTree(raw, c)
 	if !ok {
 		checkBindings(bindings, nil, c)
-		return nil, c.problems
+		return nil, dropShadowedProblems(c.problems)
 	}
 
 	structural := len(c.problems)
-	scanSecretValues(tree, "", c)
-	walkShape(tree, reflect.TypeOf(spec).Elem(), "", c)
+	inspection{c: c}.value(tree, reflect.TypeOf(spec).Elem(), "")
 	if len(c.problems) == structural {
-		// No unknown key, no secret-looking key, and no type error: the
-		// strict decoder is the authority on the typed value.
+		// No unknown key, no secret material, and no type error: the strict
+		// decoder is the authority on the typed value.
 		strict := newKindSpec(kind)
 		if err := strictDecode(raw, strict); err != nil {
 			c.add(CodeInvalidJSON, "", "spec is not a valid "+string(kind)+" document")
@@ -102,22 +104,54 @@ func decodeAndCheck(kind Kind, raw json.RawMessage, bindings []integration.Secre
 	return spec, dropShadowedProblems(c.problems)
 }
 
-// dropShadowedProblems removes the follow-on finding at a path whose value
-// had the wrong JSON type: `"timeouts": "5"` is one mistake, reported once as
-// INVALID_TYPE rather than again as a missing object.
+// writeProblems is the write-time gate: what a draft may never persist,
+// whatever state the rest of its spec is in. A draft may be incomplete — a
+// missing field, a value out of range, or a scalar of the wrong type is a
+// compile problem — but it never stores a key its kind does not define (not
+// even inside a container of the wrong type), secret material in any form,
+// or a malformed secret binding reference. Every problem it returns is one
+// CheckSpec would report too, so validate shows everything a write refuses.
+func writeProblems(kind Kind, tree map[string]any, bindings []integration.SecretBinding) []Problem {
+	c := &checker{}
+	spec := newKindSpec(kind)
+	if spec == nil {
+		c.add(CodeInvalidEnum, "", "connection kind is not supported")
+		return c.problems
+	}
+	inspection{c: c, write: true}.value(tree, reflect.TypeOf(spec).Elem(), "")
+	checkBindingReferences(bindings, c)
+	return dropShadowedProblems(c.problems)
+}
+
+// dropShadowedProblems keeps one finding per path: the most specific one.
+// Secret material outranks everything else at its path — a URL carrying a
+// token is refused for the token, not also for its query — and a value of
+// the wrong JSON type outranks what follows from it: `"timeouts": "5"` is
+// one mistake, reported once as INVALID_TYPE rather than again as a missing
+// object.
 func dropShadowedProblems(problems []Problem) []Problem {
-	typed := make(map[string]struct{})
-	for _, problem := range problems {
-		if problem.Code == CodeInvalidType {
-			typed[problem.Path] = struct{}{}
+	rank := func(code string) int {
+		switch code {
+		case CodeSecretValueForbidden:
+			return 2
+		case CodeInvalidType:
+			return 1
+		default:
+			return 0
 		}
 	}
-	if len(typed) == 0 {
+	top := make(map[string]int)
+	for _, problem := range problems {
+		if level := rank(problem.Code); level > top[problem.Path] {
+			top[problem.Path] = level
+		}
+	}
+	if len(top) == 0 {
 		return problems
 	}
 	kept := make([]Problem, 0, len(problems))
 	for _, problem := range problems {
-		if _, shadowed := typed[problem.Path]; shadowed && problem.Code != CodeInvalidType {
+		if rank(problem.Code) < top[problem.Path] {
 			continue
 		}
 		kept = append(kept, problem)
@@ -235,79 +269,156 @@ func duplicateJSONKey(raw []byte) (string, error) {
 	return walk("")
 }
 
-// secretKeyFragments are the word pieces that make a key look like it holds a
-// value rather than name a binding.
+// secretKeyFragments are the word pieces that make a key, or a URL query
+// parameter, look like it holds a value rather than name a binding. They are
+// matched against normalizeKey's spelling, so `X-Api-Key`, `x_api_key`, and
+// `xApiKey` all read as x_api_key.
 var secretKeyFragments = []string{
-	"token", "password", "passwd", "secret", "passphrase",
-	"private_key", "privatekey", "api_key", "apikey", "credential",
+	"token", "password", "passwd", "pwd", "secret", "passphrase",
+	"private_key", "privatekey", "api_key", "apikey", "access_key", "accesskey",
+	"credential", "bearer", "authorization", "auth",
 }
 
-// secretLookingKey reports whether a spec key's name suggests it carries a
-// secret value. A `*_binding` key names a binding and is always allowed.
-func secretLookingKey(key string) bool {
-	lower := strings.ToLower(key)
-	if strings.HasSuffix(lower, "_binding") {
-		return false
+// normalizeKey spells a key or parameter name the one way the fragment lists
+// are written: lower case, with `-` and camelCase word breaks as `_`.
+func normalizeKey(name string) string {
+	var normalized strings.Builder
+	var previous rune
+	for _, character := range name {
+		switch {
+		case character == '-':
+			normalized.WriteByte('_')
+		case unicode.IsUpper(character):
+			if unicode.IsLower(previous) || unicode.IsDigit(previous) {
+				normalized.WriteByte('_')
+			}
+			normalized.WriteRune(unicode.ToLower(character))
+		default:
+			normalized.WriteRune(character)
+		}
+		previous = character
 	}
+	return normalized.String()
+}
+
+// bindingKey reports whether a key names a secret binding: `*_binding`.
+func bindingKey(key string) bool {
+	return strings.HasSuffix(normalizeKey(key), "_binding")
+}
+
+func containsSecretFragment(normalized string) bool {
 	for _, fragment := range secretKeyFragments {
-		if strings.Contains(lower, fragment) {
+		if strings.Contains(normalized, fragment) {
 			return true
 		}
 	}
 	return false
 }
 
+// secretLookingKey reports whether the name of a key the kind does not define
+// suggests it carries a secret value. A `*_binding` key names a binding and
+// is judged by its value instead (holdsMoreThanAName). A key the kind does
+// define is never judged by its name: `auth_mode` and `oauth` are settings.
+func secretLookingKey(key string) bool {
+	return !bindingKey(key) && containsSecretFragment(normalizeKey(key))
+}
+
+// holdsMoreThanAName reports whether a `*_binding` member carries anything but
+// a binding name. JSON null reads as absent.
+func holdsMoreThanAName(value any) bool {
+	switch value.(type) {
+	case nil, string:
+		return false
+	default:
+		return true
+	}
+}
+
 // pemMarker is how a pasted certificate or private key announces itself.
 const pemMarker = "-----BEGIN"
 
-// scanSecretValues walks the whole tree — including subtrees under unknown
-// keys, because a draft persists those — and reports every key whose name
-// suggests a secret value and every string that carries PEM material.
-func scanSecretValues(value any, path string, c *checker) {
-	switch typed := value.(type) {
-	case map[string]any:
-		for _, key := range sortedKeys(typed) {
-			child := joinPath(path, key)
-			if secretLookingKey(key) {
-				c.add(CodeSecretValueForbidden, child,
-					"a spec never carries a secret value; name a secret binding in a *_binding field instead")
-				continue
+// secretParameterName reports whether a URL query or fragment parameter's
+// name says it carries a credential: any secret key fragment, a signature
+// (AWS and GCS signed URLs, Azure SAS `sig`), or a key (`key`, `*_key`).
+func secretParameterName(name string) bool {
+	normalized := normalizeKey(name)
+	switch {
+	case normalized == "key", normalized == "sig", normalized == "signature",
+		strings.HasSuffix(normalized, "_key"), strings.HasSuffix(normalized, "_sig"),
+		strings.Contains(normalized, "signature"):
+		return true
+	}
+	return containsSecretFragment(normalized)
+}
+
+// urlSchemePattern is RFC 3986's scheme production.
+var urlSchemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*$`)
+
+// urlSecretProblem returns why a string that is an absolute URL carries a
+// credential — userinfo, or a query or fragment parameter secretParameterName
+// flags — or "" when it does not. It splits the URL by hand rather than with
+// url.Parse, so a URL that does not parse (a bad escape) cannot smuggle a
+// token past it. Any other query parameter is data and stays allowed.
+func urlSecretProblem(value string) string {
+	scheme, rest, found := strings.Cut(value, "://")
+	if !found || !urlSchemePattern.MatchString(scheme) {
+		return ""
+	}
+	authority := rest
+	if end := strings.IndexAny(rest, "/?#"); end >= 0 {
+		authority = rest[:end]
+	}
+	if strings.Contains(authority, "@") {
+		return "a URL never carries credentials; name a secret binding instead"
+	}
+	var query, fragment string
+	if before, after, hasFragment := strings.Cut(rest, "#"); hasFragment {
+		rest, fragment = before, after
+	}
+	if _, after, hasQuery := strings.Cut(rest, "?"); hasQuery {
+		query = after
+	}
+	for _, parameters := range []string{query, fragment} {
+		for _, pair := range strings.FieldsFunc(parameters, func(r rune) bool { return r == '&' || r == ';' }) {
+			name, _, _ := strings.Cut(pair, "=")
+			if unescaped, err := url.QueryUnescape(name); err == nil {
+				name = unescaped
 			}
-			scanSecretValues(typed[key], child, c)
-		}
-	case []any:
-		for index, element := range typed {
-			scanSecretValues(element, fmt.Sprintf("%s[%d]", path, index), c)
-		}
-	case string:
-		if strings.Contains(typed, pemMarker) {
-			c.add(CodeSecretValueForbidden, path,
-				"a spec never carries certificate or key material; name a secret binding instead")
+			if secretParameterName(name) {
+				return "a URL never carries a key, token, or signature in its query; name a secret binding instead"
+			}
 		}
 	}
+	return ""
 }
 
-// SecretValueProblems is the write-time half of the secret rule: the problems
-// a draft write refuses (SpecError). It is empty for a spec that is not even
-// JSON — that is a compile problem, and it cannot carry a recognisable key.
-func SecretValueProblems(raw json.RawMessage) []Problem {
-	c := &checker{}
-	scratch := &checker{}
-	tree, ok := decodeSpecTree(raw, scratch)
-	if !ok {
-		return nil
-	}
-	scanSecretValues(tree, "", c)
-	return c.problems
+// inspection is one walk of a spec's generic JSON tree against its kind's
+// type. It reports every key the kind does not define (UNKNOWN_FIELD), every
+// value of the wrong JSON type (INVALID_TYPE), and secret material wherever
+// it sits (SECRET_VALUE_FORBIDDEN): a key the kind does not define whose name
+// suggests a value, a `*_binding` member holding more than a name, PEM
+// material in any string, and a URL carrying a credential. A write
+// inspection reports only what a draft may never persist: a value of the
+// wrong type is refused there only when it is a container, because the
+// catalog cannot vouch for the keys inside it.
+type inspection struct {
+	c     *checker
+	write bool
 }
 
-// walkShape compares the generic tree against the spec type's JSON field set
-// and reports every unknown key and every value of the wrong JSON type, with
-// its path. Secret-looking keys were already reported by scanSecretValues and
-// are not reported twice.
-func walkShape(value any, typ reflect.Type, path string, c *checker) {
+// value inspects one value against typ. typ is nil inside a value the kind
+// does not describe — under an unknown key, or inside a container of the
+// wrong type — where only secret material is looked for.
+func (in inspection) value(value any, typ reflect.Type, path string) {
 	if value == nil {
 		return // JSON null reads as absent
+	}
+	if text, ok := value.(string); ok {
+		in.secretString(text, path)
+	}
+	if typ == nil {
+		in.undescribed(value, path)
+		return
 	}
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
@@ -316,47 +427,110 @@ func walkShape(value any, typ reflect.Type, path string, c *checker) {
 	case reflect.Struct:
 		object, ok := value.(map[string]any)
 		if !ok {
-			c.add(CodeInvalidType, path, "must be an object")
+			in.mismatch(value, path, "must be an object")
 			return
 		}
-		fields := jsonFields(typ)
-		for _, key := range sortedKeys(object) {
-			child := joinPath(path, key)
-			field, known := fields[key]
-			if !known {
-				if !secretLookingKey(key) {
-					c.add(CodeUnknownField, child, "is not a field of this connection kind")
-				}
-				continue
-			}
-			walkShape(object[key], field, child, c)
-		}
+		in.object(object, jsonFields(typ), path)
 	case reflect.Slice:
 		list, ok := value.([]any)
 		if !ok {
-			c.add(CodeInvalidType, path, "must be a list")
+			in.mismatch(value, path, "must be a list")
 			return
 		}
 		for index, element := range list {
-			walkShape(element, typ.Elem(), fmt.Sprintf("%s[%d]", path, index), c)
+			in.value(element, typ.Elem(), fmt.Sprintf("%s[%d]", path, index))
 		}
 	case reflect.String:
 		if _, ok := value.(string); !ok {
-			c.add(CodeInvalidType, path, "must be a string")
+			in.mismatch(value, path, "must be a string")
 		}
 	case reflect.Bool:
 		if _, ok := value.(bool); !ok {
-			c.add(CodeInvalidType, path, "must be true or false")
+			in.mismatch(value, path, "must be true or false")
 		}
 	case reflect.Int, reflect.Int64:
 		number, ok := value.(json.Number)
+		if ok {
+			_, err := strconv.ParseInt(number.String(), 10, 64)
+			ok = err == nil
+		}
 		if !ok {
-			c.add(CodeInvalidType, path, "must be a whole number")
-			return
+			in.mismatch(value, path, "must be a whole number")
 		}
-		if _, err := strconv.ParseInt(number.String(), 10, 64); err != nil {
-			c.add(CodeInvalidType, path, "must be a whole number")
+	}
+}
+
+// object inspects the members of an object the kind describes.
+func (in inspection) object(object map[string]any, fields map[string]reflect.Type, path string) {
+	for _, key := range sortedKeys(object) {
+		child := joinPath(path, key)
+		member := object[key]
+		field, known := fields[key]
+		switch {
+		case bindingKey(key) && holdsMoreThanAName(member):
+			in.c.add(CodeSecretValueForbidden, child,
+				"a *_binding field holds the name of a secret binding, never a value")
+		case !known && secretLookingKey(key):
+			in.c.add(CodeSecretValueForbidden, child,
+				"a spec never carries a secret value; name a secret binding in a *_binding field instead")
+		case !known:
+			in.c.add(CodeUnknownField, child, "is not a field of this connection kind")
+			in.value(member, nil, child)
+		default:
+			in.value(member, field, child)
 		}
+	}
+}
+
+// undescribed looks for secret material inside a value the kind does not
+// describe. Its keys are not reported one by one: the unknown key or the
+// wrong-typed value that holds them already was.
+func (in inspection) undescribed(value any, path string) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, key := range sortedKeys(typed) {
+			child := joinPath(path, key)
+			member := typed[key]
+			switch {
+			case bindingKey(key) && holdsMoreThanAName(member):
+				in.c.add(CodeSecretValueForbidden, child,
+					"a *_binding field holds the name of a secret binding, never a value")
+			case secretLookingKey(key):
+				in.c.add(CodeSecretValueForbidden, child,
+					"a spec never carries a secret value; name a secret binding in a *_binding field instead")
+			default:
+				in.value(member, nil, child)
+			}
+		}
+	case []any:
+		for index, element := range typed {
+			in.value(element, nil, fmt.Sprintf("%s[%d]", path, index))
+		}
+	}
+}
+
+// mismatch reports a value of the wrong JSON type and looks inside it for
+// secret material.
+func (in inspection) mismatch(value any, path, message string) {
+	_, isObject := value.(map[string]any)
+	_, isList := value.([]any)
+	if !in.write || isObject || isList {
+		in.c.add(CodeInvalidType, path, message)
+	}
+	if isObject || isList {
+		in.undescribed(value, path)
+	}
+}
+
+// secretString reports PEM material or a credential-carrying URL.
+func (in inspection) secretString(text, path string) {
+	if strings.Contains(text, pemMarker) {
+		in.c.add(CodeSecretValueForbidden, path,
+			"a spec never carries certificate or key material; name a secret binding instead")
+		return
+	}
+	if message := urlSecretProblem(text); message != "" {
+		in.c.add(CodeSecretValueForbidden, path, message)
 	}
 }
 
@@ -418,14 +592,47 @@ func bindingFieldValues(tree map[string]any) []bindingField {
 
 // checkBindings validates the binding references themselves and the two
 // cross rules: every `*_binding` field names a binding (UNBOUND_SECRET), and
-// every binding is named by some field (UNUSED_BINDING, a warning).
+// every binding is named by some field (UNUSED_BINDING, a warning). Only the
+// cross rules wait for compile; a write refuses a malformed reference.
 func checkBindings(bindings []integration.SecretBinding, fields []bindingField, c *checker) {
+	names := checkBindingReferences(bindings, c)
+	used := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		used[field.name] = struct{}{}
+		if _, bound := names[field.name]; !bound {
+			c.add(CodeUnboundSecret, field.path, fmt.Sprintf("names secret binding %q, which is not declared", field.name))
+		}
+	}
+	for index, binding := range bindings {
+		if binding.Name == "" {
+			continue
+		}
+		if _, isUsed := used[binding.Name]; !isUsed {
+			c.add(CodeUnusedBinding, fmt.Sprintf("secret_bindings[%d].name", index),
+				fmt.Sprintf("binding %q is not named by any *_binding field", binding.Name))
+		}
+	}
+}
+
+// checkBindingReferences validates each secret binding on its own — the count,
+// the name, the provider, the key and version tokens, and that none of them
+// carries certificate or key material — and returns the valid names. Draft
+// writes and compile both apply it.
+func checkBindingReferences(bindings []integration.SecretBinding, c *checker) map[string]struct{} {
 	if len(bindings) > MaxSecretBindings {
 		c.add(CodeOutOfRange, "secret_bindings", fmt.Sprintf("at most %d secret bindings", MaxSecretBindings))
 	}
 	names := make(map[string]struct{}, len(bindings))
 	for index, binding := range bindings {
 		path := fmt.Sprintf("secret_bindings[%d]", index)
+		for _, field := range []struct{ name, value string }{
+			{"name", binding.Name}, {"key", binding.Reference.Key}, {"version", binding.Reference.Version},
+		} {
+			if strings.Contains(field.value, pemMarker) {
+				c.add(CodeSecretValueForbidden, path+"."+field.name,
+					"a binding names a secret; it never carries certificate or key material")
+			}
+		}
 		switch {
 		case binding.Name == "":
 			c.add(CodeRequired, path+".name", "binding name is required")
@@ -455,22 +662,7 @@ func checkBindings(bindings []integration.SecretBinding, fields []bindingField, 
 			c.add(CodeInvalidValue, path+".version", "version must be at most 256 characters with no whitespace")
 		}
 	}
-	used := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		used[field.name] = struct{}{}
-		if _, bound := names[field.name]; !bound {
-			c.add(CodeUnboundSecret, field.path, fmt.Sprintf("names secret binding %q, which is not declared", field.name))
-		}
-	}
-	for index, binding := range bindings {
-		if binding.Name == "" {
-			continue
-		}
-		if _, isUsed := used[binding.Name]; !isUsed {
-			c.add(CodeUnusedBinding, fmt.Sprintf("secret_bindings[%d].name", index),
-				fmt.Sprintf("binding %q is not named by any *_binding field", binding.Name))
-		}
-	}
+	return names
 }
 
 func joinPath(prefix, key string) string {

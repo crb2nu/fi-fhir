@@ -3,6 +3,7 @@ package connection
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -210,54 +211,189 @@ func TestCheckSpecBindingRules(t *testing.T) {
 	}
 }
 
-// TestCheckSpecRefusesSecretValues: a key whose name suggests a value is
-// refused wherever it sits — including under a key the kind does not know,
-// because a draft persists those — and so is PEM material in any string.
-// Binding names are the one allowed spelling.
+// writeGate runs the draft write gate on a spec the way Service.Create does.
+func writeGate(t *testing.T, kind Kind, spec string, bindings []integration.SecretBinding) []Problem {
+	t.Helper()
+	tree, ok := decodeSpecTree(json.RawMessage(spec), &checker{})
+	if !ok {
+		t.Fatalf("spec is not one JSON object: %s", spec)
+	}
+	return writeProblems(kind, tree, bindings)
+}
+
+// TestCheckSpecRefusesSecretValues: secret material is refused wherever it
+// sits, by validate and compile and by the draft write alike — a key the kind
+// does not define whose name suggests a value (also spelled with `-` or in
+// camelCase, and under a key the kind does not know), a `*_binding` member
+// holding more than a name, PEM material in any string, and a URL carrying
+// credentials or a key, token, or signature parameter. Each is reported once,
+// at its path.
 func TestCheckSpecRefusesSecretValues(t *testing.T) {
+	httpsSpec := func(url string) string {
+		return `{"destination_id":"d","class":"production","https":{"url":"` + url + `","method":"POST","token_binding":"t"}}`
+	}
+	fhirSpec := func(url string) string {
+		return `{"destination_id":"d","class":"production","fhir":{"base_url":"` + url + `","token_binding":"t"}}`
+	}
 	cases := []struct {
 		name string
+		kind Kind
 		spec string
 		path string
 	}{
-		{"token", `{"destination_id":"d","class":"production","https":{"url":"https://x.example","method":"POST","token_binding":"t","token":"abc"}}`, "https.token"},
-		{"password at top level", `{"password":"hunter2"}`, "password"},
-		{"client secret", `{"client_secret":"s"}`, "client_secret"},
-		{"passphrase", `{"passphrase":"p"}`, "passphrase"},
-		{"private key", `{"tls":{"private_key":"k"}}`, "tls.private_key"},
-		{"api key", `{"apiKey":"k"}`, "apiKey"},
-		{"credential nested under an unknown key", `{"extra":{"credentials":{"user":"u"}}}`, "extra.credentials"},
-		{"inside a list", `{"clients":{"identities":[{"subject":"s","secret":"x"}]}}`, "clients.identities[0].secret"},
-		{"PEM material", `{"tls":{"server_certificate_binding":"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"}}`, "tls.server_certificate_binding"},
+		{"token", KindHTTPS, `{"destination_id":"d","class":"production","https":{"url":"https://x.example","method":"POST","token_binding":"t","token":"abc"}}`, "https.token"},
+		{"secret", KindHTTPS, `{"destination_id":"d","secret":"s"}`, "secret"},
+		{"password at top level", KindMLLP, `{"password":"hunter2"}`, "password"},
+		{"pwd", KindMLLP, `{"pwd":"hunter2"}`, "pwd"},
+		{"client secret", KindMLLP, `{"client_secret":"s"}`, "client_secret"},
+		{"passphrase", KindMLLP, `{"passphrase":"p"}`, "passphrase"},
+		{"private key", KindMLLP, `{"tls":{"private_key":"k"}}`, "tls.private_key"},
+		{"api key in camel case", KindMLLP, `{"apiKey":"k"}`, "apiKey"},
+		{"api key with hyphens", KindHTTPS, `{"https":{"x-api-key":"k"}}`, "https.x-api-key"},
+		{"access key", KindBatchS3, `{"s3":{"access_key":"k"}}`, "s3.access_key"},
+		{"access token in camel case", KindHTTPS, `{"https":{"accessToken":"k"}}`, "https.accessToken"},
+		{"authorization header", KindHTTPS, `{"https":{"authorization":"Bearer synthetic"}}`, "https.authorization"},
+		{"auth", KindKafka, `{"kafka":{"topic":"t","auth":"u:p"}}`, "kafka.auth"},
+		{"bearer", KindFHIR, `{"fhir":{"bearer":"synthetic"}}`, "fhir.bearer"},
+		{"credential nested under an unknown key", KindMLLP, `{"extra":{"credentials":{"user":"u"}}}`, "extra.credentials"},
+		{"inside a list", KindMLLP, `{"clients":{"identities":[{"subject":"s","secret":"x"}]}}`, "clients.identities[0].secret"},
+		{"inside a container of the wrong type", KindMLLP, `{"timeouts":[{"password":"x"}]}`, "timeouts[0].password"},
+		{"PEM material", KindMLLP, `{"tls":{"server_certificate_binding":"-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"}}`, "tls.server_certificate_binding"},
+		{"object under a binding field", KindHTTPS, `{"https":{"token_binding":{"value":"synthetic"}}}`, "https.token_binding"},
+		{"number under a binding field", KindHTTPS, `{"https":{"token_binding":12345}}`, "https.token_binding"},
+		{"object under an unknown binding key", KindHTTPS, `{"https":{"signing_binding":{"value":"synthetic"}}}`, "https.signing_binding"},
+		{"token in the url query", KindHTTPS, httpsSpec("https://hooks.example.org/in?token=synthetic"), "https.url"},
+		{"access token in the url query", KindHTTPS, httpsSpec("https://hooks.example.org/in?tenant=a&access_token=synthetic"), "https.url"},
+		{"signature in the url query", KindHTTPS, httpsSpec("https://hooks.example.org/in?sv=1&sig=synthetic"), "https.url"},
+		{"signed url", KindHTTPS, httpsSpec("https://hooks.example.org/in?X-Amz-Signature=synthetic"), "https.url"},
+		{"key in the url query", KindHTTPS, httpsSpec("https://hooks.example.org/in?key=synthetic"), "https.url"},
+		{"subscription key in the url query", KindHTTPS, httpsSpec("https://hooks.example.org/in?subscription-key=synthetic"), "https.url"},
+		{"token in the url fragment", KindHTTPS, httpsSpec("https://hooks.example.org/in#access_token=synthetic"), "https.url"},
+		{"token behind a bad escape", KindHTTPS, httpsSpec("https://hooks.example.org/%zz?token=synthetic"), "https.url"},
+		{"credentials in the url", KindHTTPS, httpsSpec("https://user:synthetic@hooks.example.org/in"), "https.url"},
+		{"token in the fhir base url", KindFHIR, fhirSpec("https://fhir.example.org/r4?_token=synthetic"), "fhir.base_url"},
+		{"token in a uri san", KindMLLP, `{"clients":{"identities":[{"subject":"s","uri_san":"spiffe://example.org/a?token=synthetic"}]}}`, "clients.identities[0].uri_san"},
+		{"token in a url under an unknown key", KindHTTPS, `{"callback":{"url":"https://x.example/?apikey=synthetic"}}`, "callback.url"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			kind := KindMLLP
-			if strings.Contains(tc.spec, "destination_id") {
-				kind = KindHTTPS
-			}
-			problems := CheckSpec(kind, json.RawMessage(tc.spec), nil)
+			problems := CheckSpec(tc.kind, json.RawMessage(tc.spec), nil)
 			if !hasCode(problems, CodeSecretValueForbidden, tc.path) {
 				t.Fatalf("no SECRET_VALUE_FORBIDDEN at %s: %+v", tc.path, problems)
 			}
-			if hasCode(problems, CodeUnknownField, tc.path) {
-				t.Fatalf("a secret-looking key was also reported as UNKNOWN_FIELD: %+v", problems)
+			if at := problemsAt(problems, tc.path); len(at) != 1 {
+				t.Fatalf("the secret at %s was reported %d times: %+v", tc.path, len(at), at)
 			}
-			if got := SecretValueProblems(json.RawMessage(tc.spec)); !hasCode(got, CodeSecretValueForbidden, tc.path) {
-				t.Fatalf("the write-time scan missed %s: %+v", tc.path, got)
+			if got := writeGate(t, tc.kind, tc.spec, nil); !hasCode(got, CodeSecretValueForbidden, tc.path) {
+				t.Fatalf("the write gate missed %s: %+v", tc.path, got)
+			}
+			if strings.Contains(fmt.Sprint(problems), "synthetic") {
+				t.Fatalf("a problem echoes the secret value: %+v", problems)
 			}
 		})
 	}
-	for _, allowed := range []string{
-		`{"credential_binding":"c"}`,
-		`{"s3":{"secret_access_key_binding":"s","access_key_binding":"a"}}`,
-		`{"sftp":{"private_key_passphrase_binding":"p","password_binding":"q"}}`,
-		`{"https":{"token_binding":"t"}}`,
+	for _, allowed := range []struct {
+		kind Kind
+		spec string
+	}{
+		{KindHTTP, `{"credential_binding":"c","auth_mode":"bearer"}`},
+		{KindHTTP, `{"auth_mode":"oauth2","oauth":{"issuer_url":"https://issuer.example.org/realm","audience":"a"}}`},
+		{KindBatchS3, `{"s3":{"secret_access_key_binding":"s","access_key_binding":"a"}}`},
+		{KindBatchSFTP, `{"sftp":{"private_key_passphrase_binding":"p","password_binding":"q"}}`},
+		{KindHTTPS, `{"https":{"token_binding":"t","url":"https://hooks.example.org/in?tenant=a&format=hl7"}}`},
+		{KindHTTPS, `{"https":{"token_binding":null}}`},
+		{KindMLLP, `{"clients":{"identities":[{"subject":"s","uri_san":"spiffe://example.org/ns/lab-east"}]}}`},
 	} {
-		if problems := SecretValueProblems(json.RawMessage(allowed)); len(problems) != 0 {
-			t.Errorf("binding names refused in %s: %+v", allowed, problems)
+		if problems := writeGate(t, allowed.kind, allowed.spec, nil); len(problems) != 0 {
+			t.Errorf("%s refused at write: %+v", allowed.spec, problems)
+		}
+		if problems := CheckSpec(allowed.kind, json.RawMessage(allowed.spec), nil); hasAnyCode(problems, CodeSecretValueForbidden) {
+			t.Errorf("%s reported as secret material: %+v", allowed.spec, problems)
 		}
 	}
+}
+
+// TestWriteGateRefusesWhatADraftMayNeverPersist: a draft may be incomplete,
+// out of range, or hold a scalar of the wrong type, but it never stores a key
+// its kind does not define — even inside a container of the wrong type — or a
+// malformed secret binding reference. Every problem the gate raises is one
+// validate reports too.
+func TestWriteGateRefusesWhatADraftMayNeverPersist(t *testing.T) {
+	ref := func(name, provider, key, version string) integration.SecretBinding {
+		return integration.SecretBinding{Name: name, Reference: integration.SecretReference{
+			Provider: integration.SecretProviderKind(provider), Key: key, Version: version,
+		}}
+	}
+	cases := []struct {
+		name     string
+		kind     Kind
+		spec     string
+		bindings []integration.SecretBinding
+		code     string
+		path     string
+	}{
+		{"unknown top-level key", KindKafka, `{"destination_id":"d","colour":"blue"}`, nil, CodeUnknownField, "colour"},
+		{"unknown nested key", KindMLLP, `{"tls":{"mode":"disabled","sni":"x"}}`, nil, CodeUnknownField, "tls.sni"},
+		{"unknown key in a list element", KindMLLP, `{"clients":{"identities":[{"subject":"s","note":"x"}]}}`, nil, CodeUnknownField, "clients.identities[0].note"},
+		{"key the kind defines elsewhere", KindKafka, `{"https":{"url":"https://x.example"}}`, nil, CodeUnknownField, "https"},
+		{"object where a string belongs", KindKafka, `{"destination_id":{"note":"x"}}`, nil, CodeInvalidType, "destination_id"},
+		{"list where an object belongs", KindMLLP, `{"timeouts":[{"read_seconds":5}]}`, nil, CodeInvalidType, "timeouts"},
+		{"object inside a list of strings", KindMLLP, `{"clients":{"allowed_cidrs":[{"note":"x"}]}}`, nil, CodeInvalidType, "clients.allowed_cidrs[0]"},
+		{"binding without a name", KindKafka, `{}`, []integration.SecretBinding{ref("", "env", "K", "")}, CodeRequired, "secret_bindings[0].name"},
+		{"binding name with whitespace", KindKafka, `{}`, []integration.SecretBinding{ref("a b", "env", "K", "")}, CodeInvalidValue, "secret_bindings[0].name"},
+		{"binding names repeated", KindKafka, `{}`, []integration.SecretBinding{ref("a", "env", "K", ""), ref("a", "env", "L", "")}, CodeDuplicate, "secret_bindings[1].name"},
+		{"binding provider unknown", KindKafka, `{}`, []integration.SecretBinding{ref("a", "keychain", "K", "")}, CodeInvalidEnum, "secret_bindings[0].provider"},
+		{"binding provider missing", KindKafka, `{}`, []integration.SecretBinding{ref("a", "", "K", "")}, CodeRequired, "secret_bindings[0].provider"},
+		{"binding key missing", KindKafka, `{}`, []integration.SecretBinding{ref("a", "vault", "", "")}, CodeRequired, "secret_bindings[0].key"},
+		{"binding key with whitespace", KindKafka, `{}`, []integration.SecretBinding{ref("a", "vault", "has space", "")}, CodeInvalidValue, "secret_bindings[0].key"},
+		{"binding key too long", KindKafka, `{}`, []integration.SecretBinding{ref("a", "vault", strings.Repeat("k", 257), "")}, CodeInvalidValue, "secret_bindings[0].key"},
+		{"binding version with a control character", KindKafka, `{}`, []integration.SecretBinding{ref("a", "vault", "k", "v\x01")}, CodeInvalidValue, "secret_bindings[0].version"},
+		{"PEM in a binding key", KindKafka, `{}`, []integration.SecretBinding{ref("a", "file", "-----BEGIN", "")}, CodeSecretValueForbidden, "secret_bindings[0].key"},
+		{"too many bindings", KindKafka, `{}`, bindingsOf(MaxSecretBindings + 1), CodeOutOfRange, "secret_bindings"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			refused := writeGate(t, tc.kind, tc.spec, tc.bindings)
+			if !hasCode(refused, tc.code, tc.path) {
+				t.Fatalf("the write gate did not refuse %s at %s: %+v", tc.code, tc.path, refused)
+			}
+			checked := CheckSpec(tc.kind, json.RawMessage(tc.spec), tc.bindings)
+			for _, problem := range refused {
+				if !hasCode(checked, problem.Code, problem.Path) {
+					t.Fatalf("validate does not report the write refusal %+v: %+v", problem, checked)
+				}
+			}
+		})
+	}
+	for name, spec := range map[string]string{
+		"an incomplete draft":             `{"destination_id":"d"}`,
+		"an empty draft":                  `{}`,
+		"a value out of range":            `{"kafka":{"topic":"` + strings.Repeat("t", 300) + `"}}`,
+		"a scalar of the wrong type":      `{"destination_id":42,"kafka":"topic"}`,
+		"a JSON null for an optional one": `{"identity":null}`,
+	} {
+		if problems := writeGate(t, KindKafka, spec, nil); len(problems) != 0 {
+			t.Errorf("%s was refused at write: %+v", name, problems)
+		}
+	}
+}
+
+func bindingsOf(count int) []integration.SecretBinding {
+	bindings := make([]integration.SecretBinding, 0, count)
+	for index := range count {
+		bindings = append(bindings, integration.SecretBinding{Name: fmt.Sprintf("binding-%d", index),
+			Reference: integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: fmt.Sprintf("KEY_%d", index)}})
+	}
+	return bindings
+}
+
+func hasAnyCode(problems []Problem, code string) bool {
+	for _, problem := range problems {
+		if problem.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCheckSpecReportsEveryStructuralProblemWithItsPath(t *testing.T) {

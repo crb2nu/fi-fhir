@@ -383,9 +383,16 @@ func TestConnectionCatalog_LifecycleReferenceAndRuntimeState(t *testing.T) {
 	if err := lifecycleCatalog.Migrate(t.Context()); err != nil {
 		t.Fatalf("migrate lifecycle: %v", err)
 	}
-	definition := referencingDefinition(t, *source.Revision, *target.Revision)
-	if _, err := lifecycleCatalog.CreateDraft(t.Context(), definition); err != nil {
-		t.Fatalf("lifecycle CreateDraft: %v", err)
+	definition := referencingDefinition(t, "adt-mllp-definition", *source.Revision, target.Revision.ArtifactID,
+		target.Revision.RevisionID, target.Revision.Digest)
+	// A second definition names the same source and a destination the catalog
+	// does not hold: the one reference query returns it for the source only.
+	second := referencingDefinition(t, "adt-mllp-definition-b", *source.Revision, "dest-elsewhere", "1",
+		"sha256:"+strings.Repeat("9", 64))
+	for _, created := range []integration.IntegrationDefinitionRevision{definition, second} {
+		if _, err := lifecycleCatalog.CreateDraft(t.Context(), created); err != nil {
+			t.Fatalf("lifecycle CreateDraft(%s): %v", created.DefinitionID, err)
+		}
 	}
 
 	mounted := describedRuntime()
@@ -398,15 +405,27 @@ func TestConnectionCatalog_LifecycleReferenceAndRuntimeState(t *testing.T) {
 		t.Fatalf("NewService: %v", err)
 	}
 	reader := callerContext("tenant-a", ReadRole)
-	for id, digest := range map[string]string{"adt-mllp": source.Revision.Digest, "dest-https": target.Revision.Digest} {
+	reference := func(definitionID, digest string) Reference {
+		return Reference{DefinitionID: definitionID, RevisionID: "rev-1", Digest: digest, State: "draft", Health: "unknown"}
+	}
+	for id, want := range map[string][]Reference{
+		"adt-mllp": {
+			reference("adt-mllp-definition", source.Revision.Digest),
+			reference("adt-mllp-definition-b", source.Revision.Digest),
+		},
+		"dest-https": {reference("adt-mllp-definition", target.Revision.Digest)},
+	} {
 		connection, err := service.Get(reader, id)
 		if err != nil {
 			t.Fatalf("Get(%s): %v", id, err)
 		}
-		want := Reference{DefinitionID: definition.DefinitionID, RevisionID: definition.RevisionID,
-			Digest: digest, State: "draft", Health: "unknown"}
-		if len(connection.References) != 1 || connection.References[0] != want {
-			t.Fatalf("%s references = %+v, want [%+v]", id, connection.References, want)
+		if len(connection.References) != len(want) {
+			t.Fatalf("%s references = %+v, want %+v", id, connection.References, want)
+		}
+		for index := range want {
+			if connection.References[index] != want[index] {
+				t.Fatalf("%s references = %+v, want %+v", id, connection.References, want)
+			}
 		}
 	}
 	listed, err := service.List(reader, ListFilter{})
@@ -416,7 +435,7 @@ func TestConnectionCatalog_LifecycleReferenceAndRuntimeState(t *testing.T) {
 	for _, connection := range listed {
 		switch connection.ID {
 		case "adt-mllp":
-			if !connection.Runtime.Mounted || connection.Runtime.Role != RuntimeRoleMLLPListener || len(connection.References) != 1 {
+			if !connection.Runtime.Mounted || connection.Runtime.Role != RuntimeRoleMLLPListener || len(connection.References) != 2 {
 				t.Fatalf("adt-mllp = %+v", connection)
 			}
 		case "dest-https":
@@ -435,8 +454,9 @@ func TestConnectionCatalog_LifecycleReferenceAndRuntimeState(t *testing.T) {
 	}
 }
 
-func referencingDefinition(t *testing.T, source, target Revision) integration.IntegrationDefinitionRevision {
+func referencingDefinition(t *testing.T, definitionID string, source Revision, targetID, targetRevisionID, targetDigest string) integration.IntegrationDefinitionRevision {
 	t.Helper()
+	target := Revision{ArtifactID: targetID, RevisionID: targetRevisionID, Digest: targetDigest}
 	digest := func(value byte) string { return "sha256:" + strings.Repeat(string(value), 64) }
 	policy := integration.IntegrationDeploymentPolicy{
 		ConnectionValidation: integration.ConnectionValidationPolicy{TimeoutSeconds: 5, MaxAgeSeconds: 300},
@@ -445,7 +465,7 @@ func referencingDefinition(t *testing.T, source, target Revision) integration.In
 		Capacity:             integration.CapacityPolicy{MaxInFlight: 8, MaxQueued: 64, MaxMessagesPerSecond: 50},
 	}
 	definition, err := integration.NewIntegrationDefinitionRevision(integration.IntegrationDefinitionRevisionInput{
-		DefinitionID: "adt-mllp-definition", RevisionID: "rev-1", TenantID: "tenant-a",
+		DefinitionID: definitionID, RevisionID: "rev-1", TenantID: "tenant-a",
 		Source: integration.SourceRevisionRef{
 			ArtifactRevisionRef: integration.ArtifactRevisionRef{ArtifactID: source.ArtifactID, RevisionID: source.RevisionID, Digest: source.Digest},
 			SourceID:            "adt-east",
@@ -609,41 +629,98 @@ func TestConnectionCatalog_StoredRecordsAreGuardedBySchemaTriggers(t *testing.T)
 	}
 }
 
-// TestConnectionCatalog_SecretValueIsRefusedAndNotPersisted: a spec carrying
-// `token` is refused with SECRET_VALUE_FORBIDDEN and no row is written.
+// TestConnectionCatalog_SecretValueIsRefusedAndNotPersisted: a draft write —
+// create or update — that would persist secret material, a key the kind does
+// not define, or a malformed secret binding reference is refused with the
+// problem's code and path, and no row changes. Validate reports the same
+// problem in its result instead of refusing.
 func TestConnectionCatalog_SecretValueIsRefusedAndNotPersisted(t *testing.T) {
 	catalog := newCatalogUnderTest(t)
 	ctx := writerContext("tenant-a")
-	_, err := catalog.service.Create(ctx, CreateRequest{
-		ID: "leaky-https", Direction: DirectionDestination, Kind: KindHTTPS, Name: "leaky",
-		Spec: json.RawMessage(`{"destination_id":"leaky","class":"production",` +
-			`"https":{"url":"https://destination.example.org","method":"POST","token_binding":"t","token":"synthetic-token-value"}}`),
-		Reason: "paste a token",
-	})
-	var specErr *SpecError
-	if !errors.As(err, &specErr) || !hasCode(specErr.Problems, CodeSecretValueForbidden, "https.token") {
-		t.Fatalf("error = %v, want SECRET_VALUE_FORBIDDEN at https.token", err)
-	}
-	if rows := countRows(t, catalog.db, "integration_connection_drafts"); rows != 0 {
-		t.Fatalf("a refused spec wrote %d draft rows", rows)
-	}
-
+	const marker = "synthetic-refused-value"
 	createFromFixture(t, catalog.service, ctx, KindHTTPS, "clean-https")
-	leaky := json.RawMessage(`{"destination_id":"clean","class":"production","password":"synthetic"}`)
-	if _, err := catalog.service.Update(ctx, UpdateRequest{ID: "clean-https", ExpectedVersion: 1, Spec: leaky, Reason: "paste"}); !errors.As(err, &specErr) {
-		t.Fatalf("update with a password: %v", err)
+	cases := []struct {
+		name     string
+		spec     string
+		bindings []integration.SecretBinding
+		code     string
+		path     string
+	}{
+		{"token", `{"destination_id":"leaky","class":"production",` +
+			`"https":{"url":"https://destination.example.org","method":"POST","token_binding":"t","token":"` + marker + `"}}`,
+			nil, CodeSecretValueForbidden, "https.token"},
+		{"secret", `{"destination_id":"leaky","secret":"` + marker + `"}`, nil, CodeSecretValueForbidden, "secret"},
+		{"password", `{"destination_id":"leaky","password":"` + marker + `"}`, nil, CodeSecretValueForbidden, "password"},
+		{"authorization header", `{"https":{"authorization":"Bearer ` + marker + `"}}`, nil, CodeSecretValueForbidden, "https.authorization"},
+		{"object under a binding field", `{"https":{"token_binding":{"value":"` + marker + `"}}}`, nil,
+			CodeSecretValueForbidden, "https.token_binding"},
+		{"token in the url query", `{"https":{"url":"https://hooks.example.org/in?tenant=a&token=` + marker + `"}}`, nil,
+			CodeSecretValueForbidden, "https.url"},
+		{"unknown key", `{"destination_id":"leaky","headers":{"x-trace":"` + marker + `"}}`, nil, CodeUnknownField, "headers"},
+		{"unknown nested key", `{"https":{"url":"https://hooks.example.org/in","note":"` + marker + `"}}`, nil,
+			CodeUnknownField, "https.note"},
+		{"malformed binding reference", `{"destination_id":"leaky"}`, []integration.SecretBinding{{
+			Name: "t", Reference: integration.SecretReference{Provider: "keychain", Key: marker},
+		}}, CodeInvalidEnum, "secret_bindings[0].provider"},
 	}
-	var stored string
-	if err := catalog.db.QueryRowContext(t.Context(),
-		`SELECT spec_json::text FROM integration_connection_drafts WHERE artifact_id = 'clean-https'`).Scan(&stored); err != nil {
-		t.Fatalf("read spec: %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			drafts := countRows(t, catalog.db, "integration_connection_drafts")
+			_, err := catalog.service.Create(ctx, CreateRequest{
+				ID: "refused-https", Direction: DirectionDestination, Kind: KindHTTPS, Name: "refused",
+				Spec: json.RawMessage(tc.spec), SecretBindings: tc.bindings, Reason: "paste " + tc.name,
+			})
+			var specErr *SpecError
+			if !errors.As(err, &specErr) || !hasCode(specErr.Problems, tc.code, tc.path) {
+				t.Fatalf("create error = %v, want %s at %s", err, tc.code, tc.path)
+			}
+			if strings.Contains(err.Error(), marker) || strings.Contains(fmt.Sprint(specErr.Problems), marker) {
+				t.Fatal("the refusal echoes the refused value")
+			}
+			if after := countRows(t, catalog.db, "integration_connection_drafts"); after != drafts {
+				t.Fatalf("a refused create wrote %d draft rows", after-drafts)
+			}
+
+			current, err := catalog.service.Get(ctx, "clean-https")
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+			bindings := tc.bindings
+			update := UpdateRequest{ID: "clean-https", ExpectedVersion: current.Version, Spec: json.RawMessage(tc.spec),
+				Reason: "paste " + tc.name}
+			if bindings != nil {
+				update.SecretBindings = &bindings
+			}
+			if _, err := catalog.service.Update(ctx, update); !errors.As(err, &specErr) || !hasCode(specErr.Problems, tc.code, tc.path) {
+				t.Fatalf("update error = %v, want %s at %s", err, tc.code, tc.path)
+			}
+			var version int64
+			var stored string
+			if err := catalog.db.QueryRowContext(t.Context(), `
+				SELECT version, spec_json::text || secret_bindings_json::text
+				FROM integration_connection_drafts WHERE artifact_id = 'clean-https'`).Scan(&version, &stored); err != nil {
+				t.Fatalf("read draft: %v", err)
+			}
+			if version != current.Version || strings.Contains(stored, marker) {
+				t.Fatalf("a refused update changed the draft: version %d -> %d, stored %s", current.Version, version, stored)
+			}
+
+			problems, err := catalog.service.ValidateSpec(ctx, ValidateRequest{
+				Kind: KindHTTPS, Spec: json.RawMessage(tc.spec), SecretBindings: tc.bindings,
+			})
+			if err != nil || !hasCode(problems, tc.code, tc.path) {
+				t.Fatalf("validate = %+v, %v; want %s at %s in the result", problems, err, tc.code, tc.path)
+			}
+		})
 	}
-	if strings.Contains(stored, "synthetic") || strings.Contains(stored, "password") {
-		t.Fatalf("the refused value reached the store: %s", stored)
+	var leaked int
+	if err := catalog.db.QueryRowContext(t.Context(), `
+		SELECT count(*) FROM integration_connection_drafts
+		WHERE position($1 in spec_json::text || secret_bindings_json::text || updated_json::text) > 0`, marker).Scan(&leaked); err != nil {
+		t.Fatalf("scan drafts: %v", err)
 	}
-	problems, err := catalog.service.ValidateSpec(ctx, ValidateRequest{Kind: KindHTTPS, Spec: leaky})
-	if err != nil || !hasCode(problems, CodeSecretValueForbidden, "password") {
-		t.Fatalf("validate: %+v, %v", problems, err)
+	if leaked != 0 {
+		t.Fatalf("%d stored drafts carry a refused value", leaked)
 	}
 }
 
@@ -687,7 +764,9 @@ func TestConnectionCatalog_CrossTenantReadIsNotFound(t *testing.T) {
 }
 
 // TestConnectionCatalog_WriteWithoutDeploymentRoleIsForbidden: the service
-// re-checks the transport gate's roles, so a reader cannot write.
+// re-checks the transport gate's roles, so a reader cannot create, update,
+// compile, archive, or validate — validate included, because it is a write
+// tool even though it writes nothing — and a refused write changes no row.
 func TestConnectionCatalog_WriteWithoutDeploymentRoleIsForbidden(t *testing.T) {
 	catalog := newCatalogUnderTest(t)
 	reader := callerContext("tenant-a", ReadRole)
@@ -702,19 +781,39 @@ func TestConnectionCatalog_WriteWithoutDeploymentRoleIsForbidden(t *testing.T) {
 		t.Fatalf("a forbidden write stored %d rows", rows)
 	}
 	createFromFixture(t, catalog.service, writerContext("tenant-a"), KindKafka, "writer-kafka")
+	renamed := "renamed by a reader"
+	if _, err := catalog.service.Update(reader, UpdateRequest{
+		ID: "writer-kafka", ExpectedVersion: 1, Name: &renamed, Reason: "x",
+	}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("Update without %s = %v", WriteRole, err)
+	}
 	if _, err := catalog.service.Compile(reader, CommandRequest{ID: "writer-kafka", ExpectedVersion: 1, Reason: "x"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("Compile without %s = %v", WriteRole, err)
 	}
 	if _, err := catalog.service.Archive(reader, CommandRequest{ID: "writer-kafka", ExpectedVersion: 1, Reason: "x"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("Archive without %s = %v", WriteRole, err)
 	}
-	if _, err := catalog.service.Get(reader, "writer-kafka"); err != nil {
+	if problems, err := catalog.service.ValidateSpec(reader, ValidateRequest{
+		Kind: KindKafka, Spec: fixture.specJSON(t),
+	}); !errors.Is(err, ErrForbidden) || problems != nil {
+		t.Fatalf("ValidateSpec without %s = %+v, %v", WriteRole, problems, err)
+	}
+	stored, err := catalog.service.Get(reader, "writer-kafka")
+	if err != nil {
 		t.Fatalf("the reader cannot read: %v", err)
+	}
+	if stored.Version != 1 || stored.Name == renamed || stored.Archived() || stored.LatestRevision != nil {
+		t.Fatalf("a forbidden write changed the draft: %+v", stored)
+	}
+	if rows := countRows(t, catalog.db, "integration_connection_revisions"); rows != 0 {
+		t.Fatalf("a forbidden compile stored %d revisions", rows)
 	}
 }
 
 // TestConnectionCatalog_ConcurrentCompilesClaimOneRevision: two compiles of the
-// same draft version race; exactly one revision row results.
+// same draft version race; exactly one revision row results. And a compile
+// racing an archive of the same version waits for it and reports archived,
+// rather than appending a revision of a version that was archived under it.
 func TestConnectionCatalog_ConcurrentCompilesClaimOneRevision(t *testing.T) {
 	catalog := newCatalogUnderTest(t)
 	ctx := writerContext("tenant-a")
@@ -741,4 +840,84 @@ func TestConnectionCatalog_ConcurrentCompilesClaimOneRevision(t *testing.T) {
 	if rows := countRows(t, catalog.db, "integration_connection_revisions"); rows != 1 {
 		t.Fatalf("racing compiles stored %d revisions, want 1", rows)
 	}
+
+	t.Run("a compile racing an archive reports archived", func(t *testing.T) {
+		createFromFixture(t, catalog.service, ctx, KindKafka, "race-archive")
+		draft, err := catalog.store.GetDraft(t.Context(), "tenant-a", "race-archive")
+		if err != nil {
+			t.Fatalf("GetDraft: %v", err)
+		}
+		// Compile has read the draft at version 1 and built its revision: the
+		// window in which an archive can land before the insert.
+		revision, problems := BuildRevision(draft, 1, integration.AuditEnvelope{
+			TenantID:   "tenant-a",
+			Principal:  integration.Principal{ID: "engineer-1", Kind: integration.PrincipalKindHuman, AuthMethod: "oidc", Roles: []string{ReadRole, WriteRole}},
+			Reason:     "compile racing an archive",
+			OccurredAt: time.Date(2026, 9, 26, 14, 0, 0, 0, time.UTC),
+		})
+		if revision == nil {
+			t.Fatalf("BuildRevision: %+v", problems)
+		}
+		// The archive of version 1 is in flight: its row lock is held and it
+		// has not committed.
+		archive, err := catalog.db.BeginTx(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("begin archive: %v", err)
+		}
+		defer func() { _ = archive.Rollback() }()
+		if _, err := archive.ExecContext(t.Context(), `
+			UPDATE integration_connection_drafts
+			SET archived_at = '2026-09-26T14:00:01Z', version = version + 1,
+				updated_json = '{"reason":"archive racing a compile"}', updated_at = '2026-09-26T14:00:01Z'
+			WHERE tenant_id = 'tenant-a' AND artifact_id = 'race-archive' AND version = 1 AND archived_at IS NULL`); err != nil {
+			t.Fatalf("archive: %v", err)
+		}
+
+		inserted := make(chan error, 1)
+		go func() {
+			_, err := catalog.store.InsertRevision(context.Background(), *revision)
+			inserted <- err
+		}()
+		deadline := time.Now().Add(10 * time.Second)
+		for waiting := false; !waiting; {
+			select {
+			case err := <-inserted:
+				t.Fatalf("the compile's insert did not wait for the in-flight archive (err = %v)", err)
+			default:
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("the compile's insert never blocked on the draft row")
+			}
+			var blocked int
+			if err := catalog.db.QueryRowContext(t.Context(), `
+				SELECT count(*) FROM pg_stat_activity
+				WHERE datname = current_database() AND wait_event_type = 'Lock'
+				  AND query LIKE '%INSERT INTO integration_connection_revisions%'`).Scan(&blocked); err != nil {
+				t.Fatalf("read pg_stat_activity: %v", err)
+			}
+			waiting = blocked > 0
+			if !waiting {
+				time.Sleep(20 * time.Millisecond)
+			}
+		}
+		if err := archive.Commit(); err != nil {
+			t.Fatalf("commit archive: %v", err)
+		}
+		select {
+		case err := <-inserted:
+			if !errors.Is(err, ErrArchived) {
+				t.Fatalf("a compile racing an archive = %v, want ErrArchived", err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("the compile's insert did not finish after the archive committed")
+		}
+		var stored int
+		if err := catalog.db.QueryRowContext(t.Context(),
+			`SELECT count(*) FROM integration_connection_revisions WHERE artifact_id = 'race-archive'`).Scan(&stored); err != nil {
+			t.Fatalf("count revisions: %v", err)
+		}
+		if stored != 0 {
+			t.Fatalf("a revision of an archived version was stored (%d rows)", stored)
+		}
+	})
 }

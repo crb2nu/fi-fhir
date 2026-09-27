@@ -146,8 +146,8 @@ type RuntimeProperty struct {
 // NewRuntimeProperty renders one allowlisted property. present reports
 // whether the environment set it to a non-empty value. A secret property's
 // value is "set" or "unset" and nothing else; a non-secret property shows the
-// value it has, or its documented default ("" when it has none), and never
-// shows credentials embedded in a URL.
+// value it has, or its documented default ("" when it has none), and a URL
+// value never shows its userinfo, query, or fragment (EndpointAdvisory).
 func NewRuntimeProperty(key string, secret bool, value string, present bool, defaultValue string) RuntimeProperty {
 	property := RuntimeProperty{Key: key, Secret: secret, Source: PropertySourceDefault}
 	if present {
@@ -159,7 +159,7 @@ func NewRuntimeProperty(key string, secret bool, value string, present bool, def
 	case secret:
 		property.Value = PropertyValueUnset
 	case present:
-		property.Value = boundedPropertyValue(stripURLCredentials(value))
+		property.Value = boundedPropertyValue(EndpointAdvisory(value))
 	default:
 		property.Value = boundedPropertyValue(defaultValue)
 	}
@@ -173,20 +173,11 @@ func boundedPropertyValue(value string) string {
 	return value[:maxPropertyValueBytes] + "…"
 }
 
-// stripURLCredentials removes userinfo from a value that parses as an
-// absolute URL. A documented setting never needs credentials inline, and a
-// property value must not be the way one leaks.
-func stripURLCredentials(value string) string {
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User == nil {
-		return value
-	}
-	parsed.User = nil
-	return parsed.String()
-}
-
-// EndpointAdvisory reduces a destination's declared endpoint to scheme, host,
-// and path. A Kafka topic, which is not a URL, is returned unchanged.
+// EndpointAdvisory reduces a value that parses as an absolute URL to scheme,
+// host, and path: no userinfo, no query, no fragment — the places inline
+// credentials, API keys, and URL signatures travel. It labels a destination's
+// declared endpoint and every non-secret property value. A Kafka topic, or
+// any other value that is not a URL, is returned unchanged.
 func EndpointAdvisory(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
