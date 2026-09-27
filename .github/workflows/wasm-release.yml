@@ -1,0 +1,105 @@
+# Publishes the browser kernel (cmd/fi-fhir-wasm) as a GitHub Release asset.
+#
+# GitLab is canonical; this runs on the public mirror github.com/crb2nu/fi-fhir,
+# which the GitLab job `mirror:github` updates with `git push --tags` on every
+# main pipeline. A `v*` tag cut on GitLab therefore arrives here with the next
+# main pipeline and triggers this workflow.
+#
+# Assets, the contract flexinfer-site's scripts/fetch-fi-fhir-release.mjs reads:
+#   fi_fhir_<version>_wasm.tar.gz  fi-fhir.wasm, wasm_exec.js, wasm-smoke.mjs
+#                                  (the contract smoke), LICENSE,
+#                                  samples/*.hl7, profiles/*.yaml (synthetic)
+#   checksums.txt                  sha256sum format: "<sha256>  <file>"
+# <version> is the tag without its leading "v".
+#
+# Before publishing, the archive is extracted and scripts/wasm-smoke.mjs runs
+# against the extracted files, so what is published is what was smoke-tested.
+name: wasm-release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wasm-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: build, smoke, and publish the WASM kernel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: build the module, check its closure and size, smoke the contract
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: make wasm-smoke WASM_VERSION="${RELEASE_TAG#v}" WASM_COMMIT="${RELEASE_SHA}"
+
+      - name: package the archive and checksums
+        id: package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          name="fi_fhir_${version}_wasm"
+          stage="${RUNNER_TEMP}/${name}"
+          mkdir -p "${stage}/samples" "${stage}/profiles" release
+          cp dist/wasm/fi-fhir.wasm dist/wasm/wasm_exec.js LICENSE scripts/wasm-smoke.mjs "${stage}/"
+          cp internal/integration/kernel/testdata/samples/*.hl7 "${stage}/samples/"
+          cp internal/integration/kernel/testdata/profiles/*.yaml "${stage}/profiles/"
+          # Reproducible: fixed order, owner, and mtime (the tagged commit's time).
+          mtime="$(git log -1 --format=%ct)"
+          tar -C "${stage}" --sort=name --owner=0 --group=0 --numeric-owner \
+            --mtime="@${mtime}" -cf - fi-fhir.wasm wasm_exec.js wasm-smoke.mjs LICENSE samples profiles \
+            | gzip -9 -n > "release/${name}.tar.gz"
+          (cd release && sha256sum "${name}.tar.gz" > checksums.txt && sha256sum -c checksums.txt)
+          echo "archive=${name}.tar.gz" >> "${GITHUB_OUTPUT}"
+          ls -la release
+
+      - name: smoke the packaged archive
+        env:
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: |
+          set -euo pipefail
+          extracted="${RUNNER_TEMP}/extracted"
+          mkdir -p "${extracted}"
+          tar -xzf "release/${ARCHIVE}" -C "${extracted}"
+          test -f "${extracted}/LICENSE"
+          ls "${extracted}"/samples/*.hl7 "${extracted}"/profiles/*.yaml
+          # The archive's own copy of the smoke, as a downstream fetcher runs it.
+          node "${extracted}/wasm-smoke.mjs" "${extracted}"
+
+      - name: publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" release/* --repo "${GITHUB_REPOSITORY}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" release/* --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag \
+              --title "fi-fhir ${RELEASE_TAG}" \
+              --notes "Browser kernel (WebAssembly) for fi-fhir ${RELEASE_TAG}. The contract and release flow are documented in cmd/fi-fhir-wasm/README.md; CHANGELOG.md on the canonical GitLab repository has the release notes."
+          fi

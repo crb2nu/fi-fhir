@@ -33,6 +33,7 @@ include:
   - local: ci/test-ui-e2e.yml
   - local: ci/test-connection-catalog.yml
   - local: ci/test-connection-capture.yml
+  - local: ci/test-wasm.yml
 stages:
   - lint
   - test
