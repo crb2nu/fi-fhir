@@ -39,6 +39,7 @@
 .PHONY: ui-e2e                                                         # IDE repair — R-D
 .PHONY: connection-catalog                                             # .loom/38 — C-0
 .PHONY: connection-capture                                             # .loom/38 — C-2
+.PHONY: wasm wasm-deps-check wasm-size-check wasm-smoke                # .loom/40 — D-0
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -1245,3 +1246,49 @@ connection-capture:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^(TestConnectionCapture_(TapCapturesRedactedSamplesWithoutTouchingAdmission|OtherSourceCapturesNothing|TapFailureNeverChangesTheAck|ExpiresByTTL|RacingFramesNeverExceedMaxMessages|StartRefusesASourceTheTapCannotSee)|TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive)$$' \
 		./internal/integration/connection
+
+# .loom/40 Lane D-0: the browser kernel (cmd/fi-fhir-wasm, ci/test-wasm.yml).
+# `make wasm` writes dist/wasm/fi-fhir.wasm and the Go runtime's wasm_exec.js
+# (lib/wasm since Go 1.24, misc/wasm before). The module links the production
+# profile compiler, HL7v2 parser, and FHIR projection, but not the workflow
+# planner: internal/integration/processor/workflow_plan.go is `!js`, and
+# wasm-deps-check fails if cel-go, lib/pq, prometheus, otel, redis, or
+# internal/workflow reach the js dependency closure again. wasm-size-check
+# holds the gzip -9 size under the 2.5 MiB budget (.loom/40). wasm-smoke loads
+# the module in Node 20+ and asserts the JavaScript contract on every built-in
+# sample and profile; flexinfer-site's release fetcher re-runs the same script.
+WASM_DIR := dist/wasm
+WASM_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
+WASM_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
+WASM_BUILT_AT ?= $(shell git log -1 --format=%cI 2>/dev/null)
+WASM_GZIP_BUDGET := 2621440
+WASM_FORBIDDEN_DEPS := ^github\.com/google/cel-go|^github\.com/lib/pq|^github\.com/prometheus/|^go\.opentelemetry\.io/|^github\.com/redis/|/internal/workflow$$
+
+wasm:
+	mkdir -p $(WASM_DIR)
+	GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -trimpath \
+		-ldflags "-s -w -X main.version=$(WASM_VERSION) -X main.commit=$(WASM_COMMIT) -X main.builtAt=$(WASM_BUILT_AT)" \
+		-o $(WASM_DIR)/fi-fhir.wasm ./cmd/fi-fhir-wasm
+	@shim="$$(go env GOROOT)/lib/wasm/wasm_exec.js"; \
+	[ -f "$$shim" ] || shim="$$(go env GOROOT)/misc/wasm/wasm_exec.js"; \
+	cp "$$shim" $(WASM_DIR)/wasm_exec.js
+	@ls -la $(WASM_DIR)
+
+wasm-deps-check:
+	@deps="$$(GOOS=js GOARCH=wasm go list -deps ./cmd/fi-fhir-wasm)"; \
+	leaked="$$(printf '%s\n' "$$deps" | grep -E '$(WASM_FORBIDDEN_DEPS)' || true)"; \
+	if [ -n "$$leaked" ]; then \
+		echo "wasm-deps-check: the browser kernel links server-only packages:"; \
+		printf '  %s\n' $$leaked; \
+		exit 1; \
+	fi; \
+	echo "wasm-deps-check: ok ($$(printf '%s\n' "$$deps" | wc -l | tr -d ' ') packages, none server-only)"
+
+wasm-size-check: wasm
+	@raw=$$(wc -c < $(WASM_DIR)/fi-fhir.wasm | tr -d ' '); \
+	gz=$$(gzip -9 -c $(WASM_DIR)/fi-fhir.wasm | wc -c | tr -d ' '); \
+	echo "wasm-size-check: raw $$raw bytes, gzip -9 $$gz bytes, budget $(WASM_GZIP_BUDGET)"; \
+	[ "$$gz" -le $(WASM_GZIP_BUDGET) ] || { echo "wasm-size-check: over the 2.5 MiB gzip budget"; exit 1; }
+
+wasm-smoke: wasm-deps-check wasm-size-check
+	node scripts/wasm-smoke.mjs $(WASM_DIR)

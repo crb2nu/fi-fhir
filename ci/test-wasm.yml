@@ -1,0 +1,53 @@
+# .loom/40 Lane D-0: the browser kernel (cmd/fi-fhir-wasm). Blocking.
+#
+# flexinfer.ai/playground/fi-fhir runs this module, so four things must hold on
+# every change that can move them:
+#
+#   1. The js dependency closure stays slim: `make wasm-deps-check` fails if
+#      cel-go, lib/pq, prometheus, otel, redis, or internal/workflow reach it
+#      again (processor/workflow_plan.go is `!js` for exactly this).
+#   2. The module stays under the 2.5 MiB gzip -9 budget (`make
+#      wasm-size-check`: `gzip -9 -c dist/wasm/fi-fhir.wasm | wc -c` must be
+#      <= 2621440).
+#   3. The JavaScript contract holds in a real WebAssembly runtime:
+#      scripts/wasm-smoke.mjs loads the module in Node, waits for fiFhirReady,
+#      and asserts every global, every built-in profile, every demo sample's
+#      pinned outcome, and the refusal shape of bad input, with fetch as a
+#      tripwire. flexinfer-site's release fetcher re-runs the same script.
+#   4. The kernel is the IDE's engine: TestWASMKernelMatchesSessionRunner (and
+#      its negative control), the IDE demo-sample drift check, and the golden
+#      profile check run by name with -v so the log shows them. test:unit runs
+#      them too, but only on Go changes; this job also runs when the IDE's
+#      demoSamples.ts changes, which is the drift check's other side.
+#
+# Local: `make wasm-smoke` plus the go test line below.
+#
+# Rules: the extra MR rule (demo samples, this file, the release workflow)
+# comes first, then .go-mr-rules, whose final `when: never` would otherwise end
+# the list.
+test:wasm:
+  stage: test
+  extends:
+    - .go-image
+    - .go-cache
+  script:
+    - apk add --no-cache git make nodejs
+    - node --version
+    - make wasm-smoke WASM_COMMIT="${CI_COMMIT_SHA}"
+    - >-
+      go test -count=1 -v
+      -run '^(TestWASMKernelMatchesSessionRunner|TestWASMKernelMatchesSessionRunner_NegativeControl|TestSamplesMatchIDEDemoSamples|TestBuiltInProfilesMatchGoldenJSON)$'
+      ./internal/integration/kernel
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - dist/wasm/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - ui/src/lib/features/hl7/samples/demoSamples.ts
+        - ci/test-wasm.yml
+        - .github/workflows/wasm-release.yml
+    - !reference [.go-mr-rules, rules]
+  allow_failure: false

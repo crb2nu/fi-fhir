@@ -1,0 +1,6 @@
+MSH|^~\&|ATHENA|CLINIC|FHIRENGINE|FLEXINFER|20260116140000||MDM^T02^MDM_T02|DOC20260116001|P|2.5.1|||AL|NE
+EVN|T02|20260116140000
+PID|1||MRN778899^^^CLINIC^MR||LEE^JENNIFER^S||19920303|F|||888 MAPLE DR^^BOULDER^CO^80301^USA||^PRN^PH^^^720^5558888
+PV1|1|O|CLINIC^EXAM2^01||||NPI7654321^GARCIA^MARIA^L^^^MD
+TXA|1|HP^History and Physical^HL70270|TX|20260116135500|NPI7654321^GARCIA^MARIA^L^^^MD||20260116140000||||DOC123456789||||||AU^Authenticated^HL70273
+OBX|1|TX|HP^History and Physical^L||Chief Complaint: Patient presents with persistent headaches for 2 weeks.~History: Headaches described as bilateral, pressure-like, 6/10 severity. No nausea, vomiting, or visual changes.~Assessment: Tension-type headache~Plan: Start ibuprofen 400mg TID PRN. Follow up in 2 weeks if not improved.||||||F

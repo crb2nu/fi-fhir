@@ -1,0 +1,18 @@
+# The adt-http golden Source Profile, strict variant, written as YAML.
+# Canonical JSON form: testdata/golden/integration/adt-http/strict-profile.json
+# (TestBuiltInProfilesMatchGoldenJSON holds the two equal). Synthetic: the
+# assigning authority and OID are placeholders.
+hl7v2:
+  default_version: "2.5.1"
+  timezone: UTC
+  event_classifications:
+    - message_type: ADT^A01
+      event_type: patient_admit
+      priority: 1
+identifiers:
+  assigning_authorities:
+    - code: HOSP
+      system: urn:oid:1.2.3
+  normalization:
+    ssn_strip_dashes: true
+    phone_normalize: false

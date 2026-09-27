@@ -1,0 +1,20 @@
+[
+  {
+    "id": "adt-http-strict",
+    "name": "ADT A01 over HTTP (strict)",
+    "description": "The golden adt-http profile: HL7 2.5.1, UTC, every ADT^A01 is a patient_admit, HOSP identifiers map to a placeholder OID. A message without a PV1 segment fails to parse.",
+    "file": "adt-http-strict.yaml"
+  },
+  {
+    "id": "adt-http-tolerant",
+    "name": "ADT A01 over HTTP (tolerant)",
+    "description": "The same golden profile with PV1 tolerated: a message without a PV1 segment parses with a MISSING_PV1 warning instead of failing.",
+    "file": "adt-http-tolerant.yaml"
+  },
+  {
+    "id": "adt-patient-class",
+    "name": "ADT A01 by patient class",
+    "description": "Classifies ADT^A01 by PV1-2 (I inpatient, E emergency, O outpatient, otherwise patient_admit) and reads unzoned timestamps as America/New_York.",
+    "file": "adt-patient-class.yaml"
+  }
+]
