@@ -1919,6 +1919,31 @@ func (r *mutationResolver) DeployIntegrationRelease(ctx context.Context, input m
 	return r.operatorDeploymentControl(ctx, input, "deploy")
 }
 
+// CreateConnection is the resolver for the createConnection field.
+func (r *mutationResolver) CreateConnection(ctx context.Context, input model.CreateConnectionInput) (*model.Connection, error) {
+	return r.createConnection(ctx, input)
+}
+
+// UpdateConnection is the resolver for the updateConnection field.
+func (r *mutationResolver) UpdateConnection(ctx context.Context, input model.UpdateConnectionInput) (*model.Connection, error) {
+	return r.updateConnection(ctx, input)
+}
+
+// ArchiveConnection is the resolver for the archiveConnection field.
+func (r *mutationResolver) ArchiveConnection(ctx context.Context, input model.ConnectionCommandInput) (*model.Connection, error) {
+	return r.archiveConnection(ctx, input)
+}
+
+// CompileConnection is the resolver for the compileConnection field.
+func (r *mutationResolver) CompileConnection(ctx context.Context, input model.ConnectionCommandInput) (*model.ConnectionCompileResult, error) {
+	return r.compileConnection(ctx, input)
+}
+
+// ValidateConnectionSpec is the resolver for the validateConnectionSpec field.
+func (r *mutationResolver) ValidateConnectionSpec(ctx context.Context, input model.ValidateConnectionSpecInput) ([]model.ConnectionProblem, error) {
+	return r.validateConnectionSpec(ctx, input)
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -3400,6 +3425,31 @@ func (r *queryResolver) OperatorDeployments(ctx context.Context) ([]model.Operat
 // OperatorDeploymentEvents is the resolver for the operatorDeploymentEvents field.
 func (r *queryResolver) OperatorDeploymentEvents(ctx context.Context, definitionID string, revisionID string) ([]model.OperatorDeploymentEvent, error) {
 	return r.operatorDeploymentEvents(ctx, definitionID, revisionID)
+}
+
+// Connections is the resolver for the connections field.
+func (r *queryResolver) Connections(ctx context.Context, direction *model.ConnectionDirection, includeArchived *bool) ([]model.Connection, error) {
+	return r.connections(ctx, direction, includeArchived)
+}
+
+// Connection is the resolver for the connection field.
+func (r *queryResolver) Connection(ctx context.Context, id string) (*model.Connection, error) {
+	return r.connectionByID(ctx, id)
+}
+
+// ConnectionRevisions is the resolver for the connectionRevisions field.
+func (r *queryResolver) ConnectionRevisions(ctx context.Context, id string) ([]model.ConnectionRevision, error) {
+	return r.connectionRevisions(ctx, id)
+}
+
+// ConnectionRevision is the resolver for the connectionRevision field.
+func (r *queryResolver) ConnectionRevision(ctx context.Context, artifactID string, revisionID string) (*model.ConnectionRevision, error) {
+	return r.connectionRevision(ctx, artifactID, revisionID)
+}
+
+// EngineRuntime is the resolver for the engineRuntime field.
+func (r *queryResolver) EngineRuntime(ctx context.Context) (*model.EngineRuntime, error) {
+	return r.engineRuntime(ctx)
 }
 
 // EventStream is the resolver for the eventStream field.

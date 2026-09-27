@@ -74,6 +74,18 @@ type ServerConfig struct {
 	// the llmCapability query's question, not this flag's. It changes nothing
 	// the server serves; /api/auth/status reports it.
 	LLMConfigured bool
+	// OperatorControlPlaneConfigured reports that serve wired the durable
+	// operator control plane. serve wires it whenever the durable submission
+	// database is open — any production ingress, delivery, Integration
+	// Session, or FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED opens it — which is
+	// the existing gate for the operator plane, not only that one flag.
+	// /api/auth/status reports it as controlPlane, so a surface can say "not
+	// configured" instead of "forbidden".
+	OperatorControlPlaneConfigured bool
+	// ConnectionCatalogConfigured reports that serve wired and migrated the
+	// connection catalog, which it does beside the control plane under the
+	// same gate. /api/auth/status reports it as connectionCatalog.
+	ConnectionCatalogConfigured bool
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
 	// TrustedNetworkAuthenticator optionally establishes the same deployment-
@@ -619,6 +631,43 @@ func consumeJSONValue(decoder *json.Decoder) error {
 	}
 }
 
+// ConnectionSpecRejectedMessage is the message of the one catalog error that
+// carries extensions: a connection draft write refused because it would have
+// persisted secret material or something that could carry it — a key the
+// kind does not define, a `*_binding` member holding more than a name, a URL
+// with credentials or a key/token/signature query parameter, or a malformed
+// secret binding reference (.loom/38 C-0). extensions.problems says which,
+// field by field; a surface renders those, not this message.
+const ConnectionSpecRejectedMessage = "connection spec carries secret material"
+
+const connectionSpecRejectedMessage = ConnectionSpecRejectedMessage
+
+// connectionSpecRejectedExtensions keeps exactly the contracted members of a
+// spec rejection — its code and each problem's code, path, and message — and
+// drops anything else a resolver might have attached.
+func connectionSpecRejectedExtensions(extensions map[string]any) map[string]any {
+	kept := make(map[string]any, 2)
+	if code, ok := extensions["code"].(string); ok {
+		kept["code"] = code
+	}
+	problems, ok := extensions["problems"].([]map[string]any)
+	if !ok {
+		return kept
+	}
+	copied := make([]map[string]any, 0, len(problems))
+	for _, problem := range problems {
+		entry := make(map[string]any, 3)
+		for _, key := range []string{"code", "path", "message"} {
+			if value, ok := problem[key].(string); ok {
+				entry[key] = value
+			}
+		}
+		copied = append(copied, entry)
+	}
+	kept["problems"] = copied
+	return kept
+}
+
 func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 	presented := gqlgengraphql.DefaultErrorPresenter(ctx, err)
 
@@ -654,8 +703,24 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"operator operation idempotency conflict",
 		"integration deployment version conflict",
 		"invalid integration deployment transition",
-		"operator control-plane request failed":
+		"operator control-plane request failed",
+		// Connection catalog outcomes (.loom/38 C-0), catalog-safe in the same
+		// way: another tenant's connection is "not found", never "forbidden".
+		"connection catalog unavailable",
+		"connection catalog action forbidden",
+		"invalid connection catalog request",
+		"connection not found",
+		"connection already exists",
+		"connection version conflict",
+		"connection is archived",
+		"connection catalog request failed",
+		"engine runtime unavailable":
 		return &gqlerror.Error{Message: presented.Message}
+	case connectionSpecRejectedMessage:
+		// The one catalog error with extensions: the refused paths, computed
+		// from the caller's own spec, so the form can mark the field. Only the
+		// two contracted members survive.
+		return &gqlerror.Error{Message: presented.Message, Extensions: connectionSpecRejectedExtensions(presented.Extensions)}
 	default:
 		return &gqlerror.Error{Message: "GraphQL request failed"}
 	}

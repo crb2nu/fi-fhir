@@ -1,0 +1,42 @@
+# .loom/38 Lane C-0: the connection catalog's PostgreSQL proofs.
+#
+# The catalog is the seventh forward-only ledger. These proofs hold its whole
+# contract against a real PostgreSQL: two replicas migrate the ledger
+# concurrently with no error; create -> an update at a stale version is
+# refused -> compile, and the stored bytes decode with the kind's existing
+# Decode function (mllp, batch, destination, or the HTTP source document) to
+# the stored digest; a lifecycle definition draft that names a compiled digest
+# appears in the connection's references; a restart over the same database
+# preserves every row byte for byte; the schema refuses an UPDATE on a
+# revision; a create or update carrying secret material (a secret-looking key,
+# a *_binding member holding a value, a URL with a token query), a key the
+# kind does not define, or a malformed binding reference is refused with its
+# code and path and nothing is written; another tenant's connection reads as
+# not found; a write or validate without integration.deployment.operator is
+# forbidden; racing compiles claim exactly one revision, and a compile racing
+# an archive waits for it and reports archived.
+#
+# The field-level checker's mirror of the constructors
+# (TestConnectionChecker_MirrorsConstructorBounds) needs no database and runs
+# in test:unit.
+test:connection-catalog:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_connection_catalog_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_connection_catalog_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "the connection catalog's ledger, immutability, tenant scoping, role checks, or compile-to-mounted-bytes contract regressed."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make connection-catalog"
+    PROOF_DOCS: ".loom/38-connections-execution-specs.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Every proof t.Skips without POSTGRES_TEST_URL, so a
+    # renamed or deleted proof would make this job greener rather than redder
+    # without this step (AGENTS.md). Nine names, and the count is asserted so a
+    # rename cannot silently shrink the set.
+    - >-
+      go test -tags=integration
+      -list '^TestConnectionCatalog_(TwoReplicasMigrateConcurrently|CreateUpdateCompileDecodesToTheSameDigest|LifecycleReferenceAndRuntimeState|RestartPreservesEveryRow|StoredRecordsAreGuardedBySchemaTriggers|SecretValueIsRefusedAndNotPersisted|CrossTenantReadIsNotFound|WriteWithoutDeploymentRoleIsForbidden|ConcurrentCompilesClaimOneRevision)$'
+      ./internal/integration/connection
+      | rg -x 'TestConnectionCatalog_(TwoReplicasMigrateConcurrently|CreateUpdateCompileDecodesToTheSameDigest|LifecycleReferenceAndRuntimeState|RestartPreservesEveryRow|StoredRecordsAreGuardedBySchemaTriggers|SecretValueIsRefusedAndNotPersisted|CrossTenantReadIsNotFound|WriteWithoutDeploymentRoleIsForbidden|ConcurrentCompilesClaimOneRevision)'
+      | awk 'END { if (NR != 9) exit 1 }'
+    - make connection-catalog

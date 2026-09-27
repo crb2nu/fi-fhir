@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
@@ -27,10 +29,11 @@ type ledgerExpectation struct {
 	query    string
 }
 
-// ledgerExpectations is the full set. Five ledgers keep their version in a
+// ledgerExpectations is the full set. Six ledgers keep their version in a
 // `*_schema_migrations` table; terminology keeps its own in
 // `terminology.schema_version`, which is why the version read is per-ledger SQL
-// rather than one generic query.
+// rather than one generic query. The connection catalog's is the seventh
+// (.loom/38 C-0).
 func ledgerExpectations() []ledgerExpectation {
 	return []ledgerExpectation{
 		{"submission", processor.SchemaVersion,
@@ -45,12 +48,15 @@ func ledgerExpectations() []ledgerExpectation {
 			`SELECT coalesce(max(version), 0) FROM integration_destination_schema_migrations`},
 		{"terminology", termdb.SchemaVersion,
 			`SELECT coalesce(max(version), 0) FROM terminology.schema_version`},
+		{"connection", connection.SchemaVersion,
+			`SELECT coalesce(max(version), 0) FROM integration_connection_schema_migrations`},
 	}
 }
 
-// migrateEveryLedger runs all six migrators against one database, in the order
-// `fi-fhir serve` runs them. Returning the first error rather than aggregating
-// is deliberate: a replica that cannot migrate one ledger must not start.
+// migrateEveryLedger runs all seven migrators against one database, in the
+// order `fi-fhir serve` runs them. Returning the first error rather than
+// aggregating is deliberate: a replica that cannot migrate one ledger must not
+// start.
 func migrateEveryLedger(ctx context.Context, db *sql.DB, tenantID string) error {
 	submission, err := processor.NewPostgresSubmissionStore(db, processor.PostgresSubmissionConfig{})
 	if err != nil {
@@ -95,6 +101,14 @@ func migrateEveryLedger(ctx context.Context, db *sql.DB, tenantID string) error 
 	if _, err := termdb.NewMigrator(db).Initialize(ctx); err != nil {
 		return fmt.Errorf("terminology: %w", err)
 	}
+
+	connections, err := connection.NewPostgresStore(db, nil)
+	if err != nil {
+		return fmt.Errorf("construct connection catalog: %w", err)
+	}
+	if err := connections.Migrate(ctx); err != nil {
+		return fmt.Errorf("connection: %w", err)
+	}
 	return nil
 }
 
@@ -132,6 +146,13 @@ type durableFixture struct {
 	GuardEventID   string
 	GuardAttemptID string
 
+	// The connection catalog (.loom/38 C-0): one compiled connection, one
+	// never-compiled draft nothing references (the childless target of the
+	// draft-delete guard), and one capture audit row.
+	ConnectionID      string
+	GuardConnectionID string
+	CaptureID         string
+
 	PHISentinel string
 }
 
@@ -165,6 +186,10 @@ func seedDurableFixture(ctx context.Context, t *testing.T, db *sql.DB) durableFi
 		GuardEventID:   "evt-compat-guard",
 		GuardAttemptID: "att-compat-guard",
 		PHISentinel:    "PHI-SENTINEL-8f2c41",
+
+		ConnectionID:      "conn-compat-kafka",
+		GuardConnectionID: "conn-compat-guard",
+		CaptureID:         "capture-compat-1",
 	}
 
 	exec := func(label, query string, args ...any) {
@@ -364,7 +389,57 @@ func seedDurableFixture(ctx context.Context, t *testing.T, db *sql.DB) durableFi
 	}
 	fixture.ExportID = bundle.ID
 
+	seedConnectionCatalog(ctx, t, db, now, fixture)
 	return fixture
+}
+
+// seedConnectionCatalog writes the connection catalog's three durable
+// classes. The draft and its revision go through the catalog's own writer, so
+// they carry exactly what the catalog writes — including a revision whose
+// exact bytes and JSONB copy must agree. The capture row is raw SQL: its
+// writer is Lane C-2's.
+func seedConnectionCatalog(ctx context.Context, t *testing.T, db *sql.DB, now time.Time, fixture durableFixture) {
+	t.Helper()
+	store, err := connection.NewPostgresStore(db, func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("construct connection catalog for fixture: %v", err)
+	}
+	service, err := connection.NewService(store, nil, nil, compatTenantID)
+	if err != nil {
+		t.Fatalf("construct connection service for fixture: %v", err)
+	}
+	writer := requestsecurity.WithSecurityContext(ctx, integration.SecurityContext{
+		TenantID: compatTenantID,
+		Principal: integration.Principal{
+			ID: "engineer-compat", Kind: integration.PrincipalKindHuman, AuthMethod: "oidc",
+			Roles: []string{connection.ReadRole, connection.WriteRole},
+		},
+	})
+	spec := []byte(`{"destination_id":"dest-compat","class":"sandbox","kafka":{"topic":"integration.delivery.v1"}}`)
+	for _, id := range []string{fixture.ConnectionID, fixture.GuardConnectionID} {
+		if _, err := service.Create(writer, connection.CreateRequest{
+			ID: id, Direction: connection.DirectionDestination, Kind: connection.KindKafka,
+			Name: "migration compatibility fixture", Spec: spec, Reason: "migration compatibility round-trip fixture",
+		}); err != nil {
+			t.Fatalf("seed connection draft %s: %v", id, err)
+		}
+	}
+	result, err := service.Compile(writer, connection.CommandRequest{
+		ID: fixture.ConnectionID, ExpectedVersion: 1, Reason: "migration compatibility round-trip fixture",
+	})
+	if err != nil || result.Revision == nil {
+		t.Fatalf("seed connection revision: %+v, %v", result.Problems, err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO integration_connection_captures (
+			tenant_id, capture_id, session_id, mode, source_id, status, max_messages,
+			principal_json, reason, requested_at, expires_at)
+		VALUES ($1, $2, 'sess-compat-capture', 'stream', 'adt-east', 'armed', 5,
+			'{"id":"engineer-compat","kind":"human","auth_method":"oidc"}'::jsonb,
+			'migration compatibility round-trip fixture', $3, $4)
+	`, compatTenantID, fixture.CaptureID, now, now.Add(5*time.Minute)); err != nil {
+		t.Fatalf("seed connection capture: %v", err)
+	}
 }
 
 // attributedPrincipal is a fully attributed caller: the opposite of the

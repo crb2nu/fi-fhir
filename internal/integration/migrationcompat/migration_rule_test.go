@@ -19,6 +19,7 @@ var migrationDirs = []string{
 	"internal/integration/lifecycle/migrations",
 	"internal/integration/batch/migrations",
 	"internal/integration/destination/migrations",
+	"internal/integration/connection/migrations",
 }
 
 // setNotNull matches `ALTER COLUMN <name> SET NOT NULL`, which is how a

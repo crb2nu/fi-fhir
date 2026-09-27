@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/lib/pq"
+
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -77,6 +79,69 @@ func (c *PostgresCatalog) GetRelease(ctx context.Context, releaseID string) (Rel
 		return ReleaseRecord{}, ErrImmutableRecord
 	}
 	return release, nil
+}
+
+// DigestReference is one definition revision, with its lifecycle snapshot,
+// that names an artifact-revision digest as its source or as one of its
+// destinations. Digest is the named digest, not the definition's own.
+type DigestReference struct {
+	DefinitionID string
+	RevisionID   string
+	Digest       string
+	State        integration.DeploymentState
+	Health       integration.DeploymentHealthStatus
+}
+
+// ListDigestReferences returns, in one query, every definition revision of one
+// tenant that has a lifecycle snapshot and names any of digests as its source
+// or as one of its destinations — once per digest it names — ordered by
+// definition, revision, and digest. Nothing is truncated: the connection
+// catalog projects every definition that uses a connection revision.
+func (c *PostgresCatalog) ListDigestReferences(ctx context.Context, tenantID string, digests []string) ([]DigestReference, error) {
+	if c == nil || c.db == nil || ctx == nil {
+		return nil, ErrUnavailable
+	}
+	if !validIdentity(tenantID) {
+		return nil, ErrInvalidCommand
+	}
+	references := make([]DigestReference, 0)
+	if len(digests) == 0 {
+		return references, nil
+	}
+	rows, err := c.db.QueryContext(ctx, `
+		SELECT s.definition_id, s.revision_id, named.digest, s.state, s.health
+		FROM integration_lifecycle_snapshots s
+		JOIN integration_definition_revisions r
+		  ON r.tenant_id = s.tenant_id AND r.definition_id = s.definition_id AND r.revision_id = s.revision_id
+		CROSS JOIN LATERAL (
+			SELECT r.revision_json -> 'source' ->> 'digest' AS digest
+			UNION
+			SELECT destination ->> 'digest'
+			FROM jsonb_array_elements(
+				CASE WHEN jsonb_typeof(r.revision_json -> 'destinations') = 'array'
+				     THEN r.revision_json -> 'destinations' ELSE '[]'::jsonb END
+			) AS destination
+		) AS named
+		WHERE s.tenant_id = $1 AND named.digest = ANY($2::text[])
+		ORDER BY s.definition_id, s.revision_id, named.digest
+	`, tenantID, pq.Array(digests))
+	if err != nil {
+		return nil, fmt.Errorf("list definition digest references: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var reference DigestReference
+		if err := rows.Scan(
+			&reference.DefinitionID, &reference.RevisionID, &reference.Digest, &reference.State, &reference.Health,
+		); err != nil {
+			return nil, fmt.Errorf("scan definition digest reference: %w", err)
+		}
+		references = append(references, reference)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate definition digest references: %w", err)
+	}
+	return references, nil
 }
 
 // ListSnapshots returns the bounded current lifecycle projection for one

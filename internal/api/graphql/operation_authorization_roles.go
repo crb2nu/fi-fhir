@@ -86,7 +86,7 @@ var operatorRecovery = []string{operator.ReadRole, delivery.OperatorRole}
 // (internal/integration/operator/service.go:299).
 var operatorDeployment = []string{operator.ReadRole, operator.DeploymentOperatorRole}
 
-// rootFieldRoles covers all 131 schema root fields. A root field that is absent
+// rootFieldRoles covers all 141 schema root fields. A root field that is absent
 // is refused: see transportGateRolesSatisfied. TestTransportGateRoleMapIsExhaustive
 // fails when schema.graphql grows a root field this map does not name, so a new
 // field cannot reach production without a role decision.
@@ -102,6 +102,15 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		"operatorAttemptAudit":     operatorRead,
 		"operatorDeployments":      operatorRead,
 		"operatorDeploymentEvents": operatorRead,
+
+		// .loom/38 C-0 connection catalog and engine runtime. Reads ride the
+		// operator read role (Decision 4: no new role); connection.Service
+		// re-checks it, and engineRuntime re-checks it in its resolver.
+		"connections":         operatorRead,
+		"connection":          operatorRead,
+		"connectionRevisions": operatorRead,
+		"connectionRevision":  operatorRead,
+		"engineRuntime":       operatorRead,
 
 		// Health and preview. health stays in the compatibility bucket on
 		// purpose: the low-privilege path to it is the untouched
@@ -197,6 +206,14 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		"resumeIntegrationDeployment": operatorDeployment,
 		"retireIntegrationDeployment": operatorDeployment,
 		"deployIntegrationRelease":    operatorDeployment,
+
+		// .loom/38 C-0 connection catalog writes: the read role plus the
+		// deployment grant, re-checked by connection.Service.
+		"createConnection":       operatorDeployment,
+		"updateConnection":       operatorDeployment,
+		"archiveConnection":      operatorDeployment,
+		"compileConnection":      operatorDeployment,
+		"validateConnectionSpec": operatorDeployment,
 
 		// previewIntegrationMessage is the integration:preview surface. It keeps
 		// its compatibility entry so a graphql:operator token reaches it exactly

@@ -1,0 +1,14 @@
+{
+  "kind": "http",
+  "spec": {
+    "source_id": "adt-east",
+    "path": "/v1/hl7v2",
+    "auth_mode": "bearer",
+    "principal_id": "adt-east-sender",
+    "credential_binding": "http-ingress-credential",
+    "max_body_bytes": 1048576
+  },
+  "secret_bindings": [
+    {"name": "http-ingress-credential", "reference": {"provider": "file", "key": "http/ingress-credential"}}
+  ]
+}

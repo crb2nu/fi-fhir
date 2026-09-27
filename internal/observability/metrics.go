@@ -102,8 +102,9 @@ const (
 )
 
 // Schema ledger names. These are the only values that appear in a `ledger`
-// label, and they are the six forward-only migration ledgers that together
-// define this repository's compatibility boundary (slice 4.4a, task 1).
+// label, and they are the seven forward-only migration ledgers that together
+// define this repository's compatibility boundary (slice 4.4a, task 1; the
+// connection catalog's ledger is the seventh, .loom/38 C-0).
 const (
 	SchemaLedgerSubmission  = "submission"
 	SchemaLedgerSession     = "session"
@@ -111,6 +112,7 @@ const (
 	SchemaLedgerBatch       = "batch"
 	SchemaLedgerDestination = "destination"
 	SchemaLedgerTerminology = "terminology"
+	SchemaLedgerConnection  = "connection"
 )
 
 // allSchemaLedgers bounds the `ledger` label the same way allOutcomes bounds
@@ -119,6 +121,7 @@ const (
 var allSchemaLedgers = map[string]struct{}{
 	SchemaLedgerSubmission: {}, SchemaLedgerSession: {}, SchemaLedgerLifecycle: {},
 	SchemaLedgerBatch: {}, SchemaLedgerDestination: {}, SchemaLedgerTerminology: {},
+	SchemaLedgerConnection: {},
 }
 
 // KnownSchemaLedger reports whether a ledger label value is in the allowlist.

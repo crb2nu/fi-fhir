@@ -71,6 +71,33 @@ func TestStaticRegistrySelectsExactServerOwnedBindingAndArtifacts(t *testing.T) 
 	}
 }
 
+// TestStaticRegistryIntegrationsListsEveryBindingInOrder backs the engine
+// runtime's registry panel (.loom/38 C-0): every binding, in integration-ID
+// order, with the definition revision and the source revision it names.
+func TestStaticRegistryIntegrationsListsEveryBindingInOrder(t *testing.T) {
+	west, westRevision := testEntry(t, "adt-west")
+	east, eastRevision := testEntry(t, "adt-east")
+	registry, err := NewStaticRegistry("tenant-a", []Entry{west, east})
+	if err != nil {
+		t.Fatalf("NewStaticRegistry: %v", err)
+	}
+	summaries := registry.Integrations()
+	if len(summaries) != 2 || summaries[0].IntegrationID != "adt-east" || summaries[1].IntegrationID != "adt-west" {
+		t.Fatalf("summaries = %+v", summaries)
+	}
+	for index, revision := range []integration.IntegrationDefinitionRevision{eastRevision, westRevision} {
+		summary := summaries[index]
+		if summary.IntegrationRevision != revision.Reference() || summary.Source != revision.Source ||
+			summary.Format != revision.Format {
+			t.Fatalf("summary %d = %+v, want the definition's own references", index, summary)
+		}
+	}
+	var missing *StaticRegistry
+	if missing.Integrations() != nil {
+		t.Fatal("a nil registry lists integrations")
+	}
+}
+
 func TestDecodeStaticRegistryDocument(t *testing.T) {
 	entry, _ := testEntry(t, "adt-east")
 	document, err := json.Marshal(map[string]any{
