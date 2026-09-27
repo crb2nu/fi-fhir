@@ -167,7 +167,7 @@ func unreachableCatalog(t *testing.T) *connection.Service {
 	return service
 }
 
-type graphQLResponse struct {
+type catalogGraphQLResponse struct {
 	Data   map[string]json.RawMessage `json:"data"`
 	Errors []struct {
 		Message    string         `json:"message"`
@@ -175,9 +175,9 @@ type graphQLResponse struct {
 	} `json:"errors"`
 }
 
-func decodeGraphQL(t *testing.T, body string) graphQLResponse {
+func decodeCatalogGraphQL(t *testing.T, body string) catalogGraphQLResponse {
 	t.Helper()
-	var response graphQLResponse
+	var response catalogGraphQLResponse
 	if err := json.Unmarshal([]byte(body), &response); err != nil {
 		t.Fatalf("decode GraphQL response: %v (%s)", err, body)
 	}
@@ -192,7 +192,7 @@ func TestConnectionCatalogValidateSpecOverTheWire(t *testing.T) {
 		       https: {url: "http://insecure.example", method: "POST", token_binding: "t", token: "synthetic"}},
 		secretBindings: [{name: "t", provider: "file", key: "destinations/t"}]
 	}) { code path message } }`)
-	response := decodeGraphQL(t, body)
+	response := decodeCatalogGraphQL(t, body)
 	if len(response.Errors) != 0 {
 		t.Fatalf("validate returned errors: %s", body)
 	}
@@ -226,9 +226,10 @@ func TestConnectionCatalogSecretValueRejectionOverTheWire(t *testing.T) {
 	handler, path := catalogServer(t, resolvers.WithConnectionCatalog(unreachableCatalog(t)))
 	body := postTrusted(t, handler, path, `mutation Op { createConnection(input: {
 		id: "leaky", direction: DESTINATION, kind: HTTPS, name: "leaky", reason: "paste",
-		spec: {destination_id: "d", https: {url: "https://x.example", method: "POST", token_binding: "t", token: "synthetic-token"}}
+		spec: {destination_id: "d", https: {url: "https://x.example", method: "POST", token_binding: "t", token: "synthetic-token"}},
+		secretBindings: [{name: "t", provider: "file", key: "destinations/t"}]
 	}) { id } }`)
-	response := decodeGraphQL(t, body)
+	response := decodeCatalogGraphQL(t, body)
 	if len(response.Errors) != 1 || response.Errors[0].Message != graphqlapi.ConnectionSpecRejectedMessage {
 		t.Fatalf("response = %s", body)
 	}
@@ -258,7 +259,7 @@ func TestConnectionCatalogUnknownKeyRejectionOverTheWire(t *testing.T) {
 		id: "typo", direction: DESTINATION, kind: KAFKA, name: "typo", reason: "a key kafka does not have",
 		spec: {destination_id: "d", kafka: {topic: "t", partitions: 3}}
 	}) { id } }`)
-	response := decodeGraphQL(t, body)
+	response := decodeCatalogGraphQL(t, body)
 	if len(response.Errors) != 1 || response.Errors[0].Message != graphqlapi.ConnectionSpecRejectedMessage {
 		t.Fatalf("response = %s", body)
 	}
@@ -273,6 +274,35 @@ func TestConnectionCatalogUnknownKeyRejectionOverTheWire(t *testing.T) {
 	}
 	if strings.Contains(body, "connection catalog request failed") {
 		t.Fatalf("the refusal reached the store: %s", body)
+	}
+}
+
+// TestConnectionCatalogPastedBindingRejectionOverTheWire: a binding field
+// whose value names no declared binding — a credential pasted into it — is
+// refused with UNBOUND_SECRET at the field's path, and the response never
+// repeats the value.
+func TestConnectionCatalogPastedBindingRejectionOverTheWire(t *testing.T) {
+	handler, path := catalogServer(t, resolvers.WithConnectionCatalog(unreachableCatalog(t)))
+	body := postTrusted(t, handler, path, `mutation Op { createConnection(input: {
+		id: "pasted", direction: DESTINATION, kind: HTTPS, name: "pasted", reason: "paste into the binding field",
+		spec: {destination_id: "d", https: {url: "https://x.example", method: "POST", token_binding: "synthetic-pasted-credential"}},
+		secretBindings: [{name: "https-token", provider: "file", key: "destinations/https-token"}]
+	}) { id } }`)
+	response := decodeCatalogGraphQL(t, body)
+	if len(response.Errors) != 1 || response.Errors[0].Message != graphqlapi.ConnectionSpecRejectedMessage {
+		t.Fatalf("response = %s", body)
+	}
+	extensions := response.Errors[0].Extensions
+	problems, _ := extensions["problems"].([]any)
+	if extensions["code"] != connection.CodeUnboundSecret || len(problems) != 1 {
+		t.Fatalf("extensions = %v", extensions)
+	}
+	problem, _ := problems[0].(map[string]any)
+	if problem["path"] != "https.token_binding" || problem["code"] != connection.CodeUnboundSecret {
+		t.Fatalf("problem = %v", problem)
+	}
+	if strings.Contains(body, "synthetic-pasted-credential") || strings.Contains(body, "connection catalog request failed") {
+		t.Fatalf("the refusal echoed the value or reached the store: %s", body)
 	}
 }
 
@@ -319,7 +349,7 @@ func TestEngineRuntimeOverTheWire(t *testing.T) {
 		ledgers { name version }
 		properties { key value secret source }
 	} }`)
-	response := decodeGraphQL(t, body)
+	response := decodeCatalogGraphQL(t, body)
 	if len(response.Errors) != 0 {
 		t.Fatalf("engineRuntime errors: %s", body)
 	}
