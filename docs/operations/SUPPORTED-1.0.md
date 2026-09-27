@@ -171,8 +171,8 @@ The following remain blocking:
 4. PostgreSQL backup/restore and the documented RTO proof — **closed by slice
    4.4c**: `test:migration-compatibility` proves the restore is faithful (rows,
    PHI payloads, immutability guards attributable to those guards by SQLSTATE,
-   the `NOT VALID` provenance CHECK, and all six schema ledgers at their
-   declared versions), proves the delivery worker resumes from the restored
+   the `NOT VALID` provenance CHECK, and every schema ledger at its declared
+   version — six at certification, seven since the connection catalog), proves the delivery worker resumes from the restored
    state, and archives a measured recovery time as `recovery-rto.json`. The
    **RPO half stays open and is an operator responsibility with a stated
    method**, not a product claim: bounding data loss to minutes requires

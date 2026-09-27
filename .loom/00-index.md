@@ -15,7 +15,7 @@
 - Product speclet - Terminology approval workflow hardening: `27-spec-terminology-governance.md`
 - Product speclet - FHIR IG/Bulk/SMART scoping: `28-spec-fhir-ig-bulk-smart.md`
 - Product speclet - Dynamic Source Profile management: `29-spec-profile-management-observability.md`
-- **Connections and engine properties execution specs: `38-connections-execution-specs.md`** (active; lanes C-0..C-4)
+- Connections and engine properties execution specs: `38-connections-execution-specs.md` (delivered 2026-09-27; MRs !240–!243, C-3 !245, C-4 !248)
 - Brainstorm - DB-backed configuration plane vs GitOps-only (fi-fhir, flexinfer, loom-core): `39-brainstorm-config-plane-2026-09-27.md`
 - **Public demo, portfolio links, docs coverage execution specs: `40-public-demo-execution-specs.md`** (active; lanes D-0..D-4)
 - Implementation plan: `30-implementation-plan.md`

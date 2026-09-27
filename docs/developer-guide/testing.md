@@ -274,7 +274,7 @@ make test-integration
 ### Migration compatibility
 
 `make migration-compatibility` (CI job `test:migration-compatibility`, blocking)
-proves the properties the six forward-only migration ledgers have to hold
+proves the properties the seven forward-only migration ledgers have to hold
 *together*: two replicas migrating one database concurrently converge, a binary
 one version behind still writes, and a `pg_dump`/restore round-trip brings back
 every row, every immutability trigger, and the `NOT VALID` provenance CHECK.

@@ -1,0 +1,300 @@
+# Connection Catalog Operations
+
+The connection catalog (`internal/integration/connection`, `.loom/38` lanes
+C-0 and C-2) is a durable store of source and destination connection drafts,
+the immutable revisions compiled from them, and the audit of every sample
+intake. This page is for operators: what it stores, who may use it, what it
+reports, and how its proofs run. The user journey is in
+[Connections](../user-guide/connections.md).
+
+**It activates nothing.** `serve` still mounts MLLP and batch source documents,
+the destination registry, and the static integration registry from files and
+environment at startup (`cmd/fi-fhir/preview_runtime.go`). The catalog makes
+those same documents authorable and exportable, and labels each connection
+against what the replica that answered actually mounted (`engineRuntime`).
+Package comment, `internal/integration/connection/types.go`: "the catalog
+never hot-loads anything".
+
+## When it exists
+
+`runServe` builds the catalog whenever it opened the durable PostgreSQL
+submission database (`cmd/fi-fhir/main.go`, the `securePreviewRuntime.submissionDB
+!= nil` block), in the same block that builds the operator control plane. That
+database opens when any of these is on (`cmd/fi-fhir/preview_runtime.go`):
+`FI_FHIR_HTTP_INGRESS_AUTH_MODE`, `FI_FHIR_MLLP_SOURCE_CONFIG_PATH`,
+`FI_FHIR_BATCH_SOURCE_CONFIG_PATH`, `FI_FHIR_DELIVERY_WORKER_ENABLED`,
+`FI_FHIR_INTEGRATION_SESSION_ENABLED`, or
+`FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED`, with the `FI_FHIR_DATABASE_*`
+connection settings. Startup then migrates the catalog's ledger and logs
+`connection catalog configured`; a migration failure stops startup.
+
+Sample intake (peek and capture) additionally needs the Integration Session
+workspace (`FI_FHIR_INTEGRATION_SESSION_ENABLED=true`): there is nowhere else
+to put a sample. Startup logs `connection sample intake` with `enabled`.
+
+## The seventh ledger
+
+| Fact | Value |
+|---|---|
+| Ledger table | `integration_connection_schema_migrations` |
+| Advisory lock key | `5064657639792058909` (`connectionMigrationLockKey`, `internal/integration/connection/postgres.go`), distinct from every other `*MigrationLockKey` |
+| Migrations | `0001_connection_catalog.sql` (C-0: drafts, revisions, captures, guards), `0002_connection_capture_intake.sql` (C-2: capture problems, cancellation, object path, one armed stream capture per source) |
+| `SchemaVersion` | `2` |
+| Ledger name | `connection` (`observability.SchemaLedgerConnection`) |
+
+The migrator follows `AGENTS.md` § Migration authoring: it takes
+`pg_advisory_xact_lock` on its own key before reading the ledger version, so
+two replicas starting together converge. The ledger is forward-only, like the
+other six (submission, session, lifecycle, batch, destination, terminology).
+
+Where the version shows:
+
+- `fi-fhir version` prints every ledger; this one is the line
+  `connection   2`.
+- `/metrics` reports `fi_fhir_schema_ledger_version{ledger="connection"} 2`.
+- `engineRuntime.ledgers` (the Engine tab's Ledgers table) lists the same
+  seven.
+
+`test:migration-compatibility` holds all seven ledgers together: concurrent
+migration, a binary one version behind still writing, and a `pg_dump`/restore
+round trip that brings back every row and trigger.
+
+## Tables and their rules
+
+All three tables are guarded by row-level triggers in the
+`0004_audit_immutability.sql` idiom. No row in any of them is ever deleted.
+
+| Table | Shape | Rules the schema enforces |
+|---|---|---|
+| `integration_connection_drafts` | one row per `(tenant_id, artifact_id)`: direction, kind, name, description, `spec_json`, `secret_bindings_json`, `version`, `archived_at`, created/updated audit | Identity (tenant, id, direction, kind) and creation audit never change; every update raises `version` by exactly one (an expected-version update); an archived row is frozen; direction must match kind. |
+| `integration_connection_revisions` | one row per compile: `revision_text` (the exact bytes, returned verbatim as `revisionJson`), `revision_json` (the same document as JSONB, `CHECK revision_text::jsonb = revision_json`), `digest`, `compiled_from_version`, created audit | Append-only (`UPDATE` and `DELETE` raise); `UNIQUE (tenant_id, digest)`; revision ids are `1`, `2`, … per connection. |
+| `integration_connection_captures` | one row per peek or stream capture (see [Capture audit](#capture-audit)) | Provenance frozen, `object_path` included; while `armed`, only `status`, `captured`, `completed_at` (and on finish `problems_json`, `cancellation_json`) advance, each by an update that raises `version` by one; `captured` never decreases and never exceeds `max_messages`; a finished row is frozen; at most one armed stream capture per `(tenant_id, source_id)` (unique partial index). |
+
+Two columns hold a revision because JSONB alone cannot return exact bytes (it
+reorders keys), and the digest is over exact bytes.
+
+Service rules on top of the schema (`internal/integration/connection/service.go`):
+
+- Every method reads the verified caller from the request context, never from
+  an argument, and scopes every read and write to the one deployment tenant the
+  service is bound to. Another tenant's connection reads as not found.
+- A draft may be incomplete: missing fields, out-of-range values, and wrong
+  scalar types are compile problems, not write errors. A write refuses only
+  what a draft must never persist: a key the kind does not define, secret
+  material in any form (a secret-looking key, a PEM block, a URL with a
+  secret-named query parameter or userinfo), a malformed binding reference, or a
+  `*_binding` value that names none of the draft's bindings. Refusals carry
+  `extensions.problems` with codes and paths.
+- Compile runs the document's constructor (`mllp.NewSourceRevision`,
+  `batch.NewSourceRevision`, `destination.NewRevision`, or
+  `NewHTTPSourceRevision`) and stores its exact output. A compile with blocking
+  problems writes nothing. A compile of a draft version that is already compiled
+  returns the existing revision and writes nothing. Compile never raises the
+  draft version. Racing compiles claim exactly one revision; a compile racing an
+  archive waits for it and reports archived.
+- The field-level checker restates the constructors' bounds so it can name the
+  failing field (the constructors return one coarse error on purpose).
+  `TestConnectionChecker_MirrorsConstructorBounds` drives every bound through
+  both, so `CONSTRUCTOR_REJECTED` is never produced.
+
+## Roles
+
+No new role (`.loom/38` Decision 4). The production operator bundle already
+carries both.
+
+| Fields | Transport gate (`rootFieldRoles`) | Service re-check |
+|---|---|---|
+| `connections`, `connection`, `connectionRevisions`, `connectionRevision`, `engineRuntime`, `connectionCaptures` | `integration.operator` | same (`engineRuntime` in its resolver) |
+| `createConnection`, `updateConnection`, `archiveConnection`, `compileConnection`, `validateConnectionSpec` | `integration.operator` + `integration.deployment.operator` | same |
+| `peekBatchConnection`, `startConnectionCapture`, `cancelConnectionCapture` | `integration.operator` | same, plus a session workspace and a reason |
+| `SessionSample.redactedPayload` (a captured sample's text) | session read | `integration.operator`, per field; `null` otherwise |
+
+## Capabilities
+
+`/api/auth/status` (`internal/api/graphql/capabilities.go`) reports:
+
+| Capability | Kind | True when |
+|---|---|---|
+| `connectionsRead` | role | the caller clears both halves for `connections` (missing roles in `missingRoles.connectionsRead`) |
+| `connectionsWrite` | role | the caller clears both halves for `createConnection` (`missingRoles.connectionsWrite`) |
+| `controlPlane` | deployment | `serve` built the operator control plane, i.e. the durable database is open (above) |
+| `connectionCatalog` | deployment | `serve` built the connection catalog service; same condition today |
+| `integrationSessions` | deployment | the session workspace is on; with `connectionCatalog`, this is what enables sample intake |
+
+The deployment capabilities are how the IDE says "not configured on this
+deployment" instead of "forbidden": at the GraphQL layer an unconfigured
+catalog (`connection catalog unavailable`) is deliberately indistinguishable
+from a missing role. `TestAuthCapabilityRepresentativesCoverTheirGroup` pins
+that every field of each group shares its representative's roles.
+
+## Error strings
+
+Every failure maps to a stable, inventory-safe message
+(`internal/api/graphql/resolvers/connection_catalog.go`,
+`connection_intake.go`). Not found and forbidden are distinct; another
+tenant's row is not found.
+
+| Message | When |
+|---|---|
+| `authentication required` | no verified identity |
+| `connection catalog action forbidden` | a required role is missing (service half) |
+| `invalid connection catalog request` | malformed id, name, reason, version, or direction |
+| `connection spec carries secret material` | the write gate refused the spec; `extensions.code` and `extensions.problems[{code,path,message}]` say where |
+| `connection not found` | no such connection for this tenant |
+| `connection already exists` | create with a taken id |
+| `connection version conflict` | stale `expectedVersion` (never retried) |
+| `connection is archived` | change to an archived draft |
+| `connection catalog unavailable` | the catalog is not configured |
+| `engine runtime unavailable` | no runtime description (only `serve` composes one) |
+| `connection catalog request failed` | anything else |
+| `connection sample intake unavailable` | no session workspace |
+| `invalid connection sample intake request` | bad id, reason, bound, or `objectPath` |
+| `integration session not found` / `integration session is archived` | the target session |
+| `connection capture not found` / `connection capture is already finished` | cancel of an unknown or finished capture |
+| `a capture is already armed for this source` | second start on a source |
+| `peek requires a compiled batch source connection` | peek of a non-batch or uncompiled connection |
+| `capture source unavailable: no mounted or compiled MLLP or HTTP source has this id` (`extensions.code = SOURCE_UNAVAILABLE`) | start on a source no tap can see |
+| `connection sample intake request failed` | anything else |
+
+## Capture audit
+
+`integration_connection_captures` holds one row per request, peek or stream,
+listings included: tenant, session, mode (`peek` | `stream`), the runtime
+`source_id` (stream) or the connection and its revision digest (peek), the
+`object_path` a peek read, the verified principal, the reason (1–1024 bytes),
+`requested_at`, `expires_at`, `completed_at`, `captured`, `max_messages`,
+`problems_json`, and `cancellation_json` (who cancelled and why).
+
+| Status | Reached by |
+|---|---|
+| `armed` | a stream capture waiting for frames; a peek while its request runs |
+| `complete` | `captured == max_messages`, or a peek that did all it was asked |
+| `expired` | a stream capture past `expires_at` (moved by the next cache refresh, at most 2 s late; the tap is inert from `expires_at`), or a peek row still armed a minute after its deadline because its replica died |
+| `cancelled` | `cancelConnectionCapture` on an armed capture |
+| `failed` | a problem: `SECRET_UNRESOLVABLE`, `SOURCE_UNAVAILABLE`, `OBJECT_NOT_FOUND`, `MESSAGE_UNREADABLE`, `SAMPLE_WRITE_FAILED`, or `CAPTURE_COUNT_FAILED` |
+
+How the tap fills a capture (`capture.go`, `capture_store.go`
+`FillCaptureSlot`):
+
+- Admission never queries the database for captures. Each replica refreshes
+  an in-memory set of armed stream captures every 2 s
+  (`CaptureRefreshInterval`); a frame of an unarmed source costs one map lookup.
+- The tap runs after the inner processor returned an accepted production
+  result, returns exactly that result, and swallows and meters its own
+  failures. Its work is bounded by its own 2 s context; only an armed source's
+  ACK can be up to that much slower.
+- A slot is claimed with `SELECT … FOR UPDATE SKIP LOCKED` on the armed row,
+  the sample is written, and the row is advanced by an expected-version update
+  in the same transaction (completing it on the last slot). A frame that finds
+  the row locked by another frame skips capture rather than waiting, so
+  admission never queues behind the tap.
+- The sample id is derived from the capture and the slot
+  (`sample_capture_<capture id>_<slot>`), so a slot written twice is one sample
+  and `captured` never counts a sample that is not in the session.
+
+A peek takes no lease, writes no checkpoint, archives nothing, and deletes
+nothing; its provider calls are List, OpenAt, and Close. It is bounded by 60 s.
+
+## Redaction
+
+Captured and peeked samples are stored with `PHIPolicyRedact` through
+`session.RedactCapturedHL7v2`, a strict superset of the pasted-sample
+redactor: 113 fields across PID, NK1, IN1, IN2, GT1, MRG, and PV1, dates
+masked whole. The field table, what stays unmasked, encryption at rest, and
+who can read the text are in
+[PHI retention, "Captured and peeked samples"](PHI-RETENTION.md#captured-and-peeked-samples).
+That table is the authority; `session.CaptureRedactedFields` is held equal to
+it by test.
+
+## The `engineRuntime` allowlist
+
+`engineRuntime` is a read-only projection of what this replica composed, built
+once at the end of `runServe` (`buildEngineRuntimeDescription`,
+`cmd/fi-fhir/engine_runtime.go`) and served from a copy. It is PHI-free and
+secret-free by construction: adapters are described from what
+`loadIntegrationRuntimeFromEnv` actually built, destination endpoints are
+reduced to scheme, host, and path (`connection.EndpointAdvisory`), and process
+properties come from a closed allowlist, `serveProperties()`. Nothing reads
+`os.Environ()` generically.
+
+Each allowlisted property is `{key, secret, defaultValue}`. It renders as:
+
+| Case | `value` | `source` |
+|---|---|---|
+| secret, set | `set` | `env` |
+| secret, unset | `unset` | `default` |
+| not secret, set | the value, reduced by `EndpointAdvisory` if it is a URL, bounded to 512 bytes | `env` |
+| not secret, unset | the documented default, or `""` | `default` |
+
+`RuntimeDescription.Validate` refuses a secret property rendering anything but
+`set`/`unset`, and startup fails if it does.
+
+**Adding a property**:
+
+1. Document the key in `serve --help` (`serveUsage` in `cmd/fi-fhir/main.go`).
+   `[_FILE]` expands to both keys; `NAME_*` declares a family.
+2. Add `{key: …}` to `serveProperties()` with `secret: true` if the value is a
+   credential or the path to one, and `defaultValue` if the code applies one.
+3. Run `go test ./cmd/fi-fhir -run 'TestServeProperties|TestDescribeServeProperties'`.
+   `TestServePropertiesAreExactlyTheDocumentedKeys` fails in both directions (an
+   allowlisted key `serve --help` does not document, or a documented key the
+   Engine tab would not show), `TestServePropertiesMarkEveryCredentialSecret`
+   fails a key matching `TOKEN|SECRET|PASSWORD|_KEY(_|$)` that is not secret,
+   and `TestDescribeServePropertiesNeverRendersASecretValue` plants values and
+   requires none to render.
+
+The allowlist can only be as complete as `serve --help`: a key the help does
+not document is not on the Engine tab. `FI_FHIR_INTEGRATION_SESSION_ENABLED`,
+the `FI_FHIR_DELIVERY_IDENTITY_*` keys, and `FI_FHIR_CONNECTION_SECRET_*` are
+examples today; their effect shows in the booleans and adapter panels instead.
+
+## The peek secret allow-list
+
+A peek resolves the bindings of a draft that any
+`integration.deployment.operator` can write, and hands the material to a
+provider that contacts the endpoint the same draft names; an S3 request
+carries the access key in its `Authorization` header. Without a limit, a draft
+could bind any process variable or any destination credential and read it back
+at an endpoint of its own.
+
+So `serve` wraps the destination identity runtime's env/file resolver in
+`connectionSecretResolver` (`cmd/fi-fhir/connection_intake_runtime.go`), which
+resolves only:
+
+- `env` references whose key starts `FI_FHIR_CONNECTION_SECRET_` (and has a
+  name after it);
+- `file` references whose key starts `connections/`, read under
+  `FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR` (the destination credentials beside
+  that subtree are not a peek's; the inner resolver refuses a path escaping the
+  directory; with the directory unset, only env resolves).
+
+Every other reference, including `vault`, `aws-ssm`, and `k8s`, and any pinned
+`version`, is `SECRET_UNRESOLVABLE` before anything is read or contacted.
+Provision a connection's credentials under these names to make it peekable.
+The runtime's own batch runner and MLLP listener do not use this resolver; they
+read their fixed keys (`FI_FHIR_BATCH_S3_*`, `FI_FHIR_MLLP_TLS_*`, …).
+
+## Metrics
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `fi_fhir_connection_capture_messages_total` | counter | `mode` (`peek`, `stream`) | messages a peek or capture added to a session |
+| `fi_fhir_connection_capture_tap_errors_total` | counter | `reason` (`ledger`, `session_store`, `refresh`, `panic`) | failures the tap and its cache swallowed; none changed an admission result, ACK, or receipt |
+| `fi_fhir_schema_ledger_version` | gauge | `ledger` (`connection` among them) | the ledger version this process expects |
+
+A tap failure is also logged at warn with `component=connection-capture` and
+the reason; the error text comes from a store or the tap, never from a
+message.
+
+## CI proofs
+
+| Job | Make target | Proves |
+|---|---|---|
+| `test:connection-catalog` (`ci/test-connection-catalog.yml`) | `make connection-catalog` | Nine PostgreSQL proofs (`TestConnectionCatalog_*`, count asserted by an existence guard): two replicas migrate concurrently; create → stale update refused → compile, and the bytes decode with the kind's own decoder to the stored digest; a lifecycle definition naming a digest shows in `references`; restart preserves every row byte for byte; the schema refuses an `UPDATE` on a revision; secret material, unknown keys, and malformed bindings are refused with code and path and nothing is written; cross-tenant reads are not found; writes without `integration.deployment.operator` are forbidden; racing compiles claim one revision. |
+| `test:connection-capture` (`ci/test-connection-capture.yml`) | `make connection-capture` | Seven proofs over a real MLLP listener, the durable processor, and MinIO: a capture armed at `maxMessages: 2` turns three admitted frames into exactly two redacted, sealed samples while every receipt and ACK matches an unarmed run; another source captures nothing (negative control); a closed session store changes no ACK and counts `reason="session_store"`; a 1 s TTL expires; racing frames never exceed `maxMessages`; a source no tap can see is refused; a peek lists and reads (NK1-2 and IN1-16 masked) while the batch tables and bucket stay byte-identical and the runner still ingests the object. |
+
+Both extend `.integration-proof` and skip without their services, which is why
+each carries an existence guard. `TestConnectionChecker_MirrorsConstructorBounds`
+needs no database and runs in `test:unit`. Local runs need a PostgreSQL (and
+MinIO for the peek) on the `7900xtx` Docker context; the variables are in each
+job's `PROOF_LOCAL`.

@@ -210,9 +210,9 @@ Custom segments (e.g., `ZPD`) vary by vendor. The parser extracts them but mappi
 
 ## Migration authoring
 
-Six forward-only migration ledgers exist — submission, session, lifecycle,
-batch, destination (`internal/integration/*/migrations/`), and terminology
-(`pkg/terminology/db/schema.go`). None has a down path. Three rules, all of
+Seven forward-only migration ledgers exist — submission, session, lifecycle,
+batch, destination, connection (`internal/integration/*/migrations/`), and
+terminology (`pkg/terminology/db/schema.go`). None has a down path. Three rules, all of
 which cost something real when broken.
 
 ### 1. A `NOT NULL` column on an existing table carries a `DEFAULT` — both forms

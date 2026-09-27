@@ -10,6 +10,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 - [Supported 1.0 Baseline](SUPPORTED-1.0.md) - Pinned release target and evidence gaps
 - [Integration Deployment Lifecycle](INTEGRATION-DEPLOYMENT-LIFECYCLE.md) - Versioned catalog and state contract
 - [Restart-Safe Integration Sessions](INTEGRATION-SESSIONS.md) - Durable author/test workspace and PHI policy
+- [Connection Catalog](CONNECTION-CATALOG.md) - Connection drafts and revisions, engine runtime, sample-intake audit
 
 ## Quick Links
 
@@ -20,6 +21,7 @@ Documentation for deploying and operating fi-fhir in production environments.
 | Review the 1.0 support target | [Supported 1.0 Baseline](SUPPORTED-1.0.md) |
 | Review integration lifecycle state | [Integration Deployment Lifecycle](INTEGRATION-DEPLOYMENT-LIFECYCLE.md) |
 | Operate durable Integration Sessions | [Restart-Safe Integration Sessions](INTEGRATION-SESSIONS.md) |
+| Operate the connection catalog and sample intake | [Connection Catalog](CONNECTION-CATALOG.md) |
 | Configure authenticated preview | [Operations Runbook](RUNBOOK.md#authenticated-preview-access) |
 | Monitor performance | [Observability](#observability) |
 | Configure health checks | [Health Endpoints](#health-endpoints) |

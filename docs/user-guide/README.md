@@ -13,6 +13,7 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 7. [FHIR Output](fhir-output.md)
 8. [LLM-Powered Features](llm-features.md)
 9. [Playground Tutorial](playground-tutorial.md)
+10. [Connections](connections.md)
 
 ## Quick Links
 
@@ -30,6 +31,8 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 | Generate workflows from natural language | [LLM-Powered Features](llm-features.md#workflow-generation) |
 | Search terminology by meaning | [LLM-Powered Features](llm-features.md#semantic-terminology-search) |
 | Try it in the browser | [Playground Tutorial](playground-tutorial.md) |
+| Define a source or destination connection | [Connections](connections.md) |
+| Pull real messages from a source into a session | [Connections](connections.md#sampling-from-a-connection) |
 
 ## What is fi-fhir?
 
