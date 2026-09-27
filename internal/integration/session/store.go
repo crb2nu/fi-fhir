@@ -293,12 +293,22 @@ func (s *MemoryStore) AddSample(_ context.Context, sessionID string, req AddSamp
 	if req.Format == "" {
 		return nil, fmt.Errorf("%w: sample format is required", ErrInvalid)
 	}
+	if req.ID != "" && !validSampleID(req.ID) {
+		return nil, fmt.Errorf("%w: sample id is not a sample identifier", ErrInvalid)
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, ok := s.sessions[sessionID]; !ok {
 		return nil, ErrNotFound
+	}
+	if existing, ok := s.samples[req.ID]; req.ID != "" && ok {
+		// A caller-named ID that already names a sample: the first write won.
+		if existing.SessionID != sessionID {
+			return nil, fmt.Errorf("%w: sample id belongs to another session", ErrInvalid)
+		}
+		return cloneSample(existing), nil
 	}
 	policy := req.PHIPolicy
 	if policy == "" {
@@ -307,15 +317,25 @@ func (s *MemoryStore) AddSample(_ context.Context, sessionID string, req AddSamp
 	if policy != PHIPolicyRetain && policy != PHIPolicyRedact {
 		return nil, fmt.Errorf("%w: unsupported PHI policy %q", ErrInvalid, policy)
 	}
+	if err := validateSampleRedaction(req.Redaction, policy); err != nil {
+		return nil, err
+	}
 	raw := req.Raw
 	redacted := false
 	if policy == PHIPolicyRedact {
-		raw = redactSample(req.Format, raw)
+		var err error
+		if raw, err = redactSampleWith(req.Redaction, req.Format, raw); err != nil {
+			return nil, err
+		}
 		redacted = raw != req.Raw
 	}
 	now := s.now()
+	sampleID := req.ID
+	if sampleID == "" {
+		sampleID = newID("sample")
+	}
 	sample := &Sample{
-		ID:          newID("sample"),
+		ID:          sampleID,
 		SessionID:   sessionID,
 		Name:        strings.TrimSpace(req.Name),
 		Format:      req.Format,
@@ -323,6 +343,7 @@ func (s *MemoryStore) AddSample(_ context.Context, sessionID string, req AddSamp
 		Raw:         raw,
 		PHIPolicy:   policy,
 		PHIRedacted: redacted,
+		Redaction:   req.Redaction,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -601,7 +622,7 @@ func (s *MemoryStore) ExportBundle(ctx context.Context, req ExportRequest) (*Exp
 		return nil, err
 	}
 	for i := range samples {
-		if samples[i].PHIPolicy == PHIPolicyRetain {
+		if strippedFromExport(samples[i]) {
 			samples[i].Raw = ""
 		}
 	}

@@ -66,12 +66,13 @@ func TestTransportGateRoleMapIsExhaustive(t *testing.T) {
 func TestTransportGateRoleMapShape(t *testing.T) {
 	total, fineGrained, compatibility := transportGatePolicySummary()
 	// .loom/38 C-0 added ten fine-grained root fields (the connection catalog
-	// and engineRuntime) and nothing to the compatibility bucket.
-	if total != 141 {
-		t.Errorf("mapped root fields = %d, want 141", total)
+	// and engineRuntime) and nothing to the compatibility bucket; C-2 added
+	// four more (connectionCaptures and the three sample-intake mutations).
+	if total != 145 {
+		t.Errorf("mapped root fields = %d, want 145", total)
 	}
-	if fineGrained != 36 {
-		t.Errorf("fine-grained root fields = %d, want 36", fineGrained)
+	if fineGrained != 40 {
+		t.Errorf("fine-grained root fields = %d, want 40", fineGrained)
 	}
 	if compatibility != 105 {
 		t.Errorf("compatibility-bucket root fields = %d, want 105", compatibility)
@@ -121,6 +122,8 @@ func TestTransportGateRequirementsMatchTheServiceLayer(t *testing.T) {
 			"connectionRevisions": {connection.ReadRole},
 			"connectionRevision":  {connection.ReadRole},
 			"engineRuntime":       {connection.ReadRole},
+			// connection.Service's sample intake read (.loom/38 C-2).
+			"connectionCaptures": {connection.ReadRole},
 		},
 		ast.Mutation: {
 			"replayDelivery":              {operator.ReadRole, delivery.OperatorRole},
@@ -136,6 +139,11 @@ func TestTransportGateRequirementsMatchTheServiceLayer(t *testing.T) {
 			"archiveConnection":      {connection.ReadRole, connection.WriteRole},
 			"compileConnection":      {connection.ReadRole, connection.WriteRole},
 			"validateConnectionSpec": {connection.ReadRole, connection.WriteRole},
+			// connection.Service's sample intake (.loom/38 C-2): the read role
+			// only; the service also requires a session workspace.
+			"peekBatchConnection":     {connection.ReadRole},
+			"startConnectionCapture":  {connection.ReadRole},
+			"cancelConnectionCapture": {connection.ReadRole},
 		},
 	}
 	for operation, fields := range expected {

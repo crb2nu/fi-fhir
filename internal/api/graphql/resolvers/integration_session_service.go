@@ -512,8 +512,12 @@ func (s *integrationSessionService) exportBundle(
 	if err != nil {
 		return nil, err
 	}
-	if !includeRaw {
-		for i := range session.Samples {
+	for i := range session.Samples {
+		// An export never carries captured text, whatever the grant, just as
+		// the snapshot the store records never does (.loom/38 C-2).
+		session.Samples[i].CapturedText = nil
+		if !includeRaw {
+			// Without the PHI grant an export carries no sample text at all.
 			session.Samples[i].RawPayload = nil
 		}
 	}
@@ -639,9 +643,17 @@ func (s *integrationSessionService) toGraphQLSession(session enginesession.Sessi
 
 func (s *integrationSessionService) toGraphQLSample(sample enginesession.Sample) *model.SessionSample {
 	checksum := sha256.Sum256([]byte(sample.Raw))
-	var raw *string
+	var raw, captured *string
 	if sample.PHIPolicy == enginesession.PHIPolicyRetain {
 		raw = &sample.Raw
+	}
+	// Only the capture redactor's output is carried as text (.loom/38 C-2),
+	// and only to the redactedPayload resolver, which gates it on the
+	// caller's roles: a pasted sample's stored text went through the narrower
+	// pasted-sample redactor and stays server-side, as it always has.
+	if sample.PHIPolicy == enginesession.PHIPolicyRedact && sample.Redaction == enginesession.SampleRedactionCapture {
+		text := sample.Raw
+		captured = &text
 	}
 	source := strPtrEmpty(sample.Source)
 	return &model.SessionSample{
@@ -653,6 +665,7 @@ func (s *integrationSessionService) toGraphQLSample(sample enginesession.Sample)
 		RawPayload:      raw,
 		PayloadChecksum: hex.EncodeToString(checksum[:]),
 		CreatedAt:       sample.CreatedAt,
+		CapturedText:    captured,
 	}
 }
 

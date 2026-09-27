@@ -642,6 +642,17 @@ const ConnectionSpecRejectedMessage = "connection spec carries secret material"
 
 const connectionSpecRejectedMessage = ConnectionSpecRejectedMessage
 
+// ConnectionCaptureSourceUnavailableMessage is the message of the one sample
+// intake refusal that carries a code (.loom/38 C-2): startConnectionCapture
+// named a source that no MLLP or HTTP adapter of this replica admits and no
+// compiled MLLP or HTTP source connection names, so the capture tap could
+// never see a frame of it. extensions.code is always SOURCE_UNAVAILABLE.
+const ConnectionCaptureSourceUnavailableMessage = "capture source unavailable: no mounted or compiled MLLP or HTTP source has this id"
+
+// connectionCaptureSourceUnavailableCode is connection.CodeSourceUnavailable,
+// written out because this package does not import the catalog.
+const connectionCaptureSourceUnavailableCode = "SOURCE_UNAVAILABLE"
+
 // connectionSpecRejectedExtensions keeps exactly the contracted members of a
 // spec rejection — its code and each problem's code, path, and message — and
 // drops anything else a resolver might have attached.
@@ -716,6 +727,23 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"connection catalog request failed",
 		"engine runtime unavailable":
 		return &gqlerror.Error{Message: presented.Message}
+	// Connection sample intake outcomes (.loom/38 C-2). Each names a decision
+	// about the caller's own request — its session, its capture, the connection
+	// it named — and none carries a store detail, a secret, or message content.
+	case "connection sample intake unavailable",
+		"invalid connection sample intake request",
+		"integration session not found",
+		"integration session is archived",
+		"connection capture not found",
+		"a capture is already armed for this source",
+		"connection capture is already finished",
+		"peek requires a compiled batch source connection",
+		"connection sample intake request failed":
+		return &gqlerror.Error{Message: presented.Message}
+	case ConnectionCaptureSourceUnavailableMessage:
+		// A fixed code, never one copied from the error: nothing a resolver
+		// attached survives.
+		return &gqlerror.Error{Message: presented.Message, Extensions: map[string]any{"code": connectionCaptureSourceUnavailableCode}}
 	case connectionSpecRejectedMessage:
 		// The one catalog error with extensions: the refused paths, computed
 		// from the caller's own spec, so the form can mark the field. Only the

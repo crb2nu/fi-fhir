@@ -921,6 +921,14 @@ type SessionSample {
   format: SourceFormat!
   source: String
   rawPayload: String
+  """
+  The stored text of a sample peeked or captured from a connection, as the
+  capture redactor left it (docs/operations/PHI-RETENTION.md, "Captured and
+  peeked samples"). Gated on integration.operator: null unless the caller's
+  verified roles include it, never carried by an export, and null for every
+  other sample.
+  """
+  redactedPayload: String
   payloadChecksum: String!
   payloadRef: String
   createdAt: DateTime!
@@ -3044,4 +3052,122 @@ extend type Mutation {
   archiveConnection(input: ConnectionCommandInput!): Connection!
   compileConnection(input: ConnectionCommandInput!): ConnectionCompileResult!
   validateConnectionSpec(input: ValidateConnectionSpecInput!): [ConnectionProblem!]!
+}
+
+# =============================================================================
+# Connection sample intake (.loom/38 C-2)
+#
+# Two ways to put real messages from a source connection into an Integration
+# Session, where any HL7v2 message type previews: a batch peek reads the first
+# messages of one object of a compiled batch connection, and a stream capture
+# taps the next messages a runtime source admits on any replica. Both are
+# reason-required, audited as one ConnectionCapture row each, and redact-only:
+# every sample goes through the capture redactor, which masks every HIPAA Safe
+# Harbor identifier field of PID, NK1, IN1, IN2, and GT1
+# (docs/operations/PHI-RETENTION.md, "Captured and peeked samples").
+#
+# A peek takes no lease, writes no checkpoint, archives nothing, and deletes
+# nothing. A capture never changes an admission result, an ACK, or a receipt.
+# Every field requires integration.operator and a configured session workspace
+# (capabilities.integrationSessions).
+# =============================================================================
+
+enum ConnectionCaptureMode {
+  PEEK
+  STREAM
+}
+
+enum ConnectionCaptureStatus {
+  ARMED
+  COMPLETE
+  EXPIRED
+  CANCELLED
+  FAILED
+}
+
+"""One audited peek or stream capture."""
+type ConnectionCapture {
+  id: ID!
+  sessionId: ID!
+  """The runtime source ID a stream capture taps, or the peeked revision's source_id."""
+  sourceId: ID!
+  """The catalog connection a peek read; null for a stream capture, which names a runtime source."""
+  connectionId: ID
+  mode: ConnectionCaptureMode!
+  status: ConnectionCaptureStatus!
+  """Messages that reached the session."""
+  captured: Int!
+  maxMessages: Int!
+  """When an armed capture stops by itself; a peek's own deadline."""
+  expiresAt: DateTime!
+  requestedBy: OperatorPrincipal!
+  reason: String!
+  requestedAt: DateTime!
+  """Null while armed."""
+  completedAt: DateTime
+  """
+  Why it finished as it did: SECRET_UNRESOLVABLE (path is the spec field naming
+  the binding), SOURCE_UNAVAILABLE, OBJECT_NOT_FOUND, MESSAGE_UNREADABLE, or
+  SAMPLE_WRITE_FAILED (path is the input field, or empty). Empty when it did all
+  it was asked.
+  """
+  problems: [ConnectionProblem!]!
+}
+
+"""One object under a batch source's input prefix or directory."""
+type BatchPeekObject {
+  path: String!
+  size: Int!
+  """The provider's exact version: an S3 version ID, or an SFTP change stamp."""
+  version: String!
+  """The provider's modification time. Advisory: never a trust input."""
+  modifiedAt: DateTime
+}
+
+type BatchPeekResult {
+  """At most maxObjects objects, in the provider's listing order."""
+  objects: [BatchPeekObject!]!
+  """The samples this peek added to the session; empty without objectPath."""
+  samples: [SessionSample!]!
+  """The peek's audit row, finished."""
+  capture: ConnectionCapture!
+  problems: [ConnectionProblem!]!
+}
+
+input PeekBatchConnectionInput {
+  """A catalog batch_s3 or batch_sftp connection with a compiled revision."""
+  connectionId: ID!
+  """An active session."""
+  sessionId: ID!
+  """An object path from a previous listing. Without it the peek lists and reads nothing."""
+  objectPath: String
+  """1-50; 10 when omitted."""
+  maxObjects: Int
+  """1-50; 5 when omitted."""
+  maxMessages: Int
+  reason: String!
+}
+
+input StartConnectionCaptureInput {
+  """The runtime source ID frames are admitted under (engineRuntime.adapters.sourceId)."""
+  sourceId: ID!
+  """An active session."""
+  sessionId: ID!
+  """1-100; 5 when omitted."""
+  maxMessages: Int
+  """1-900; 300 when omitted."""
+  ttlSeconds: Int
+  reason: String!
+}
+
+extend type Query {
+  """One session's peeks and captures, newest first, at most 100."""
+  connectionCaptures(sessionId: ID!): [ConnectionCapture!]!
+}
+
+extend type Mutation {
+  peekBatchConnection(input: PeekBatchConnectionInput!): BatchPeekResult!
+  """Arms a capture of the source's next frames; one armed capture per source."""
+  startConnectionCapture(input: StartConnectionCaptureInput!): ConnectionCapture!
+  cancelConnectionCapture(id: ID!, reason: String!): ConnectionCapture!
 }

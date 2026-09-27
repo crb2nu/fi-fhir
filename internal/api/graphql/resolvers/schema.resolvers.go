@@ -1944,6 +1944,21 @@ func (r *mutationResolver) ValidateConnectionSpec(ctx context.Context, input mod
 	return r.validateConnectionSpec(ctx, input)
 }
 
+// PeekBatchConnection is the resolver for the peekBatchConnection field.
+func (r *mutationResolver) PeekBatchConnection(ctx context.Context, input model.PeekBatchConnectionInput) (*model.BatchPeekResult, error) {
+	return r.peekBatchConnection(ctx, input)
+}
+
+// StartConnectionCapture is the resolver for the startConnectionCapture field.
+func (r *mutationResolver) StartConnectionCapture(ctx context.Context, input model.StartConnectionCaptureInput) (*model.ConnectionCapture, error) {
+	return r.startConnectionCapture(ctx, input)
+}
+
+// CancelConnectionCapture is the resolver for the cancelConnectionCapture field.
+func (r *mutationResolver) CancelConnectionCapture(ctx context.Context, id string, reason string) (*model.ConnectionCapture, error) {
+	return r.cancelConnectionCapture(ctx, id, reason)
+}
+
 // Event is the resolver for the event field.
 func (r *queryResolver) Event(ctx context.Context, id string) (model.Event, error) {
 	return r.Store.GetEvent(ctx, id)
@@ -3452,6 +3467,16 @@ func (r *queryResolver) EngineRuntime(ctx context.Context) (*model.EngineRuntime
 	return r.engineRuntime(ctx)
 }
 
+// ConnectionCaptures is the resolver for the connectionCaptures field.
+func (r *queryResolver) ConnectionCaptures(ctx context.Context, sessionID string) ([]model.ConnectionCapture, error) {
+	return r.connectionCaptures(ctx, sessionID)
+}
+
+// RedactedPayload is the resolver for the redactedPayload field.
+func (r *sessionSampleResolver) RedactedPayload(ctx context.Context, obj *model.SessionSample) (*string, error) {
+	return r.sessionSampleRedactedPayload(ctx, obj)
+}
+
 // EventStream is the resolver for the eventStream field.
 func (r *subscriptionResolver) EventStream(ctx context.Context, filter *model.EventFilter) (<-chan model.Event, error) {
 	return r.Store.Subscribe(ctx, filter)
@@ -3573,9 +3598,13 @@ func (r *Resolver) Mutation() graphql1.MutationResolver { return &mutationResolv
 // Query returns graphql1.QueryResolver implementation.
 func (r *Resolver) Query() graphql1.QueryResolver { return &queryResolver{r} }
 
+// SessionSample returns graphql1.SessionSampleResolver implementation.
+func (r *Resolver) SessionSample() graphql1.SessionSampleResolver { return &sessionSampleResolver{r} }
+
 // Subscription returns graphql1.SubscriptionResolver implementation.
 func (r *Resolver) Subscription() graphql1.SubscriptionResolver { return &subscriptionResolver{r} }
 
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type sessionSampleResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
