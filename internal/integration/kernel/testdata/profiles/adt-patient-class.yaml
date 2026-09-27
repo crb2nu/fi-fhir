@@ -1,0 +1,28 @@
+# An ADT^A01 Source Profile that classifies admissions by patient class
+# (PV1-2) and reads unzoned HL7 timestamps as US Eastern time. Synthetic: the
+# assigning authority OID is a placeholder.
+hl7v2:
+  default_version: "2.5.1"
+  timezone: America/New_York
+  event_classifications:
+    - message_type: ADT^A01
+      condition: "PV1.2 == 'I'"
+      event_type: inpatient_admit
+      priority: 1
+    - message_type: ADT^A01
+      condition: "PV1.2 == 'E'"
+      event_type: emergency_registration
+      priority: 2
+    - message_type: ADT^A01
+      condition: "PV1.2 == 'O'"
+      event_type: outpatient_registration
+      priority: 3
+    - message_type: ADT^A01
+      event_type: patient_admit
+      priority: 4
+identifiers:
+  assigning_authorities:
+    - code: HOSPITAL
+      system: urn:oid:2.16.840.1.113883.3.0.1
+  normalization:
+    ssn_strip_dashes: true

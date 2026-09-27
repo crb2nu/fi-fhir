@@ -1,3 +1,10 @@
+//go:build !js
+
+// The workflow planner links internal/workflow (cel-go, protobuf, lib/pq,
+// prometheus, otel, redis), which is ~66 MB of a 72 MB browser module. The
+// js build (cmd/fi-fhir-wasm) compiles profiles and parses messages but never
+// plans a workflow, so it links workflow_plan_js.go instead.
+
 package processor
 
 import (

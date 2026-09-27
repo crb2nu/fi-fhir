@@ -1,0 +1,44 @@
+[
+  {
+    "id": "adt-a01-icu-admission",
+    "name": "ADT A01 - ICU Admission",
+    "source": "demo_epic_adt",
+    "format": "hl7v2",
+    "file": "adt-a01-icu-admission.hl7"
+  },
+  {
+    "id": "oru-r01-lab-results-cbc",
+    "name": "ORU R01 - Lab Results (CBC)",
+    "source": "demo_labcorp",
+    "format": "hl7v2",
+    "file": "oru-r01-lab-results-cbc.hl7"
+  },
+  {
+    "id": "siu-s12-appointment-scheduled",
+    "name": "SIU S12 - Appointment Scheduled",
+    "source": "demo_nextgen",
+    "format": "hl7v2",
+    "file": "siu-s12-appointment-scheduled.hl7"
+  },
+  {
+    "id": "adt-a03-discharge-with-warnings",
+    "name": "ADT A03 - Discharge (with warnings)",
+    "source": "demo_cerner",
+    "format": "hl7v2",
+    "file": "adt-a03-discharge-with-warnings.hl7"
+  },
+  {
+    "id": "orm-o01-lab-order",
+    "name": "ORM O01 - Lab Order",
+    "source": "demo_meditech",
+    "format": "hl7v2",
+    "file": "orm-o01-lab-order.hl7"
+  },
+  {
+    "id": "mdm-t02-document-with-content",
+    "name": "MDM T02 - Document with Content",
+    "source": "demo_athena",
+    "format": "hl7v2",
+    "file": "mdm-t02-document-with-content.hl7"
+  }
+]

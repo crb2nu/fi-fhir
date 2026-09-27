@@ -50,6 +50,9 @@ claude_desktop_config/
 /bin/
 /fi-fhir
 
+# Browser kernel (built by make wasm; published as a release asset, never committed)
+/dist/
+
 # Scratch directory: local Go module/build caches (GOMODCACHE=$PWD/.tmp/go-mod-cache)
 # and golden-path evidence. All of it is regenerable and uploaded by CI as artifacts
 # when needed, so nothing under /.tmp/ is ever committed.
