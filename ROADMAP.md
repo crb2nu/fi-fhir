@@ -337,13 +337,10 @@ against what the running replica mounted; it does not hot-load anything
   expires. Batch peek is unaffected. Widening admission is a kernel change with
   its own profile-compile rules (`processor/profile_compile.go` refuses the
   unknown-segments tolerance).
-- [ ] **Engine properties the Engine tab cannot show** — the `engineRuntime`
-  allowlist is held equal to the keys `serve --help` documents, and the help
-  omits `FI_FHIR_INTEGRATION_SESSION_ENABLED`, the `FI_FHIR_DELIVERY_IDENTITY_*`
-  keys, `FI_FHIR_CONNECTION_SECRET_*` and
-  `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE`. Document them in the help
-  and the allowlist follows (`docs/operations/CONNECTION-CATALOG.md`, "Adding a
-  property").
+- [x] **Engine properties the Engine tab cannot show** — `serve --help` and the
+  `engineRuntime` allowlist now cover the session, delivery identity and SFTP
+  passphrase keys, plus `FI_FHIR_CONNECTION_SECRET_*` as the allowlist's one
+  prefix rule (`docs/operations/CONNECTION-CATALOG.md`).
 - [ ] **`operator-bundle` e2e timing budget** — check 2's 10 s
   `waitForResponse` starts before `page.goto`, so a slow first load on a
   saturated runner consumes it (one retry on MR !242's pipeline; 15/15 locally).

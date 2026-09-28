@@ -215,9 +215,10 @@ secret-free by construction: adapters are described from what
 `loadIntegrationRuntimeFromEnv` actually built, destination endpoints are
 reduced to scheme, host, and path (`connection.EndpointAdvisory`), and process
 properties come from a closed allowlist, `serveProperties()`. Nothing reads
-`os.Environ()` generically.
+`os.Environ()` generically; the one prefix rule below filters it on exactly one
+prefix.
 
-Each allowlisted property is `{key, secret, defaultValue}`. It renders as:
+Each allowlisted property is `{key, secret, family, defaultValue}`. It renders as:
 
 | Case | `value` | `source` |
 |---|---|---|
@@ -229,12 +230,43 @@ Each allowlisted property is `{key, secret, defaultValue}`. It renders as:
 `RuntimeDescription.Validate` refuses a secret property rendering anything but
 `set`/`unset`, and startup fails if it does.
 
+**The one prefix rule.** `FI_FHIR_CONNECTION_SECRET_*` is the only family
+allowlisted by prefix (`family: true`, key `connectionSecretEnvPrefix`), because
+its members are named by connection drafts rather than by the code. It renders
+one secret row per set variable with that prefix and a non-empty name, sorted by
+key, each `set`/`env`; the value is never read beyond whether it is non-empty.
+With no member set it renders a single `FI_FHIR_CONNECTION_SECRET_*` row,
+`unset`/`default`. `TestServePropertiesAllowlistExactlyOneFamily` keeps the rule
+to this one secret family. Other documented families, such as
+`FI_FHIR_DATABASE_*`, are allowlisted by their exact member keys.
+
+Keys added after the C-4 close-out (2026-09-27), with their `secret` flags:
+
+| Key | `secret` | Why |
+|---|---|---|
+| `FI_FHIR_INTEGRATION_SESSION_ENABLED` | no (default `false`) | a boolean |
+| `FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE` | yes | path to the session retention key |
+| `FI_FHIR_DELIVERY_IDENTITY_MODE` | no | `strict` or `compatibility` |
+| `FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH` | no | destination registry document path |
+| `FI_FHIR_DELIVERY_IDENTITY_COMPATIBILITY_SUBJECT` | no | a grant subject, not a credential |
+| `FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR` | yes | directory of destination credentials; its name matches the credential pattern |
+| `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE` | yes | the passphrase |
+| `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE` | yes | path to the passphrase, like `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_FILE` |
+| `FI_FHIR_CONNECTION_SECRET_*` | yes | the prefix rule above |
+
+The two credential paths are secret even though a path is not a credential:
+the repository's rule is that a path to a credential renders only as
+`set`/`unset`, and `TestServePropertiesMarkEveryCredentialSecret` enforces it by
+name.
+
 **Adding a property**:
 
 1. Document the key in `serve --help` (`serveUsage` in `cmd/fi-fhir/main.go`).
    `[_FILE]` expands to both keys; `NAME_*` declares a family.
 2. Add `{key: …}` to `serveProperties()` with `secret: true` if the value is a
    credential or the path to one, and `defaultValue` if the code applies one.
+   Do not add a second `family: true` entry; a family whose members the code
+   names is allowlisted member by member.
 3. Run `go test ./cmd/fi-fhir -run 'TestServeProperties|TestDescribeServeProperties'`.
    `TestServePropertiesAreExactlyTheDocumentedKeys` fails in both directions (an
    allowlisted key `serve --help` does not document, or a documented key the
@@ -244,9 +276,9 @@ Each allowlisted property is `{key, secret, defaultValue}`. It renders as:
    requires none to render.
 
 The allowlist can only be as complete as `serve --help`: a key the help does
-not document is not on the Engine tab. `FI_FHIR_INTEGRATION_SESSION_ENABLED`,
-the `FI_FHIR_DELIVERY_IDENTITY_*` keys, and `FI_FHIR_CONNECTION_SECRET_*` are
-examples today; their effect shows in the booleans and adapter panels instead.
+not document is not on the Engine tab. The session, delivery identity,
+connection secret, and SFTP passphrase keys were missing until they were
+documented and allowlisted as above.
 
 ## The peek secret allow-list
 

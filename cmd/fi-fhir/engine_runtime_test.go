@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -126,6 +127,120 @@ func TestDescribeServePropertiesNeverRendersASecretValue(t *testing.T) {
 	}
 	if got := byKey["FI_FHIR_GRAPHQL_OIDC_ISSUER_URL"]; got.Value != "https://issuer.example.org/realm" {
 		t.Fatalf("issuer URL property = %+v", got)
+	}
+}
+
+// TestServePropertiesReportTheKeysServeReadsForSessionsIdentityAndSFTP pins
+// the keys serve read before the Engine tab could show them, with their secret
+// flags: a path to a credential is as secret as the credential.
+func TestServePropertiesReportTheKeysServeReadsForSessionsIdentityAndSFTP(t *testing.T) {
+	want := []struct {
+		key    string
+		secret bool
+		family bool
+	}{
+		{key: "FI_FHIR_INTEGRATION_SESSION_ENABLED"},
+		{key: "FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE", secret: true},
+		{key: "FI_FHIR_DELIVERY_IDENTITY_MODE"},
+		{key: "FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH"},
+		{key: "FI_FHIR_DELIVERY_IDENTITY_COMPATIBILITY_SUBJECT"},
+		{key: "FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR", secret: true},
+		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE", secret: true},
+		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE", secret: true},
+		{key: connectionSecretEnvPrefix, secret: true, family: true},
+	}
+	allowlisted := make(map[string]serveProperty)
+	for _, property := range serveProperties() {
+		allowlisted[property.key] = property
+	}
+	for _, tc := range want {
+		t.Run(tc.key, func(t *testing.T) {
+			property, ok := allowlisted[tc.key]
+			if !ok {
+				t.Fatalf("%s is not allowlisted", tc.key)
+			}
+			if property.secret != tc.secret || property.family != tc.family {
+				t.Fatalf("%s: secret=%t family=%t, want secret=%t family=%t",
+					tc.key, property.secret, property.family, tc.secret, tc.family)
+			}
+		})
+	}
+}
+
+// TestServePropertiesAllowlistExactlyOneFamily: the prefix rule exists for the
+// connection secret env family and nothing else, and it is secret.
+func TestServePropertiesAllowlistExactlyOneFamily(t *testing.T) {
+	var families []string
+	for _, property := range serveProperties() {
+		if !property.family {
+			continue
+		}
+		families = append(families, property.key)
+		if !property.secret || property.defaultValue != "" {
+			t.Errorf("family %s must be secret with no default", property.key)
+		}
+	}
+	if len(families) != 1 || families[0] != connectionSecretEnvPrefix {
+		t.Fatalf("allowlisted families = %v, want exactly [%s]", families, connectionSecretEnvPrefix)
+	}
+}
+
+func TestDescribeServePropertiesRendersConnectionSecretsOnlyAsSet(t *testing.T) {
+	const sentinel = "synthetic-connection-secret-value"
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_X", sentinel)
+	t.Setenv("FI_FHIR_CONNECTION_SECRET_A", sentinel+"-a")
+	t.Setenv("FI_FHIR_SOMETHING_ELSE", "unrelated-value")
+	properties := describeServeProperties()
+	encoded, err := json.Marshal(properties)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if bytes.Contains(encoded, []byte(sentinel)) {
+		t.Fatalf("a connection secret reached the properties: %s", encoded)
+	}
+	if bytes.Contains(encoded, []byte("FI_FHIR_SOMETHING_ELSE")) || bytes.Contains(encoded, []byte("unrelated-value")) {
+		t.Fatalf("an undocumented key reached the properties: %s", encoded)
+	}
+	var members []connection.RuntimeProperty
+	for _, property := range properties {
+		if strings.HasPrefix(property.Key, connectionSecretEnvPrefix) {
+			members = append(members, property)
+		}
+	}
+	if len(members) != 2 || members[0].Key != "FI_FHIR_CONNECTION_SECRET_A" || members[1].Key != "FI_FHIR_CONNECTION_SECRET_X" {
+		t.Fatalf("connection secret rows = %+v, want A then X", members)
+	}
+	for _, member := range members {
+		if !member.Secret || member.Value != connection.PropertyValueSet || member.Source != connection.PropertySourceEnv {
+			t.Fatalf("connection secret row = %+v", member)
+		}
+	}
+	description := connection.RuntimeDescription{Adapters: [4]connection.RuntimeAdapter{
+		{Kind: connection.AdapterOrder[0]}, {Kind: connection.AdapterOrder[1]},
+		{Kind: connection.AdapterOrder[2]}, {Kind: connection.AdapterOrder[3]},
+	}, Properties: properties}
+	if err := description.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+}
+
+func TestDescribeServePropertiesRendersAnUnsetConnectionSecretFamily(t *testing.T) {
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(key, connectionSecretEnvPrefix) {
+			t.Setenv(key, "")
+		}
+	}
+	t.Setenv(connectionSecretEnvPrefix, "no-name-is-not-a-member")
+	var members []connection.RuntimeProperty
+	for _, property := range describeServeProperties() {
+		if strings.HasPrefix(property.Key, connectionSecretEnvPrefix) {
+			members = append(members, property)
+		}
+	}
+	if len(members) != 1 || members[0].Key != connectionSecretEnvPrefix+"*" ||
+		!members[0].Secret || members[0].Value != connection.PropertyValueUnset || members[0].Source != connection.PropertySourceDefault {
+		t.Fatalf("connection secret rows = %+v, want one unset family row", members)
 	}
 }
 
