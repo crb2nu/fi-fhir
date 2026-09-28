@@ -40,6 +40,22 @@ type StreamLog interface {
 	LatestStreamSeq(ctx context.Context) (int64, error)
 }
 
+// StreamBatchLog is a StreamLog that can append several envelopes in one
+// round trip.
+//
+// A preview run publishes ten or more envelopes. With one committed INSERT per
+// publish, the run's wall-clock is the sum of those commits, which on a
+// saturated database is seconds per envelope (see the 2026-09-27 worklog
+// entry). The hub detects this interface by type assertion, so a log that only
+// implements AppendStreamEvent keeps working one envelope at a time.
+type StreamBatchLog interface {
+	StreamLog
+	// AppendStreamEvents records the envelopes in slice order and returns
+	// their cursor positions, index-aligned with the input and strictly
+	// increasing. Either every envelope is recorded or none is.
+	AppendStreamEvents(ctx context.Context, events []StreamEvent) ([]int64, error)
+}
+
 // RelayConfig configures the durable fanout relay.
 type RelayConfig struct {
 	// Log is the durable envelope log. Required.
