@@ -3,6 +3,7 @@ import {
   connectionStatus,
   connectionStatusText,
   mountedRevisionId,
+  runtimeRevisionId,
   type ConnectionStatusInput
 } from './connectionStatus';
 
@@ -81,5 +82,35 @@ describe('connectionStatus — the honest states, additive, from catalog and run
     expect(mountedRevisionId('revision 12: HTTP ingress /v1/hl7v2 bound to integration adt-east')).toBe('12');
     expect(mountedRevisionId('MLLP listener on 0.0.0.0:2575')).toBeNull();
     expect(mountedRevisionId(null)).toBeNull();
+  });
+});
+
+describe('runtimeRevisionId — the structured field first, the detail parse only without it', () => {
+  const detailR2 = 'revision 2: MLLP listener on 0.0.0.0:2575 for definition adt-east';
+  const cases: Array<[string, ConnectionStatusInput['runtime'], string | null]> = [
+    ['the field wins over the detail', { mounted: true, detail: detailR2, revisionId: '7' }, '7'],
+    ['the field needs no detail', { mounted: true, detail: 'delivery identity registry', revisionId: '4' }, '4'],
+    ['a null field falls back to the detail', { mounted: true, detail: detailR2, revisionId: null }, '2'],
+    ['an older server omits the field', { mounted: true, detail: detailR2 }, '2'],
+    ['neither names a revision', { mounted: true, detail: 'delivery identity registry', revisionId: null }, null]
+  ];
+
+  it.each(cases)('%s', (_name, runtime, expected) => {
+    expect(runtimeRevisionId(runtime)).toBe(expected);
+  });
+
+  it.each([
+    ['the field names an older revision', { mounted: true, detail: 'registry', revisionId: '2' }, 'Compiled r3 · r2 mounted here'],
+    ['the field names the latest revision', { mounted: true, detail: detailR2, revisionId: '3' }, 'Compiled r3 · Mounted here'],
+    ['the detail names an older revision', { mounted: true, detail: detailR2, revisionId: null }, 'Compiled r3 · r2 mounted here']
+  ] as const)('status: %s', (_name, runtime, expected) => {
+    expect(connectionStatusText(connectionStatus(input({ version: 4, latestRevision: r3, runtime })))).toBe(expected);
+  });
+
+  it('names the field revision on an edited draft', () => {
+    const runtime = { mounted: true, detail: 'registry', revisionId: '3' };
+    expect(connectionStatusText(connectionStatus(input({ version: 5, latestRevision: r3, runtime })))).toBe(
+      'Draft (r3 mounted)'
+    );
   });
 });

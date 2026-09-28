@@ -274,6 +274,10 @@ func cloneBool(value *bool) *bool {
 type MountedDigest struct {
 	Role   string
 	Detail string
+	// ByDefinition marks the HTTP ingress, which is bound by definition id
+	// rather than mounting a document, so its runtime state names no
+	// revision or digest.
+	ByDefinition bool
 }
 
 // MountedDigests maps every document digest this replica runs to the role
@@ -305,6 +309,7 @@ func (d *RuntimeDescription) MountedDigests() map[string]MountedDigest {
 				Role: RuntimeRoleHTTPIngress,
 				Detail: fmt.Sprintf("HTTP ingress %s bound to integration %s (definition %s)",
 					adapter.Path, adapter.IntegrationID, adapter.DefinitionID),
+				ByDefinition: true,
 			}
 		}
 	}
@@ -333,15 +338,21 @@ type RevisionDigest struct {
 }
 
 // runtimeStateFor reports the newest of a connection's revisions that this
-// replica mounts. revisions must be ordered newest first.
+// replica mounts. revisions must be ordered newest first. RevisionID and
+// Digest are set only for a role that mounts the document itself.
 func runtimeStateFor(revisions []RevisionDigest, mounted map[string]MountedDigest) RuntimeState {
 	for _, revision := range revisions {
 		if role, ok := mounted[revision.Digest]; ok {
-			return RuntimeState{
+			state := RuntimeState{
 				Mounted: true,
 				Role:    role.Role,
 				Detail:  fmt.Sprintf("revision %s: %s", revision.RevisionID, role.Detail),
 			}
+			if !role.ByDefinition {
+				state.RevisionID = revision.RevisionID
+				state.Digest = revision.Digest
+			}
+			return state
 		}
 	}
 	return RuntimeState{}

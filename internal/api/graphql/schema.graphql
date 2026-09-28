@@ -2869,6 +2869,13 @@ type ConnectionRuntimeState {
   role: String
   """Which revision is mounted, and by what; null when not mounted."""
   detail: String
+  """
+  The mounted revision's id; null when not mounted and for http-ingress,
+  which is bound by definition id rather than a mounted document.
+  """
+  revisionId: ID
+  """The mounted revision's digest; null exactly when revisionId is."""
+  digest: String
 }
 
 """
@@ -3062,9 +3069,9 @@ extend type Mutation {
 # messages of one object of a compiled batch connection, and a stream capture
 # taps the next messages a runtime source admits on any replica. Both are
 # reason-required, audited as one ConnectionCapture row each, and redact-only:
-# every sample goes through the capture redactor, which masks every HIPAA Safe
-# Harbor identifier field of PID, NK1, IN1, IN2, and GT1
-# (docs/operations/PHI-RETENTION.md, "Captured and peeked samples").
+# every sample goes through the capture redactor. The segments and fields it
+# masks are tabled in docs/operations/PHI-RETENTION.md, "Captured and peeked
+# samples"; that table, not this comment, is the list.
 #
 # A peek takes no lease, writes no checkpoint, archives nothing, and deletes
 # nothing. A capture never changes an admission result, an ACK, or a receipt.

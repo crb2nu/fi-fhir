@@ -158,3 +158,50 @@ func TestMountedDigestsAndRuntimeState(t *testing.T) {
 		t.Fatal("a nil description mounts something")
 	}
 }
+
+// TestRuntimeStateForNamesTheMountedRevision: every role that mounts a
+// document carries the revision id and digest as fields; the HTTP ingress,
+// bound by definition id, and an unmounted connection carry neither.
+func TestRuntimeStateForNamesTheMountedRevision(t *testing.T) {
+	description := describedRuntime()
+	description.Adapters[2] = RuntimeAdapter{Kind: AdapterBatch, Enabled: true, DefinitionID: "claims-batch",
+		Provider: "s3", SourceDigest: "sha256:" + strings.Repeat("3", 64)}
+	mounted := description.MountedDigests()
+	newer := RevisionDigest{RevisionID: "rev-9", Digest: "sha256:" + strings.Repeat("9", 64)}
+
+	for _, tc := range []struct {
+		name       string
+		digest     string
+		role       string
+		revisionID string
+	}{
+		{"mllp listener", "sha256:" + strings.Repeat("2", 64), RuntimeRoleMLLPListener, "rev-2"},
+		{"batch runner", "sha256:" + strings.Repeat("3", 64), RuntimeRoleBatchRunner, "rev-2"},
+		{"delivery registry", "sha256:" + strings.Repeat("4", 64), RuntimeRoleDeliveryRegistry, "rev-2"},
+		{"http ingress", "sha256:" + strings.Repeat("1", 64), RuntimeRoleHTTPIngress, ""},
+		{"unmounted", "sha256:" + strings.Repeat("8", 64), "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			revisions := []RevisionDigest{newer, {RevisionID: "rev-2", Digest: tc.digest}}
+			state := runtimeStateFor(revisions, mounted)
+			if state.Mounted != (tc.role != "") || state.Role != tc.role || state.RevisionID != tc.revisionID {
+				t.Fatalf("state = %+v, want role %q revision %q", state, tc.role, tc.revisionID)
+			}
+			wantDigest := ""
+			if tc.revisionID != "" {
+				wantDigest = tc.digest
+			}
+			if state.Digest != wantDigest {
+				t.Fatalf("digest = %q, want %q", state.Digest, wantDigest)
+			}
+			if state.Mounted && !strings.HasPrefix(state.Detail, "revision rev-2: ") {
+				t.Fatalf("detail = %q changed wording", state.Detail)
+			}
+		})
+	}
+
+	var none *RuntimeDescription
+	if state := runtimeStateFor([]RevisionDigest{newer}, none.MountedDigests()); state != (RuntimeState{}) {
+		t.Fatalf("a nil description yields %+v", state)
+	}
+}
