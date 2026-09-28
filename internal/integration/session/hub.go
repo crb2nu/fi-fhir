@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -115,12 +116,7 @@ func (h *Hub) Publish(event StreamEvent) {
 	if h == nil {
 		return
 	}
-	if event.ID == "" {
-		event.ID = newID("evt")
-	}
-	if event.At.IsZero() {
-		event.At = h.now()
-	}
+	h.stamp(&event)
 
 	if h.log == nil {
 		h.deliver(event)
@@ -140,6 +136,69 @@ func (h *Hub) Publish(event StreamEvent) {
 	}
 	event.Seq = seq
 	h.report(StreamOutcomePublished, nil)
+}
+
+// PublishAll records events for delivery in slice order.
+//
+// The ordering contract is the same on every path Publish has: in process the
+// events are delivered in slice order; through a StreamBatchLog they take
+// contiguous seqs in slice order from one append; through a plain StreamLog
+// they are appended one at a time, in order. The runner uses this to publish a
+// whole run's envelopes after its terminal write, so the run's wall-clock no
+// longer includes one committed INSERT per envelope.
+//
+// The slice is stamped in place (ID, At, and Seq when the log assigned one),
+// so a caller that keeps it can see what was published.
+func (h *Hub) PublishAll(events []StreamEvent) {
+	if h == nil || len(events) == 0 {
+		return
+	}
+	for i := range events {
+		h.stamp(&events[i])
+	}
+
+	if h.log == nil {
+		for _, event := range events {
+			h.deliver(event)
+		}
+		return
+	}
+	batch, ok := h.log.(StreamBatchLog)
+	if !ok {
+		for _, event := range events {
+			h.Publish(event)
+		}
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), h.appendTimeout)
+	defer cancel()
+	seqs, err := batch.AppendStreamEvents(ctx, events)
+	if err == nil && len(seqs) != len(events) {
+		err = fmt.Errorf("session stream batch append returned %d seqs for %d events", len(seqs), len(events))
+	}
+	if err != nil {
+		h.report(StreamOutcomeError, err)
+		// Same degradation as Publish: the local subscribers still see the run.
+		for _, event := range events {
+			h.deliver(event)
+		}
+		return
+	}
+	for i := range events {
+		events[i].Seq = seqs[i]
+		h.report(StreamOutcomePublished, nil)
+	}
+}
+
+// stamp fills the envelope fields the hub owns.
+func (h *Hub) stamp(event *StreamEvent) {
+	if event.ID == "" {
+		event.ID = newID("evt")
+	}
+	if event.At.IsZero() {
+		event.At = h.now()
+	}
 }
 
 // deliver fans one event out to this process's subscribers.
