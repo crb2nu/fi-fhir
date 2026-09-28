@@ -2,6 +2,13 @@
 
 The fi-fhir Playground is an interactive web-based environment for learning and experimenting with healthcare integration concepts. No installation required!
 
+> The tools run fi-fhir's own engine, compiled to WebAssembly, in your tab:
+> nothing you paste leaves the page. [Browser Playground](playground.md)
+> describes what the engine returns (segments, the semantic event,
+> diagnostics, and the FHIR Bundle) and what needs the IDE instead. The screen
+> sketches below were drawn before the tools moved onto the engine and show
+> the layout, not every panel.
+
 ## Accessing the Playground
 
 Visit: **https://flexinfer.ai/playground/fi-fhir**

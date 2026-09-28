@@ -62,22 +62,29 @@ output into `fi-fhir workflow run` to route it (see Quick Start below).
 
 The `ui/` app is a SvelteKit 5 "Mapping Studio": a VS Code-style shell with an
 activity bar, editor tabs, and a bottom panel for Output, Problems, Debug,
-Trace, and Copilot. Work is organized as a five-stage journey — source intake,
-normalization, translation, delivery, and verification — around a mission
-control dashboard. Preview runs stream stage events, diagnostics, and field
-lineage over GraphQL SSE, and a workflow draft can be simulated and then
-published, approved, and deployed.
+Trace, and Copilot. Work is organized as five stages — source intake,
+normalization, translation, delivery, and verification — plus Home,
+Connections (sources, destinations, and the engine properties of the replica
+that answered), and the Operator console. Preview runs in an Integration
+Session (where the deployment enables them) that streams stage events and diagnostics over GraphQL SSE; samples
+can be pasted, loaded from the synthetic examples, or pulled from a source
+connection; and a workflow draft can be simulated and then published,
+approved, and deployed. Every surface reads the deployment's capabilities and
+names what is missing instead of showing simulated data.
 
 ![Mapping Studio Loop](docs/mermaid/ui-mapping-flow.svg)
 
-See `ui/README.md` for the current UI roadmap and dev commands.
+The [Mapping Studio guide](docs/user-guide/ide.md) walks through it route by
+route; `ui/README.md` has the dev commands.
 
 ## Documentation
 
 ### Getting Started
 
 - **[User Guide](docs/user-guide/README.md)** - Tutorials, concepts, and CLI reference
-- **[Playground](https://flexinfer.ai/playground/fi-fhir)** - Interactive browser-based learning environment
+- **[Browser Playground](https://flexinfer.ai/playground/fi-fhir)** - The engine compiled to WebAssembly, running in your tab; nothing you paste leaves the page ([what it runs](docs/user-guide/playground.md))
+- **[Mapping Studio guide](docs/user-guide/ide.md)** - The IDE, route by route
+- **[Hosted demo](https://fi-fhir-demo.flexinfer.ai)** - The real IDE shell with a preview-only identity and no database: HL7 Preview works, every other surface shows its honest "not available on this deployment" state, and nothing is stored
 
 ### Developer Resources
 
@@ -97,6 +104,10 @@ See `ui/README.md` for the current UI roadmap and dev commands.
 - **Multiple actions**: log, webhook, FHIR, email, exec, file, database (PostgreSQL/MySQL/SQLite), message queue (Kafka), event store
 - **Production ingestion**: MLLP listener with mTLS and ACK semantics, authenticated HTTP endpoint, S3/SFTP batch worker
 - **Deployment lifecycle**: immutable content-addressed revisions, draft → validated → approved → published → deployed
+- **Connections**: named source (MLLP, HTTP, S3, SFTP) and destination (HTTPS, FHIR, Kafka) declarations, validated and compiled into the exact documents `serve` mounts; the catalog authors and labels, GitOps activates ([guide](docs/user-guide/connections.md), [operations](docs/operations/CONNECTION-CATALOG.md))
+- **Engine properties**: the IDE's Connections → Engine tab shows what the answering replica composed at startup: identity and access, the control plane, registry integrations, one panel per adapter with the environment key behind each property, and the schema ledgers; secrets show only `set` or `unset` (the `engineRuntime` allowlist)
+- **Sample intake**: pull real messages from a source connection into an Integration Session (stream capture or batch peek) to build a profile against; every message is redacted before it is stored and every capture is an audited row
+- **Browser playground**: the Source Profile compiler, HL7v2 parser and FHIR projection compiled to WebAssembly (`cmd/fi-fhir-wasm`), with a parity test against the IDE's session preview ([playground](docs/user-guide/playground.md))
 - **Reliability**: Retry with backoff, circuit breaker, dead letter queue, rate limiting
 - **Observability**: Prometheus metrics and structured JSON logging; OpenTelemetry tracing is scaffolded at the workflow layer but not wired into `serve` (see "Tracing (OpenTelemetry) — NOT IMPLEMENTED" below)
 - **Production-ready**: Helm chart, CI/CD pipelines, security hardening guide
@@ -345,6 +356,9 @@ const output = await workflow.run([event]);
 | [Workflows](docs/user-guide/workflows.md) | Workflow DSL reference |
 | [FHIR Output](docs/user-guide/fhir-output.md) | FHIR R4 mapping details |
 | [Playground Tutorial](docs/user-guide/playground-tutorial.md) | Interactive learning guide |
+| [Browser Playground](docs/user-guide/playground.md) | What runs in the browser, the kernel contract |
+| [Mapping Studio (IDE)](docs/user-guide/ide.md) | The IDE, route by route |
+| [Connections](docs/user-guide/connections.md) | Sources, destinations, sample intake, engine properties |
 | **Developer Guide** | |
 | [Architecture](docs/developer-guide/architecture.md) | System architecture overview |
 | [Development Setup](docs/developer-guide/development-setup.md) | Environment setup |
@@ -353,6 +367,7 @@ const output = await workflow.run([event]);
 | **Operations** | |
 | [Production Hardening](docs/operations/PRODUCTION-HARDENING.md) | Security hardening guide |
 | [Operations Runbook](docs/operations/RUNBOOK.md) | Troubleshooting and operations |
+| [Connection Catalog](docs/operations/CONNECTION-CATALOG.md) | The seventh ledger, roles, audit, allowlists |
 | **Reference** | |
 | [AGENTS.md](AGENTS.md) | AI assistant guidance and architecture |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
