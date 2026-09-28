@@ -1,18 +1,21 @@
 /**
  * Browser smoke gate (IDE repair Lane R-D) — Playwright configuration.
  *
- * Three projects, one per API + nginx stack that `e2e/run.sh` starts. Each
- * stack differs from the first in exactly one variable, so each project
- * proves one thing the IDE must get right:
+ * Four projects, one per API + nginx stack that `e2e/run.sh` starts. The
+ * two negative controls differ from the first in exactly one variable, so each
+ * project proves one thing the IDE must get right:
  *
  *   operator-bundle        the repaired deployment: full operator bundle, streaming on
  *   missing-operator-role  negative control: the bundle minus integration.operator
  *   sessions-off           negative control: FI_FHIR_INTEGRATION_SESSION_ENABLED unset
+ *   preview-only           the hosted demo's identity (.loom/40 D-3): integration:preview
+ *                          only, no database — every route shows its honest state
  *
- * A fourth project, `visual` (`.loom/37` U-4), reuses the operator-bundle
- * stack: it writes a 1440×900 PNG of every route to e2e-results/visual/ for
- * review and asserts the copy register. It is listed last so that, with one
- * worker, it runs after the functional projects.
+ * A fifth project, `visual` (`.loom/37` U-4), reuses the operator-bundle
+ * stack (and the preview-only stack for the demo's honest states): it writes a
+ * 1440×900 PNG of every route to e2e-results/visual/ for review and asserts
+ * the copy register. It is listed last so that, with one worker, it runs after
+ * the functional projects.
  *
  * Specs live in e2e/, outside vitest's `src/**` include and outside the
  * SvelteKit tsconfig; e2e/tsconfig.json type-checks them. Run through
@@ -30,7 +33,7 @@ export default defineConfig({
   // A gate that retries is a gate that hides the flake it should report.
   retries: 0,
   // Every project has its own stack, but the job's pod has two CPUs shared by
-  // three APIs, nginx, and Chromium; one worker keeps timings honest.
+  // four APIs, nginx, and Chromium; one worker keeps timings honest.
   workers: 1,
   timeout: 60_000,
   expect: { timeout: 10_000 },
@@ -61,6 +64,11 @@ export default defineConfig({
       name: 'sessions-off',
       testMatch: 'sessions-off.spec.ts',
       use: { baseURL: process.env.E2E_SESSIONS_OFF_URL ?? 'http://127.0.0.1:3002' }
+    },
+    {
+      name: 'preview-only',
+      testMatch: 'preview-only.spec.ts',
+      use: { baseURL: process.env.E2E_PREVIEW_ONLY_URL ?? 'http://127.0.0.1:3003' }
     },
     {
       name: 'visual',

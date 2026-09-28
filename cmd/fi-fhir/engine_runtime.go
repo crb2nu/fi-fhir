@@ -115,6 +115,7 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_GRAPHQL_OIDC_ROLES_CLAIM", defaultValue: "roles"},
 		{key: "FI_FHIR_GRAPHQL_OIDC_SIGNING_ALGS", defaultValue: "RS256"},
 		{key: "FI_FHIR_GRAPHQL_TRUSTED_CIDRS"},
+		{key: envGraphQLTrustedCIDRsAllowAny, defaultValue: "false"},
 
 		{key: workflow.EnvExecAllowlist},
 		{key: workflow.EnvDebugActions},

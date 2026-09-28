@@ -15,7 +15,9 @@
   import Info from '@lucide/svelte/icons/info';
   import Send from '@lucide/svelte/icons/send';
   import Square from '@lucide/svelte/icons/square';
+  import { get } from 'svelte/store';
   import { Badge, Button, Icon, IconButton, Textarea } from '$lib/ui/primitives';
+  import { accessCapabilities, llmConfiguredReported } from '$lib/graphql/accessCapabilities';
   import {
     copilotState,
     sendAction,
@@ -47,10 +49,15 @@
   // ── LLM capability (honest availability state) ──
   onMount(() => {
     textareaEl = inputRowEl?.querySelector('textarea') ?? undefined;
-    void refreshLlmCapability();
+    // The status endpoint's definitive "no LLM" makes the probe pointless.
+    if (llmConfiguredReported(get(accessCapabilities)) !== false) void refreshLlmCapability();
   });
 
-  $: llmState = copilotLlmState($llmCapabilityState, $llmCapabilityChecking);
+  $: llmState = copilotLlmState(
+    $llmCapabilityState,
+    $llmCapabilityChecking,
+    llmConfiguredReported($accessCapabilities)
+  );
   $: llmWarnings = $llmCapabilityState.capability?.warnings ?? [];
   $: llmModel = $llmCapabilityState.capability?.defaultModel ?? null;
   $: degraded = llmState === 'ready' && $llmCapabilityState.status === 'degraded';

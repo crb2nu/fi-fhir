@@ -433,6 +433,16 @@ the operator-bundle stack (`e2e/visual.spec.ts`, Playwright project `visual`):
 `CAPTURES` in `e2e/visual.spec.ts`, with its id added to
 `e2e/check-report.mjs`.
 
+Five captures run against the preview-only stack instead — the hosted demo's
+identity (`integration:preview` only, no database; `.loom/40` D-3), whose
+honest states the `preview-only` project asserts route by route:
+
+| File | State |
+|---|---|
+| `demo-hl7-preview.png` | `/hl7` after Preview of the built-in sample on the stateless path |
+| `demo-events-preflight.png` | `/events`, the `clinical:read` pre-flight |
+| `demo-profiles-preflight.png`, `demo-terminology-preflight.png`, `demo-workflows-preflight.png` | the `graphql:operator` pre-flight on each route |
+
 ## Reviewing a UI change
 
 Attach before/after PNGs at 1440×900 for every route you touch. Against a

@@ -79,7 +79,13 @@
   {/snippet}
 
   {#if preflight}
-    <EmptyState icon={ShieldAlert} align="start">
+    <EmptyState
+      icon={ShieldAlert}
+      align="start"
+      data-testid="integrations-preflight"
+      data-reason="missing-role"
+      data-missing-roles={preflight.missingRoles.join(',')}
+    >
       Integration deployments need
       {#each preflight.missingRoles as role, index (role)}{#if index > 0}{LIST_SEPARATOR}{/if}<code>{role}</code>{/each}; nothing was queried.
     </EmptyState>

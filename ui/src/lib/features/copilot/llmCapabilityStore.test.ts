@@ -170,6 +170,16 @@ describe('copilotLlmState', () => {
     ).toBe('not-configured');
   });
 
+  it('is not-configured without a probe when the status endpoint reports no LLM', () => {
+    // A preview-only identity cannot run the probe (it needs graphql:operator);
+    // /api/auth/status already answered, so "unknown" would be wrong.
+    expect(copilotLlmState({ status: 'unknown', capability: null }, false, false)).toBe('not-configured');
+    expect(copilotLlmState({ status: 'unknown', capability: null }, true, false)).toBe('not-configured');
+    // A reported "configured" or an unknown report defers to the probe.
+    expect(copilotLlmState({ status: 'unknown', capability: null }, false, true)).toBe('unknown');
+    expect(copilotLlmState({ status: 'available', capability: capability() }, false, null)).toBe('ready');
+  });
+
   it('is checking while the probe is in flight and unknown when it did not answer', async () => {
     expect(copilotLlmState({ status: 'unknown', capability: null }, true)).toBe('checking');
     expect(copilotLlmState({ status: 'unknown', capability: null }, false)).toBe('unknown');

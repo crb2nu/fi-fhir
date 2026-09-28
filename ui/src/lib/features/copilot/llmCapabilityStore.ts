@@ -75,14 +75,25 @@ export async function refreshLlmCapability(): Promise<void> {
  * - `ready`          — configured and serving (available, or degraded with
  *                      some actions still up; per-action gating still applies);
  * - `unreachable`    — configured, but the API could not bring the provider up;
- * - `not-configured` — LLM features are off or have no valid provider config;
+ * - `not-configured` — LLM features are off or have no valid provider config
+ *                      (from the probe, or from `/api/auth/status` reporting
+ *                      `llm.configured: false`, which skips the probe);
  * - `checking`       — the probe is in flight;
  * - `unknown`        — the probe did not answer; actions fail open and report
  *                      their own errors.
  */
 export type CopilotLlmState = 'ready' | 'unreachable' | 'not-configured' | 'checking' | 'unknown';
 
-export function copilotLlmState(state: LlmCapabilityState, checking: boolean): CopilotLlmState {
+export function copilotLlmState(
+  state: LlmCapabilityState,
+  checking: boolean,
+  reportedConfigured: boolean | null = null
+): CopilotLlmState {
+  // `/api/auth/status` already says whether the deployment has an LLM
+  // (`capabilities.llm.configured`). A definitive "no" needs no probe — and
+  // an identity without the graphql:operator grant could not run the probe
+  // anyway, which would otherwise read as "unknown".
+  if (reportedConfigured === false) return 'not-configured';
   const cap = state.capability;
   if (!cap) return checking ? 'checking' : 'unknown';
   if (!cap.enabled || !cap.configured) return 'not-configured';

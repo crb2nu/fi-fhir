@@ -1,6 +1,6 @@
 /**
  * Shared helpers for the browser smoke gate. See playwright.config.ts for the
- * three stacks and e2e/run.sh for how they are started.
+ * four stacks and e2e/run.sh for how they are started.
  */
 import { expect, type APIRequestContext, type Page, type Request, type TestInfo } from '@playwright/test';
 

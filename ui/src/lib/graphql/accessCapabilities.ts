@@ -137,6 +137,14 @@ export function capabilityOf(state: AccessCapabilityState, key: CapabilityKey): 
   return state.state === 'known' ? state.capabilities[key] : null;
 }
 
+/**
+ * Whether the deployment has an LLM configured, as the status endpoint
+ * reported it; `null` when unknown.
+ */
+export function llmConfiguredReported(state: AccessCapabilityState): boolean | null {
+  return state.state === 'known' ? state.capabilities.llmConfigured : null;
+}
+
 function capabilityStore(key: CapabilityKey): Readable<boolean | null> {
   return derived(store, ($state) => capabilityOf($state, key));
 }
