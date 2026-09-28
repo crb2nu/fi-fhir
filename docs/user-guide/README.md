@@ -35,6 +35,7 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 | Try it in the browser | [Playground Tutorial](playground-tutorial.md) |
 | Know what the browser playground runs, and what needs the IDE | [Browser Playground](playground.md) |
 | Find my way around the IDE | [Mapping Studio (IDE)](ide.md) |
+| Click through the real IDE without installing anything | [Hosted demo](https://fi-fhir-demo.flexinfer.ai): the IDE shell with a preview-only identity and no database; HL7 Preview works, every other surface shows its honest "not available on this deployment" state, nothing is stored |
 | Define a source or destination connection | [Connections](connections.md) |
 | See what this replica is actually running | [Connections](connections.md#6-see-it-mounted) |
 | Pull real messages from a source into a session | [Connections](connections.md#sampling-from-a-connection) |

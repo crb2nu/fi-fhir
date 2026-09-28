@@ -125,11 +125,11 @@ ships a module built from a fi-fhir commit and records that commit.
 
 ## Hosted demo
 
-A hosted demo of the Mapping Studio itself will be at
-`https://fi-fhir-demo.flexinfer.ai` once it is live (not linked until then). It runs the real IDE
-and API with a preview-only identity and no database: HL7 Preview works, and
-every surface that needs an operator role or durable storage shows its "not
-available on this deployment" state instead of failing. It is a public
+The Mapping Studio itself is public at
+**[fi-fhir-demo.flexinfer.ai](https://fi-fhir-demo.flexinfer.ai)**. It is the
+real IDE shell and API with a preview-only identity (`integration:preview`)
+and no database. HL7 Preview works. Every other surface shows its honest "not
+available on this deployment" state, and nothing is stored. It is a public
 deployment, so the same rule applies: synthetic messages only.
 
 ## See Also

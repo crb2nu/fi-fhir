@@ -9,7 +9,10 @@ send the query.
 
 To try the engine without a deployment, use the
 [Browser Playground](playground.md). It runs the same parser and profile
-compiler in your tab, with no backend.
+compiler in your tab, with no backend. To click through the IDE itself, open
+the [hosted demo](https://fi-fhir-demo.flexinfer.ai). It has a preview-only
+identity and no database: HL7 Preview works, and every other page shows the
+honest state described below.
 
 ## Signing in
 
