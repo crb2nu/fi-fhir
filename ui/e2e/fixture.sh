@@ -11,9 +11,12 @@
 #      approve -> publish -> deploy (VALIDATION_SKIPPED, 24 h max age).
 #   2. Admission process A: a short-lived `fi-fhir serve` with the durable HTTP
 #      ingress (/v1/hl7v2, bearer) and the delivery worker pointed at a Kafka
-#      broker that is not there (127.0.0.1:9). Message E2E-FIXTURE-001 is
-#      admitted; the worker claims it three times and dead-letters it
-#      (KAFKA_PUBLISH_FAILED): six audit rows and one open dead letter.
+#      broker that is not there (127.0.0.1:9). Messages E2E-FIXTURE-001
+#      (correlation e2e-fixture-dead-letter, read-only for the checks) and
+#      E2E-FIXTURE-004 (correlation e2e-fixture-resubmit, the one check E0-4
+#      resubmits) are admitted; the worker claims each three times and
+#      dead-letters it (KAFKA_PUBLISH_FAILED): six audit rows and one open dead
+#      letter each.
 #   3. Admission process B: the ingress alone. E2E-FIXTURE-002 and -003 are
 #      admitted and their attempts stay `queued` (no worker, no broker).
 #
@@ -151,13 +154,14 @@ admit() {
 
 start_admission a "$FIXTURE_PORT_A" worker
 admit "$FIXTURE_PORT_A" E2E-FIXTURE-001 e2e-fixture-dead-letter
-deadline=$((SECONDS + 90))
-until [ "$(sql "SELECT count(*) FROM integration_delivery_dlq WHERE active")" = 1 ]; do
-  [ "$SECONDS" -lt "$deadline" ] || { tail -n 40 "$LOG_DIR/api-fixture-a.log" >&2; fdie "E2E-FIXTURE-001 was not dead-lettered within 90s"; }
+admit "$FIXTURE_PORT_A" E2E-FIXTURE-004 e2e-fixture-resubmit
+deadline=$((SECONDS + 120))
+until [ "$(sql "SELECT count(*) FROM integration_delivery_dlq WHERE active")" = 2 ]; do
+  [ "$SECONDS" -lt "$deadline" ] || { tail -n 40 "$LOG_DIR/api-fixture-a.log" >&2; fdie "E2E-FIXTURE-001/004 were not dead-lettered within 120s"; }
   sleep 1
 done
 stop_admission
-flog "E2E-FIXTURE-001 dead-lettered by the worker (unreachable broker)"
+flog "E2E-FIXTURE-001 and -004 dead-lettered by the worker (unreachable broker)"
 
 start_admission b "$FIXTURE_PORT_B"
 admit "$FIXTURE_PORT_B" E2E-FIXTURE-002 e2e-fixture-queued-002
@@ -169,8 +173,8 @@ accepted=$(sql "SELECT count(*) FROM integration_receipts WHERE status = 'accept
 queued=$(sql "SELECT count(*) FROM integration_delivery_attempts WHERE status = 'queued'")
 dead=$(sql "SELECT count(*) FROM integration_delivery_dlq WHERE active")
 deployed=$(sql "SELECT count(*) FROM integration_lifecycle_snapshots WHERE state = 'deployed'")
-[ "$accepted" -ge 3 ] && [ "$queued" -ge 2 ] && [ "$dead" -ge 1 ] && [ "$deployed" -ge 1 ] \
+[ "$accepted" -ge 4 ] && [ "$queued" -ge 2 ] && [ "$dead" -ge 2 ] && [ "$deployed" -ge 1 ] \
   || fdie "fixture incomplete: accepted=$accepted queued=$queued dead_letters=$dead deployed=$deployed"
 printf '{"accepted":%s,"queued":%s,"deadLetters":%s,"deployed":%s,"definition":"e2e-batch-adt","revision":"v1"}\n' \
   "$accepted" "$queued" "$dead" "$deployed" >"$E2E_RESULTS_DIR/fixture.json"
-flog "ready: $accepted accepted receipts, $queued queued attempts, $dead open dead letter, $deployed deployed definition"
+flog "ready: $accepted accepted receipts, $queued queued attempts, $dead open dead letters, $deployed deployed definition"

@@ -67,28 +67,28 @@
   let to = $state('');
   let seq = 0;
 
+  type AttemptFilterValue = NonNullable<Parameters<typeof fetchAttempts>[0]>;
+  /**
+   * The filters the list is showing, fixed when Apply is pressed. Every read —
+   * paging, auto-refresh, the reload after a control action — uses this
+   * snapshot, never the live inputs: a half-typed filter must not be applied,
+   * and a cursor belongs to the filters that produced it.
+   */
+  let applied: AttemptFilterValue = {
+    status: null,
+    destinationArtifactId: null,
+    receiptId: null,
+    route: null,
+    from: null,
+    to: null
+  };
+
   async function load(nextCursor: string | null): Promise<void> {
-    const window = readTimeWindow(from, to);
-    if (!window.ok) {
-      filterError = window.message;
-      return;
-    }
-    filterError = null;
     const current = ++seq;
     loading = true;
     error = null;
     try {
-      const page = await fetchAttempts(
-        {
-          status: status || null,
-          destinationArtifactId: destination.trim() || null,
-          receiptId: receipt.trim() || null,
-          route: route.trim() || null,
-          from: window.window.from,
-          to: window.window.to
-        },
-        { first: PAGE_SIZE, after: nextCursor }
-      );
+      const page = await fetchAttempts({ ...applied }, { first: PAGE_SIZE, after: nextCursor });
       if (current !== seq) return;
       attempts = page.nodes;
       hasNextPage = page.pageInfo.hasNextPage;
@@ -111,6 +111,20 @@
 
   function apply(event?: Event): void {
     event?.preventDefault();
+    const window = readTimeWindow(from, to);
+    if (!window.ok) {
+      filterError = window.message;
+      return;
+    }
+    filterError = null;
+    applied = {
+      status: status || null,
+      destinationArtifactId: destination.trim() || null,
+      receiptId: receipt.trim() || null,
+      route: route.trim() || null,
+      from: window.window.from,
+      to: window.window.to
+    };
     cursors = [];
     void load(null);
   }
@@ -135,7 +149,7 @@
 <Panel title="Delivery attempts" flush data-testid="attempt-search">
   {#snippet actions()}
     <AutoRefreshToggle subject="delivery attempts" onrefresh={() => void reload()} />
-    <IconButton icon={RefreshCw} label="Refresh delivery attempts" {loading} onclick={() => apply()} />
+    <IconButton icon={RefreshCw} label="Refresh delivery attempts" {loading} onclick={() => void reload()} />
   {/snippet}
 
   <form class="filters" aria-label="Attempt filters" onsubmit={apply}>
@@ -166,7 +180,7 @@
   {#if loading && attempts.length === 0}
     <EmptyState message="Loading delivery attempts" aria-busy="true" aria-live="polite" />
   {:else if error}
-    <EmptyState icon={CircleAlert} role="alert" message={error} actionLabel="Retry" onaction={() => apply()} />
+    <EmptyState icon={CircleAlert} role="alert" message={error} actionLabel="Retry" onaction={() => void reload()} />
   {:else if attempts.length === 0}
     <EmptyState
       icon={Inbox}

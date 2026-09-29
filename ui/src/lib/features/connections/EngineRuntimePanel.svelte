@@ -160,7 +160,7 @@
     <Panel title="Fleet" titleTag="h2" flush data-testid="engine-fleet">
       {#snippet actions()}
         {#if fleet}
-          <span class="fleet-count" data-testid="engine-fleet-count" data-fresh={fleet.fresh} data-total={fleet.total}>
+          <span class="fleet-count" data-testid="engine-fleet-count" data-fresh={fleet.fresh} data-stale={fleet.stale}>
             {fleetSentence(fleet)}
           </span>
         {/if}
@@ -169,7 +169,7 @@
         <p class="engine-error fleet-note" role="alert">{fleetError}</p>
       {:else if !fleet}
         <p class="fleet-note" aria-busy="true">Loading the fleet</p>
-      {:else if fleet.total === 0}
+      {:else if fleet.replicas.length === 0}
         <p class="fleet-note">
           No replica has reported a heartbeat. Replicas report only when the connection catalog is configured.
         </p>

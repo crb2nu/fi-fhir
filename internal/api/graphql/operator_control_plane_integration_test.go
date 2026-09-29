@@ -696,6 +696,35 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	if bodies.count() < 15 {
 		t.Fatalf("sentinel scan covered only %d responses; the journey did not run", bodies.count())
 	}
+
+	// ---------------------------------------------------------------------
+	// Retention tombstone: once the payload is replaced (the purge worker's
+	// own UPDATE, retention/store.go purgeCanonicalEvents), the trace reports
+	// purgedAt beside purgeAfter and describes the tombstone, not the event.
+	// ---------------------------------------------------------------------
+	purgedAt := purgeAfter.Add(time.Hour)
+	if _, err := db.ExecContext(ctx, `
+		UPDATE integration_canonical_events
+		SET payload_json = integration_canonical_event_tombstone(), purged_at = $1
+		WHERE tenant_id = $2 AND receipt_id = 'receipt-a'`, purgedAt, operatorTenant); err != nil {
+		t.Fatalf("tombstone canonical event: %v", err)
+	}
+	purgedBody := client.query(operatorRoles, `
+		query { operatorMessageTrace(receiptId: "receipt-a") {
+			events { purgeAfter purgedAt payloadFields { path } }
+		} }`)
+	purged := jsonValue{purgedBody.path("data", "operatorMessageTrace", "events").array()[0]}
+	if got := purged.path("purgedAt").str(); got != purgedAt.Format(time.RFC3339) {
+		t.Fatalf("trace purgedAt = %q, want %q: %s", got, purgedAt.Format(time.RFC3339), purgedBody.raw)
+	}
+	if got := purged.path("purgeAfter").str(); got != purgeAfter.Format(time.RFC3339) {
+		t.Fatalf("trace purgeAfter after purge = %q, want %q", got, purgeAfter.Format(time.RFC3339))
+	}
+	for _, field := range purged.path("payloadFields").array() {
+		if (jsonValue{field}).path("path").str() == "patient.mrn" {
+			t.Fatalf("tombstoned event still describes the admitted payload: %s", purgedBody.raw)
+		}
+	}
 }
 
 // --------------------------------------------------------------------------

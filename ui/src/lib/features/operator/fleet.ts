@@ -43,11 +43,17 @@ export interface ReplicaSummary {
   mounted: MountedDocument[];
 }
 
+/**
+ * Counts follow the server's own semantics (`ConnectionRuntimeState.totalReplicas`
+ * is "replicas with any fresh heartbeat"): the fleet is the fresh replicas.
+ * Stale replicas are listed for the record and counted apart, never in `fresh`.
+ */
 export interface FleetSummary {
   replicas: ReplicaSummary[];
-  /** Replicas with at least one fresh heartbeat. */
+  /** Replicas with at least one fresh heartbeat — the server's totalReplicas. */
   fresh: number;
-  total: number;
+  /** Replicas whose every heartbeat is stale: listed, not part of the fleet. */
+  stale: number;
 }
 
 /** Groups heartbeat rows by replica: the answering replica first, then fresh, then stale. */
@@ -75,12 +81,13 @@ export function summarizeFleet(snapshot: FleetSnapshot): FleetSummary {
       Number(b.self) - Number(a.self) || Number(a.stale) - Number(b.stale) || a.replicaId.localeCompare(b.replicaId)
   );
   const fresh = replicas.filter((replica) => !replica.stale).length;
-  return { replicas, fresh, total: replicas.length };
+  return { replicas, fresh, stale: replicas.length - fresh };
 }
 
-/** "2 of 3 replicas report a fresh heartbeat" — the one line Home shows. */
+/** "2 replicas with a fresh heartbeat; 1 stale, not counted" — the one line Home shows. */
 export function fleetSentence(summary: FleetSummary): string {
-  if (summary.total === 0) return 'No replica has reported a heartbeat.';
-  const noun = summary.total === 1 ? 'replica reports' : 'replicas report';
-  return `${summary.fresh} of ${summary.total} ${noun} a fresh heartbeat`;
+  if (summary.fresh + summary.stale === 0) return 'No replica has reported a heartbeat.';
+  const noun = summary.fresh === 1 ? 'replica' : 'replicas';
+  const head = `${summary.fresh} ${noun} with a fresh heartbeat`;
+  return summary.stale > 0 ? `${head}; ${summary.stale} stale, not counted` : head;
 }

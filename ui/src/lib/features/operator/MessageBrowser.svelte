@@ -54,6 +54,20 @@
   let filterError: string | null = null;
   let seq = 0;
 
+  type ReceiptFilterValue = NonNullable<Parameters<typeof fetchReceipts>[0]>;
+  /**
+   * The filters the list is showing, fixed when Apply is pressed; paging and
+   * auto-refresh read this snapshot, never the live inputs.
+   */
+  let applied: ReceiptFilterValue = {
+    status: null,
+    correlationId: null,
+    sourceMessageId: null,
+    integrationArtifactId: null,
+    from: null,
+    to: null
+  };
+
   const statusOptions = [
     { value: '', label: 'Any status' },
     { value: 'accepted', label: 'Accepted' },
@@ -61,27 +75,11 @@
   ];
 
   async function load(nextCursor: string | null = null) {
-    const window = readTimeWindow(from, to);
-    if (!window.ok) {
-      filterError = window.message;
-      return;
-    }
-    filterError = null;
     const current = ++seq;
     loading = true;
     error = null;
     try {
-      const page = await fetchReceipts(
-        {
-          status: statusFilter || null,
-          correlationId: correlationId.trim() || null,
-          sourceMessageId: sourceMessageId.trim() || null,
-          integrationArtifactId: integrationArtifactId.trim() || null,
-          from: window.window.from,
-          to: window.window.to
-        },
-        { first: 25, after: nextCursor }
-      );
+      const page = await fetchReceipts({ ...applied }, { first: 25, after: nextCursor });
       if (current !== seq) return;
       receipts = page.nodes;
       hasNextPage = page.pageInfo.hasNextPage;
@@ -104,6 +102,20 @@
   }
 
   function applyFilters() {
+    const window = readTimeWindow(from, to);
+    if (!window.ok) {
+      filterError = window.message;
+      return;
+    }
+    filterError = null;
+    applied = {
+      status: statusFilter || null,
+      correlationId: correlationId.trim() || null,
+      sourceMessageId: sourceMessageId.trim() || null,
+      integrationArtifactId: integrationArtifactId.trim() || null,
+      from: window.window.from,
+      to: window.window.to
+    };
     cursors = [];
     void load(null);
   }
@@ -161,7 +173,7 @@
     <Button type="submit" disabled={loading}>Apply</Button>
     <span class="spacer"></span>
     <AutoRefreshToggle subject="messages" onrefresh={reload} />
-    <IconButton icon={RefreshCw} label="Refresh messages" {loading} onclick={applyFilters} />
+    <IconButton icon={RefreshCw} label="Refresh messages" {loading} onclick={reload} />
   </form>
   {#if filterError}
     <p class="filter-error" role="alert">{filterError}</p>

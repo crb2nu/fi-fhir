@@ -65,7 +65,7 @@ test("2. operator page lists the fixture's Messages, with no pre-flight and no \
 
   await expect(page.getByRole('heading', { name: 'Operator', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Messages' })).toBeVisible();
-  expect(await page.getByTestId('receipt-row').count()).toBeGreaterThanOrEqual(3);
+  expect(await page.getByTestId('receipt-row').count()).toBeGreaterThanOrEqual(4);
   await expect(page.locator('body')).not.toContainText(/forbidden/i);
   expect(watch.errorToasts).toEqual([]);
 });
@@ -391,8 +391,9 @@ test('10. intake: a capture armed on the compiled MLLP source of check 7 shows i
 
 // ---------------------------------------------------------------------------
 // E-0 operator depth (.loom/42), over the fixture e2e/fixture.sh wrote: the
-// deployed definition e2e-batch-adt/v1, E2E-FIXTURE-001 dead-lettered by the
-// worker (six audit rows), E2E-FIXTURE-002/003 queued.
+// deployed definition e2e-batch-adt/v1, E2E-FIXTURE-001 and -004 dead-lettered
+// by the worker (six audit rows each), E2E-FIXTURE-002/003 queued. Only E0-4
+// writes, and only to -004's dead letter.
 // ---------------------------------------------------------------------------
 
 interface FixtureAttempt {
@@ -400,6 +401,30 @@ interface FixtureAttempt {
   receiptId: string;
   status: string;
   parentAttemptId: string | null;
+}
+
+/** The fixture's dead-lettered attempt for one correlation id (see e2e/fixture.sh). */
+async function deadLetterFor(request: APIRequestContext, correlationId: string): Promise<FixtureAttempt> {
+  const { operatorReceipts } = await graphqlData<{ operatorReceipts: { nodes: Array<{ receiptId: string }> } }>(
+    request,
+    `query ($correlationId: String) {
+      operatorReceipts(filter: { correlationId: $correlationId }, page: { first: 5 }) { nodes { receiptId } }
+    }`,
+    { correlationId }
+  );
+  expect(operatorReceipts.nodes, `one fixture receipt for ${correlationId}`).toHaveLength(1);
+  const receiptId = operatorReceipts.nodes[0]!.receiptId;
+  const { operatorDeliveryAttempts } = await graphqlData<{ operatorDeliveryAttempts: { nodes: FixtureAttempt[] } }>(
+    request,
+    `query ($receiptId: ID) {
+      operatorDeliveryAttempts(filter: { receiptId: $receiptId, status: "failed" }, page: { first: 5 }) {
+        nodes { attemptId receiptId status parentAttemptId }
+      }
+    }`,
+    { receiptId }
+  );
+  expect(operatorDeliveryAttempts.nodes, `one dead-lettered attempt for ${correlationId}`).toHaveLength(1);
+  return operatorDeliveryAttempts.nodes[0]!;
 }
 
 async function fixtureAttempts(request: APIRequestContext, status: string): Promise<FixtureAttempt[]> {
@@ -484,13 +509,13 @@ test("E0-3. audit: the dead-lettered attempt's audit trail pages five at a time 
   page,
   request
 }) => {
-  const [dead] = await fixtureAttempts(request, 'failed');
-  expect(dead, 'the fixture dead-lettered one attempt').toBeTruthy();
+  // Read-only for every check: its six audit rows never change.
+  const dead = await deadLetterFor(request, 'e2e-fixture-dead-letter');
 
   const watch = await watchPage(page);
-  await openIDE(page, `/operator?attempt=${encodeURIComponent(dead!.attemptId)}`);
+  await openIDE(page, `/operator?attempt=${encodeURIComponent(dead.attemptId)}`);
   const inspector = page.getByTestId('attempt-inspector');
-  await expect(inspector).toHaveAttribute('data-attempt-id', dead!.attemptId);
+  await expect(inspector).toHaveAttribute('data-attempt-id', dead.attemptId);
   const trail = inspector.getByTestId('attempt-audit');
   const rows = trail.getByTestId('audit-row');
   await expect(rows).toHaveCount(5);
@@ -511,11 +536,11 @@ test('E0-4. resubmit: resubmitting the dead letter from the inspector renders th
   page,
   request
 }) => {
-  const [dead] = await fixtureAttempts(request, 'failed');
-  expect(dead).toBeTruthy();
+  // The fixture's second dead letter exists for this check alone.
+  const dead = await deadLetterFor(request, 'e2e-fixture-resubmit');
 
   const watch = await watchPage(page);
-  await openIDE(page, `/operator?attempt=${encodeURIComponent(dead!.attemptId)}`);
+  await openIDE(page, `/operator?attempt=${encodeURIComponent(dead.attemptId)}`);
   const inspector = page.getByTestId('attempt-inspector');
   await inspector.getByRole('button', { name: 'Resubmit', exact: true }).click();
   const dialog = page.getByRole('dialog');
@@ -528,15 +553,15 @@ test('E0-4. resubmit: resubmitting the dead letter from the inspector renders th
   };
   expect(body.errors ?? []).toEqual([]);
   const child = body.data!.resubmitMessage.resultAttemptId;
-  expect(body.data!.resubmitMessage.attempt.parentAttemptId).toBe(dead!.attemptId);
+  expect(body.data!.resubmitMessage.attempt.parentAttemptId).toBe(dead.attemptId);
   await expect(dialog).toHaveCount(0);
 
-  await openIDE(page, `/operator?receipt=${encodeURIComponent(dead!.receiptId)}`);
+  await openIDE(page, `/operator?receipt=${encodeURIComponent(dead.receiptId)}`);
   const chain = page.getByTestId('resubmit-chain');
   await expect(chain).toBeVisible();
   const items = chain.getByRole('listitem');
   await expect(items).toHaveCount(2);
-  await expect(items.nth(0)).toContainText(dead!.attemptId);
+  await expect(items.nth(0)).toContainText(dead.attemptId);
   await expect(items.nth(0)).toContainText('original');
   await expect(items.nth(1)).toContainText(child);
   await expect(items.nth(1)).toContainText('resubmit 1');
@@ -592,7 +617,8 @@ test("E0-6. fleet: the Engine tab and Home report every replica's heartbeat, thi
 
   await openIDE(page, '/');
   const row = page.getByTestId('health-fleet');
-  await expect(row).toHaveAttribute('data-total', /^[3-9]$/);
-  await expect(row).toContainText(/of \d+ replicas report a fresh heartbeat/);
+  // Counted as the server counts totalReplicas: fresh replicas only.
+  await expect(row).toHaveAttribute('data-fresh', /^[1-9]\d*$/);
+  await expect(row).toContainText(/\d+ replicas? with a fresh heartbeat/);
   expect(watch.errorToasts).toEqual([]);
 });

@@ -8,6 +8,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import AttemptInspector from './AttemptInspector.svelte';
 import AttemptSearch from './AttemptSearch.svelte';
 import DeploymentControls from './DeploymentControls.svelte';
+import MessageBrowser from './MessageBrowser.svelte';
 import MessageTrace from './MessageTrace.svelte';
 import OperatorPage from './OperatorPage.svelte';
 import { VALIDATION_REQUIRED_REASON } from './attemptPresentation';
@@ -147,6 +148,36 @@ describe('AttemptSearch', () => {
     );
   });
 
+  it('reads with the applied filters only: a half-typed filter never reaches refresh or paging', async () => {
+    api.fetchAttempts.mockResolvedValue(page([attempt('attempt-a')], true, 'cursor-1'));
+    render(AttemptSearch, { oninspect: vi.fn(), ontrace: vi.fn() });
+    await screen.findByTestId('attempt-row');
+
+    await fireEvent.change(screen.getByRole('combobox', { name: 'Attempt status' }), { target: { value: 'failed' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(api.fetchAttempts).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'failed' }), expect.anything()));
+
+    // Typed, never applied.
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Destination' }), { target: { value: 'half-typ' } });
+    await fireEvent.change(screen.getByRole('combobox', { name: 'Attempt status' }), { target: { value: 'queued' } });
+
+    const calls = api.fetchAttempts.mock.calls.length;
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh delivery attempts' }));
+    await waitFor(() => expect(api.fetchAttempts.mock.calls.length).toBe(calls + 1));
+    expect(api.fetchAttempts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'failed', destinationArtifactId: null }),
+      { first: 25, after: null }
+    );
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    await waitFor(() =>
+      expect(api.fetchAttempts).toHaveBeenLastCalledWith(
+        expect.objectContaining({ status: 'failed', destinationArtifactId: null }),
+        { first: 25, after: 'cursor-1' }
+      )
+    );
+  });
+
   it('refuses an inverted time window without querying', async () => {
     render(AttemptSearch, { oninspect: vi.fn(), ontrace: vi.fn() });
     await waitFor(() => expect(api.fetchAttempts).toHaveBeenCalledTimes(1));
@@ -155,6 +186,26 @@ describe('AttemptSearch', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
     expect(await screen.findByText('From must be earlier than To.')).toBeInTheDocument();
     expect(api.fetchAttempts).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MessageBrowser', () => {
+  it('auto-refresh and refresh re-read the applied filters, not the live inputs', async () => {
+    api.fetchReceipts.mockResolvedValue(page([]));
+    render(MessageBrowser);
+    await waitFor(() => expect(api.fetchReceipts).toHaveBeenCalledTimes(1));
+
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Correlation ID' }), { target: { value: 'corr-applied' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(api.fetchReceipts).toHaveBeenCalledTimes(2));
+
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Correlation ID' }), { target: { value: 'corr-half' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh messages' }));
+    await waitFor(() => expect(api.fetchReceipts).toHaveBeenCalledTimes(3));
+    expect(api.fetchReceipts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ correlationId: 'corr-applied' }),
+      { first: 25, after: null }
+    );
   });
 });
 
