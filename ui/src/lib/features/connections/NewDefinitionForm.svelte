@@ -7,12 +7,13 @@
   publication follow on the created definition.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import ShieldCheck from '@lucide/svelte/icons/shield-check';
   import X from '@lucide/svelte/icons/x';
   import { Badge, Button, EmptyState, Field, IconButton, Input, Select } from '$lib/ui/primitives';
   import { toasts } from '$lib/ui/toastStore';
+  import { clearDirty, markDirty } from '$lib/ui/ide/ideStore';
   import ConnectionReasonDialog from './ConnectionReasonDialog.svelte';
   import {
     checkDraft,
@@ -86,6 +87,22 @@
     }
   });
 
+  // The /connections tab shows unsaved work while a draft is being composed
+  // (E-4's dirty tabs); creating or leaving the form clears it.
+  const DIRTY_TAB = '/connections';
+  const dirty = $derived(
+    form.definitionId.trim() !== '' ||
+      form.sourceId !== '' ||
+      form.destinationIds.length > 0 ||
+      form.integrationId !== '' ||
+      form.customPolicy ||
+      form.retention.mode !== 'ephemeral'
+  );
+  $effect(() => {
+    markDirty(DIRTY_TAB, dirty);
+  });
+  onDestroy(() => clearDirty(DIRTY_TAB));
+
   // Re-derive the binding rows whenever the chosen revisions change, keeping edits.
   $effect(() => {
     const derived = deriveBindings(chosenSource, chosenDestinations, form.bindings);
@@ -128,6 +145,7 @@
       }
       toasts.success(`Created draft ${result.definition.definition.definitionId}/${result.definition.definition.revisionId}`);
       dialogOpen = false;
+      clearDirty(DIRTY_TAB);
       oncreated(result.definition);
     } catch (err) {
       submitError = describeDefinitionFailure(err).message;
