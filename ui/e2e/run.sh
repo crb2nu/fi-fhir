@@ -253,6 +253,7 @@ E2E_BUNDLE_URL=http://127.0.0.1:3000 \
 E2E_NO_OPERATOR_URL=http://127.0.0.1:3001 \
 E2E_SESSIONS_OFF_URL=http://127.0.0.1:3002 \
 E2E_PREVIEW_ONLY_URL=http://127.0.0.1:3003 \
+E2E_BUNDLE_DATABASE_URL="postgres://$E2E_PG_USER@$E2E_PG_HOST:$E2E_PG_PORT/fi_fhir_e2e_bundle?sslmode=disable" \
   npx --no-install playwright test "$@"
 playwright_status=$?
 set -e
