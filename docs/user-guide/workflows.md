@@ -831,6 +831,63 @@ fi-fhir workflow replay -c workflow.yaml recordings/baseline.json
 fi-fhir workflow loadtest -c workflow.yaml -s smoke
 ```
 
+## Managing Workflows in the IDE
+
+The IDE's **Workflows** page (`/workflows`) has three tabs. Everything below
+needs the `graphql:operator` grant and a deployment with a database (the
+workflow lifecycle store).
+
+### Design
+
+The builder edits one draft. It checks the draft as you type and puts each
+message under the field it is about (a route without a name, an action without
+its required setting), with one summary line above the form. An untouched,
+empty draft shows no errors and adds nothing to the **Problems** badge; it
+counts once it differs from the empty default.
+
+A control that cannot run is disabled and says why beside it, for example
+"Save version is unavailable: Create or open a managed workflow definition
+first." The builder asks in a dialog before it publishes a version or discards
+unsaved changes.
+
+**YAML-only fields.** When a loaded version carries keys the builder has no
+control for, the builder lists them (location, key, and why) and saves them
+exactly as written. That covers nested maps and lists under an action, action
+settings the form has no field for (for example `token_url` on a `fhir`
+action), unknown route, filter or top-level keys, and transforms the builder
+cannot represent. Change them in YAML: **Draft library → Import workflow YAML**.
+Nested action values have no effect at runtime, because the engine reads
+action settings as flat values (see [Actions](#actions)).
+
+Unsaved-change detection compares the draft with the loaded version including
+these keys, so removing one counts as a change.
+
+### Inventory
+
+The inventory lists managed definitions. The status filter shows **Active**
+definitions by default and says how many archived ones it hides; choose
+**Archived** or **All** to see them. For the selected definition you can:
+
+- **Rename or re-describe it** (Save details). Renaming changes the definition
+  only. Saved versions keep the name they were saved with, so publishing or
+  rolling back to an earlier version ships that version's old `name:`; the next
+  version you save must use the new name, because the API requires a version's
+  `name:` to match its definition.
+- **Archive it**, after a confirmation. The API then refuses new versions and
+  publishes for that definition; its version history and releases stay as they
+  are, and the audit trail records the archive. The API takes no reason for an
+  archive.
+- **Restore to draft** an archived definition, which makes it editable again.
+
+### Verification
+
+Run Diagnostics lists recorded workflow runs. **Open trace** on a run's detail
+loads its spans (`workflowRunTrace`) into the bottom **Trace** panel, which
+names the run and its span count. Run traces are kept in memory by the API
+process that executed the run, so after a restart, or when another replica
+answers, the panel says the run has no spans there instead of showing an empty
+timeline.
+
 ## See Also
 
 - [Planning: WORKFLOW-DSL.md](../planning/WORKFLOW-DSL.md) - Complete DSL specification
