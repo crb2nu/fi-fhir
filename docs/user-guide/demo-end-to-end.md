@@ -99,65 +99,60 @@ definition revision that is already `validated`, and there is no definition
 editor yet), so `fi-fhir lifecycle seed` does
 ([CLI reference](cli-reference.md#lifecycle-seed)).
 
-**First, a registry entry that delivers to the hospital.** The runner loads
-the profile and workflow from the static registry, not from the Studio's
+**Where the profile and workflow come from.** The runner loads them from the
+static registry (`FI_FHIR_INTEGRATION_REGISTRY_PATH`), not from the Studio's
 stores, so the seed takes them from a registry entry. The deployed registry's
-only entry, `adt-east`, delivers to `fhir-primary`, and the seed refuses it
-with `st-elsewhere` as the destination: the planner would refuse every admit.
-Add an entry in `platform/gitops/k3s/fi-fhir/config/integration-registry-v1.json`,
-say `sftp-test-demo`, that reuses `profile-adt` revision `1` and adds a
-workflow revision whose `fhir` action names the hospital:
+entry `adt-east` carries the ADT profile and a workflow whose `fhir` action
+delivers to the destination named `fhir-primary`; the hospital's destination
+revision therefore carries that id
+(`platform/gitops/k3s/fi-fhir/config/destinations/fhir-primary-r1.json`,
+transport `fhir`, base URL `https://hospital.fi-fhir.flexinfer.ai/fhir`).
+Every non-log action in the workflow must name a destination passed to the
+seed, or it refuses.
 
-```yaml
-dsl_version: "1"
-name: sftp-test-demo
-version: "1"
-routes:
-  - name: admit
-    filter:
-      event_type: patient_admit
-    actions:
-      - id: send-fhir
-        type: fhir
-        destination: st-elsewhere
+**Seed from GitOps.** `platform/gitops/k3s/fi-fhir/demo/seed/` renders a
+one-shot Job that runs the command inside the cluster with the same source
+revision, registry and SFTP credentials the API mounts, validates the source
+for real (connects with the pinned host key and lists `/inbound`, moving
+nothing), approves and publishes:
+
+```text
+kubectl kustomize --load-restrictor LoadRestrictionsNone k3s/fi-fhir/demo/seed > /tmp/seed.yaml
+kubectl apply -f /tmp/seed.yaml
+kubectl -n fi-fhir logs -f job/fi-fhir-lifecycle-seed-sftp-test-demo
 ```
 
-The entry's `definition` must carry that workflow's ref: for exactly these
-bytes as `workflow-sftp-test-demo` revision `1` it is
-`sha256:eafab38b7f369f2588ffc1d5f4df10cdb88188188c446e8aff58fd82f2734dc9`
-(`scripts/golden-path-001-fixture/main.go` shows how an entry is generated and
-self-validated). The registry ConfigMap is immutable and hash-suffixed, so the
-change rolls the API.
+The Job pins `--principal gitops-seed`, its `--reason`, and
+`--created-at 2026-09-29T00:00:00Z`, so its definition digest is stable and
+a re-run resumes the same revision instead of refusing a different one. The
+delivery worker's registry for that revision is already committed
+(`platform/gitops/k3s/fi-fhir/config/destination-registry-v1.json`,
+`integration_revision` `sftp-test-demo`/`v1`); if the Job ever prints a
+different digest, update that file.
 
-**Then seed.** From the gitops checkout, inside the API pod, which already has
-the tenant, the registry path, the database settings, and the SFTP key and
-`known_hosts`; the destination revision is not mounted, so it goes in on
-standard input:
+The same thing by hand, from the gitops checkout, inside the API pod (which
+already has the tenant, registry path, database settings, SFTP key and
+`known_hosts`; the destination revision goes in on standard input):
 
 ```text
 kubectl -n fi-fhir exec -i deploy/fi-fhir-api -- /fi-fhir lifecycle seed \
   --source /app/batch-sources/sftp-test-r1.json \
-  --definition-id sftp-test-demo \
-  --integration sftp-test-demo \
+  --definition-id sftp-test-demo --revision-id v1 \
+  --integration adt-east \
   --destination - \
-  --principal <your operator id> \
-  --reason "seed the sftp-test demo definition" \
+  --principal gitops-seed \
+  --reason "demo: seed sftp-test-demo from platform/gitops k3s/fi-fhir/demo/seed" \
+  --created-at 2026-09-29T00:00:00Z \
+  --validation-max-age 900 \
   --destination-registry-out - \
-  < k3s/fi-fhir/config/destinations/st-elsewhere-r1.json
+  < k3s/fi-fhir/config/destinations/fhir-primary-r1.json
 ```
 
-It validates the source for real (connects with the pinned host key and lists
-`/inbound`, moving nothing), approves, and publishes, and prints the
-definition ref, `state: published`, the validation codes and their expiry,
-and `FI_FHIR_BATCH_DEFINITION_ID=sftp-test-demo`, which the API already has.
-Deploy the release from the Studio's **Operator** page within the printed
-`validation.expires_at` (five minutes), or run the same command again with
-`--through deployed`. The next poll ingests.
-
-The summary's `destination_registry` is the delivery worker's registry for
-this exact definition revision. Committing it, plus the delivery worker
-settings, is the last GitOps step (slice 2b in
-`platform/gitops/.loom/30-implementation-plan-fi-fhir-demo-environment-2026-09-28.md`).
+Both stop at `published` and print the definition ref, the validation codes
+and their expiry, and `FI_FHIR_BATCH_DEFINITION_ID=sftp-test-demo`. Deploy the
+release from the Studio's **Operator** page within the validation window
+(fifteen minutes with `--validation-max-age 900`), or run the command again
+with `--through deployed`. The next poll ingests.
 
 ## 5. Show it at the hospital
 
