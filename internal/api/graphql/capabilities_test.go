@@ -252,6 +252,7 @@ func TestAuthCapabilityRepresentativesCoverTheirGroup(t *testing.T) {
 		{operatorReadCapability, ast.Query, []string{
 			"operatorReceipts", "operatorMessageTrace", "operatorDeliveryAttempts", "operatorDeliveryAttempt",
 			"operatorDeadLetters", "operatorCircuits", "operatorAttemptAudit", "operatorDeployments", "operatorDeploymentEvents",
+			"operatorCanonicalEvents", "operatorAdmissionStatistics",
 		}},
 		{operatorDeliveryCapability, ast.Mutation, []string{"replayDelivery", "resubmitMessage", "discardDeadLetter"}},
 		{operatorDeploymentCapability, ast.Mutation, []string{

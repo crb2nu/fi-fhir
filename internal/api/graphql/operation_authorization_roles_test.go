@@ -68,11 +68,13 @@ func TestTransportGateRoleMapShape(t *testing.T) {
 	// .loom/38 C-0 added ten fine-grained root fields (the connection catalog
 	// and engineRuntime) and nothing to the compatibility bucket; C-2 added
 	// four more (connectionCaptures and the three sample-intake mutations).
-	if total != 145 {
-		t.Errorf("mapped root fields = %d, want 145", total)
+	// .loom/42 E-2 added two reads (operatorCanonicalEvents,
+	// operatorAdmissionStatistics).
+	if total != 147 {
+		t.Errorf("mapped root fields = %d, want 147", total)
 	}
-	if fineGrained != 40 {
-		t.Errorf("fine-grained root fields = %d, want 40", fineGrained)
+	if fineGrained != 42 {
+		t.Errorf("fine-grained root fields = %d, want 42", fineGrained)
 	}
 	if compatibility != 105 {
 		t.Errorf("compatibility-bucket root fields = %d, want 105", compatibility)
@@ -116,6 +118,9 @@ func TestTransportGateRequirementsMatchTheServiceLayer(t *testing.T) {
 			"operatorAttemptAudit":     {operator.ReadRole},
 			"operatorDeployments":      {operator.ReadRole},
 			"operatorDeploymentEvents": {operator.ReadRole},
+			// operator.Service.ListCanonicalEvents / AdmissionStatistics (.loom/42 E-2).
+			"operatorCanonicalEvents":     {operator.ReadRole},
+			"operatorAdmissionStatistics": {operator.ReadRole},
 			// connection.Service's read role and engineRuntime's resolver check.
 			"connections":         {connection.ReadRole},
 			"connection":          {connection.ReadRole},

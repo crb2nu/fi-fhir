@@ -38,6 +38,8 @@ func operatorReadOperations() []controlPlaneOperation {
 		{field: "operatorAttemptAudit", document: `query Op { operatorAttemptAudit(attemptId: "a-1") { pageInfo { hasNextPage } } }`},
 		{field: "operatorDeployments", document: `query Op { operatorDeployments { version } }`},
 		{field: "operatorDeploymentEvents", document: `query Op { operatorDeploymentEvents(definitionId: "d-1", revisionId: "v-1") { eventId } }`},
+		{field: "operatorCanonicalEvents", document: `query Op { operatorCanonicalEvents { pageInfo { hasNextPage } } }`},
+		{field: "operatorAdmissionStatistics", document: `query Op { operatorAdmissionStatistics(window: {from: "2026-09-29T00:00:00Z", to: "2026-09-29T01:00:00Z"}, bucket: HOUR) { acceptedReceipts } }`},
 	}
 }
 
