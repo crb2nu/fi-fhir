@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type {
   DebugSession,
   Breakpoint,
@@ -205,20 +205,35 @@ export function subscribeToSession(sessionId: string): (() => void) | null {
   });
 }
 
+let traceLoadSequence = 0;
+
+/** True while the panel still shows the load `token` started for `runId`. */
+function stillShowing(runId: string, token: number): boolean {
+  const current = get(traceSource);
+  return token === traceLoadSequence && current.kind === 'workflow-run' && current.runId === runId;
+}
+
 /**
  * Loads a recorded workflow run's spans (`workflowRunTrace`) into the Trace
  * panel, replacing whatever it showed. An empty answer is kept as empty: the
  * panel says the run has no spans on this API process rather than showing a
  * previous trace. Never throws; a failure is recorded on `traceSource`.
+ *
+ * A late answer is dropped when the panel has moved on (another run opened,
+ * the same run reopened, or a debug session started), so it can never be
+ * labelled with a run it does not belong to.
  */
 export async function loadRealTraceSpans(runId: string): Promise<void> {
+  const token = ++traceLoadSequence;
   traceSpans.set([]);
   traceSource.set({ kind: 'workflow-run', runId, state: 'loading' });
   try {
     const spans = await fetchWorkflowRunTrace(runId);
+    if (!stillShowing(runId, token)) return;
     traceSpans.set(spans);
     traceSource.set({ kind: 'workflow-run', runId, state: 'loaded' });
   } catch (err) {
+    if (!stillShowing(runId, token)) return;
     traceSource.set({
       kind: 'workflow-run',
       runId,

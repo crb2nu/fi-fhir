@@ -83,6 +83,20 @@ export function draftSummary(draft: WorkflowDraft): string | null {
   return `${plural(issues.length, 'problem')} in this draft: ${first}${more}.`;
 }
 
+/**
+ * Why Preview YAML and Dry run are disabled: they need a draft the preview
+ * can render (the rules of the `isWorkflowValid` store), or null.
+ */
+export function previewBlocker(draft: WorkflowDraft): string | null {
+  if (!draft.name.trim()) return 'give the draft a workflow name.';
+  if (draft.routes.length === 0) return 'add at least one route.';
+  const index = draft.routes.findIndex(
+    (route) => !route.name.trim() || route.actions.length === 0 || !route.actions.every((action) => action.type)
+  );
+  if (index >= 0) return `route ${index + 1} needs a name and at least one action.`;
+  return null;
+}
+
 /** The message under the Workflow name field. */
 export function nameFieldError(state: BuilderState): string | null {
   const name = state.draft.name.trim();

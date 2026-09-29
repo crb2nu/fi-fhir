@@ -6,6 +6,7 @@ import type {
   FilterDraft,
   TransformDraft,
   TransformType,
+  ScalarType,
   YamlOnlyValues
 } from './workflowTypes';
 import { ACTION_FIELDS, genKey } from './workflowTypes';
@@ -14,6 +15,65 @@ import { ACTION_FIELDS, genKey } from './workflowTypes';
 // builder control or is kept verbatim in a `yamlOnly` (or `raw`) bag and
 // written back. So yamlToDraft → draftToYaml never drops configuration, and a
 // baseline computed that way can no longer hide a divergence (`.loom/42` E-5).
+
+// ─── Scalars: text in the builder, their own type in YAML ──────────────────
+
+/** Stores a scalar YAML value as builder text, remembering a non-string type. */
+function recordScalar(
+  config: Record<string, string>,
+  types: Record<string, ScalarType>,
+  key: string,
+  value: unknown
+): void {
+  if (value === null) {
+    config[key] = '';
+    types[key] = 'null';
+  } else if (value === '') {
+    config[key] = '';
+    types[key] = 'empty';
+  } else if (typeof value === 'number') {
+    config[key] = String(value);
+    types[key] = 'number';
+  } else if (typeof value === 'boolean') {
+    config[key] = String(value);
+    types[key] = 'boolean';
+  } else {
+    config[key] = String(value);
+  }
+}
+
+/**
+ * The YAML value for builder text `value` whose original type was `type`, or
+ * `undefined` to omit the key (a field the operator left or made empty).
+ */
+function emitScalar(value: string, type: ScalarType | undefined): unknown {
+  if (value === '') {
+    if (type === 'null') return null;
+    if (type === 'empty') return '';
+    return undefined;
+  }
+  if (type === 'number' && Number.isFinite(Number(value)) && String(Number(value)) === value) {
+    return Number(value);
+  }
+  if (type === 'boolean' && (value === 'true' || value === 'false')) return value === 'true';
+  return value;
+}
+
+function withTypes<T extends { scalarTypes?: Record<string, ScalarType> }>(
+  draft: T,
+  types: Record<string, ScalarType>
+): T {
+  if (Object.keys(types).length > 0) draft.scalarTypes = types;
+  return draft;
+}
+
+/** yamlOnly keys never override a setting the builder holds a value for. */
+function mergeYamlOnly(target: Record<string, unknown>, bag: YamlOnlyValues | undefined): Record<string, unknown> {
+  for (const [key, value] of Object.entries(bag ?? {})) {
+    if (!(key in target)) target[key] = value;
+  }
+  return target;
+}
 
 // ─── Draft → YAML ──────────────────────────────────────────────────────────
 
@@ -27,9 +87,11 @@ export function draftToYaml(draft: WorkflowDraft): string {
   const wf: Record<string, unknown> = {
     name: draft.name || 'untitled',
     version: draft.version || '1.0',
-    routes: draft.routes.map(routeToYaml),
-    ...(draft.yamlOnly ?? {})
+    ...(draft.yamlOnly && 'routes' in draft.yamlOnly && draft.routes.length === 0
+      ? {}
+      : { routes: draft.routes.map(routeToYaml) })
   };
+  mergeYamlOnly(wf, draft.yamlOnly);
   return yaml.dump(wf, { indent: 2, lineWidth: 120, noRefs: true });
 }
 
@@ -61,9 +123,12 @@ function routeToYaml(route: RouteDraft): YamlRoute {
   if (route.transforms.length > 0) {
     result.transform = route.transforms.map(transformToYaml);
   }
-  result.actions = route.actions.map(actionToYaml);
+  // A non-list `actions:` the builder could not read is kept in yamlOnly.
+  if (route.actions.length > 0 || !(route.yamlOnly && 'actions' in route.yamlOnly)) {
+    result.actions = route.actions.map(actionToYaml);
+  }
 
-  return { ...result, ...(route.yamlOnly ?? {}) };
+  return mergeYamlOnly(result, route.yamlOnly);
 }
 
 function transformToYaml(transform: TransformDraft): YamlTransform {
@@ -94,11 +159,16 @@ function transformToYaml(transform: TransformDraft): YamlTransform {
       break;
     case 'explain_warnings': {
       const ew: Record<string, unknown> = {};
-      if (transform.config.model) ew.model = transform.config.model;
-      if (transform.config.warnings_field) ew.warnings_field = transform.config.warnings_field;
-      if (transform.config.include_fix) ew.include_fix = transform.config.include_fix === 'true';
-      if (transform.config.enable_cache) ew.enable_cache = transform.config.enable_cache === 'true';
-      if (transform.config.cache_ttl) ew.cache_ttl = transform.config.cache_ttl;
+      const types = transform.scalarTypes ?? {};
+      for (const key of EXPLAIN_WARNINGS_KEYS) {
+        const text = transform.config[key];
+        if (text === undefined) continue;
+        // The two flags are booleans in the engine whatever the operator typed.
+        const type = key === 'include_fix' || key === 'enable_cache' ? (types[key] ?? 'boolean') : types[key];
+        const value =
+          type === 'boolean' && text !== '' && text !== 'true' && text !== 'false' ? text === 'true' : emitScalar(text, type);
+        if (value !== undefined) ew[key] = value;
+      }
       own = { explain_warnings: { ...ew, ...inner } };
       break;
     }
@@ -110,10 +180,12 @@ function transformToYaml(transform: TransformDraft): YamlTransform {
 
 function actionToYaml(action: ActionDraft): Record<string, unknown> {
   const result: Record<string, unknown> = { type: action.type };
+  const types = action.scalarTypes ?? {};
   for (const [k, v] of Object.entries(action.config)) {
-    if (v) result[k] = v;
+    const value = emitScalar(v, types[k]);
+    if (value !== undefined) result[k] = value;
   }
-  return { ...result, ...(action.yamlOnly ?? {}) };
+  return mergeYamlOnly(result, action.yamlOnly);
 }
 
 // ─── YAML → Draft ──────────────────────────────────────────────────────────
@@ -149,12 +221,16 @@ export function yamlToDraft(yamlStr: string): WorkflowDraft {
   const version = String(wf.version ?? '1.0');
   const rawRoutes = Array.isArray(wf.routes) ? (wf.routes as unknown[]) : [];
 
+  // List items that are not maps cannot be represented and are dropped; the
+  // API parses every saved version into the engine's structs first, which
+  // refuses such items, so a stored version never carries one.
   const draft: WorkflowDraft = {
     name,
     version,
     routes: rawRoutes.filter(isRecord).map(parseRoute)
   };
-  const yamlOnly = rest(wf, ['name', 'version', 'routes']);
+  // A `routes:` that is not a list is kept as written.
+  const yamlOnly = rest(wf, Array.isArray(wf.routes) ? ['name', 'version', 'routes'] : ['name', 'version']);
   if (yamlOnly) draft.yamlOnly = yamlOnly;
   return draft;
 }
@@ -172,12 +248,17 @@ function parseRoute(raw: Record<string, unknown>): RouteDraft {
     actions: actions.map(parseAction),
     expanded: false
   };
-  const yamlOnly = rest(raw, ['name', 'filter', 'transform', 'actions']);
+  // A `transform:` or `actions:` that is not a list is kept as written.
+  const known = ['name', 'filter'];
+  if (raw.transform === undefined || Array.isArray(raw.transform)) known.push('transform');
+  if (raw.actions === undefined || Array.isArray(raw.actions)) known.push('actions');
+  const yamlOnly = rest(raw, known);
   if (yamlOnly) route.yamlOnly = yamlOnly;
   return route;
 }
 
 const TRANSFORM_KEYS = ['set_field', 'map_terminology', 'redact', 'explain_warnings'] as const;
+const EXPLAIN_WARNINGS_KEYS = ['model', 'warnings_field', 'include_fix', 'enable_cache', 'cache_ttl'] as const;
 
 function withBags(
   draft: TransformDraft,
@@ -247,18 +328,19 @@ function parseTransform(raw: Record<string, unknown>): TransformDraft {
   if (value !== null && value !== undefined && !isRecord(value)) return keepRaw(raw);
   const ew = isRecord(value) ? value : {};
   const config: Record<string, string> = {};
-  if (ew.model) config.model = String(ew.model);
-  if (ew.warnings_field) config.warnings_field = String(ew.warnings_field);
-  if (ew.include_fix !== undefined) config.include_fix = String(ew.include_fix);
-  if (ew.enable_cache !== undefined) config.enable_cache = String(ew.enable_cache);
-  if (ew.cache_ttl) config.cache_ttl = String(ew.cache_ttl);
-  return withBags({ _key: genKey(), type: 'explain_warnings', config }, raw, 'explain_warnings', ew, [
-    'model',
-    'warnings_field',
-    'include_fix',
-    'enable_cache',
-    'cache_ttl'
-  ]);
+  const types: Record<string, ScalarType> = {};
+  for (const key of EXPLAIN_WARNINGS_KEYS) {
+    if (ew[key] === undefined || isRecord(ew[key]) || Array.isArray(ew[key])) continue;
+    recordScalar(config, types, key, ew[key]);
+  }
+  const known = EXPLAIN_WARNINGS_KEYS.filter((key) => key in config);
+  return withBags(
+    withTypes<TransformDraft>({ _key: genKey(), type: 'explain_warnings', config }, types),
+    raw,
+    'explain_warnings',
+    ew,
+    known
+  );
 }
 
 function parseFilter(raw: Record<string, unknown>): FilterDraft {
@@ -275,17 +357,18 @@ function parseFilter(raw: Record<string, unknown>): FilterDraft {
 function parseAction(raw: Record<string, unknown>): ActionDraft {
   const type = String(raw.type ?? 'log');
   const config: Record<string, string> = {};
+  const types: Record<string, ScalarType> = {};
   const yamlOnly: YamlOnlyValues = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (k === 'type' || v === undefined || v === null) continue;
-    if (typeof v === 'object') {
+    if (k === 'type' || v === undefined) continue;
+    if (typeof v === 'object' && v !== null) {
       // Nested maps and lists: never stringified ("[object Object]").
       yamlOnly[k] = v;
     } else {
-      config[k] = String(v);
+      recordScalar(config, types, k, v);
     }
   }
-  const action: ActionDraft = { _key: genKey(), type, config };
+  const action = withTypes<ActionDraft>({ _key: genKey(), type, config }, types);
   if (Object.keys(yamlOnly).length > 0) action.yamlOnly = yamlOnly;
   return action;
 }

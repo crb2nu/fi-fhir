@@ -9,6 +9,7 @@ import {
   issuesByRoute,
   liveDraftIssues,
   nameFieldError,
+  previewBlocker,
   promoteBlocker,
   publishBlockers,
   readinessItems,
@@ -191,3 +192,28 @@ describe('publish and approval', () => {
     expect(readinessItems(state()).every((item) => item.ready)).toBe(true);
   });
 });
+
+describe('preview and dry run', () => {
+  it('say why they are unavailable', () => {
+    expect(previewBlocker(createEmptyWorkflow())).toBe('give the draft a workflow name.');
+    expect(previewBlocker({ ...validDraft(), routes: [] })).toBe('add at least one route.');
+    const noAction = validDraft();
+    noAction.routes[0]!.actions = [];
+    expect(previewBlocker(noAction)).toBe('route 1 needs a name and at least one action.');
+    expect(previewBlocker(validDraft())).toBeNull();
+  });
+});
+
+describe('a default-shaped draft carrying YAML-only keys', () => {
+  it('is live: the kept keys are someone’s work', () => {
+    const draft = createEmptyWorkflow();
+    expect(draftIsLive({ ...draft, yamlOnly: { description: 'kept' } })).toBe(true);
+    const routeBag = createEmptyWorkflow();
+    routeBag.routes[0]!.yamlOnly = { priority: 5 };
+    expect(draftIsLive(routeBag)).toBe(true);
+    const filterBag = createEmptyWorkflow();
+    filterBag.routes[0]!.filter.yamlOnly = { tenant: 'east' };
+    expect(draftIsLive(filterBag)).toBe(true);
+  });
+});
+

@@ -290,9 +290,6 @@ routes:
     it('writes every key back, so the document survives yamlToDraft -> draftToYaml', () => {
       const before = yaml.load(SOURCE) as Record<string, unknown>;
       const after = yaml.load(draftToYaml(yamlToDraft(SOURCE))) as Record<string, unknown>;
-      // Scalars come back as text (the engine reads action settings as strings).
-      const fhirBefore = ((before.routes as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[1]!;
-      fhirBefore.retry_max = '3';
       expect(after).toEqual(before);
     });
 
@@ -326,6 +323,69 @@ routes:
 
     it('lists nothing for a document the builder models completely', () => {
       expect(listYamlOnlyFields(yamlToDraft(draftToYaml(sampleDraft)))).toEqual([]);
+    });
+  });
+
+  describe('round trip leftovers: scalar types, empty values, non-list blocks', () => {
+    const roundTrip = (doc: string) =>
+      yaml.load(draftToYaml(yamlToDraft(doc))) as Record<string, unknown>;
+
+    it('keeps numbers, booleans, null and empty strings with their YAML type', () => {
+      const doc = `name: typed
+version: "1.0"
+routes:
+  - name: r
+    filter: { event_type: PATIENT_ADMIT }
+    transform:
+      - explain_warnings: { model: '', cache_ttl: 0, include_fix: false, enable_cache: true }
+    actions:
+      - type: webhook
+        url: https://hooks.example.test
+        retries: 3
+        verify_tls: false
+        key: null
+        token: ''
+`;
+      expect(roundTrip(doc)).toEqual(yaml.load(doc));
+    });
+
+    it('writes a number the operator edited back as a number, and text as text', () => {
+      const draft = yamlToDraft('name: n\nroutes:\n  - name: r\n    actions:\n      - type: log\n        retries: 3\n');
+      draft.routes[0]!.actions[0]!.config.retries = '5';
+      expect(draftToYaml(draft)).toContain('retries: 5\n');
+      draft.routes[0]!.actions[0]!.config.retries = 'five';
+      expect(draftToYaml(draft)).toContain('retries: five');
+    });
+
+    it('drops a key the operator cleared', () => {
+      const draft = yamlToDraft('name: n\nroutes:\n  - name: r\n    actions:\n      - type: log\n        message: hi\n');
+      draft.routes[0]!.actions[0]!.config.message = '';
+      expect(draftToYaml(draft)).not.toContain('message');
+    });
+
+    it('keeps a transform: or actions: or routes: that is not a list', () => {
+      const doc = `name: odd
+routes:
+  - name: r
+    transform: set_field
+    actions: log
+`;
+      // The builder adds the defaults it always writes (version, an empty filter).
+      expect(roundTrip(doc)).toEqual({
+        name: 'odd',
+        version: '1.0',
+        routes: [{ name: 'r', filter: {}, transform: 'set_field', actions: 'log' }]
+      });
+      const top = 'name: odd\nversion: "1.0"\nroutes: none\n';
+      expect(roundTrip(top)).toEqual(yaml.load(top));
+      expect(listYamlOnlyFields(yamlToDraft(doc)).map((field) => field.key)).toEqual(['transform', 'actions']);
+    });
+
+    it('drops list items that are not maps (the API never stores such a version)', () => {
+      const doc = 'name: odd\nversion: "1.0"\nroutes:\n  - just-a-string\n  - name: r\n    actions:\n      - log\n      - type: log\n';
+      const draft = yamlToDraft(doc);
+      expect(draft.routes).toHaveLength(1);
+      expect(draft.routes[0]!.actions.map((action) => action.type)).toEqual(['log']);
     });
   });
 });

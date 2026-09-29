@@ -298,6 +298,11 @@ export function resetWorkflowBuilderOpened(): void {
   builderOpenedStore.set(false);
 }
 
+/** A yamlOnly bag counts as content: a draft carrying one is someone's work. */
+function isEmptyBag(bag: Record<string, unknown> | undefined): boolean {
+  return !bag || Object.keys(bag).length === 0;
+}
+
 function sameEmptyRoute(route: RouteDraft): boolean {
   // Drafts restored from localStorage may predate a field; treat absent as empty.
   return (
@@ -305,6 +310,8 @@ function sameEmptyRoute(route: RouteDraft): boolean {
     (route.filter?.eventTypes?.length ?? 0) === 0 &&
     (route.filter?.sources?.length ?? 0) === 0 &&
     !(route.filter?.condition ?? '').trim() &&
+    isEmptyBag(route.yamlOnly) &&
+    isEmptyBag(route.filter?.yamlOnly) &&
     (route.transforms?.length ?? 0) === 0 &&
     (route.actions?.length ?? 0) === 0
   );
@@ -319,6 +326,7 @@ export function isEmptyDefaultDraft(draft: WorkflowDraft): boolean {
   return (
     !(draft.name ?? '').trim() &&
     draft.version === '1.0' &&
+    isEmptyBag(draft.yamlOnly) &&
     Array.isArray(draft.routes) &&
     draft.routes.length === 1 &&
     draft.routes.every(sameEmptyRoute)

@@ -23,7 +23,12 @@
   } from '$lib/ui/primitives';
   import type { BadgeTone, KeyValueItem, SelectOption } from '$lib/ui/primitives';
   import WorkflowConfirmDialog from './WorkflowConfirmDialog.svelte';
-  import { definitionEditBlocker, filterDefinitions, type DefinitionFilter } from '../definitionLifecycle';
+  import {
+    definitionEditBlocker,
+    filterDefinitions,
+    isArchivedDefinition,
+    type DefinitionFilter
+  } from '../definitionLifecycle';
   import {
     archiveWorkflowDefinition,
     fetchWorkflowDefinitions,
@@ -349,7 +354,7 @@
 
   /** State describes the lifecycle: archived, published somewhere, or a draft. */
   function workflowState(workflow: WorkflowItem): { label: string; tone: BadgeTone } {
-    if (workflow.status === 'archived') return { label: 'archived', tone: 'danger' };
+    if (isArchivedDefinition(workflow)) return { label: 'archived', tone: 'danger' };
     if (publishedEnvironments(workflow).length > 0) return { label: 'published', tone: 'success' };
     return { label: workflow.status || 'draft', tone: 'neutral' };
   }
@@ -665,8 +670,9 @@
               <Input bind:value={editDescription} placeholder="Optional description" />
             </Field>
             <p class="note">
-              Renaming changes the definition only. Saved versions keep the name they were saved with; the next
-              version must use the new name.
+              Renaming changes the definition only. Saved versions keep the name they were saved with, so publishing
+              or rolling back to an earlier version ships that version's old name; the next version must use the new
+              name.
             </p>
             <div class="button-row">
               <Button
@@ -677,7 +683,7 @@
               >
                 {savingDetails ? 'Saving...' : 'Save details'}
               </Button>
-              {#if wf.status === 'archived'}
+              {#if isArchivedDefinition(wf)}
                 <Button
                   icon={ArchiveRestore}
                   loading={restoringId === wf.id}
@@ -700,7 +706,7 @@
             {#if detailsReason}
               <p class="note" data-testid="workflow-definition-blocked">Save details is unavailable: {detailsReason}</p>
             {/if}
-            {#if wf.status === 'archived'}
+            {#if isArchivedDefinition(wf)}
               <p class="note">
                 Archived: the API refuses new versions and publishes for this definition until it is restored to
                 draft. Its releases stay as they are.
@@ -770,14 +776,14 @@
                 variant="primary"
                 loading={!!publishingByWorkflowId[wf.id]}
                 onclick={() => publishSelectedVersion(wf)}
-                disabled={!selectedVersion || wf.status === 'archived'}
+                disabled={!selectedVersion || isArchivedDefinition(wf)}
               >
                 {publishingByWorkflowId[wf.id] ? 'Publishing...' : 'Publish'}
               </Button>
               <Button
                 loading={!!rollingBackByWorkflowId[wf.id]}
                 onclick={() => rollbackToSelectedVersion(wf)}
-                disabled={!selectedVersion || wf.status === 'archived'}
+                disabled={!selectedVersion || isArchivedDefinition(wf)}
               >
                 {rollingBackByWorkflowId[wf.id] ? 'Rolling back...' : 'Rollback'}
               </Button>

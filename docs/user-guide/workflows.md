@@ -869,9 +869,10 @@ definitions by default and says how many archived ones it hides; choose
 **Archived** or **All** to see them. For the selected definition you can:
 
 - **Rename or re-describe it** (Save details). Renaming changes the definition
-  only. Saved versions keep the name they were saved with, and the next version
-  you save must use the new name, because the API requires a version's `name:`
-  to match its definition.
+  only. Saved versions keep the name they were saved with, so publishing or
+  rolling back to an earlier version ships that version's old `name:`; the next
+  version you save must use the new name, because the API requires a version's
+  `name:` to match its definition.
 - **Archive it**, after a confirmation. The API then refuses new versions and
   publishes for that definition; its version history and releases stay as they
   are, and the audit trail records the archive. The API takes no reason for an

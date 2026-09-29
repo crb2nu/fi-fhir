@@ -13,6 +13,13 @@
  */
 export type YamlOnlyValues = Record<string, unknown>;
 
+/**
+ * The YAML type a scalar setting had before the builder turned it into text
+ * (`retries: 3`, `enabled: true`, `key: null`, `key: ''`), so `draftToYaml`
+ * writes the same type back while the value is unchanged.
+ */
+export type ScalarType = 'number' | 'boolean' | 'null' | 'empty';
+
 export type WorkflowDraft = {
   name: string;
   version: string;
@@ -51,6 +58,8 @@ export type TransformDraft = {
   yamlOnly?: YamlOnlyValues;
   /** Keys inside the transform's block the builder has no field for. */
   innerYamlOnly?: YamlOnlyValues;
+  /** Original YAML types of `config` values that were not strings. */
+  scalarTypes?: Record<string, ScalarType>;
   /**
    * A transform the builder cannot represent at all (an unknown kind, or a
    * value of the wrong shape): the list item exactly as written. `type` and
@@ -64,6 +73,8 @@ export type ActionDraft = {
   type: string;
   /** Scalar settings (strings; numbers and booleans as their text). */
   config: Record<string, string>;
+  /** Original YAML types of `config` values that were not strings. */
+  scalarTypes?: Record<string, ScalarType>;
   /**
    * Nested maps and lists. The engine reads action settings as flat scalars
    * (`Action.UnmarshalYAML` in internal/workflow/types.go), so these have no

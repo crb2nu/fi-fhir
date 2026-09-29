@@ -275,6 +275,61 @@ describe('debugStore', () => {
       });
     });
 
+    it('drops a late answer for a run the panel no longer shows', async () => {
+      const deferred = <T,>() => {
+        let resolve!: (value: T) => void;
+        let reject!: (reason: unknown) => void;
+        const promise = new Promise<T>((res, rej) => {
+          resolve = res;
+          reject = rej;
+        });
+        return { promise, resolve, reject };
+      };
+      const runA = deferred<typeof mockTraceSpans>();
+      const runB = deferred<typeof mockTraceSpans>();
+      api.fetchWorkflowRunTrace.mockReturnValueOnce(runA.promise).mockReturnValueOnce(runB.promise);
+
+      const loadingA = loadRealTraceSpans('run-A');
+      const loadingB = loadRealTraceSpans('run-B');
+      runB.resolve([]);
+      await loadingB;
+      runA.resolve(mockTraceSpans);
+      await loadingA;
+
+      // B answered first and stays; A's late spans never land under B's label.
+      expect(get(traceSource)).toEqual({ kind: 'workflow-run', runId: 'run-B', state: 'loaded' });
+      expect(get(traceSpans)).toEqual([]);
+    });
+
+    it('drops a late failure too', async () => {
+      let rejectA!: (reason: unknown) => void;
+      api.fetchWorkflowRunTrace
+        .mockReturnValueOnce(new Promise((_, rej) => (rejectA = rej)))
+        .mockResolvedValueOnce(mockTraceSpans);
+
+      const loadingA = loadRealTraceSpans('run-A');
+      await loadRealTraceSpans('run-B');
+      rejectA(new Error('late failure'));
+      await loadingA;
+
+      expect(get(traceSource)).toEqual({ kind: 'workflow-run', runId: 'run-B', state: 'loaded' });
+      expect(get(traceSpans)).toEqual(mockTraceSpans);
+    });
+
+    it('drops a late answer once a debug session took the panel', async () => {
+      let resolveA!: (value: typeof mockTraceSpans) => void;
+      api.fetchWorkflowRunTrace.mockReturnValueOnce(new Promise((res) => (resolveA = res)));
+
+      const loadingA = loadRealTraceSpans('run-A');
+      startSession(mockSession);
+      resolveA([]);
+      await loadingA;
+
+      expect(get(traceSource)).toEqual({ kind: 'debug-session', sessionId: mockSession.id });
+      // The session's own spans (one per step), not run A's empty answer.
+      expect(get(traceSpans)).toHaveLength(mockSession.steps.length);
+    });
+
     it('a debug session and endSession set the source', () => {
       startSession(mockSession);
       expect(get(traceSource)).toEqual({ kind: 'debug-session', sessionId: mockSession.id });

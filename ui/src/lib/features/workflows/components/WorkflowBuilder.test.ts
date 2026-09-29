@@ -68,7 +68,9 @@ const SELECTION = {
   versionNumber: 1
 };
 
-describe('WorkflowBuilder', () => {
+// The first render compiles the builder and CodeMirror; under a loaded full
+// suite that alone can pass vitest's 5 s default.
+describe('WorkflowBuilder', { timeout: 20_000 }, () => {
   let confirmSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -100,6 +102,16 @@ describe('WorkflowBuilder', () => {
     expect(screen.getByTestId('workflow-create-definition')).toBeDisabled();
     expect(screen.getByTestId('workflow-create-blocked')).toHaveTextContent(
       'Enter a workflow name to create a definition with it.'
+    );
+    // Every other disabled control says why in a sentence too.
+    expect(screen.getByTestId('workflow-preview-blocked')).toHaveTextContent(
+      'Preview YAML and Dry run are unavailable: give the draft a workflow name.'
+    );
+    expect(screen.getByTestId('workflow-approval-blocked')).toHaveTextContent(
+      'Request approval is unavailable: managed definition is not linked'
+    );
+    expect(screen.getByTestId('workflow-unlinked-blocked')).toHaveTextContent(
+      'Load version, Refresh versions and Unlink are unavailable: no managed definition is linked.'
     );
     expect(mocks.toastError).not.toHaveBeenCalled();
   });

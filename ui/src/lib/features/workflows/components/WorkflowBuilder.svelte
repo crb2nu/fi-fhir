@@ -31,7 +31,7 @@
   import GenerateFromDescription from './GenerateFromDescription.svelte';
   import WorkflowDraftLibrary from './WorkflowDraftLibrary.svelte';
   import WorkflowConfirmDialog from './WorkflowConfirmDialog.svelte';
-  import { workflowDraft, workflowSavedDrafts, isWorkflowValid } from '../workflowStore';
+  import { workflowDraft, workflowSavedDrafts } from '../workflowStore';
   import { draftToYaml, listYamlOnlyFields, yamlToDraft } from '../workflowYaml';
   import {
     approvalBlockers,
@@ -42,6 +42,7 @@
     issuesByRoute,
     liveDraftIssues,
     nameFieldError,
+    previewBlocker,
     promoteBlocker,
     publishBlockers,
     readinessItems,
@@ -141,7 +142,6 @@
     { value: 'staging', label: 'staging' },
     { value: 'production', label: 'production' }
   ];
-  const INVALID_DRAFT_REASON = 'Resolve workflow validation errors first';
 
   $: selectedVersionRecord = versionHistory.find((version) => version.id === selectedVersionId) ?? null;
 
@@ -177,9 +177,12 @@
     approvalGranted: approvalStateByVersion.some((item) => item.status === 'approved'),
     approvalPending: approvalStateByVersion.some((item) => item.status === 'pending')
   };
+  $: linkedArchived = (linkedStatus ?? '').toLowerCase() === 'archived';
+  $: previewReason = previewBlocker($workflowDraft);
   $: canPublish = readiness.publishBlockers.length === 0;
   $: canApprove = readiness.approvalBlockers.length === 0;
   $: publishReason = blockerSentence('Publish', readiness.publishBlockers);
+  $: approvalReason = blockerSentence('Request approval', readiness.approvalBlockers);
 
   function formatTime(ts: string): string {
     const date = new Date(ts);
@@ -868,8 +871,7 @@
           showDryRun = false;
           showGenerate = false;
         }}
-        disabled={!$isWorkflowValid}
-        title={$isWorkflowValid ? undefined : INVALID_DRAFT_REASON}
+        disabled={!!previewReason}
       >
         {showPreview ? 'Hide preview' : 'Preview YAML'}
       </Button>
@@ -880,8 +882,7 @@
           showPreview = false;
           showGenerate = false;
         }}
-        disabled={!$isWorkflowValid}
-        title={$isWorkflowValid ? undefined : INVALID_DRAFT_REASON}
+        disabled={!!previewReason}
       >
         {showDryRun ? 'Hide dry run' : 'Dry run'}
       </Button>
@@ -899,6 +900,12 @@
       <Button variant="ghost" icon={RotateCcw} onclick={() => void resetDraftWithGuard()}>Reset</Button>
     </div>
 
+    {#if previewReason}
+      <p class="note" data-testid="workflow-preview-blocked">
+        Preview YAML and Dry run are unavailable: {previewReason}
+      </p>
+    {/if}
+
     {#if showPreview}
       <WorkflowPreview />
     {/if}
@@ -912,8 +919,8 @@
     {/if}
 
     <WorkflowDraftLibrary
-      pushToServerEnabled={!!linkedWorkflowId && linkedStatus !== 'archived'}
-      promoteImportEnabled={!!linkedWorkflowId && linkedStatus !== 'archived'}
+      pushToServerEnabled={!!linkedWorkflowId && !linkedArchived}
+      promoteImportEnabled={!!linkedWorkflowId && !linkedArchived}
       on:pushSnapshot={promoteSnapshotToServer}
       on:promoteImportYaml={promoteImportedYamlToServer}
     />
@@ -1034,6 +1041,18 @@
           {/if}
           {#if publishReason}
             <li data-testid="workflow-publish-blocked">{publishReason}</li>
+          {/if}
+          {#if approvalReason}
+            <li data-testid="workflow-approval-blocked">{approvalReason}</li>
+          {/if}
+          {#if !linkedWorkflowId}
+            <li data-testid="workflow-unlinked-blocked">
+              Load version, Refresh versions and Unlink are unavailable: no managed definition is linked.
+            </li>
+          {:else if !selectedVersionId}
+            <li data-testid="workflow-load-blocked">
+              Load version is unavailable: this definition has no saved version yet.
+            </li>
           {/if}
           {#if createReason && !linkedWorkflowId}
             <li data-testid="workflow-create-blocked">Create definition is unavailable: {createReason}</li>
