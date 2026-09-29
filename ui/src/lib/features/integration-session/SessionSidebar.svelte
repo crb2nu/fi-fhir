@@ -22,20 +22,26 @@
   import { streamStatus } from '$lib/graphql/streamAvailability';
   import SessionActionDialog from './SessionActionDialog.svelte';
   import { downloadSessionExport, sessionExportFile } from './sessionExport';
-  import { rawPayloadBlockedSentence } from './sessionReason';
+  import { EXPORT_CONTENTS_SENTENCE, rawPayloadBlockedSentence } from './sessionReason';
   import { isLiveRun, type SessionWorkspaceController, type SessionWorkspaceState } from './sessionWorkspace';
+  import type { SessionDiagnosticRow } from './workspaceApi';
 
   interface Props {
     workspace: SessionWorkspaceController;
     view: SessionWorkspaceState;
-    /** capabilities.phiExport and missingRoles.phiExport, as the status endpoint reported them. */
-    phiExport: { allowed: boolean; missing: string[] };
-    /** Why a deep-linked session cannot be opened here (the `unavailable` state). */
-    unavailableReason?: string | undefined;
+    /**
+     * capabilities.phiExport and missingRoles.phiExport, as the status
+     * endpoint reported them; `reported` false when it said nothing.
+     */
+    phiExport: { allowed: boolean; reported: boolean; missing: string[] };
+    /** Why a deep-linked session cannot be opened here (the `unavailable` state): a code and a sentence. */
+    unavailable?: { reason: string; text: string } | undefined;
     /** The run the results pane shows, if it came from this sidebar or the last Preview. */
     shownRunId?: string | null | undefined;
     onshowrun: (runId: string) => void;
     oninspectpath: (path: string) => void;
+    /** A fix was accepted here; the page keeps its own copy of the run's diagnostics in step. */
+    onaccepted?: ((diagnostic: SessionDiagnosticRow) => void) | undefined;
     onclose: () => void;
   }
 
@@ -43,10 +49,11 @@
     workspace,
     view,
     phiExport,
-    unavailableReason = 'Integration Sessions are not available on this deployment.',
+    unavailable = { reason: 'unavailable', text: 'Integration Sessions are not available on this deployment.' },
     shownRunId = null,
     onshowrun,
     oninspectpath,
+    onaccepted,
     onclose
   }: Props = $props();
 
@@ -131,7 +138,7 @@
     accepting = diagnosticId;
     acceptError = null;
     try {
-      await workspace.acceptFix(diagnosticId);
+      onaccepted?.(await workspace.acceptFix(diagnosticId));
     } catch (error) {
       acceptError = error instanceof Error ? error.message : 'Accepting the fix failed.';
     } finally {
@@ -166,18 +173,24 @@
         message={`Loading session ${view.status.sessionId}`}
       />
     {:else if view.status.kind === 'unavailable'}
-      <EmptyState align="start" icon={CircleAlert} role="status" data-testid="hl7-session-unavailable">
-        <span>Session <code>{view.status.sessionId}</code> cannot be opened here. {unavailableReason}</span>
+      <EmptyState
+        align="start"
+        icon={CircleAlert}
+        role="status"
+        data-testid="hl7-session-unavailable"
+        data-reason={unavailable.reason}
+      >
+        <span>Session <code>{view.status.sessionId}</code> cannot be opened here. {unavailable.text}</span>
       </EmptyState>
     {:else if view.status.kind === 'absent'}
-      <EmptyState align="start" icon={CircleAlert} role="status" data-testid="hl7-session-absent">
+      <EmptyState align="start" icon={CircleAlert} role="status" data-testid="hl7-session-absent" data-reason="not-found">
         <span>
           Session <code>{view.status.sessionId}</code> is not in this deployment's session store. It may have been
           created on another deployment or tenant.
         </span>
       </EmptyState>
     {:else if view.status.kind === 'forbidden'}
-      <EmptyState align="start" icon={CircleAlert} role="status" data-testid="hl7-session-forbidden">
+      <EmptyState align="start" icon={CircleAlert} role="status" data-testid="hl7-session-forbidden" data-reason="forbidden">
         <span>The API refused to read session <code>{view.status.sessionId}</code> for this identity.</span>
       </EmptyState>
     {:else if view.status.kind === 'error'}
@@ -220,11 +233,17 @@
             Archive…
           </Button>
         </div>
+        {#if session.archived}
+          <p class="note" data-testid="hl7-session-archived-note">
+            Archived: it is off Home › Recent. Previews on this page still record runs in it; open
+            <span class="mono">/hl7</span> without a session link to start a new one.
+          </p>
+        {/if}
         {#if lastExport}
           <p class="note" role="status" data-testid="hl7-session-export-done">
             Exported <span class="mono">{lastExport.fileName}</span>{lastExport.includeRawPayload
               ? ' with raw sample payloads'
-              : ' without sample text'}. The reason is recorded with your identity on the export.
+              : ' without raw sample text or parsed patient fields'}. The reason is recorded with your identity on the export.
           </p>
         {/if}
       </section>
@@ -430,10 +449,14 @@
   open={dialog === 'export'}
   testid="hl7-session-export-dialog"
   title="Export session"
-  description="Downloads this session's runs, diagnostics, drafts, simulations and publications as JSON. An export is a PHI disclosure: the API records the reason and your identity on an append-only export record."
+  description={`Downloads this session as JSON. ${EXPORT_CONTENTS_SENTENCE} An export is a PHI disclosure: the API records the reason and your identity on an append-only export record.`}
   confirmText="Export"
   reasonHint="Recorded with your verified identity on the export record."
-  rawPayload={{ allowed: phiExport.allowed, blockedSentence: rawPayloadBlockedSentence(phiExport.missing) }}
+  rawPayload={{
+    allowed: phiExport.allowed,
+    blockedSentence: rawPayloadBlockedSentence(phiExport.missing, phiExport.reported),
+    blockedReason: phiExport.reported ? 'missing-role' : 'not-reported'
+  }}
   loading={dialogBusy}
   submitError={dialogError}
   onconfirm={(reason, raw) => void confirmExport(reason, raw)}

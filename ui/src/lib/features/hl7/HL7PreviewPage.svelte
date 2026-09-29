@@ -130,6 +130,9 @@
   let creatingSession: Promise<string> | null = null;
 
   async function ensurePageSession(): Promise<string> {
+    // A `?session=` link still opening is the page's session once it opens:
+    // never create a second one in that window.
+    await awaitLinkedSession();
     if (pageSessionId) return pageSessionId;
     creatingSession ??= createSession({ inlineErrors: true }).finally(() => {
       creatingSession = null;
@@ -157,17 +160,32 @@
   let acceptFixesError: string | null = null;
   const sessionStream = streamStatus('integrationSessionEvents');
 
+  // Raw payloads are offered only when the server said the grant is held;
+  // an unreported capability is not a guess to disclose on.
   $: phiExport = {
-    allowed: capabilityOf($accessCapabilities, 'phiExport') !== false,
+    allowed: capabilityOf($accessCapabilities, 'phiExport') === true,
+    reported: capabilityOf($accessCapabilities, 'phiExport') !== null,
     missing: missingRolesFor($accessCapabilities, 'phiExport')
   };
-  $: sessionUnavailableReason = !isIntegrationSessionBuildEnabled()
-    ? 'This UI was built without the Integration Session engine (VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+  $: sessionUnavailable = !isIntegrationSessionBuildEnabled()
+    ? {
+        reason: 'build-off',
+        text: 'This UI was built without the Integration Session engine (VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+      }
     : capabilityOf($accessCapabilities, 'integrationSessions') === false
-      ? 'The API has no Integration Session workspace on this deployment (FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+      ? {
+          reason: 'sessions-off',
+          text: 'The API has no Integration Session workspace on this deployment (FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+        }
       : $sessionStream.availability === 'unavailable'
-        ? 'The API cannot stream Integration Session runs here, so HL7 intake previews on the stateless path.'
-        : 'This identity has no Integration Session workspace on this deployment.';
+        ? {
+            reason: 'stream-unavailable',
+            text: 'The API cannot stream Integration Session runs here, so HL7 intake previews on the stateless path.'
+          }
+        : {
+            reason: 'not-reported',
+            text: 'This deployment did not report an Integration Session workspace for this identity.'
+          };
 
   /** Writes `?session=<id>` without a navigation, so a reload reopens this session. */
   function setSessionUrl(id: string): void {
@@ -195,19 +213,33 @@
     await workspace.open(id);
   }
 
+  // The `?session=` link while it opens: resolves to its id when it opened
+  // ready, or null. Preview and intake wait on it before creating a session.
+  let linkedSession: Promise<string | null> | null = null;
+
+  async function awaitLinkedSession(): Promise<void> {
+    if (pageSessionId || !linkedSession) return;
+    const linked = await linkedSession;
+    if (linked) pageSessionId ??= linked;
+  }
+
   /** `/hl7?session=<id>`: reopen a session and show its newest run. */
   async function openLinkedSession(id: string): Promise<void> {
     if (!sessionEngineEnabled) {
       workspace.markUnavailable(id);
       return;
     }
-    const opened = await workspace.open(id);
-    if (opened.status.kind !== 'ready') return;
+    linkedSession = workspace.open(id).then((opened) => (opened.status.kind === 'ready' ? id : null));
+    const linked = await linkedSession;
+    linkedSession = null;
+    if (!linked) return;
     // Later Previews and intake continue this session.
-    pageSessionId = id;
+    pageSessionId ??= linked;
+    if (pageSessionId !== linked) return;
     if (intakeEntryState.visible && !intakeEntryState.disabledReason) void intake.refresh();
-    const newest = opened.runs[0];
-    if (newest) await showRun(newest.id);
+    const newest = $workspaceState.runs[0];
+    // A Preview that started meanwhile owns the results pane.
+    if (newest && !$state.loading && !$state.result) await showRun(newest.id);
   }
 
   /** Loads a run of the page's session into the results pane. */
@@ -244,26 +276,10 @@
     }
   }
 
-  /**
-   * Accepts the fix suggestion of the session diagnostic behind `warning`
-   * (diagnostics are the run's warnings, one for one: same code, path and
-   * message). WarningList's per-row callback (E-5) calls this; until then the
-   * Warnings header's "Accept fixes" does, for every open suggestion.
-   */
-  async function acceptFixForWarning(warning: WarningLike): Promise<boolean> {
-    const current = $state.session;
-    if (!current || current.mode !== 'session' || !current.id) return false;
-    const diagnostic = current.diagnostics.find(
-      (entry) =>
-        !entry.accepted &&
-        entry.code === warning.code &&
-        (entry.path ?? null) === (warning.path ?? null) &&
-        entry.message === warning.message
-    );
-    if (!diagnostic) return false;
-    const accepted = await workspace.acceptFix(diagnostic.id, current.id);
+  /** Keeps the results pane's copy of the run's diagnostics in step with an accepted fix. */
+  function markDiagnosticAccepted(accepted: { id: string; runId: string | null; acceptedAt: string | null }): void {
     state.update((s) =>
-      s.session
+      s.session && (!accepted.runId || s.session.runId === accepted.runId)
         ? {
             ...s,
             session: {
@@ -275,6 +291,30 @@
           }
         : s
     );
+  }
+
+  /**
+   * Accepts the fix suggestion of the session diagnostic behind `warning`
+   * (diagnostics are the run's warnings, one for one: same code, path and
+   * message), only when that diagnostic carries a suggestion. The Warnings
+   * header's "Accept fixes" calls it for every open suggestion. E-5's
+   * WarningList takes `onAcceptFix(diagnosticId)` instead, wired as
+   * `(id) => workspace.acceptFix(id, pageSessionId)` once the warnings the
+   * page projects carry their diagnosticId.
+   */
+  async function acceptFixForWarning(warning: WarningLike): Promise<boolean> {
+    const current = $state.session;
+    if (!current || current.mode !== 'session' || !current.id) return false;
+    const diagnostic = current.diagnostics.find(
+      (entry) =>
+        !entry.accepted &&
+        Boolean(entry.fixSuggestion) &&
+        entry.code === warning.code &&
+        (entry.path ?? null) === (warning.path ?? null) &&
+        entry.message === warning.message
+    );
+    if (!diagnostic) return false;
+    markDiagnosticAccepted(await workspace.acceptFix(diagnostic.id, current.id));
     return true;
   }
 
@@ -554,6 +594,8 @@
   }
 
   async function run() {
+    // A `?session=` link still opening is this run's session.
+    await awaitLinkedSession();
     // A new run starts from no session state, so a run that fails before its
     // first session update never leaves the previous run's "Preview complete"
     // (or its diagnostics) on screen. The server session itself is reused.
@@ -1764,10 +1806,11 @@
         {workspace}
         view={$workspaceState}
         {phiExport}
-        unavailableReason={sessionUnavailableReason}
+        unavailable={sessionUnavailable}
         {shownRunId}
         onshowrun={(runId) => void showRun(runId)}
         oninspectpath={inspectPath}
+        onaccepted={markDiagnosticAccepted}
         onclose={() => (sessionRailChoice = false)}
       />
     {/if}

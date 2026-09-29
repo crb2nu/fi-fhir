@@ -7,7 +7,7 @@
  * Only `fetch` is faked; the real GraphQL client runs.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 import { setGraphQLTrustedNetworkAccess } from '$lib/graphql/credentials';
 import { resetObservedStreams } from '$lib/graphql/streamAvailability';
@@ -44,16 +44,38 @@ function json(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
-function fakeApi() {
+/** An SSE response that opens and then stays silent. */
+function openStream(): Response {
+  return new Response(new ReadableStream<Uint8Array>(), {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' }
+  });
+}
+
+function fakeApi(options: { workspaceGate?: Promise<void> } = {}) {
   const operations: string[] = [];
+  const variables: Record<string, Record<string, unknown>[]> = {};
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     if (String(input) !== '/graphql') return new Response('not found', { status: 404 });
     const body = JSON.parse(String(init?.body ?? '{}')) as { query?: string; variables?: Record<string, unknown> };
     const operation = /\b(?:query|mutation|subscription)\s+(\w+)/.exec(body.query ?? '')?.[1] ?? '';
     operations.push(operation);
+    (variables[operation] ??= []).push(body.variables ?? {});
+    if (new Headers(init?.headers).get('accept')?.includes('text/event-stream')) return openStream();
     switch (operation) {
       case 'IntegrationSessionWorkspace':
+        await options.workspaceGate;
         return json({ data: { integrationSession: body.variables?.['id'] === 'session-1' ? WORKSPACE : null } });
+      case 'CreateStreamingIntegrationSession':
+        return json({ data: { createIntegrationSession: { id: 'session-new' } } });
+      case 'AddStreamingSessionSample':
+        return json({ data: { addSessionSample: { id: 'sample-2', sessionId: 'session-1' } } });
+      case 'RunStreamingSessionPreview':
+        return json({
+          data: {
+            runSessionPreview: { ...RUN, id: 'run-8', diagnostics: [], lineage: [], events: [], warnings: [] }
+          }
+        });
       case 'SessionRunHistory':
         return json({ data: { sessionRuns: [RUN] } });
       case 'SessionRunDiagnostics':
@@ -66,7 +88,7 @@ function fakeApi() {
         return json({ data: null, errors: [{ message: `unexpected operation ${operation}` }] });
     }
   });
-  return { fetchMock, operations };
+  return { fetchMock, operations, variables };
 }
 
 function status(integrationSessions: boolean) {
@@ -146,5 +168,23 @@ describe('HL7 intake deep link', { timeout: 30_000 }, () => {
       'The API has no Integration Session workspace on this deployment'
     );
     expect(api.operations).not.toContain('IntegrationSessionWorkspace');
+  });
+
+  it('a Preview pressed while the link is still opening runs in the linked session', async () => {
+    status(true);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const api = fakeApi({ workspaceGate: gate });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+
+    await vi.waitFor(() => expect(api.operations).toContain('IntegrationSessionWorkspace'));
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[0]!);
+    release();
+
+    await vi.waitFor(() => expect(api.operations).toContain('RunStreamingSessionPreview'));
+    expect(api.operations).not.toContain('CreateStreamingIntegrationSession');
+    expect(api.variables['AddStreamingSessionSample']?.[0]).toMatchObject({ input: { sessionId: 'session-1' } });
   });
 });

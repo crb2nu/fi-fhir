@@ -287,10 +287,13 @@ reason the operator types; the export row (`integration_session_exports`)
 records it with the verified principal and `include_raw_payload`. The raw
 payload option is offered only when `/api/auth/status` reports
 `capabilities.phiExport: true`: the caller clears the export field's transport
-gate and holds `integration.phi.export`, the grant the store re-checks. The
-documented operator bundle does not include that grant, so an operator's
-export carries no sample text unless the deployment grants it separately. To
-read back who exported what:
+gate and holds `integration.phi.export`, the grant the store re-checks; an
+unreported capability is treated as not held. The documented operator bundle
+does not include that grant, so an operator's export carries no raw sample
+text unless the deployment grants it separately. Whatever the grant, the
+downloaded file selects no parsed patient fields from the runs (event ids,
+types, times and correlation only); diagnostic messages are included as the
+parser wrote them. To read back who exported what:
 
 ```sql
 SELECT exported_at, session_id, principal_json->>'id' AS principal, reason, include_raw_payload

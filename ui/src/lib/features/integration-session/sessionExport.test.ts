@@ -45,6 +45,12 @@ describe('export reason and the raw-payload sentence', () => {
     expect(exportReasonProblem('line one\nline two')).toBeNull();
   });
 
+  it('says when the deployment did not report the grant', () => {
+    expect(rawPayloadBlockedSentence([], false)).toBe(
+      'Raw sample payloads are not offered: this deployment did not report whether this identity holds integration.phi.export.'
+    );
+  });
+
   it('names the missing role, falling back to integration.phi.export', () => {
     expect(rawPayloadBlockedSentence([])).toContain('needs integration.phi.export, which this identity does not hold');
     expect(rawPayloadBlockedSentence(['graphql:operator', 'integration.phi.export'])).toContain(

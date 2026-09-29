@@ -111,16 +111,21 @@ the API:
   does it for every open suggestion of the run in the results.
 - **Publications** and **Simulations** made from this session, its samples
   and its saved profile and workflow drafts.
-- **Export…** downloads the session (runs, diagnostics, drafts, simulations,
-  publications) as `fi-fhir-session-<id>-<UTC time>.json`. An export is a PHI
-  disclosure: it needs a reason, and the API records the reason and your
-  identity on an append-only export record. Raw sample payloads are offered
-  only when your identity holds `integration.phi.export`
-  (`capabilities.phiExport` in `/api/auth/status`); otherwise the dialog names
-  the missing role and the export carries no sample text.
+- **Export…** downloads the session as `fi-fhir-session-<id>-<UTC time>.json`:
+  runs (status, stages, diagnostics, lineage, and each event's id, type, time
+  and correlation), drafts, simulations and publications. It carries no raw
+  sample text and no parsed patient fields; diagnostic messages are included
+  as the parser wrote them. An export is a PHI disclosure: it needs a reason,
+  and the API records the reason and your identity on an append-only export
+  record. Raw sample payloads are offered only when `/api/auth/status`
+  reports `capabilities.phiExport: true` (your identity holds
+  `integration.phi.export`); otherwise the dialog names the missing role, or
+  says the deployment did not report the grant.
 - **Archive…** takes the session off Home › Recent. Its runs, publications
-  and export records stay, and its link still opens it, marked Archived. The
-  API records no reason for an archive, so the dialog asks for none.
+  and export records stay, and its link still opens it, marked Archived.
+  Previews on that page still record runs in it; open `/hl7` without a session
+  link to start a new one. The API records no reason for an archive, so the
+  dialog asks for none.
 
 Sample text is not read back: a pasted sample's text stays on the server.
 Captured and peeked samples reload into Samples, because intake reads them

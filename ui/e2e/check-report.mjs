@@ -18,7 +18,7 @@ const required = {
   ]
 };
 
-required['operator-bundle'].push('E3-1.', 'E3-2.', 'E3-3.', 'E3-4.'); // .loom/42 E-3, e2e/sessions.spec.ts
+required['operator-bundle'].push('E3-1.', 'E3-2.', 'E3-3.', 'E3-4.'); // .loom/42 E-3, e2e/operator-bundle.sessions.spec.ts
 
 const [reportPath] = process.argv.slice(2);
 if (!reportPath) {

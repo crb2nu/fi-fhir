@@ -338,6 +338,45 @@ mutation AcceptSessionDiagnosticFix($input: AcceptDiagnosticFixInput!) {
   acceptDiagnosticFix(input: $input) { ...SessionDiagnosticFields }
 }
 
+# A run as the export file carries it: identifiers, status, stages,
+# diagnostics, lineage and each event's envelope (id, type, time, source,
+# correlation). No event's patient, encounter, test or appointment fields are
+# selected, so the download holds no parsed patient identifiers.
+fragment SessionExportRunFields on SessionRun {
+  id
+  sessionId
+  sampleId
+  status
+  profileRevisionId
+  profileRevisionDigest
+  createdAt
+  completedAt
+  stages {
+    id
+    name
+    status
+    startedAt
+    completedAt
+    durationMs
+    summary
+  }
+  diagnostics { ...SessionDiagnosticFields }
+  lineage {
+    sourcePath
+    targetPath
+    description
+  }
+  events {
+    __typename
+    id
+    type
+    timestamp
+    source
+    sourceFormat
+    correlationId
+  }
+}
+
 # The audited PHI export. rawPayload is null unless includeRawPayload was
 # asked for and the caller holds integration.phi.export (capabilities.phiExport).
 mutation ExportIntegrationSessionBundle($input: ExportIntegrationBundleInput!) {
@@ -367,7 +406,7 @@ mutation ExportIntegrationSessionBundle($input: ExportIntegrationBundleInput!) {
       content
       createdAt
     }
-    runs { ...IntegrationSessionRunFields }
+    runs { ...SessionExportRunFields }
     workflowSimulations { ...SessionWorkflowSimulationFields }
     publications { ...SessionPublicationFields }
     diagnostics { ...SessionDiagnosticFields }

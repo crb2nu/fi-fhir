@@ -107,16 +107,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function renderSidebar(options: { phiExport?: boolean; missing?: string[]; open?: string } = {}) {
+async function renderSidebar(
+  options: { phiExport?: boolean; reported?: boolean; missing?: string[]; open?: string } = {}
+) {
   const api = fakeApi();
   const workspace = createSessionWorkspace({ api, canStream: () => false });
   await workspace.open(options.open ?? 's-1');
   const props = {
     workspace,
     view: get(workspace.state),
-    phiExport: { allowed: options.phiExport ?? false, missing: options.missing ?? ['integration.phi.export'] },
+    phiExport: {
+      allowed: options.phiExport ?? false,
+      reported: options.reported ?? true,
+      missing: options.missing ?? ['integration.phi.export']
+    },
     onshowrun: vi.fn(),
     oninspectpath: vi.fn(),
+    onaccepted: vi.fn(),
     onclose: vi.fn()
   };
   const rendered = render(SessionSidebar, props);
@@ -128,7 +135,9 @@ async function renderSidebar(options: { phiExport?: boolean; missing?: string[];
 describe('SessionSidebar', () => {
   it('says a deep-linked session is not in this store', async () => {
     const { unsubscribe } = await renderSidebar({ open: 'gone' });
-    expect(screen.getByTestId('hl7-session-absent')).toHaveTextContent("Session gone is not in this deployment's session store");
+    const absent = screen.getByTestId('hl7-session-absent');
+    expect(absent).toHaveTextContent("Session gone is not in this deployment's session store");
+    expect(absent).toHaveAttribute('data-reason', 'not-found');
     unsubscribe();
   });
 
@@ -149,6 +158,7 @@ describe('SessionSidebar', () => {
     await fireEvent.click(within(diagnostic).getByRole('button', { name: 'Accept fix' }));
     await vi.waitFor(() => expect(screen.getByTestId('hl7-session-diagnostic')).toHaveAttribute('data-accepted', 'true'));
     expect(api.acceptDiagnosticFix).toHaveBeenCalledWith('s-1', 'diag_001');
+    expect(props.onaccepted).toHaveBeenCalledWith(expect.objectContaining({ id: 'diag_001', accepted: true }));
 
     await fireEvent.click(screen.getByTestId('hl7-session-show-run'));
     expect(props.onshowrun).toHaveBeenCalledWith('run-2');
@@ -159,9 +169,10 @@ describe('SessionSidebar', () => {
     const { api, unsubscribe } = await renderSidebar({ phiExport: false });
     await fireEvent.click(screen.getByTestId('hl7-session-export'));
     const dialog = screen.getByTestId('hl7-session-export-dialog');
-    expect(within(dialog).getByTestId('session-export-phi-missing')).toHaveTextContent(
-      'needs integration.phi.export, which this identity does not hold'
-    );
+    const missing = within(dialog).getByTestId('session-export-phi-missing');
+    expect(missing).toHaveTextContent('needs integration.phi.export, which this identity does not hold');
+    expect(missing).toHaveAttribute('data-reason', 'missing-role');
+    expect(dialog).toHaveTextContent('no raw sample text and no parsed patient fields');
     expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
     const exportButton = within(dialog).getByRole('button', { name: 'Export' });
     expect(exportButton).toBeDisabled();
@@ -191,6 +202,17 @@ describe('SessionSidebar', () => {
     unsubscribe();
   });
 
+  it('does not offer raw payloads when the deployment did not report phiExport', async () => {
+    const { unsubscribe } = await renderSidebar({ phiExport: false, reported: false, missing: [] });
+    await fireEvent.click(screen.getByTestId('hl7-session-export'));
+    const dialog = screen.getByTestId('hl7-session-export-dialog');
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
+    const sentence = within(dialog).getByTestId('session-export-phi-missing');
+    expect(sentence).toHaveAttribute('data-reason', 'not-reported');
+    expect(sentence).toHaveTextContent('did not report whether this identity holds integration.phi.export');
+    unsubscribe();
+  });
+
   it('archives without collecting a reason the API would not record', async () => {
     const { api, unsubscribe } = await renderSidebar();
     await fireEvent.click(screen.getByTestId('hl7-session-archive'));
@@ -201,6 +223,7 @@ describe('SessionSidebar', () => {
     await vi.waitFor(() => expect(screen.getByTestId('hl7-session-archived')).toBeInTheDocument());
     expect(api.archiveSession).toHaveBeenCalledWith('s-1');
     expect(screen.getByTestId('hl7-session-archive')).toBeDisabled();
+    expect(screen.getByTestId('hl7-session-archived-note')).toHaveTextContent('Previews on this page still record runs in it');
     unsubscribe();
   });
 });

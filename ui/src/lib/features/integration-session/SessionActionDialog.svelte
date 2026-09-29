@@ -32,7 +32,7 @@
      * The raw-payload option: `allowed` shows the checkbox; otherwise
      * `blockedSentence` says which role is missing. Omit for no option.
      */
-    rawPayload?: { allowed: boolean; blockedSentence: string } | undefined;
+    rawPayload?: { allowed: boolean; blockedSentence: string; blockedReason: string } | undefined;
     loading?: boolean | undefined;
     submitError?: string | null | undefined;
     testid: string;
@@ -146,7 +146,9 @@
               Include raw sample payloads (integration.phi.export)
             </label>
           {:else}
-            <p class="blocked" data-testid="session-export-phi-missing">{rawPayload.blockedSentence}</p>
+            <p class="blocked" data-testid="session-export-phi-missing" data-reason={rawPayload.blockedReason}>
+              {rawPayload.blockedSentence}
+            </p>
           {/if}
         {/if}
 

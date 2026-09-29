@@ -23,12 +23,20 @@ export function exportReasonProblem(reason: string): string | null {
   return null;
 }
 
+/** What the export file holds without raw payloads, said the same way everywhere. */
+export const EXPORT_CONTENTS_SENTENCE =
+  'The file holds runs (status, stages, diagnostics, lineage, event ids and types), drafts, simulations and publications; it holds no raw sample text and no parsed patient fields. Diagnostic messages are included as the parser wrote them.';
+
 /**
- * The sentence the export dialog shows in place of the raw-payload option
- * when the identity cannot use it: which role is missing, from the server's
- * `missingRoles.phiExport` when it reported one.
+ * The sentence the export dialog shows in place of the raw-payload option.
+ * `reported` false: the status endpoint said nothing about phiExport (an
+ * older API, or a bearer session), so the option is not offered on a guess.
+ * Otherwise it names the missing role, from `missingRoles.phiExport`.
  */
-export function rawPayloadBlockedSentence(missing: readonly string[]): string {
+export function rawPayloadBlockedSentence(missing: readonly string[], reported = true): string {
+  if (!reported) {
+    return `Raw sample payloads are not offered: this deployment did not report whether this identity holds ${PHI_EXPORT_ROLE}.`;
+  }
   const roles = missing.length > 0 ? missing : [PHI_EXPORT_ROLE];
-  return `Raw sample payloads are not offered: exporting them needs ${roles.join(', ')}, which this identity does not hold. The export carries runs, diagnostics, drafts and publications without sample text.`;
+  return `Raw sample payloads are not offered: exporting them needs ${roles.join(', ')}, which this identity does not hold.`;
 }

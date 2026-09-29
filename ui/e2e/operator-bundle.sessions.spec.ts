@@ -88,9 +88,9 @@ test('E3-2. export without raw payloads: the phiExport sentence, a JSON download
   await openIDE(page, `/hl7?session=${encodeURIComponent(sessionId)}`);
   await rail(page).getByTestId('hl7-session-export').click();
   const dialog = page.getByTestId('hl7-session-export-dialog');
-  await expect(dialog.getByTestId('session-export-phi-missing')).toContainText(
-    'needs integration.phi.export, which this identity does not hold'
-  );
+  const phiMissing = dialog.getByTestId('session-export-phi-missing');
+  await expect(phiMissing).toContainText('needs integration.phi.export, which this identity does not hold');
+  await expect(phiMissing).toHaveAttribute('data-reason', 'missing-role');
   await expect(dialog.getByRole('checkbox')).toHaveCount(0);
 
   const reason = `e2e: synthetic export ${Date.now().toString(36)}`;
@@ -109,7 +109,23 @@ test('E3-2. export without raw payloads: the phiExport sentence, a JSON download
   const download = await downloading;
   expect(download.suggestedFilename()).toMatch(/^fi-fhir-session-[A-Za-z0-9._-]+-\d{8}T\d{6}Z\.json$/);
 
-  const file = JSON.parse(await readFile(await download.path(), 'utf8')) as {
+  const text = await readFile(await download.path(), 'utf8');
+  // No parsed patient fields anywhere in the file (E-3 review finding 1).
+  const keys = new Set<string>();
+  const collect = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === 'object') {
+      for (const [key, child] of Object.entries(value)) {
+        keys.add(key);
+        collect(child);
+      }
+    }
+  };
+  collect(JSON.parse(text));
+  for (const key of ['patient', 'encounter', 'mrn', 'familyName', 'givenName', 'dateOfBirth']) {
+    expect(keys.has(key), `the export carries no "${key}" key`).toBe(false);
+  }
+  const file = JSON.parse(text) as {
     export: { sessionId: string; reason: string; includeRawPayload: boolean };
     bundle: { sessionId: string; runs: Array<{ id: string }>; samples: Array<{ rawPayload: string | null }> };
   };
