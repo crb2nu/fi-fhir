@@ -4,7 +4,8 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import TraceTimeline from './TraceTimeline.svelte';
-import { mockTraceSpans } from './debugMocks';
+import { mockTraceSpans } from './__fixtures__/debugFixtures';
+import { endSession, traceSource } from './debugStore';
 
 describe('TraceTimeline', () => {
   describe('rendering', () => {
@@ -86,4 +87,40 @@ describe('TraceTimeline', () => {
       expect(screen.getByRole('figure')).toBeInTheDocument();
     });
   });
+
+  describe('workflow run traces', () => {
+    it('says which run it shows and how many spans it has', () => {
+      traceSource.set({ kind: 'workflow-run', runId: 'run-1', state: 'loaded' });
+      try {
+        render(TraceTimeline, { props: { spans: mockTraceSpans } });
+        expect(screen.getByTestId('trace-source')).toHaveTextContent('Workflow run run-1 · 4 spans');
+      } finally {
+        endSession();
+      }
+    });
+
+    it('explains an empty run trace instead of a bare "No trace spans"', () => {
+      traceSource.set({ kind: 'workflow-run', runId: 'run-2', state: 'loaded' });
+      try {
+        render(TraceTimeline, { props: { spans: [] } });
+        expect(screen.getByTestId('trace-run-empty')).toHaveTextContent(
+          'Run traces are kept in memory by the process that executed the run'
+        );
+        expect(screen.queryByText('No trace spans')).not.toBeInTheDocument();
+      } finally {
+        endSession();
+      }
+    });
+
+    it('shows a load failure', () => {
+      traceSource.set({ kind: 'workflow-run', runId: 'run-3', state: 'error', message: 'GraphQL operation forbidden' });
+      try {
+        render(TraceTimeline, { props: { spans: [] } });
+        expect(screen.getByTestId('trace-error')).toHaveTextContent('GraphQL operation forbidden');
+      } finally {
+        endSession();
+      }
+    });
+  });
 });
+

@@ -7,7 +7,6 @@ import type {
   EventLineageNode,
   DebugSessionState
 } from './types';
-import { mockSession, mockTraceSpans, mockEventLineage } from './debugMocks';
 import { subscribeDebugStepEvent, fetchWorkflowRunTrace } from './debugApi';
 import { canAttemptStream, noteStreamError } from '$lib/graphql/streamAvailability';
 
@@ -79,12 +78,28 @@ function deriveEventLineageFromSession(session: DebugSession | null): EventLinea
 function syncDerivedArtifacts(session: DebugSession | null): void {
   traceSpans.set(deriveTraceSpansFromSession(session));
   eventLineage.set(deriveEventLineageFromSession(session));
+  traceSource.set(session ? { kind: 'debug-session', sessionId: session.id } : { kind: 'none' });
 }
+
+/**
+ * Where the Trace panel's spans came from, so it can say what it shows and,
+ * when a workflow run has none, why.
+ */
+export type TraceSource =
+  | { kind: 'none' }
+  | { kind: 'debug-session'; sessionId: string }
+  | {
+      kind: 'workflow-run';
+      runId: string;
+      state: 'loading' | 'loaded' | 'error';
+      message?: string;
+    };
 
 // Session state
 export const debugSession = writable<DebugSession | null>(null);
 export const traceSpans = writable<TraceSpan[]>([]);
 export const eventLineage = writable<EventLineageNode[]>([]);
+export const traceSource = writable<TraceSource>({ kind: 'none' });
 
 // Derived state
 export const sessionState = derived(
@@ -173,6 +188,7 @@ export function endSession(): void {
   debugSession.set(null);
   traceSpans.set([]);
   eventLineage.set([]);
+  traceSource.set({ kind: 'none' });
 }
 
 // Subscription-based live step delivery. Returns null (and opens nothing) when
@@ -189,17 +205,25 @@ export function subscribeToSession(sessionId: string): (() => void) | null {
   });
 }
 
-// Load real trace spans from persisted workflow run
+/**
+ * Loads a recorded workflow run's spans (`workflowRunTrace`) into the Trace
+ * panel, replacing whatever it showed. An empty answer is kept as empty: the
+ * panel says the run has no spans on this API process rather than showing a
+ * previous trace. Never throws; a failure is recorded on `traceSource`.
+ */
 export async function loadRealTraceSpans(runId: string): Promise<void> {
-  const spans = await fetchWorkflowRunTrace(runId);
-  if (spans.length > 0) {
+  traceSpans.set([]);
+  traceSource.set({ kind: 'workflow-run', runId, state: 'loading' });
+  try {
+    const spans = await fetchWorkflowRunTrace(runId);
     traceSpans.set(spans);
+    traceSource.set({ kind: 'workflow-run', runId, state: 'loaded' });
+  } catch (err) {
+    traceSource.set({
+      kind: 'workflow-run',
+      runId,
+      state: 'error',
+      message: err instanceof Error ? err.message : 'The trace could not be loaded.'
+    });
   }
-}
-
-// Initialize with mock data for development
-export function loadMockData(): void {
-  debugSession.set(mockSession);
-  traceSpans.set(mockTraceSpans);
-  eventLineage.set(mockEventLineage);
 }
