@@ -98,7 +98,7 @@ func TestAuthStatusTrustedNetworkShape(t *testing.T) {
 			"clinicalRead": true, "connectionsRead": false, "connectionsWrite": false,
 			"integrationSessions": false, "streaming": false,
 			"subscriptions": [], "llm": {"configured": true},
-			"controlPlane": false, "connectionCatalog": false
+			"controlPlane": false, "connectionCatalog": false, "definitionAuthoring": false
 		},
 		"missingRoles": {
 			"operatorRead": ["integration.operator"],
@@ -106,7 +106,8 @@ func TestAuthStatusTrustedNetworkShape(t *testing.T) {
 			"operatorDeployment": ["integration.operator", "integration.deployment.operator"],
 			"clinicalRead": [],
 			"connectionsRead": ["integration.operator"],
-			"connectionsWrite": ["integration.operator", "integration.deployment.operator"]
+			"connectionsWrite": ["integration.operator", "integration.deployment.operator"],
+			"definitionAuthoring": ["integration.operator", "integration.deployment.operator"]
 		}
 	}`), &want); err != nil {
 		t.Fatal(err)

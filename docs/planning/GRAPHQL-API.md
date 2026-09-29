@@ -265,7 +265,8 @@ trusted network:
     "subscriptions": [],
     "llm": {"configured": true},
     "controlPlane": false,
-    "connectionCatalog": false
+    "connectionCatalog": false,
+    "definitionAuthoring": false
   },
   "missingRoles": {
     "operatorRead": ["integration.operator"],
@@ -273,7 +274,8 @@ trusted network:
     "operatorDeployment": ["integration.operator", "integration.deployment.operator"],
     "clinicalRead": [],
     "connectionsRead": ["integration.operator"],
-    "connectionsWrite": ["integration.operator", "integration.deployment.operator"]
+    "connectionsWrite": ["integration.operator", "integration.deployment.operator"],
+    "definitionAuthoring": ["integration.operator", "integration.deployment.operator"]
   }
 }
 ```
@@ -293,6 +295,7 @@ the handler serves.
 | `capabilities.streaming` | The deployment serves the session SSE transport (`FI_FHIR_INTEGRATION_SESSION_ENABLED`) |
 | `capabilities.subscriptions` | The subscription roots the stream will accept for this caller; `[]` when streaming is off |
 | `capabilities.llm.configured` | `serve` built an LLM client at startup; whether it answers is `llmCapability`'s question |
+| `capabilities.definitionAuthoring` | The deployment composed the definition editor (lifecycle catalog, connection catalog, static registry resolver) **and** the caller holds its write roles; `false` with an empty `missingRoles.definitionAuthoring` means "not configured on this deployment" (.loom/42 E-1) |
 
 The stream accepts only `integrationSessionEvents` and `sessionRunEvents`, so
 `eventStream`, `workflowEvents`, `patientEvents`, `liveParseStream`, and

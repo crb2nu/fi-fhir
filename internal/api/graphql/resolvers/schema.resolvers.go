@@ -1905,6 +1905,31 @@ func (r *mutationResolver) ValidateConnectionSpec(ctx context.Context, input mod
 	return r.validateConnectionSpec(ctx, input)
 }
 
+// ValidateIntegrationDefinitionDraft is the resolver for the validateIntegrationDefinitionDraft field.
+func (r *mutationResolver) ValidateIntegrationDefinitionDraft(ctx context.Context, input model.IntegrationDefinitionDraftInput) ([]model.ConnectionProblem, error) {
+	return r.validateIntegrationDefinitionDraft(ctx, input)
+}
+
+// CreateIntegrationDefinitionDraft is the resolver for the createIntegrationDefinitionDraft field.
+func (r *mutationResolver) CreateIntegrationDefinitionDraft(ctx context.Context, input model.IntegrationDefinitionDraftInput, reason string) (*model.IntegrationDefinitionDraftResult, error) {
+	return r.createIntegrationDefinitionDraft(ctx, input, reason)
+}
+
+// ValidateIntegrationDefinition is the resolver for the validateIntegrationDefinition field.
+func (r *mutationResolver) ValidateIntegrationDefinition(ctx context.Context, input model.IntegrationDefinitionValidateInput) (*model.IntegrationDefinitionDetail, error) {
+	return r.validateIntegrationDefinition(ctx, input)
+}
+
+// ApproveIntegrationDefinition is the resolver for the approveIntegrationDefinition field.
+func (r *mutationResolver) ApproveIntegrationDefinition(ctx context.Context, input model.IntegrationDefinitionCommandInput) (*model.IntegrationDefinitionDetail, error) {
+	return r.approveIntegrationDefinition(ctx, input)
+}
+
+// PublishIntegrationDefinition is the resolver for the publishIntegrationDefinition field.
+func (r *mutationResolver) PublishIntegrationDefinition(ctx context.Context, input model.IntegrationDefinitionCommandInput) (*model.IntegrationDefinitionDetail, error) {
+	return r.publishIntegrationDefinition(ctx, input)
+}
+
 // PeekBatchConnection is the resolver for the peekBatchConnection field.
 func (r *mutationResolver) PeekBatchConnection(ctx context.Context, input model.PeekBatchConnectionInput) (*model.BatchPeekResult, error) {
 	return r.peekBatchConnection(ctx, input)
@@ -3423,6 +3448,21 @@ func (r *queryResolver) ConnectionRevision(ctx context.Context, artifactID strin
 // EngineRuntime is the resolver for the engineRuntime field.
 func (r *queryResolver) EngineRuntime(ctx context.Context) (*model.EngineRuntime, error) {
 	return r.engineRuntime(ctx)
+}
+
+// IntegrationDefinitions is the resolver for the integrationDefinitions field.
+func (r *queryResolver) IntegrationDefinitions(ctx context.Context, includeRetired *bool) ([]model.IntegrationDefinition, error) {
+	return r.integrationDefinitions(ctx, includeRetired)
+}
+
+// IntegrationDefinition is the resolver for the integrationDefinition field.
+func (r *queryResolver) IntegrationDefinition(ctx context.Context, definitionID string, revisionID string) (*model.IntegrationDefinitionDetail, error) {
+	return r.integrationDefinition(ctx, definitionID, revisionID)
+}
+
+// IntegrationRegistryArtifacts is the resolver for the integrationRegistryArtifacts field.
+func (r *queryResolver) IntegrationRegistryArtifacts(ctx context.Context) ([]model.IntegrationRegistryArtifact, error) {
+	return r.integrationRegistryArtifacts(ctx)
 }
 
 // ConnectionCaptures is the resolver for the connectionCaptures field.

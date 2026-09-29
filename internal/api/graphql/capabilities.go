@@ -56,6 +56,10 @@ type accessCapabilities struct {
 	LLM                 llmState `json:"llm"`
 	ControlPlane        bool     `json:"controlPlane"`
 	ConnectionCatalog   bool     `json:"connectionCatalog"`
+	// DefinitionAuthoring (.loom/42 E-1) is true when this deployment composed
+	// the definition editor AND the caller clears its write gates. False with
+	// an empty missingRoles.definitionAuthoring means "not configured here".
+	DefinitionAuthoring bool `json:"definitionAuthoring"`
 }
 
 type llmState struct {
@@ -72,6 +76,8 @@ type missingRoles struct {
 	ClinicalRead       []string `json:"clinicalRead"`
 	ConnectionsRead    []string `json:"connectionsRead"`
 	ConnectionsWrite   []string `json:"connectionsWrite"`
+	// DefinitionAuthoring lists the roles the definition editor's writes need.
+	DefinitionAuthoring []string `json:"definitionAuthoring"`
 }
 
 // roleCapability is one IDE surface expressed as the two gates a request to it
@@ -106,6 +112,9 @@ var (
 	// transport half, as it does for the operator plane.
 	connectionsReadCapability  = roleCapability{operation: ast.Query, field: "connections", serviceRoles: operatorRead}
 	connectionsWriteCapability = roleCapability{operation: ast.Mutation, field: "createConnection", serviceRoles: operatorDeployment}
+	// .loom/42 E-1: authoring.Service re-checks the connection catalog's
+	// write roles.
+	definitionAuthoringCapability = roleCapability{operation: ast.Mutation, field: "createIntegrationDefinitionDraft", serviceRoles: operatorDeployment}
 )
 
 // evaluate reports whether roles clear both gates and, if not, the roles that
@@ -160,6 +169,9 @@ func deriveAuthStatus(security integration.SecurityContext, config *ServerConfig
 	status.Capabilities.LLM.Configured = config.LLMConfigured
 	status.Capabilities.ControlPlane = config.OperatorControlPlaneConfigured
 	status.Capabilities.ConnectionCatalog = config.ConnectionCatalogConfigured
+	var authoringRoles bool
+	authoringRoles, status.MissingRoles.DefinitionAuthoring = definitionAuthoringCapability.evaluate(roles)
+	status.Capabilities.DefinitionAuthoring = authoringRoles && config.DefinitionAuthoringConfigured
 	return status
 }
 

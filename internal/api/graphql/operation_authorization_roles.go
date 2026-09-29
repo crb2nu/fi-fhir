@@ -114,6 +114,10 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		// .loom/38 C-2 sample intake audit reads; connection.Service re-checks
 		// the role and requires a configured session workspace.
 		"connectionCaptures": operatorRead,
+		// .loom/42 E-1 definition authoring reads; authoring.Service re-checks.
+		"integrationDefinitions":       operatorRead,
+		"integrationDefinition":        operatorRead,
+		"integrationRegistryArtifacts": operatorRead,
 
 		// Health and preview. health stays in the compatibility bucket on
 		// purpose: the low-privilege path to it is the untouched
@@ -217,6 +221,15 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		"archiveConnection":      operatorDeployment,
 		"compileConnection":      operatorDeployment,
 		"validateConnectionSpec": operatorDeployment,
+
+		// .loom/42 E-1 definition authoring writes: the read role plus the
+		// deployment grant, re-checked by authoring.Service. Deploy stays
+		// deployIntegrationRelease on the operator plane.
+		"validateIntegrationDefinitionDraft": operatorDeployment,
+		"createIntegrationDefinitionDraft":   operatorDeployment,
+		"validateIntegrationDefinition":      operatorDeployment,
+		"approveIntegrationDefinition":       operatorDeployment,
+		"publishIntegrationDefinition":       operatorDeployment,
 
 		// .loom/38 C-2 sample intake: the operator read role (the spec's
 		// Roles table), re-checked by connection.Service, which also requires a

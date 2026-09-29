@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
+	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle/authoring"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )

@@ -273,11 +273,14 @@ type ComplexityRoot struct {
 		CreatedAt           func(childComplexity int) int
 		CreatedBy           func(childComplexity int) int
 		CreatedReason       func(childComplexity int) int
+		DestinationClass    func(childComplexity int) int
 		Digest              func(childComplexity int) int
 		Direction           func(childComplexity int) int
 		Kind                func(childComplexity int) int
 		RevisionID          func(childComplexity int) int
 		RevisionJSON        func(childComplexity int) int
+		SecretBindingNames  func(childComplexity int) int
+		SourceID            func(childComplexity int) int
 	}
 
 	ConnectionRuntimeState struct {
@@ -640,6 +643,108 @@ type ComplexityRoot struct {
 		WorkflowSimulations func(childComplexity int) int
 	}
 
+	IntegrationDefinition struct {
+		CreatedAt           func(childComplexity int) int
+		CreatedBy           func(childComplexity int) int
+		CreatedReason       func(childComplexity int) int
+		DefinitionID        func(childComplexity int) int
+		Deployment          func(childComplexity int) int
+		Destinations        func(childComplexity int) int
+		Digest              func(childComplexity int) int
+		Health              func(childComplexity int) int
+		ParentRevisionID    func(childComplexity int) int
+		Policy              func(childComplexity int) int
+		Profile             func(childComplexity int) int
+		ReleaseID           func(childComplexity int) int
+		RevisionID          func(childComplexity int) int
+		SecretBindings      func(childComplexity int) int
+		Source              func(childComplexity int) int
+		State               func(childComplexity int) int
+		UpdatedAt           func(childComplexity int) int
+		UpdatedBy           func(childComplexity int) int
+		UpdatedReason       func(childComplexity int) int
+		ValidationCheckedAt func(childComplexity int) int
+		ValidationExpiresAt func(childComplexity int) int
+		ValidationPassed    func(childComplexity int) int
+		Version             func(childComplexity int) int
+		Workflow            func(childComplexity int) int
+	}
+
+	IntegrationDefinitionApproval struct {
+		Actor      func(childComplexity int) int
+		EventID    func(childComplexity int) int
+		OccurredAt func(childComplexity int) int
+		Reason     func(childComplexity int) int
+	}
+
+	IntegrationDefinitionDestination struct {
+		ArtifactID func(childComplexity int) int
+		Class      func(childComplexity int) int
+		Digest     func(childComplexity int) int
+		RevisionID func(childComplexity int) int
+	}
+
+	IntegrationDefinitionDetail struct {
+		Approval                func(childComplexity int) int
+		Definition              func(childComplexity int) int
+		RealValidationAvailable func(childComplexity int) int
+		Release                 func(childComplexity int) int
+		Validation              func(childComplexity int) int
+	}
+
+	IntegrationDefinitionDraftResult struct {
+		Definition func(childComplexity int) int
+		Problems   func(childComplexity int) int
+	}
+
+	IntegrationDefinitionPolicy struct {
+		Classification func(childComplexity int) int
+		RawRetention   func(childComplexity int) int
+	}
+
+	IntegrationDefinitionRelease struct {
+		ApprovalEventID func(childComplexity int) int
+		Digest          func(childComplexity int) int
+		PublishedAt     func(childComplexity int) int
+		PublishedBy     func(childComplexity int) int
+		PublishedReason func(childComplexity int) int
+		ReleaseID       func(childComplexity int) int
+		ValidationID    func(childComplexity int) int
+	}
+
+	IntegrationDefinitionSource struct {
+		ArtifactID func(childComplexity int) int
+		Digest     func(childComplexity int) int
+		RevisionID func(childComplexity int) int
+		SourceID   func(childComplexity int) int
+	}
+
+	IntegrationDefinitionValidation struct {
+		Actor          func(childComplexity int) int
+		CheckedAt      func(childComplexity int) int
+		Codes          func(childComplexity int) int
+		ExpiresAt      func(childComplexity int) int
+		Passed         func(childComplexity int) int
+		Reason         func(childComplexity int) int
+		SourceRevision func(childComplexity int) int
+		ValidationID   func(childComplexity int) int
+	}
+
+	IntegrationDeploymentPolicyView struct {
+		CronExpression             func(childComplexity int) int
+		HealthCheckIntervalSeconds func(childComplexity int) int
+		HealthFailureThreshold     func(childComplexity int) int
+		HealthStartupGraceSeconds  func(childComplexity int) int
+		HealthTimeoutSeconds       func(childComplexity int) int
+		MaxInFlight                func(childComplexity int) int
+		MaxMessagesPerSecond       func(childComplexity int) int
+		MaxQueued                  func(childComplexity int) int
+		ScheduleMode               func(childComplexity int) int
+		Timezone                   func(childComplexity int) int
+		ValidationMaxAgeSeconds    func(childComplexity int) int
+		ValidationTimeoutSeconds   func(childComplexity int) int
+	}
+
 	IntegrationExecutionArtifactRevisions struct {
 		Profile  func(childComplexity int) int
 		Source   func(childComplexity int) int
@@ -715,6 +820,29 @@ type ComplexityRoot struct {
 		Skipped         func(childComplexity int) int
 		TenantID        func(childComplexity int) int
 		TransformCount  func(childComplexity int) int
+	}
+
+	IntegrationRawRetention struct {
+		AccessAuditRequired func(childComplexity int) int
+		EncryptionKey       func(childComplexity int) int
+		Mode                func(childComplexity int) int
+		Purpose             func(childComplexity int) int
+		StorageRevision     func(childComplexity int) int
+		TTLSeconds          func(childComplexity int) int
+	}
+
+	IntegrationRegistryArtifact struct {
+		Format        func(childComplexity int) int
+		IntegrationID func(childComplexity int) int
+		Profile       func(childComplexity int) int
+		SourceID      func(childComplexity int) int
+		Workflow      func(childComplexity int) int
+	}
+
+	IntegrationSecretReference struct {
+		Key      func(childComplexity int) int
+		Provider func(childComplexity int) int
+		Version  func(childComplexity int) int
 	}
 
 	IntegrationSession struct {
@@ -825,74 +953,79 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AcceptDiagnosticFix          func(childComplexity int, input model.AcceptDiagnosticFixInput) int
-		AddSessionSample             func(childComplexity int, input model.AddSessionSampleInput) int
-		ApprovePendingAutoroute      func(childComplexity int, input model.ApprovePendingAutorouteInput) int
-		ApproveSessionPublication    func(childComplexity int, input model.PromoteSessionPublicationInput) int
-		ApproveWorkflowVersion       func(childComplexity int, input model.ApproveWorkflowVersionInput) int
-		ArchiveConnection            func(childComplexity int, input model.ConnectionCommandInput) int
-		ArchiveIntegrationSession    func(childComplexity int, id string) int
-		ArchiveWorkflowDefinition    func(childComplexity int, input model.ArchiveWorkflowDefinitionInput) int
-		BulkApprovePendingAutoroutes func(childComplexity int, input *model.BulkApproveInput) int
-		CancelConnectionCapture      func(childComplexity int, id string, reason string) int
-		CancelTemporalWorkflow       func(childComplexity int, workflowID string, reason *string) int
-		CompileConnection            func(childComplexity int, input model.ConnectionCommandInput) int
-		CreateConnection             func(childComplexity int, input model.CreateConnectionInput) int
-		CreateFhirSubscription       func(childComplexity int, input model.CreateSubscriptionInput) int
-		CreateIntegrationSession     func(childComplexity int, input model.CreateIntegrationSessionInput) int
-		CreateMapping                func(childComplexity int, input model.CreateMappingInput) int
-		CreateProfile                func(childComplexity int, input model.CreateProfileInput) int
-		CreateWorkflowDefinition     func(childComplexity int, input model.CreateWorkflowDefinitionInput) int
-		DebugContinue                func(childComplexity int, sessionID string) int
-		DebugEndSession              func(childComplexity int, sessionID string) int
-		DebugRemoveBreakpoint        func(childComplexity int, sessionID string, breakpointID string) int
-		DebugSetBreakpoint           func(childComplexity int, input model.SetBreakpointInput) int
-		DebugStep                    func(childComplexity int, sessionID string) int
-		DeleteFhirSubscription       func(childComplexity int, id string) int
-		DeleteMapping                func(childComplexity int, id string) int
-		DeleteMappingBatch           func(childComplexity int, batchID string) int
-		DeleteProfile                func(childComplexity int, id string) int
-		DeployIntegrationRelease     func(childComplexity int, input model.OperatorDeploymentCommandInput) int
-		DeploySessionPublication     func(childComplexity int, input model.PromoteSessionPublicationInput) int
-		DiscardDeadLetter            func(childComplexity int, input model.OperatorDeliveryControlInput) int
-		DryRunWorkflow               func(childComplexity int, input model.DryRunWorkflowInput) int
-		DuplicateProfile             func(childComplexity int, id string, newID string, newName string) int
-		ExportIntegrationBundle      func(childComplexity int, input model.ExportIntegrationBundleInput) int
-		GenerateWorkflow             func(childComplexity int, input model.GenerateWorkflowInput) int
-		PauseFhirSubscription        func(childComplexity int, id string) int
-		PauseIntegrationDeployment   func(childComplexity int, input model.OperatorDeploymentCommandInput) int
-		PeekBatchConnection          func(childComplexity int, input model.PeekBatchConnectionInput) int
-		PreviewIntegrationMessage    func(childComplexity int, input model.PreviewIntegrationMessageInput) int
-		PublishIntegrationSession    func(childComplexity int, input model.PublishIntegrationSessionInput) int
-		PublishWorkflowVersion       func(childComplexity int, input model.PublishWorkflowVersionInput) int
-		RejectPendingAutoroute       func(childComplexity int, input model.RejectPendingAutorouteInput) int
-		RejectWorkflowVersion        func(childComplexity int, input model.RejectWorkflowVersionInput) int
-		ReplayDelivery               func(childComplexity int, input model.OperatorDeliveryControlInput) int
-		RequestWorkflowApproval      func(childComplexity int, input model.RequestWorkflowApprovalInput) int
-		ResubmitMessage              func(childComplexity int, input model.OperatorDeliveryControlInput) int
-		ResumeFhirSubscription       func(childComplexity int, id string) int
-		ResumeIntegrationDeployment  func(childComplexity int, input model.OperatorDeploymentCommandInput) int
-		RetireIntegrationDeployment  func(childComplexity int, input model.OperatorDeploymentCommandInput) int
-		RollbackWorkflowVersion      func(childComplexity int, input model.RollbackWorkflowVersionInput) int
-		RunSessionPreview            func(childComplexity int, input model.RunSessionPreviewInput) int
-		SaveWorkflowVersion          func(childComplexity int, input model.SaveWorkflowVersionInput) int
-		SignalReviewDecision         func(childComplexity int, input model.SignalReviewDecisionInput) int
-		SimulateSessionWorkflow      func(childComplexity int, input model.SimulateSessionWorkflowInput) int
-		StartConnectionCapture       func(childComplexity int, input model.StartConnectionCaptureInput) int
-		StartDebugSession            func(childComplexity int, input model.StartDebugSessionInput) int
-		StartTerminologyReview       func(childComplexity int, input model.StartTerminologyReviewInput) int
-		SubmitBatch                  func(childComplexity int, input model.SubmitBatchInput) int
-		SubmitEvent                  func(childComplexity int, input model.SubmitEventInput) int
-		SubmitMessage                func(childComplexity int, input model.SubmitMessageInput) int
-		TriggerWorkflow              func(childComplexity int, name string, event map[string]any, environment *string, versionID *string) int
-		UpdateConnection             func(childComplexity int, input model.UpdateConnectionInput) int
-		UpdateMapping                func(childComplexity int, input model.UpdateMappingInput) int
-		UpdateProfile                func(childComplexity int, id string, input model.UpdateProfileInput) int
-		UpdateSessionProfileDraft    func(childComplexity int, input model.UpdateSessionArtifactInput) int
-		UpdateSessionWorkflowDraft   func(childComplexity int, input model.UpdateSessionArtifactInput) int
-		UpdateWorkflowDefinition     func(childComplexity int, input model.UpdateWorkflowDefinitionInput) int
-		UploadMappingCSV             func(childComplexity int, input model.UploadMappingCSVInput) int
-		ValidateConnectionSpec       func(childComplexity int, input model.ValidateConnectionSpecInput) int
+		AcceptDiagnosticFix                func(childComplexity int, input model.AcceptDiagnosticFixInput) int
+		AddSessionSample                   func(childComplexity int, input model.AddSessionSampleInput) int
+		ApproveIntegrationDefinition       func(childComplexity int, input model.IntegrationDefinitionCommandInput) int
+		ApprovePendingAutoroute            func(childComplexity int, input model.ApprovePendingAutorouteInput) int
+		ApproveSessionPublication          func(childComplexity int, input model.PromoteSessionPublicationInput) int
+		ApproveWorkflowVersion             func(childComplexity int, input model.ApproveWorkflowVersionInput) int
+		ArchiveConnection                  func(childComplexity int, input model.ConnectionCommandInput) int
+		ArchiveIntegrationSession          func(childComplexity int, id string) int
+		ArchiveWorkflowDefinition          func(childComplexity int, input model.ArchiveWorkflowDefinitionInput) int
+		BulkApprovePendingAutoroutes       func(childComplexity int, input *model.BulkApproveInput) int
+		CancelConnectionCapture            func(childComplexity int, id string, reason string) int
+		CancelTemporalWorkflow             func(childComplexity int, workflowID string, reason *string) int
+		CompileConnection                  func(childComplexity int, input model.ConnectionCommandInput) int
+		CreateConnection                   func(childComplexity int, input model.CreateConnectionInput) int
+		CreateFhirSubscription             func(childComplexity int, input model.CreateSubscriptionInput) int
+		CreateIntegrationDefinitionDraft   func(childComplexity int, input model.IntegrationDefinitionDraftInput, reason string) int
+		CreateIntegrationSession           func(childComplexity int, input model.CreateIntegrationSessionInput) int
+		CreateMapping                      func(childComplexity int, input model.CreateMappingInput) int
+		CreateProfile                      func(childComplexity int, input model.CreateProfileInput) int
+		CreateWorkflowDefinition           func(childComplexity int, input model.CreateWorkflowDefinitionInput) int
+		DebugContinue                      func(childComplexity int, sessionID string) int
+		DebugEndSession                    func(childComplexity int, sessionID string) int
+		DebugRemoveBreakpoint              func(childComplexity int, sessionID string, breakpointID string) int
+		DebugSetBreakpoint                 func(childComplexity int, input model.SetBreakpointInput) int
+		DebugStep                          func(childComplexity int, sessionID string) int
+		DeleteFhirSubscription             func(childComplexity int, id string) int
+		DeleteMapping                      func(childComplexity int, id string) int
+		DeleteMappingBatch                 func(childComplexity int, batchID string) int
+		DeleteProfile                      func(childComplexity int, id string) int
+		DeployIntegrationRelease           func(childComplexity int, input model.OperatorDeploymentCommandInput) int
+		DeploySessionPublication           func(childComplexity int, input model.PromoteSessionPublicationInput) int
+		DiscardDeadLetter                  func(childComplexity int, input model.OperatorDeliveryControlInput) int
+		DryRunWorkflow                     func(childComplexity int, input model.DryRunWorkflowInput) int
+		DuplicateProfile                   func(childComplexity int, id string, newID string, newName string) int
+		ExportIntegrationBundle            func(childComplexity int, input model.ExportIntegrationBundleInput) int
+		GenerateWorkflow                   func(childComplexity int, input model.GenerateWorkflowInput) int
+		PauseFhirSubscription              func(childComplexity int, id string) int
+		PauseIntegrationDeployment         func(childComplexity int, input model.OperatorDeploymentCommandInput) int
+		PeekBatchConnection                func(childComplexity int, input model.PeekBatchConnectionInput) int
+		PreviewIntegrationMessage          func(childComplexity int, input model.PreviewIntegrationMessageInput) int
+		PublishIntegrationDefinition       func(childComplexity int, input model.IntegrationDefinitionCommandInput) int
+		PublishIntegrationSession          func(childComplexity int, input model.PublishIntegrationSessionInput) int
+		PublishWorkflowVersion             func(childComplexity int, input model.PublishWorkflowVersionInput) int
+		RejectPendingAutoroute             func(childComplexity int, input model.RejectPendingAutorouteInput) int
+		RejectWorkflowVersion              func(childComplexity int, input model.RejectWorkflowVersionInput) int
+		ReplayDelivery                     func(childComplexity int, input model.OperatorDeliveryControlInput) int
+		RequestWorkflowApproval            func(childComplexity int, input model.RequestWorkflowApprovalInput) int
+		ResubmitMessage                    func(childComplexity int, input model.OperatorDeliveryControlInput) int
+		ResumeFhirSubscription             func(childComplexity int, id string) int
+		ResumeIntegrationDeployment        func(childComplexity int, input model.OperatorDeploymentCommandInput) int
+		RetireIntegrationDeployment        func(childComplexity int, input model.OperatorDeploymentCommandInput) int
+		RollbackWorkflowVersion            func(childComplexity int, input model.RollbackWorkflowVersionInput) int
+		RunSessionPreview                  func(childComplexity int, input model.RunSessionPreviewInput) int
+		SaveWorkflowVersion                func(childComplexity int, input model.SaveWorkflowVersionInput) int
+		SignalReviewDecision               func(childComplexity int, input model.SignalReviewDecisionInput) int
+		SimulateSessionWorkflow            func(childComplexity int, input model.SimulateSessionWorkflowInput) int
+		StartConnectionCapture             func(childComplexity int, input model.StartConnectionCaptureInput) int
+		StartDebugSession                  func(childComplexity int, input model.StartDebugSessionInput) int
+		StartTerminologyReview             func(childComplexity int, input model.StartTerminologyReviewInput) int
+		SubmitBatch                        func(childComplexity int, input model.SubmitBatchInput) int
+		SubmitEvent                        func(childComplexity int, input model.SubmitEventInput) int
+		SubmitMessage                      func(childComplexity int, input model.SubmitMessageInput) int
+		TriggerWorkflow                    func(childComplexity int, name string, event map[string]any, environment *string, versionID *string) int
+		UpdateConnection                   func(childComplexity int, input model.UpdateConnectionInput) int
+		UpdateMapping                      func(childComplexity int, input model.UpdateMappingInput) int
+		UpdateProfile                      func(childComplexity int, id string, input model.UpdateProfileInput) int
+		UpdateSessionProfileDraft          func(childComplexity int, input model.UpdateSessionArtifactInput) int
+		UpdateSessionWorkflowDraft         func(childComplexity int, input model.UpdateSessionArtifactInput) int
+		UpdateWorkflowDefinition           func(childComplexity int, input model.UpdateWorkflowDefinitionInput) int
+		UploadMappingCSV                   func(childComplexity int, input model.UploadMappingCSVInput) int
+		ValidateConnectionSpec             func(childComplexity int, input model.ValidateConnectionSpecInput) int
+		ValidateIntegrationDefinition      func(childComplexity int, input model.IntegrationDefinitionValidateInput) int
+		ValidateIntegrationDefinitionDraft func(childComplexity int, input model.IntegrationDefinitionDraftInput) int
 	}
 
 	NormalizationSettingsConfig struct {
@@ -1297,76 +1430,79 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		ActiveEncounter            func(childComplexity int, id string) int
-		ActiveEncounterByPatient   func(childComplexity int, mrn string) int
-		ActiveEncounters           func(childComplexity int, location *string, unit *string, class *string) int
-		AnalyzeQuality             func(childComplexity int, input model.AnalyzeQualityInput) int
-		ClassifyMessage            func(childComplexity int, input model.ClassifyMessageInput) int
-		Connection                 func(childComplexity int, id string) int
-		ConnectionCaptures         func(childComplexity int, sessionID string) int
-		ConnectionRevision         func(childComplexity int, artifactID string, revisionID string) int
-		ConnectionRevisions        func(childComplexity int, id string) int
-		Connections                func(childComplexity int, direction *model.ConnectionDirection, includeArchived *bool) int
-		DebugSession               func(childComplexity int, id string) int
-		EngineRuntime              func(childComplexity int) int
-		Event                      func(childComplexity int, id string) int
-		EventStatistics            func(childComplexity int) int
-		Events                     func(childComplexity int, filter *model.EventFilter, first *int, after *string, orderBy *model.EventOrderBy) int
-		ExplainWarnings            func(childComplexity int, warnings []model.ParseWarningInput, format model.SourceFormat) int
-		ExplainWorkflow            func(childComplexity int, input model.ExplainWorkflowInput) int
-		ExportMappingsCSV          func(childComplexity int, input *model.ListMappingsInput) int
-		ExtractEntities            func(childComplexity int, input model.ExtractEntitiesInput) int
-		GetMapping                 func(childComplexity int, id string) int
-		GetPendingAutoroute        func(childComplexity int, id string) int
-		GetUploadBatch             func(childComplexity int, id string) int
-		Health                     func(childComplexity int) int
-		IntegrationSession         func(childComplexity int, id string) int
-		IntegrationSessions        func(childComplexity int, includeArchived *bool) int
-		ListMappings               func(childComplexity int, input *model.ListMappingsInput) int
-		ListPendingAutoroutes      func(childComplexity int, input *model.ListPendingAutoroutesInput) int
-		LlmCapability              func(childComplexity int) int
-		LookupMapping              func(childComplexity int, sourceSystem string, sourceCode string, targetSystem string, profileID *string) int
-		OperatorAttemptAudit       func(childComplexity int, attemptID string, page *model.OperatorPageInput) int
-		OperatorCircuits           func(childComplexity int) int
-		OperatorDeadLetters        func(childComplexity int, activeOnly *bool, page *model.OperatorPageInput) int
-		OperatorDeliveryAttempt    func(childComplexity int, attemptID string) int
-		OperatorDeliveryAttempts   func(childComplexity int, filter *model.OperatorAttemptFilter, page *model.OperatorPageInput) int
-		OperatorDeploymentEvents   func(childComplexity int, definitionID string, revisionID string) int
-		OperatorDeployments        func(childComplexity int) int
-		OperatorMessageTrace       func(childComplexity int, receiptID string) int
-		OperatorReceipts           func(childComplexity int, filter *model.OperatorReceiptFilter, page *model.OperatorPageInput) int
-		ParsePreview               func(childComplexity int, format model.SourceFormat, data string, source *string) int
-		ParsePreviewWithProfile    func(childComplexity int, format model.SourceFormat, data string, source *string, profileID *string) int
-		Patient                    func(childComplexity int, mrn string) int
-		PatientTimeline            func(childComplexity int, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) int
-		Patients                   func(childComplexity int, filter *model.PatientFilter, first *int, after *string) int
-		PendingAutorouteStats      func(childComplexity int) int
-		Profile                    func(childComplexity int, id string) int
-		ProfileRevisions           func(childComplexity int, id string) int
-		Profiles                   func(childComplexity int, activeOnly *bool) int
-		ProjectionStatus           func(childComplexity int) int
-		QuickQualityScore          func(childComplexity int, event map[string]any) int
-		ResolveMapping             func(childComplexity int, input model.ResolveMappingInput) int
-		SessionArtifacts           func(childComplexity int, sessionID string) int
-		SessionDiagnostics         func(childComplexity int, sessionID string, runID *string) int
-		SessionPublications        func(childComplexity int, sessionID string) int
-		SessionRun                 func(childComplexity int, id string) int
-		SessionRuns                func(childComplexity int, sessionID string) int
-		SessionSamples             func(childComplexity int, sessionID string) int
-		SessionWorkflowSimulations func(childComplexity int, sessionID string) int
-		SuggestMappings            func(childComplexity int, input model.SuggestMappingsInput) int
-		TemporalWorkflow           func(childComplexity int, workflowID string, runID *string) int
-		TemporalWorkflows          func(childComplexity int, filter *model.TemporalWorkflowFilter, first *int, after *string) int
-		Workflow                   func(childComplexity int, name string) int
-		WorkflowApprovalRequests   func(childComplexity int, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) int
-		WorkflowDefinition         func(childComplexity int, nameOrID string) int
-		WorkflowDefinitions        func(childComplexity int, filter *model.WorkflowDefinitionFilter, paging *model.PagingInput) int
-		WorkflowRun                func(childComplexity int, id string) int
-		WorkflowRunTrace           func(childComplexity int, runID string) int
-		WorkflowRuns               func(childComplexity int, filter *model.WorkflowRunFilter, paging *model.PagingInput) int
-		WorkflowVersion            func(childComplexity int, id string) int
-		WorkflowVersions           func(childComplexity int, workflowID string, paging *model.PagingInput) int
-		Workflows                  func(childComplexity int) int
+		ActiveEncounter              func(childComplexity int, id string) int
+		ActiveEncounterByPatient     func(childComplexity int, mrn string) int
+		ActiveEncounters             func(childComplexity int, location *string, unit *string, class *string) int
+		AnalyzeQuality               func(childComplexity int, input model.AnalyzeQualityInput) int
+		ClassifyMessage              func(childComplexity int, input model.ClassifyMessageInput) int
+		Connection                   func(childComplexity int, id string) int
+		ConnectionCaptures           func(childComplexity int, sessionID string) int
+		ConnectionRevision           func(childComplexity int, artifactID string, revisionID string) int
+		ConnectionRevisions          func(childComplexity int, id string) int
+		Connections                  func(childComplexity int, direction *model.ConnectionDirection, includeArchived *bool) int
+		DebugSession                 func(childComplexity int, id string) int
+		EngineRuntime                func(childComplexity int) int
+		Event                        func(childComplexity int, id string) int
+		EventStatistics              func(childComplexity int) int
+		Events                       func(childComplexity int, filter *model.EventFilter, first *int, after *string, orderBy *model.EventOrderBy) int
+		ExplainWarnings              func(childComplexity int, warnings []model.ParseWarningInput, format model.SourceFormat) int
+		ExplainWorkflow              func(childComplexity int, input model.ExplainWorkflowInput) int
+		ExportMappingsCSV            func(childComplexity int, input *model.ListMappingsInput) int
+		ExtractEntities              func(childComplexity int, input model.ExtractEntitiesInput) int
+		GetMapping                   func(childComplexity int, id string) int
+		GetPendingAutoroute          func(childComplexity int, id string) int
+		GetUploadBatch               func(childComplexity int, id string) int
+		Health                       func(childComplexity int) int
+		IntegrationDefinition        func(childComplexity int, definitionID string, revisionID string) int
+		IntegrationDefinitions       func(childComplexity int, includeRetired *bool) int
+		IntegrationRegistryArtifacts func(childComplexity int) int
+		IntegrationSession           func(childComplexity int, id string) int
+		IntegrationSessions          func(childComplexity int, includeArchived *bool) int
+		ListMappings                 func(childComplexity int, input *model.ListMappingsInput) int
+		ListPendingAutoroutes        func(childComplexity int, input *model.ListPendingAutoroutesInput) int
+		LlmCapability                func(childComplexity int) int
+		LookupMapping                func(childComplexity int, sourceSystem string, sourceCode string, targetSystem string, profileID *string) int
+		OperatorAttemptAudit         func(childComplexity int, attemptID string, page *model.OperatorPageInput) int
+		OperatorCircuits             func(childComplexity int) int
+		OperatorDeadLetters          func(childComplexity int, activeOnly *bool, page *model.OperatorPageInput) int
+		OperatorDeliveryAttempt      func(childComplexity int, attemptID string) int
+		OperatorDeliveryAttempts     func(childComplexity int, filter *model.OperatorAttemptFilter, page *model.OperatorPageInput) int
+		OperatorDeploymentEvents     func(childComplexity int, definitionID string, revisionID string) int
+		OperatorDeployments          func(childComplexity int) int
+		OperatorMessageTrace         func(childComplexity int, receiptID string) int
+		OperatorReceipts             func(childComplexity int, filter *model.OperatorReceiptFilter, page *model.OperatorPageInput) int
+		ParsePreview                 func(childComplexity int, format model.SourceFormat, data string, source *string) int
+		ParsePreviewWithProfile      func(childComplexity int, format model.SourceFormat, data string, source *string, profileID *string) int
+		Patient                      func(childComplexity int, mrn string) int
+		PatientTimeline              func(childComplexity int, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) int
+		Patients                     func(childComplexity int, filter *model.PatientFilter, first *int, after *string) int
+		PendingAutorouteStats        func(childComplexity int) int
+		Profile                      func(childComplexity int, id string) int
+		ProfileRevisions             func(childComplexity int, id string) int
+		Profiles                     func(childComplexity int, activeOnly *bool) int
+		ProjectionStatus             func(childComplexity int) int
+		QuickQualityScore            func(childComplexity int, event map[string]any) int
+		ResolveMapping               func(childComplexity int, input model.ResolveMappingInput) int
+		SessionArtifacts             func(childComplexity int, sessionID string) int
+		SessionDiagnostics           func(childComplexity int, sessionID string, runID *string) int
+		SessionPublications          func(childComplexity int, sessionID string) int
+		SessionRun                   func(childComplexity int, id string) int
+		SessionRuns                  func(childComplexity int, sessionID string) int
+		SessionSamples               func(childComplexity int, sessionID string) int
+		SessionWorkflowSimulations   func(childComplexity int, sessionID string) int
+		SuggestMappings              func(childComplexity int, input model.SuggestMappingsInput) int
+		TemporalWorkflow             func(childComplexity int, workflowID string, runID *string) int
+		TemporalWorkflows            func(childComplexity int, filter *model.TemporalWorkflowFilter, first *int, after *string) int
+		Workflow                     func(childComplexity int, name string) int
+		WorkflowApprovalRequests     func(childComplexity int, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) int
+		WorkflowDefinition           func(childComplexity int, nameOrID string) int
+		WorkflowDefinitions          func(childComplexity int, filter *model.WorkflowDefinitionFilter, paging *model.PagingInput) int
+		WorkflowRun                  func(childComplexity int, id string) int
+		WorkflowRunTrace             func(childComplexity int, runID string) int
+		WorkflowRuns                 func(childComplexity int, filter *model.WorkflowRunFilter, paging *model.PagingInput) int
+		WorkflowVersion              func(childComplexity int, id string) int
+		WorkflowVersions             func(childComplexity int, workflowID string, paging *model.PagingInput) int
+		Workflows                    func(childComplexity int) int
 	}
 
 	ResolveMappingResult struct {
@@ -1883,6 +2019,11 @@ type MutationResolver interface {
 	ArchiveConnection(ctx context.Context, input model.ConnectionCommandInput) (*model.Connection, error)
 	CompileConnection(ctx context.Context, input model.ConnectionCommandInput) (*model.ConnectionCompileResult, error)
 	ValidateConnectionSpec(ctx context.Context, input model.ValidateConnectionSpecInput) ([]model.ConnectionProblem, error)
+	ValidateIntegrationDefinitionDraft(ctx context.Context, input model.IntegrationDefinitionDraftInput) ([]model.ConnectionProblem, error)
+	CreateIntegrationDefinitionDraft(ctx context.Context, input model.IntegrationDefinitionDraftInput, reason string) (*model.IntegrationDefinitionDraftResult, error)
+	ValidateIntegrationDefinition(ctx context.Context, input model.IntegrationDefinitionValidateInput) (*model.IntegrationDefinitionDetail, error)
+	ApproveIntegrationDefinition(ctx context.Context, input model.IntegrationDefinitionCommandInput) (*model.IntegrationDefinitionDetail, error)
+	PublishIntegrationDefinition(ctx context.Context, input model.IntegrationDefinitionCommandInput) (*model.IntegrationDefinitionDetail, error)
 	PeekBatchConnection(ctx context.Context, input model.PeekBatchConnectionInput) (*model.BatchPeekResult, error)
 	StartConnectionCapture(ctx context.Context, input model.StartConnectionCaptureInput) (*model.ConnectionCapture, error)
 	CancelConnectionCapture(ctx context.Context, id string, reason string) (*model.ConnectionCapture, error)
@@ -1957,6 +2098,9 @@ type QueryResolver interface {
 	ConnectionRevisions(ctx context.Context, id string) ([]model.ConnectionRevision, error)
 	ConnectionRevision(ctx context.Context, artifactID string, revisionID string) (*model.ConnectionRevision, error)
 	EngineRuntime(ctx context.Context) (*model.EngineRuntime, error)
+	IntegrationDefinitions(ctx context.Context, includeRetired *bool) ([]model.IntegrationDefinition, error)
+	IntegrationDefinition(ctx context.Context, definitionID string, revisionID string) (*model.IntegrationDefinitionDetail, error)
+	IntegrationRegistryArtifacts(ctx context.Context) ([]model.IntegrationRegistryArtifact, error)
 	ConnectionCaptures(ctx context.Context, sessionID string) ([]model.ConnectionCapture, error)
 }
 type SessionSampleResolver interface {
@@ -2932,6 +3076,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ConnectionRevision.CreatedReason(childComplexity), true
+	case "ConnectionRevision.destinationClass":
+		if e.complexity.ConnectionRevision.DestinationClass == nil {
+			break
+		}
+
+		return e.complexity.ConnectionRevision.DestinationClass(childComplexity), true
 	case "ConnectionRevision.digest":
 		if e.complexity.ConnectionRevision.Digest == nil {
 			break
@@ -2962,6 +3112,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ConnectionRevision.RevisionJSON(childComplexity), true
+	case "ConnectionRevision.secretBindingNames":
+		if e.complexity.ConnectionRevision.SecretBindingNames == nil {
+			break
+		}
+
+		return e.complexity.ConnectionRevision.SecretBindingNames(childComplexity), true
+	case "ConnectionRevision.sourceId":
+		if e.complexity.ConnectionRevision.SourceID == nil {
+			break
+		}
+
+		return e.complexity.ConnectionRevision.SourceID(childComplexity), true
 
 	case "ConnectionRuntimeState.detail":
 		if e.complexity.ConnectionRuntimeState.Detail == nil {
@@ -4426,6 +4588,448 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.IntegrationBundle.WorkflowSimulations(childComplexity), true
 
+	case "IntegrationDefinition.createdAt":
+		if e.complexity.IntegrationDefinition.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.CreatedAt(childComplexity), true
+	case "IntegrationDefinition.createdBy":
+		if e.complexity.IntegrationDefinition.CreatedBy == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.CreatedBy(childComplexity), true
+	case "IntegrationDefinition.createdReason":
+		if e.complexity.IntegrationDefinition.CreatedReason == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.CreatedReason(childComplexity), true
+	case "IntegrationDefinition.definitionId":
+		if e.complexity.IntegrationDefinition.DefinitionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.DefinitionID(childComplexity), true
+	case "IntegrationDefinition.deployment":
+		if e.complexity.IntegrationDefinition.Deployment == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Deployment(childComplexity), true
+	case "IntegrationDefinition.destinations":
+		if e.complexity.IntegrationDefinition.Destinations == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Destinations(childComplexity), true
+	case "IntegrationDefinition.digest":
+		if e.complexity.IntegrationDefinition.Digest == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Digest(childComplexity), true
+	case "IntegrationDefinition.health":
+		if e.complexity.IntegrationDefinition.Health == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Health(childComplexity), true
+	case "IntegrationDefinition.parentRevisionId":
+		if e.complexity.IntegrationDefinition.ParentRevisionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.ParentRevisionID(childComplexity), true
+	case "IntegrationDefinition.policy":
+		if e.complexity.IntegrationDefinition.Policy == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Policy(childComplexity), true
+	case "IntegrationDefinition.profile":
+		if e.complexity.IntegrationDefinition.Profile == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Profile(childComplexity), true
+	case "IntegrationDefinition.releaseId":
+		if e.complexity.IntegrationDefinition.ReleaseID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.ReleaseID(childComplexity), true
+	case "IntegrationDefinition.revisionId":
+		if e.complexity.IntegrationDefinition.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.RevisionID(childComplexity), true
+	case "IntegrationDefinition.secretBindings":
+		if e.complexity.IntegrationDefinition.SecretBindings == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.SecretBindings(childComplexity), true
+	case "IntegrationDefinition.source":
+		if e.complexity.IntegrationDefinition.Source == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Source(childComplexity), true
+	case "IntegrationDefinition.state":
+		if e.complexity.IntegrationDefinition.State == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.State(childComplexity), true
+	case "IntegrationDefinition.updatedAt":
+		if e.complexity.IntegrationDefinition.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.UpdatedAt(childComplexity), true
+	case "IntegrationDefinition.updatedBy":
+		if e.complexity.IntegrationDefinition.UpdatedBy == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.UpdatedBy(childComplexity), true
+	case "IntegrationDefinition.updatedReason":
+		if e.complexity.IntegrationDefinition.UpdatedReason == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.UpdatedReason(childComplexity), true
+	case "IntegrationDefinition.validationCheckedAt":
+		if e.complexity.IntegrationDefinition.ValidationCheckedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.ValidationCheckedAt(childComplexity), true
+	case "IntegrationDefinition.validationExpiresAt":
+		if e.complexity.IntegrationDefinition.ValidationExpiresAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.ValidationExpiresAt(childComplexity), true
+	case "IntegrationDefinition.validationPassed":
+		if e.complexity.IntegrationDefinition.ValidationPassed == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.ValidationPassed(childComplexity), true
+	case "IntegrationDefinition.version":
+		if e.complexity.IntegrationDefinition.Version == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Version(childComplexity), true
+	case "IntegrationDefinition.workflow":
+		if e.complexity.IntegrationDefinition.Workflow == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinition.Workflow(childComplexity), true
+
+	case "IntegrationDefinitionApproval.actor":
+		if e.complexity.IntegrationDefinitionApproval.Actor == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionApproval.Actor(childComplexity), true
+	case "IntegrationDefinitionApproval.eventId":
+		if e.complexity.IntegrationDefinitionApproval.EventID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionApproval.EventID(childComplexity), true
+	case "IntegrationDefinitionApproval.occurredAt":
+		if e.complexity.IntegrationDefinitionApproval.OccurredAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionApproval.OccurredAt(childComplexity), true
+	case "IntegrationDefinitionApproval.reason":
+		if e.complexity.IntegrationDefinitionApproval.Reason == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionApproval.Reason(childComplexity), true
+
+	case "IntegrationDefinitionDestination.artifactId":
+		if e.complexity.IntegrationDefinitionDestination.ArtifactID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDestination.ArtifactID(childComplexity), true
+	case "IntegrationDefinitionDestination.class":
+		if e.complexity.IntegrationDefinitionDestination.Class == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDestination.Class(childComplexity), true
+	case "IntegrationDefinitionDestination.digest":
+		if e.complexity.IntegrationDefinitionDestination.Digest == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDestination.Digest(childComplexity), true
+	case "IntegrationDefinitionDestination.revisionId":
+		if e.complexity.IntegrationDefinitionDestination.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDestination.RevisionID(childComplexity), true
+
+	case "IntegrationDefinitionDetail.approval":
+		if e.complexity.IntegrationDefinitionDetail.Approval == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDetail.Approval(childComplexity), true
+	case "IntegrationDefinitionDetail.definition":
+		if e.complexity.IntegrationDefinitionDetail.Definition == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDetail.Definition(childComplexity), true
+	case "IntegrationDefinitionDetail.realValidationAvailable":
+		if e.complexity.IntegrationDefinitionDetail.RealValidationAvailable == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDetail.RealValidationAvailable(childComplexity), true
+	case "IntegrationDefinitionDetail.release":
+		if e.complexity.IntegrationDefinitionDetail.Release == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDetail.Release(childComplexity), true
+	case "IntegrationDefinitionDetail.validation":
+		if e.complexity.IntegrationDefinitionDetail.Validation == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDetail.Validation(childComplexity), true
+
+	case "IntegrationDefinitionDraftResult.definition":
+		if e.complexity.IntegrationDefinitionDraftResult.Definition == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDraftResult.Definition(childComplexity), true
+	case "IntegrationDefinitionDraftResult.problems":
+		if e.complexity.IntegrationDefinitionDraftResult.Problems == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionDraftResult.Problems(childComplexity), true
+
+	case "IntegrationDefinitionPolicy.classification":
+		if e.complexity.IntegrationDefinitionPolicy.Classification == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionPolicy.Classification(childComplexity), true
+	case "IntegrationDefinitionPolicy.rawRetention":
+		if e.complexity.IntegrationDefinitionPolicy.RawRetention == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionPolicy.RawRetention(childComplexity), true
+
+	case "IntegrationDefinitionRelease.approvalEventId":
+		if e.complexity.IntegrationDefinitionRelease.ApprovalEventID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionRelease.ApprovalEventID(childComplexity), true
+	case "IntegrationDefinitionRelease.digest":
+		if e.complexity.IntegrationDefinitionRelease.Digest == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionRelease.Digest(childComplexity), true
+	case "IntegrationDefinitionRelease.publishedAt":
+		if e.complexity.IntegrationDefinitionRelease.PublishedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionRelease.PublishedAt(childComplexity), true
+	case "IntegrationDefinitionRelease.publishedBy":
+		if e.complexity.IntegrationDefinitionRelease.PublishedBy == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionRelease.PublishedBy(childComplexity), true
+	case "IntegrationDefinitionRelease.publishedReason":
+		if e.complexity.IntegrationDefinitionRelease.PublishedReason == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionRelease.PublishedReason(childComplexity), true
+	case "IntegrationDefinitionRelease.releaseId":
+		if e.complexity.IntegrationDefinitionRelease.ReleaseID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionRelease.ReleaseID(childComplexity), true
+	case "IntegrationDefinitionRelease.validationId":
+		if e.complexity.IntegrationDefinitionRelease.ValidationID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionRelease.ValidationID(childComplexity), true
+
+	case "IntegrationDefinitionSource.artifactId":
+		if e.complexity.IntegrationDefinitionSource.ArtifactID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionSource.ArtifactID(childComplexity), true
+	case "IntegrationDefinitionSource.digest":
+		if e.complexity.IntegrationDefinitionSource.Digest == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionSource.Digest(childComplexity), true
+	case "IntegrationDefinitionSource.revisionId":
+		if e.complexity.IntegrationDefinitionSource.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionSource.RevisionID(childComplexity), true
+	case "IntegrationDefinitionSource.sourceId":
+		if e.complexity.IntegrationDefinitionSource.SourceID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionSource.SourceID(childComplexity), true
+
+	case "IntegrationDefinitionValidation.actor":
+		if e.complexity.IntegrationDefinitionValidation.Actor == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.Actor(childComplexity), true
+	case "IntegrationDefinitionValidation.checkedAt":
+		if e.complexity.IntegrationDefinitionValidation.CheckedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.CheckedAt(childComplexity), true
+	case "IntegrationDefinitionValidation.codes":
+		if e.complexity.IntegrationDefinitionValidation.Codes == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.Codes(childComplexity), true
+	case "IntegrationDefinitionValidation.expiresAt":
+		if e.complexity.IntegrationDefinitionValidation.ExpiresAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.ExpiresAt(childComplexity), true
+	case "IntegrationDefinitionValidation.passed":
+		if e.complexity.IntegrationDefinitionValidation.Passed == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.Passed(childComplexity), true
+	case "IntegrationDefinitionValidation.reason":
+		if e.complexity.IntegrationDefinitionValidation.Reason == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.Reason(childComplexity), true
+	case "IntegrationDefinitionValidation.sourceRevision":
+		if e.complexity.IntegrationDefinitionValidation.SourceRevision == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.SourceRevision(childComplexity), true
+	case "IntegrationDefinitionValidation.validationId":
+		if e.complexity.IntegrationDefinitionValidation.ValidationID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDefinitionValidation.ValidationID(childComplexity), true
+
+	case "IntegrationDeploymentPolicyView.cronExpression":
+		if e.complexity.IntegrationDeploymentPolicyView.CronExpression == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.CronExpression(childComplexity), true
+	case "IntegrationDeploymentPolicyView.healthCheckIntervalSeconds":
+		if e.complexity.IntegrationDeploymentPolicyView.HealthCheckIntervalSeconds == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.HealthCheckIntervalSeconds(childComplexity), true
+	case "IntegrationDeploymentPolicyView.healthFailureThreshold":
+		if e.complexity.IntegrationDeploymentPolicyView.HealthFailureThreshold == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.HealthFailureThreshold(childComplexity), true
+	case "IntegrationDeploymentPolicyView.healthStartupGraceSeconds":
+		if e.complexity.IntegrationDeploymentPolicyView.HealthStartupGraceSeconds == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.HealthStartupGraceSeconds(childComplexity), true
+	case "IntegrationDeploymentPolicyView.healthTimeoutSeconds":
+		if e.complexity.IntegrationDeploymentPolicyView.HealthTimeoutSeconds == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.HealthTimeoutSeconds(childComplexity), true
+	case "IntegrationDeploymentPolicyView.maxInFlight":
+		if e.complexity.IntegrationDeploymentPolicyView.MaxInFlight == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.MaxInFlight(childComplexity), true
+	case "IntegrationDeploymentPolicyView.maxMessagesPerSecond":
+		if e.complexity.IntegrationDeploymentPolicyView.MaxMessagesPerSecond == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.MaxMessagesPerSecond(childComplexity), true
+	case "IntegrationDeploymentPolicyView.maxQueued":
+		if e.complexity.IntegrationDeploymentPolicyView.MaxQueued == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.MaxQueued(childComplexity), true
+	case "IntegrationDeploymentPolicyView.scheduleMode":
+		if e.complexity.IntegrationDeploymentPolicyView.ScheduleMode == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.ScheduleMode(childComplexity), true
+	case "IntegrationDeploymentPolicyView.timezone":
+		if e.complexity.IntegrationDeploymentPolicyView.Timezone == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.Timezone(childComplexity), true
+	case "IntegrationDeploymentPolicyView.validationMaxAgeSeconds":
+		if e.complexity.IntegrationDeploymentPolicyView.ValidationMaxAgeSeconds == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.ValidationMaxAgeSeconds(childComplexity), true
+	case "IntegrationDeploymentPolicyView.validationTimeoutSeconds":
+		if e.complexity.IntegrationDeploymentPolicyView.ValidationTimeoutSeconds == nil {
+			break
+		}
+
+		return e.complexity.IntegrationDeploymentPolicyView.ValidationTimeoutSeconds(childComplexity), true
+
 	case "IntegrationExecutionArtifactRevisions.profile":
 		if e.complexity.IntegrationExecutionArtifactRevisions.Profile == nil {
 			break
@@ -4751,6 +5355,93 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.IntegrationPreviewRoute.TransformCount(childComplexity), true
+
+	case "IntegrationRawRetention.accessAuditRequired":
+		if e.complexity.IntegrationRawRetention.AccessAuditRequired == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRawRetention.AccessAuditRequired(childComplexity), true
+	case "IntegrationRawRetention.encryptionKey":
+		if e.complexity.IntegrationRawRetention.EncryptionKey == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRawRetention.EncryptionKey(childComplexity), true
+	case "IntegrationRawRetention.mode":
+		if e.complexity.IntegrationRawRetention.Mode == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRawRetention.Mode(childComplexity), true
+	case "IntegrationRawRetention.purpose":
+		if e.complexity.IntegrationRawRetention.Purpose == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRawRetention.Purpose(childComplexity), true
+	case "IntegrationRawRetention.storageRevision":
+		if e.complexity.IntegrationRawRetention.StorageRevision == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRawRetention.StorageRevision(childComplexity), true
+	case "IntegrationRawRetention.ttlSeconds":
+		if e.complexity.IntegrationRawRetention.TTLSeconds == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRawRetention.TTLSeconds(childComplexity), true
+
+	case "IntegrationRegistryArtifact.format":
+		if e.complexity.IntegrationRegistryArtifact.Format == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRegistryArtifact.Format(childComplexity), true
+	case "IntegrationRegistryArtifact.integrationId":
+		if e.complexity.IntegrationRegistryArtifact.IntegrationID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRegistryArtifact.IntegrationID(childComplexity), true
+	case "IntegrationRegistryArtifact.profile":
+		if e.complexity.IntegrationRegistryArtifact.Profile == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRegistryArtifact.Profile(childComplexity), true
+	case "IntegrationRegistryArtifact.sourceId":
+		if e.complexity.IntegrationRegistryArtifact.SourceID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRegistryArtifact.SourceID(childComplexity), true
+	case "IntegrationRegistryArtifact.workflow":
+		if e.complexity.IntegrationRegistryArtifact.Workflow == nil {
+			break
+		}
+
+		return e.complexity.IntegrationRegistryArtifact.Workflow(childComplexity), true
+
+	case "IntegrationSecretReference.key":
+		if e.complexity.IntegrationSecretReference.Key == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSecretReference.Key(childComplexity), true
+	case "IntegrationSecretReference.provider":
+		if e.complexity.IntegrationSecretReference.Provider == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSecretReference.Provider(childComplexity), true
+	case "IntegrationSecretReference.version":
+		if e.complexity.IntegrationSecretReference.Version == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSecretReference.Version(childComplexity), true
 
 	case "IntegrationSession.archived":
 		if e.complexity.IntegrationSession.Archived == nil {
@@ -5229,6 +5920,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.AddSessionSample(childComplexity, args["input"].(model.AddSessionSampleInput)), true
+	case "Mutation.approveIntegrationDefinition":
+		if e.complexity.Mutation.ApproveIntegrationDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_approveIntegrationDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ApproveIntegrationDefinition(childComplexity, args["input"].(model.IntegrationDefinitionCommandInput)), true
 	case "Mutation.approvePendingAutoroute":
 		if e.complexity.Mutation.ApprovePendingAutoroute == nil {
 			break
@@ -5361,6 +6063,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateFhirSubscription(childComplexity, args["input"].(model.CreateSubscriptionInput)), true
+	case "Mutation.createIntegrationDefinitionDraft":
+		if e.complexity.Mutation.CreateIntegrationDefinitionDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createIntegrationDefinitionDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateIntegrationDefinitionDraft(childComplexity, args["input"].(model.IntegrationDefinitionDraftInput), args["reason"].(string)), true
 	case "Mutation.createIntegrationSession":
 		if e.complexity.Mutation.CreateIntegrationSession == nil {
 			break
@@ -5625,6 +6338,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.PreviewIntegrationMessage(childComplexity, args["input"].(model.PreviewIntegrationMessageInput)), true
+	case "Mutation.publishIntegrationDefinition":
+		if e.complexity.Mutation.PublishIntegrationDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_publishIntegrationDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PublishIntegrationDefinition(childComplexity, args["input"].(model.IntegrationDefinitionCommandInput)), true
 	case "Mutation.publishIntegrationSession":
 		if e.complexity.Mutation.PublishIntegrationSession == nil {
 			break
@@ -5955,6 +6679,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ValidateConnectionSpec(childComplexity, args["input"].(model.ValidateConnectionSpecInput)), true
+	case "Mutation.validateIntegrationDefinition":
+		if e.complexity.Mutation.ValidateIntegrationDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_validateIntegrationDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ValidateIntegrationDefinition(childComplexity, args["input"].(model.IntegrationDefinitionValidateInput)), true
+	case "Mutation.validateIntegrationDefinitionDraft":
+		if e.complexity.Mutation.ValidateIntegrationDefinitionDraft == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_validateIntegrationDefinitionDraft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ValidateIntegrationDefinitionDraft(childComplexity, args["input"].(model.IntegrationDefinitionDraftInput)), true
 
 	case "NormalizationSettingsConfig.phoneFormat":
 		if e.complexity.NormalizationSettingsConfig.PhoneFormat == nil {
@@ -7886,6 +8632,34 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Health(childComplexity), true
+	case "Query.integrationDefinition":
+		if e.complexity.Query.IntegrationDefinition == nil {
+			break
+		}
+
+		args, err := ec.field_Query_integrationDefinition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.IntegrationDefinition(childComplexity, args["definitionId"].(string), args["revisionId"].(string)), true
+	case "Query.integrationDefinitions":
+		if e.complexity.Query.IntegrationDefinitions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_integrationDefinitions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.IntegrationDefinitions(childComplexity, args["includeRetired"].(*bool)), true
+	case "Query.integrationRegistryArtifacts":
+		if e.complexity.Query.IntegrationRegistryArtifacts == nil {
+			break
+		}
+
+		return e.complexity.Query.IntegrationRegistryArtifacts(childComplexity), true
 	case "Query.integrationSession":
 		if e.complexity.Query.IntegrationSession == nil {
 			break
@@ -10312,6 +11086,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputBulkApproveInput,
 		ec.unmarshalInputClassifyMessageInput,
 		ec.unmarshalInputConnectionCommandInput,
+		ec.unmarshalInputConnectionRevisionRefInput,
 		ec.unmarshalInputConnectionSecretBindingInput,
 		ec.unmarshalInputCreateConnectionInput,
 		ec.unmarshalInputCreateIntegrationSessionInput,
@@ -10330,6 +11105,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputHL7v2ConfigInput,
 		ec.unmarshalInputIDPreferenceRuleInput,
 		ec.unmarshalInputIdentifierConfigInput,
+		ec.unmarshalInputIntegrationArtifactRevisionInput,
+		ec.unmarshalInputIntegrationDefinitionCommandInput,
+		ec.unmarshalInputIntegrationDefinitionDraftInput,
+		ec.unmarshalInputIntegrationDefinitionValidateInput,
+		ec.unmarshalInputIntegrationDeploymentPolicyInput,
+		ec.unmarshalInputIntegrationRawRetentionInput,
+		ec.unmarshalInputIntegrationSecretReferenceInput,
 		ec.unmarshalInputListMappingsInput,
 		ec.unmarshalInputListPendingAutoroutesInput,
 		ec.unmarshalInputLiveParseInput,
@@ -10536,6 +11318,17 @@ func (ec *executionContext) field_Mutation_addSessionSample_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_approveIntegrationDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNIntegrationDefinitionCommandInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionCommandInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_approvePendingAutoroute_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -10675,6 +11468,22 @@ func (ec *executionContext) field_Mutation_createFhirSubscription_args(ctx conte
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createIntegrationDefinitionDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNIntegrationDefinitionDraftInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDraftInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "reason", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["reason"] = arg1
 	return args, nil
 }
 
@@ -10950,6 +11759,17 @@ func (ec *executionContext) field_Mutation_previewIntegrationMessage_args(ctx co
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNPreviewIntegrationMessageInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐPreviewIntegrationMessageInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_publishIntegrationDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNIntegrationDefinitionCommandInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionCommandInput)
 	if err != nil {
 		return nil, err
 	}
@@ -11307,6 +12127,28 @@ func (ec *executionContext) field_Mutation_validateConnectionSpec_args(ctx conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_validateIntegrationDefinitionDraft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNIntegrationDefinitionDraftInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDraftInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_validateIntegrationDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNIntegrationDefinitionValidateInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionValidateInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11575,6 +12417,33 @@ func (ec *executionContext) field_Query_getUploadBatch_args(ctx context.Context,
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_integrationDefinition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "definitionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["definitionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "revisionId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["revisionId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_integrationDefinitions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "includeRetired", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["includeRetired"] = arg0
 	return args, nil
 }
 
@@ -15984,6 +16853,12 @@ func (ec *executionContext) fieldContext_Connection_latestRevision(_ context.Con
 				return ec.fieldContext_ConnectionRevision_revisionJson(ctx, field)
 			case "compiledFromVersion":
 				return ec.fieldContext_ConnectionRevision_compiledFromVersion(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionRevision_sourceId(ctx, field)
+			case "destinationClass":
+				return ec.fieldContext_ConnectionRevision_destinationClass(ctx, field)
+			case "secretBindingNames":
+				return ec.fieldContext_ConnectionRevision_secretBindingNames(ctx, field)
 			case "createdBy":
 				return ec.fieldContext_ConnectionRevision_createdBy(ctx, field)
 			case "createdReason":
@@ -16775,6 +17650,12 @@ func (ec *executionContext) fieldContext_ConnectionCompileResult_revision(_ cont
 				return ec.fieldContext_ConnectionRevision_revisionJson(ctx, field)
 			case "compiledFromVersion":
 				return ec.fieldContext_ConnectionRevision_compiledFromVersion(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionRevision_sourceId(ctx, field)
+			case "destinationClass":
+				return ec.fieldContext_ConnectionRevision_destinationClass(ctx, field)
+			case "secretBindingNames":
+				return ec.fieldContext_ConnectionRevision_secretBindingNames(ctx, field)
 			case "createdBy":
 				return ec.fieldContext_ConnectionRevision_createdBy(ctx, field)
 			case "createdReason":
@@ -17255,6 +18136,93 @@ func (ec *executionContext) fieldContext_ConnectionRevision_compiledFromVersion(
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionRevision_sourceId(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionRevision_sourceId,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionRevision_sourceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionRevision_destinationClass(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionRevision_destinationClass,
+		func(ctx context.Context) (any, error) {
+			return obj.DestinationClass, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionRevision_destinationClass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionRevision_secretBindingNames(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionRevision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionRevision_secretBindingNames,
+		func(ctx context.Context) (any, error) {
+			return obj.SecretBindingNames, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionRevision_secretBindingNames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionRevision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -24856,6 +25824,2358 @@ func (ec *executionContext) fieldContext_IntegrationBundle_diagnostics(_ context
 	return fc, nil
 }
 
+func (ec *executionContext) _IntegrationDefinition_definitionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_definitionId,
+		func(ctx context.Context) (any, error) {
+			return obj.DefinitionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_definitionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_digest(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_parentRevisionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_parentRevisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.ParentRevisionID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_parentRevisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_state(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_state,
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_version(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_version,
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_health(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_health,
+		func(ctx context.Context) (any, error) {
+			return obj.Health, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_health(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_releaseId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_releaseId,
+		func(ctx context.Context) (any, error) {
+			return obj.ReleaseID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_releaseId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_validationPassed(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_validationPassed,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationPassed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_validationPassed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_validationCheckedAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_validationCheckedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationCheckedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_validationCheckedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_validationExpiresAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_validationExpiresAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationExpiresAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_validationExpiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_source(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_source,
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		ec.marshalNIntegrationDefinitionSource2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionSource,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationDefinitionSource_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationDefinitionSource_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationDefinitionSource_digest(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_IntegrationDefinitionSource_sourceId(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionSource", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_profile(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_profile,
+		func(ctx context.Context) (any, error) {
+			return obj.Profile, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_profile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_workflow(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_workflow,
+		func(ctx context.Context) (any, error) {
+			return obj.Workflow, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_workflow(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_destinations(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_destinations,
+		func(ctx context.Context) (any, error) {
+			return obj.Destinations, nil
+		},
+		nil,
+		ec.marshalNIntegrationDefinitionDestination2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDestinationᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_destinations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationDefinitionDestination_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationDefinitionDestination_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationDefinitionDestination_digest(ctx, field)
+			case "class":
+				return ec.fieldContext_IntegrationDefinitionDestination_class(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionDestination", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_secretBindings(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_secretBindings,
+		func(ctx context.Context) (any, error) {
+			return obj.SecretBindings, nil
+		},
+		nil,
+		ec.marshalNConnectionSecretBinding2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionSecretBindingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_secretBindings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_ConnectionSecretBinding_name(ctx, field)
+			case "provider":
+				return ec.fieldContext_ConnectionSecretBinding_provider(ctx, field)
+			case "key":
+				return ec.fieldContext_ConnectionSecretBinding_key(ctx, field)
+			case "version":
+				return ec.fieldContext_ConnectionSecretBinding_version(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionSecretBinding", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_policy(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_policy,
+		func(ctx context.Context) (any, error) {
+			return obj.Policy, nil
+		},
+		nil,
+		ec.marshalNIntegrationDefinitionPolicy2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionPolicy,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_policy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "classification":
+				return ec.fieldContext_IntegrationDefinitionPolicy_classification(ctx, field)
+			case "rawRetention":
+				return ec.fieldContext_IntegrationDefinitionPolicy_rawRetention(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionPolicy", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_deployment(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_deployment,
+		func(ctx context.Context) (any, error) {
+			return obj.Deployment, nil
+		},
+		nil,
+		ec.marshalNIntegrationDeploymentPolicyView2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDeploymentPolicyView,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_deployment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "validationTimeoutSeconds":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_validationTimeoutSeconds(ctx, field)
+			case "validationMaxAgeSeconds":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_validationMaxAgeSeconds(ctx, field)
+			case "scheduleMode":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_scheduleMode(ctx, field)
+			case "cronExpression":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_cronExpression(ctx, field)
+			case "timezone":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_timezone(ctx, field)
+			case "healthStartupGraceSeconds":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_healthStartupGraceSeconds(ctx, field)
+			case "healthCheckIntervalSeconds":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_healthCheckIntervalSeconds(ctx, field)
+			case "healthTimeoutSeconds":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_healthTimeoutSeconds(ctx, field)
+			case "healthFailureThreshold":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_healthFailureThreshold(ctx, field)
+			case "maxInFlight":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_maxInFlight(ctx, field)
+			case "maxQueued":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_maxQueued(ctx, field)
+			case "maxMessagesPerSecond":
+				return ec.fieldContext_IntegrationDeploymentPolicyView_maxMessagesPerSecond(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDeploymentPolicyView", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_createdBy(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_createdBy,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		ec.marshalNOperatorPrincipal2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPrincipal,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OperatorPrincipal_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_OperatorPrincipal_kind(ctx, field)
+			case "authMethod":
+				return ec.fieldContext_OperatorPrincipal_authMethod(ctx, field)
+			case "roles":
+				return ec.fieldContext_OperatorPrincipal_roles(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPrincipal", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_createdReason(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_createdReason,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedReason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_createdReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_updatedBy(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_updatedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedBy, nil
+		},
+		nil,
+		ec.marshalNOperatorPrincipal2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPrincipal,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_updatedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OperatorPrincipal_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_OperatorPrincipal_kind(ctx, field)
+			case "authMethod":
+				return ec.fieldContext_OperatorPrincipal_authMethod(ctx, field)
+			case "roles":
+				return ec.fieldContext_OperatorPrincipal_roles(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPrincipal", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_updatedReason(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_updatedReason,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedReason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_updatedReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinition_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinition_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinition_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionApproval_eventId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionApproval) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionApproval_eventId,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionApproval_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionApproval_actor(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionApproval) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionApproval_actor,
+		func(ctx context.Context) (any, error) {
+			return obj.Actor, nil
+		},
+		nil,
+		ec.marshalNOperatorPrincipal2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPrincipal,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionApproval_actor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OperatorPrincipal_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_OperatorPrincipal_kind(ctx, field)
+			case "authMethod":
+				return ec.fieldContext_OperatorPrincipal_authMethod(ctx, field)
+			case "roles":
+				return ec.fieldContext_OperatorPrincipal_roles(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPrincipal", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionApproval_reason(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionApproval) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionApproval_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionApproval_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionApproval_occurredAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionApproval) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionApproval_occurredAt,
+		func(ctx context.Context) (any, error) {
+			return obj.OccurredAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionApproval_occurredAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDestination_artifactId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDestination_artifactId,
+		func(ctx context.Context) (any, error) {
+			return obj.ArtifactID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDestination_artifactId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDestination_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDestination_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDestination_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDestination_digest(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDestination_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDestination_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDestination_class(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDestination) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDestination_class,
+		func(ctx context.Context) (any, error) {
+			return obj.Class, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDestination_class(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDestination",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDetail_definition(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDetail_definition,
+		func(ctx context.Context) (any, error) {
+			return obj.Definition, nil
+		},
+		nil,
+		ec.marshalNIntegrationDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinition,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDetail_definition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definitionId":
+				return ec.fieldContext_IntegrationDefinition_definitionId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationDefinition_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationDefinition_digest(ctx, field)
+			case "parentRevisionId":
+				return ec.fieldContext_IntegrationDefinition_parentRevisionId(ctx, field)
+			case "state":
+				return ec.fieldContext_IntegrationDefinition_state(ctx, field)
+			case "version":
+				return ec.fieldContext_IntegrationDefinition_version(ctx, field)
+			case "health":
+				return ec.fieldContext_IntegrationDefinition_health(ctx, field)
+			case "releaseId":
+				return ec.fieldContext_IntegrationDefinition_releaseId(ctx, field)
+			case "validationPassed":
+				return ec.fieldContext_IntegrationDefinition_validationPassed(ctx, field)
+			case "validationCheckedAt":
+				return ec.fieldContext_IntegrationDefinition_validationCheckedAt(ctx, field)
+			case "validationExpiresAt":
+				return ec.fieldContext_IntegrationDefinition_validationExpiresAt(ctx, field)
+			case "source":
+				return ec.fieldContext_IntegrationDefinition_source(ctx, field)
+			case "profile":
+				return ec.fieldContext_IntegrationDefinition_profile(ctx, field)
+			case "workflow":
+				return ec.fieldContext_IntegrationDefinition_workflow(ctx, field)
+			case "destinations":
+				return ec.fieldContext_IntegrationDefinition_destinations(ctx, field)
+			case "secretBindings":
+				return ec.fieldContext_IntegrationDefinition_secretBindings(ctx, field)
+			case "policy":
+				return ec.fieldContext_IntegrationDefinition_policy(ctx, field)
+			case "deployment":
+				return ec.fieldContext_IntegrationDefinition_deployment(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_IntegrationDefinition_createdBy(ctx, field)
+			case "createdReason":
+				return ec.fieldContext_IntegrationDefinition_createdReason(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationDefinition_createdAt(ctx, field)
+			case "updatedBy":
+				return ec.fieldContext_IntegrationDefinition_updatedBy(ctx, field)
+			case "updatedReason":
+				return ec.fieldContext_IntegrationDefinition_updatedReason(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationDefinition_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinition", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDetail_validation(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDetail_validation,
+		func(ctx context.Context) (any, error) {
+			return obj.Validation, nil
+		},
+		nil,
+		ec.marshalOIntegrationDefinitionValidation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionValidation,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDetail_validation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "validationId":
+				return ec.fieldContext_IntegrationDefinitionValidation_validationId(ctx, field)
+			case "passed":
+				return ec.fieldContext_IntegrationDefinitionValidation_passed(ctx, field)
+			case "codes":
+				return ec.fieldContext_IntegrationDefinitionValidation_codes(ctx, field)
+			case "checkedAt":
+				return ec.fieldContext_IntegrationDefinitionValidation_checkedAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_IntegrationDefinitionValidation_expiresAt(ctx, field)
+			case "sourceRevision":
+				return ec.fieldContext_IntegrationDefinitionValidation_sourceRevision(ctx, field)
+			case "actor":
+				return ec.fieldContext_IntegrationDefinitionValidation_actor(ctx, field)
+			case "reason":
+				return ec.fieldContext_IntegrationDefinitionValidation_reason(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionValidation", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDetail_approval(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDetail_approval,
+		func(ctx context.Context) (any, error) {
+			return obj.Approval, nil
+		},
+		nil,
+		ec.marshalOIntegrationDefinitionApproval2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionApproval,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDetail_approval(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "eventId":
+				return ec.fieldContext_IntegrationDefinitionApproval_eventId(ctx, field)
+			case "actor":
+				return ec.fieldContext_IntegrationDefinitionApproval_actor(ctx, field)
+			case "reason":
+				return ec.fieldContext_IntegrationDefinitionApproval_reason(ctx, field)
+			case "occurredAt":
+				return ec.fieldContext_IntegrationDefinitionApproval_occurredAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionApproval", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDetail_release(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDetail_release,
+		func(ctx context.Context) (any, error) {
+			return obj.Release, nil
+		},
+		nil,
+		ec.marshalOIntegrationDefinitionRelease2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionRelease,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDetail_release(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "releaseId":
+				return ec.fieldContext_IntegrationDefinitionRelease_releaseId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationDefinitionRelease_digest(ctx, field)
+			case "validationId":
+				return ec.fieldContext_IntegrationDefinitionRelease_validationId(ctx, field)
+			case "approvalEventId":
+				return ec.fieldContext_IntegrationDefinitionRelease_approvalEventId(ctx, field)
+			case "publishedBy":
+				return ec.fieldContext_IntegrationDefinitionRelease_publishedBy(ctx, field)
+			case "publishedReason":
+				return ec.fieldContext_IntegrationDefinitionRelease_publishedReason(ctx, field)
+			case "publishedAt":
+				return ec.fieldContext_IntegrationDefinitionRelease_publishedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionRelease", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDetail_realValidationAvailable(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDetail_realValidationAvailable,
+		func(ctx context.Context) (any, error) {
+			return obj.RealValidationAvailable, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDetail_realValidationAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDraftResult_definition(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDraftResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDraftResult_definition,
+		func(ctx context.Context) (any, error) {
+			return obj.Definition, nil
+		},
+		nil,
+		ec.marshalOIntegrationDefinitionDetail2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDraftResult_definition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDraftResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definition":
+				return ec.fieldContext_IntegrationDefinitionDetail_definition(ctx, field)
+			case "validation":
+				return ec.fieldContext_IntegrationDefinitionDetail_validation(ctx, field)
+			case "approval":
+				return ec.fieldContext_IntegrationDefinitionDetail_approval(ctx, field)
+			case "release":
+				return ec.fieldContext_IntegrationDefinitionDetail_release(ctx, field)
+			case "realValidationAvailable":
+				return ec.fieldContext_IntegrationDefinitionDetail_realValidationAvailable(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionDetail", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionDraftResult_problems(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionDraftResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionDraftResult_problems,
+		func(ctx context.Context) (any, error) {
+			return obj.Problems, nil
+		},
+		nil,
+		ec.marshalNConnectionProblem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionProblemᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionDraftResult_problems(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionDraftResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_ConnectionProblem_code(ctx, field)
+			case "path":
+				return ec.fieldContext_ConnectionProblem_path(ctx, field)
+			case "message":
+				return ec.fieldContext_ConnectionProblem_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionProblem", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionPolicy_classification(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionPolicy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionPolicy_classification,
+		func(ctx context.Context) (any, error) {
+			return obj.Classification, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionPolicy_classification(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionPolicy",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionPolicy_rawRetention(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionPolicy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionPolicy_rawRetention,
+		func(ctx context.Context) (any, error) {
+			return obj.RawRetention, nil
+		},
+		nil,
+		ec.marshalNIntegrationRawRetention2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRawRetention,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionPolicy_rawRetention(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionPolicy",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "mode":
+				return ec.fieldContext_IntegrationRawRetention_mode(ctx, field)
+			case "ttlSeconds":
+				return ec.fieldContext_IntegrationRawRetention_ttlSeconds(ctx, field)
+			case "purpose":
+				return ec.fieldContext_IntegrationRawRetention_purpose(ctx, field)
+			case "storageRevision":
+				return ec.fieldContext_IntegrationRawRetention_storageRevision(ctx, field)
+			case "encryptionKey":
+				return ec.fieldContext_IntegrationRawRetention_encryptionKey(ctx, field)
+			case "accessAuditRequired":
+				return ec.fieldContext_IntegrationRawRetention_accessAuditRequired(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationRawRetention", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionRelease_releaseId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionRelease_releaseId,
+		func(ctx context.Context) (any, error) {
+			return obj.ReleaseID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionRelease_releaseId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionRelease_digest(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionRelease_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionRelease_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionRelease_validationId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionRelease_validationId,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionRelease_validationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionRelease_approvalEventId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionRelease_approvalEventId,
+		func(ctx context.Context) (any, error) {
+			return obj.ApprovalEventID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionRelease_approvalEventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionRelease_publishedBy(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionRelease_publishedBy,
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedBy, nil
+		},
+		nil,
+		ec.marshalNOperatorPrincipal2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPrincipal,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionRelease_publishedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OperatorPrincipal_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_OperatorPrincipal_kind(ctx, field)
+			case "authMethod":
+				return ec.fieldContext_OperatorPrincipal_authMethod(ctx, field)
+			case "roles":
+				return ec.fieldContext_OperatorPrincipal_roles(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPrincipal", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionRelease_publishedReason(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionRelease_publishedReason,
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedReason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionRelease_publishedReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionRelease_publishedAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionRelease) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionRelease_publishedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionRelease_publishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionRelease",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionSource_artifactId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionSource_artifactId,
+		func(ctx context.Context) (any, error) {
+			return obj.ArtifactID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionSource_artifactId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionSource_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionSource_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionSource_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionSource_digest(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionSource_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionSource_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionSource_sourceId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionSource_sourceId,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionSource_sourceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_validationId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_validationId,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_validationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_passed(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_passed,
+		func(ctx context.Context) (any, error) {
+			return obj.Passed, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_passed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_codes(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_codes,
+		func(ctx context.Context) (any, error) {
+			return obj.Codes, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_codes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_checkedAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_checkedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CheckedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_checkedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_expiresAt,
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_sourceRevision(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_sourceRevision,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceRevision, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_sourceRevision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_actor(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_actor,
+		func(ctx context.Context) (any, error) {
+			return obj.Actor, nil
+		},
+		nil,
+		ec.marshalNOperatorPrincipal2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPrincipal,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_actor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_OperatorPrincipal_id(ctx, field)
+			case "kind":
+				return ec.fieldContext_OperatorPrincipal_kind(ctx, field)
+			case "authMethod":
+				return ec.fieldContext_OperatorPrincipal_authMethod(ctx, field)
+			case "roles":
+				return ec.fieldContext_OperatorPrincipal_roles(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPrincipal", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDefinitionValidation_reason(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDefinitionValidation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDefinitionValidation_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDefinitionValidation_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDefinitionValidation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_validationTimeoutSeconds(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_validationTimeoutSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationTimeoutSeconds, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_validationTimeoutSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_validationMaxAgeSeconds(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_validationMaxAgeSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationMaxAgeSeconds, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_validationMaxAgeSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_scheduleMode(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_scheduleMode,
+		func(ctx context.Context) (any, error) {
+			return obj.ScheduleMode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_scheduleMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_cronExpression(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_cronExpression,
+		func(ctx context.Context) (any, error) {
+			return obj.CronExpression, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_cronExpression(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_timezone(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_timezone,
+		func(ctx context.Context) (any, error) {
+			return obj.Timezone, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_timezone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_healthStartupGraceSeconds(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_healthStartupGraceSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.HealthStartupGraceSeconds, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_healthStartupGraceSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_healthCheckIntervalSeconds(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_healthCheckIntervalSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.HealthCheckIntervalSeconds, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_healthCheckIntervalSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_healthTimeoutSeconds(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_healthTimeoutSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.HealthTimeoutSeconds, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_healthTimeoutSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_healthFailureThreshold(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_healthFailureThreshold,
+		func(ctx context.Context) (any, error) {
+			return obj.HealthFailureThreshold, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_healthFailureThreshold(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_maxInFlight(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_maxInFlight,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxInFlight, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_maxInFlight(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_maxQueued(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_maxQueued,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxQueued, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_maxQueued(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView_maxMessagesPerSecond(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationDeploymentPolicyView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationDeploymentPolicyView_maxMessagesPerSecond,
+		func(ctx context.Context) (any, error) {
+			return obj.MaxMessagesPerSecond, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationDeploymentPolicyView_maxMessagesPerSecond(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationDeploymentPolicyView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _IntegrationExecutionArtifactRevisions_source(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationExecutionArtifactRevisions) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26517,6 +29837,444 @@ func (ec *executionContext) _IntegrationPreviewRoute_diagnosticCodes(ctx context
 func (ec *executionContext) fieldContext_IntegrationPreviewRoute_diagnosticCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "IntegrationPreviewRoute",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRawRetention_mode(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRawRetention) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRawRetention_mode,
+		func(ctx context.Context) (any, error) {
+			return obj.Mode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRawRetention_mode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRawRetention",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRawRetention_ttlSeconds(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRawRetention) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRawRetention_ttlSeconds,
+		func(ctx context.Context) (any, error) {
+			return obj.TTLSeconds, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRawRetention_ttlSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRawRetention",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRawRetention_purpose(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRawRetention) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRawRetention_purpose,
+		func(ctx context.Context) (any, error) {
+			return obj.Purpose, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRawRetention_purpose(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRawRetention",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRawRetention_storageRevision(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRawRetention) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRawRetention_storageRevision,
+		func(ctx context.Context) (any, error) {
+			return obj.StorageRevision, nil
+		},
+		nil,
+		ec.marshalOIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRawRetention_storageRevision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRawRetention",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRawRetention_encryptionKey(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRawRetention) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRawRetention_encryptionKey,
+		func(ctx context.Context) (any, error) {
+			return obj.EncryptionKey, nil
+		},
+		nil,
+		ec.marshalOIntegrationSecretReference2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSecretReference,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRawRetention_encryptionKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRawRetention",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "provider":
+				return ec.fieldContext_IntegrationSecretReference_provider(ctx, field)
+			case "key":
+				return ec.fieldContext_IntegrationSecretReference_key(ctx, field)
+			case "version":
+				return ec.fieldContext_IntegrationSecretReference_version(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSecretReference", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRawRetention_accessAuditRequired(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRawRetention) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRawRetention_accessAuditRequired,
+		func(ctx context.Context) (any, error) {
+			return obj.AccessAuditRequired, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRawRetention_accessAuditRequired(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRawRetention",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRegistryArtifact_integrationId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRegistryArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRegistryArtifact_integrationId,
+		func(ctx context.Context) (any, error) {
+			return obj.IntegrationID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRegistryArtifact_integrationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRegistryArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRegistryArtifact_profile(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRegistryArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRegistryArtifact_profile,
+		func(ctx context.Context) (any, error) {
+			return obj.Profile, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRegistryArtifact_profile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRegistryArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRegistryArtifact_workflow(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRegistryArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRegistryArtifact_workflow,
+		func(ctx context.Context) (any, error) {
+			return obj.Workflow, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRegistryArtifact_workflow(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRegistryArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRegistryArtifact_sourceId(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRegistryArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRegistryArtifact_sourceId,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRegistryArtifact_sourceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRegistryArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationRegistryArtifact_format(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationRegistryArtifact) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationRegistryArtifact_format,
+		func(ctx context.Context) (any, error) {
+			return obj.Format, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationRegistryArtifact_format(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationRegistryArtifact",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSecretReference_provider(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSecretReference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSecretReference_provider,
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSecretReference_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSecretReference",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSecretReference_key(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSecretReference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSecretReference_key,
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSecretReference_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSecretReference",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSecretReference_version(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSecretReference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSecretReference_version,
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSecretReference_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSecretReference",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -32752,6 +36510,261 @@ func (ec *executionContext) fieldContext_Mutation_validateConnectionSpec(ctx con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_validateConnectionSpec_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_validateIntegrationDefinitionDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_validateIntegrationDefinitionDraft,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ValidateIntegrationDefinitionDraft(ctx, fc.Args["input"].(model.IntegrationDefinitionDraftInput))
+		},
+		nil,
+		ec.marshalNConnectionProblem2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionProblemᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_validateIntegrationDefinitionDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "code":
+				return ec.fieldContext_ConnectionProblem_code(ctx, field)
+			case "path":
+				return ec.fieldContext_ConnectionProblem_path(ctx, field)
+			case "message":
+				return ec.fieldContext_ConnectionProblem_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ConnectionProblem", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_validateIntegrationDefinitionDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createIntegrationDefinitionDraft(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createIntegrationDefinitionDraft,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CreateIntegrationDefinitionDraft(ctx, fc.Args["input"].(model.IntegrationDefinitionDraftInput), fc.Args["reason"].(string))
+		},
+		nil,
+		ec.marshalNIntegrationDefinitionDraftResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDraftResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createIntegrationDefinitionDraft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definition":
+				return ec.fieldContext_IntegrationDefinitionDraftResult_definition(ctx, field)
+			case "problems":
+				return ec.fieldContext_IntegrationDefinitionDraftResult_problems(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionDraftResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createIntegrationDefinitionDraft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_validateIntegrationDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_validateIntegrationDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ValidateIntegrationDefinition(ctx, fc.Args["input"].(model.IntegrationDefinitionValidateInput))
+		},
+		nil,
+		ec.marshalNIntegrationDefinitionDetail2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_validateIntegrationDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definition":
+				return ec.fieldContext_IntegrationDefinitionDetail_definition(ctx, field)
+			case "validation":
+				return ec.fieldContext_IntegrationDefinitionDetail_validation(ctx, field)
+			case "approval":
+				return ec.fieldContext_IntegrationDefinitionDetail_approval(ctx, field)
+			case "release":
+				return ec.fieldContext_IntegrationDefinitionDetail_release(ctx, field)
+			case "realValidationAvailable":
+				return ec.fieldContext_IntegrationDefinitionDetail_realValidationAvailable(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionDetail", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_validateIntegrationDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_approveIntegrationDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_approveIntegrationDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ApproveIntegrationDefinition(ctx, fc.Args["input"].(model.IntegrationDefinitionCommandInput))
+		},
+		nil,
+		ec.marshalNIntegrationDefinitionDetail2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_approveIntegrationDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definition":
+				return ec.fieldContext_IntegrationDefinitionDetail_definition(ctx, field)
+			case "validation":
+				return ec.fieldContext_IntegrationDefinitionDetail_validation(ctx, field)
+			case "approval":
+				return ec.fieldContext_IntegrationDefinitionDetail_approval(ctx, field)
+			case "release":
+				return ec.fieldContext_IntegrationDefinitionDetail_release(ctx, field)
+			case "realValidationAvailable":
+				return ec.fieldContext_IntegrationDefinitionDetail_realValidationAvailable(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionDetail", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_approveIntegrationDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_publishIntegrationDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_publishIntegrationDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().PublishIntegrationDefinition(ctx, fc.Args["input"].(model.IntegrationDefinitionCommandInput))
+		},
+		nil,
+		ec.marshalNIntegrationDefinitionDetail2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_publishIntegrationDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definition":
+				return ec.fieldContext_IntegrationDefinitionDetail_definition(ctx, field)
+			case "validation":
+				return ec.fieldContext_IntegrationDefinitionDetail_validation(ctx, field)
+			case "approval":
+				return ec.fieldContext_IntegrationDefinitionDetail_approval(ctx, field)
+			case "release":
+				return ec.fieldContext_IntegrationDefinitionDetail_release(ctx, field)
+			case "realValidationAvailable":
+				return ec.fieldContext_IntegrationDefinitionDetail_realValidationAvailable(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionDetail", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_publishIntegrationDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -45559,6 +49572,12 @@ func (ec *executionContext) fieldContext_Query_connectionRevisions(ctx context.C
 				return ec.fieldContext_ConnectionRevision_revisionJson(ctx, field)
 			case "compiledFromVersion":
 				return ec.fieldContext_ConnectionRevision_compiledFromVersion(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionRevision_sourceId(ctx, field)
+			case "destinationClass":
+				return ec.fieldContext_ConnectionRevision_destinationClass(ctx, field)
+			case "secretBindingNames":
+				return ec.fieldContext_ConnectionRevision_secretBindingNames(ctx, field)
 			case "createdBy":
 				return ec.fieldContext_ConnectionRevision_createdBy(ctx, field)
 			case "createdReason":
@@ -45622,6 +49641,12 @@ func (ec *executionContext) fieldContext_Query_connectionRevision(ctx context.Co
 				return ec.fieldContext_ConnectionRevision_revisionJson(ctx, field)
 			case "compiledFromVersion":
 				return ec.fieldContext_ConnectionRevision_compiledFromVersion(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_ConnectionRevision_sourceId(ctx, field)
+			case "destinationClass":
+				return ec.fieldContext_ConnectionRevision_destinationClass(ctx, field)
+			case "secretBindingNames":
+				return ec.fieldContext_ConnectionRevision_secretBindingNames(ctx, field)
 			case "createdBy":
 				return ec.fieldContext_ConnectionRevision_createdBy(ctx, field)
 			case "createdReason":
@@ -45706,6 +49731,191 @@ func (ec *executionContext) fieldContext_Query_engineRuntime(_ context.Context, 
 				return ec.fieldContext_EngineRuntime_observations(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EngineRuntime", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_integrationDefinitions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_integrationDefinitions,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().IntegrationDefinitions(ctx, fc.Args["includeRetired"].(*bool))
+		},
+		nil,
+		ec.marshalNIntegrationDefinition2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_integrationDefinitions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definitionId":
+				return ec.fieldContext_IntegrationDefinition_definitionId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationDefinition_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationDefinition_digest(ctx, field)
+			case "parentRevisionId":
+				return ec.fieldContext_IntegrationDefinition_parentRevisionId(ctx, field)
+			case "state":
+				return ec.fieldContext_IntegrationDefinition_state(ctx, field)
+			case "version":
+				return ec.fieldContext_IntegrationDefinition_version(ctx, field)
+			case "health":
+				return ec.fieldContext_IntegrationDefinition_health(ctx, field)
+			case "releaseId":
+				return ec.fieldContext_IntegrationDefinition_releaseId(ctx, field)
+			case "validationPassed":
+				return ec.fieldContext_IntegrationDefinition_validationPassed(ctx, field)
+			case "validationCheckedAt":
+				return ec.fieldContext_IntegrationDefinition_validationCheckedAt(ctx, field)
+			case "validationExpiresAt":
+				return ec.fieldContext_IntegrationDefinition_validationExpiresAt(ctx, field)
+			case "source":
+				return ec.fieldContext_IntegrationDefinition_source(ctx, field)
+			case "profile":
+				return ec.fieldContext_IntegrationDefinition_profile(ctx, field)
+			case "workflow":
+				return ec.fieldContext_IntegrationDefinition_workflow(ctx, field)
+			case "destinations":
+				return ec.fieldContext_IntegrationDefinition_destinations(ctx, field)
+			case "secretBindings":
+				return ec.fieldContext_IntegrationDefinition_secretBindings(ctx, field)
+			case "policy":
+				return ec.fieldContext_IntegrationDefinition_policy(ctx, field)
+			case "deployment":
+				return ec.fieldContext_IntegrationDefinition_deployment(ctx, field)
+			case "createdBy":
+				return ec.fieldContext_IntegrationDefinition_createdBy(ctx, field)
+			case "createdReason":
+				return ec.fieldContext_IntegrationDefinition_createdReason(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationDefinition_createdAt(ctx, field)
+			case "updatedBy":
+				return ec.fieldContext_IntegrationDefinition_updatedBy(ctx, field)
+			case "updatedReason":
+				return ec.fieldContext_IntegrationDefinition_updatedReason(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationDefinition_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinition", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_integrationDefinitions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_integrationDefinition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_integrationDefinition,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().IntegrationDefinition(ctx, fc.Args["definitionId"].(string), fc.Args["revisionId"].(string))
+		},
+		nil,
+		ec.marshalOIntegrationDefinitionDetail2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_integrationDefinition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definition":
+				return ec.fieldContext_IntegrationDefinitionDetail_definition(ctx, field)
+			case "validation":
+				return ec.fieldContext_IntegrationDefinitionDetail_validation(ctx, field)
+			case "approval":
+				return ec.fieldContext_IntegrationDefinitionDetail_approval(ctx, field)
+			case "release":
+				return ec.fieldContext_IntegrationDefinitionDetail_release(ctx, field)
+			case "realValidationAvailable":
+				return ec.fieldContext_IntegrationDefinitionDetail_realValidationAvailable(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationDefinitionDetail", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_integrationDefinition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_integrationRegistryArtifacts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_integrationRegistryArtifacts,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().IntegrationRegistryArtifacts(ctx)
+		},
+		nil,
+		ec.marshalNIntegrationRegistryArtifact2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRegistryArtifactᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_integrationRegistryArtifacts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "integrationId":
+				return ec.fieldContext_IntegrationRegistryArtifact_integrationId(ctx, field)
+			case "profile":
+				return ec.fieldContext_IntegrationRegistryArtifact_profile(ctx, field)
+			case "workflow":
+				return ec.fieldContext_IntegrationRegistryArtifact_workflow(ctx, field)
+			case "sourceId":
+				return ec.fieldContext_IntegrationRegistryArtifact_sourceId(ctx, field)
+			case "format":
+				return ec.fieldContext_IntegrationRegistryArtifact_format(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationRegistryArtifact", field.Name)
 		},
 	}
 	return fc, nil
@@ -57429,6 +61639,40 @@ func (ec *executionContext) unmarshalInputConnectionCommandInput(ctx context.Con
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputConnectionRevisionRefInput(ctx context.Context, obj any) (model.ConnectionRevisionRefInput, error) {
+	var it model.ConnectionRevisionRefInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"artifactId", "revisionId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "artifactId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("artifactId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ArtifactID = data
+		case "revisionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("revisionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RevisionID = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputConnectionSecretBindingInput(ctx context.Context, obj any) (model.ConnectionSecretBindingInput, error) {
 	var it model.ConnectionSecretBindingInput
 	asMap := map[string]any{}
@@ -58305,6 +62549,440 @@ func (ec *executionContext) unmarshalInputIdentifierConfigInput(ctx context.Cont
 				return it, err
 			}
 			it.Normalization = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIntegrationArtifactRevisionInput(ctx context.Context, obj any) (model.IntegrationArtifactRevisionInput, error) {
+	var it model.IntegrationArtifactRevisionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"artifactId", "revisionId", "digest"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "artifactId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("artifactId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ArtifactID = data
+		case "revisionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("revisionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RevisionID = data
+		case "digest":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("digest"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Digest = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIntegrationDefinitionCommandInput(ctx context.Context, obj any) (model.IntegrationDefinitionCommandInput, error) {
+	var it model.IntegrationDefinitionCommandInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"definitionId", "revisionId", "expectedVersion", "reason"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "definitionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("definitionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefinitionID = data
+		case "revisionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("revisionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RevisionID = data
+		case "expectedVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expectedVersion"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpectedVersion = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIntegrationDefinitionDraftInput(ctx context.Context, obj any) (model.IntegrationDefinitionDraftInput, error) {
+	var it model.IntegrationDefinitionDraftInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"definitionId", "revisionId", "parentRevisionId", "source", "destinations", "profile", "workflow", "secretBindings", "rawRetention", "deployment"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "definitionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("definitionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefinitionID = data
+		case "revisionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("revisionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RevisionID = data
+		case "parentRevisionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentRevisionId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ParentRevisionID = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalNConnectionRevisionRefInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionRevisionRefInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
+		case "destinations":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("destinations"))
+			data, err := ec.unmarshalNConnectionRevisionRefInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionRevisionRefInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Destinations = data
+		case "profile":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("profile"))
+			data, err := ec.unmarshalNIntegrationArtifactRevisionInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevisionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Profile = data
+		case "workflow":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("workflow"))
+			data, err := ec.unmarshalNIntegrationArtifactRevisionInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevisionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Workflow = data
+		case "secretBindings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("secretBindings"))
+			data, err := ec.unmarshalNConnectionSecretBindingInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionSecretBindingInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SecretBindings = data
+		case "rawRetention":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("rawRetention"))
+			data, err := ec.unmarshalOIntegrationRawRetentionInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRawRetentionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RawRetention = data
+		case "deployment":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("deployment"))
+			data, err := ec.unmarshalOIntegrationDeploymentPolicyInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDeploymentPolicyInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Deployment = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIntegrationDefinitionValidateInput(ctx context.Context, obj any) (model.IntegrationDefinitionValidateInput, error) {
+	var it model.IntegrationDefinitionValidateInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"definitionId", "revisionId", "expectedVersion", "mode", "reason"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "definitionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("definitionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefinitionID = data
+		case "revisionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("revisionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RevisionID = data
+		case "expectedVersion":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expectedVersion"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpectedVersion = data
+		case "mode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mode"))
+			data, err := ec.unmarshalNIntegrationValidationMode2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationValidationMode(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Mode = data
+		case "reason":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reason = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIntegrationDeploymentPolicyInput(ctx context.Context, obj any) (model.IntegrationDeploymentPolicyInput, error) {
+	var it model.IntegrationDeploymentPolicyInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"validationTimeoutSeconds", "validationMaxAgeSeconds", "scheduleMode", "cronExpression", "timezone", "healthStartupGraceSeconds", "healthCheckIntervalSeconds", "healthTimeoutSeconds", "healthFailureThreshold", "maxInFlight", "maxQueued", "maxMessagesPerSecond"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "validationTimeoutSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("validationTimeoutSeconds"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ValidationTimeoutSeconds = data
+		case "validationMaxAgeSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("validationMaxAgeSeconds"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ValidationMaxAgeSeconds = data
+		case "scheduleMode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scheduleMode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScheduleMode = data
+		case "cronExpression":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cronExpression"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CronExpression = data
+		case "timezone":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("timezone"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Timezone = data
+		case "healthStartupGraceSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("healthStartupGraceSeconds"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HealthStartupGraceSeconds = data
+		case "healthCheckIntervalSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("healthCheckIntervalSeconds"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HealthCheckIntervalSeconds = data
+		case "healthTimeoutSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("healthTimeoutSeconds"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HealthTimeoutSeconds = data
+		case "healthFailureThreshold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("healthFailureThreshold"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HealthFailureThreshold = data
+		case "maxInFlight":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxInFlight"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxInFlight = data
+		case "maxQueued":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxQueued"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxQueued = data
+		case "maxMessagesPerSecond":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxMessagesPerSecond"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxMessagesPerSecond = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIntegrationRawRetentionInput(ctx context.Context, obj any) (model.IntegrationRawRetentionInput, error) {
+	var it model.IntegrationRawRetentionInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"mode", "ttlSeconds", "purpose", "storageRevision", "encryptionKey"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "mode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mode"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Mode = data
+		case "ttlSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ttlSeconds"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TTLSeconds = data
+		case "purpose":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("purpose"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Purpose = data
+		case "storageRevision":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("storageRevision"))
+			data, err := ec.unmarshalOIntegrationArtifactRevisionInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevisionInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StorageRevision = data
+		case "encryptionKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("encryptionKey"))
+			data, err := ec.unmarshalOIntegrationSecretReferenceInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSecretReferenceInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EncryptionKey = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputIntegrationSecretReferenceInput(ctx context.Context, obj any) (model.IntegrationSecretReferenceInput, error) {
+	var it model.IntegrationSecretReferenceInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"provider", "key", "version"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "provider":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("provider"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Provider = data
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "version":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("version"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Version = data
 		}
 	}
 
@@ -62423,6 +67101,15 @@ func (ec *executionContext) _ConnectionRevision(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "sourceId":
+			out.Values[i] = ec._ConnectionRevision_sourceId(ctx, field, obj)
+		case "destinationClass":
+			out.Values[i] = ec._ConnectionRevision_destinationClass(ctx, field, obj)
+		case "secretBindingNames":
+			out.Values[i] = ec._ConnectionRevision_secretBindingNames(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdBy":
 			out.Values[i] = ec._ConnectionRevision_createdBy(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -64785,6 +69472,676 @@ func (ec *executionContext) _IntegrationBundle(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var integrationDefinitionImplementors = []string{"IntegrationDefinition"}
+
+func (ec *executionContext) _IntegrationDefinition(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinition) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinition")
+		case "definitionId":
+			out.Values[i] = ec._IntegrationDefinition_definitionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revisionId":
+			out.Values[i] = ec._IntegrationDefinition_revisionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digest":
+			out.Values[i] = ec._IntegrationDefinition_digest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parentRevisionId":
+			out.Values[i] = ec._IntegrationDefinition_parentRevisionId(ctx, field, obj)
+		case "state":
+			out.Values[i] = ec._IntegrationDefinition_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._IntegrationDefinition_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "health":
+			out.Values[i] = ec._IntegrationDefinition_health(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "releaseId":
+			out.Values[i] = ec._IntegrationDefinition_releaseId(ctx, field, obj)
+		case "validationPassed":
+			out.Values[i] = ec._IntegrationDefinition_validationPassed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validationCheckedAt":
+			out.Values[i] = ec._IntegrationDefinition_validationCheckedAt(ctx, field, obj)
+		case "validationExpiresAt":
+			out.Values[i] = ec._IntegrationDefinition_validationExpiresAt(ctx, field, obj)
+		case "source":
+			out.Values[i] = ec._IntegrationDefinition_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "profile":
+			out.Values[i] = ec._IntegrationDefinition_profile(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflow":
+			out.Values[i] = ec._IntegrationDefinition_workflow(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "destinations":
+			out.Values[i] = ec._IntegrationDefinition_destinations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "secretBindings":
+			out.Values[i] = ec._IntegrationDefinition_secretBindings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "policy":
+			out.Values[i] = ec._IntegrationDefinition_policy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deployment":
+			out.Values[i] = ec._IntegrationDefinition_deployment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdBy":
+			out.Values[i] = ec._IntegrationDefinition_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdReason":
+			out.Values[i] = ec._IntegrationDefinition_createdReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._IntegrationDefinition_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedBy":
+			out.Values[i] = ec._IntegrationDefinition_updatedBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedReason":
+			out.Values[i] = ec._IntegrationDefinition_updatedReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._IntegrationDefinition_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionApprovalImplementors = []string{"IntegrationDefinitionApproval"}
+
+func (ec *executionContext) _IntegrationDefinitionApproval(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionApproval) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionApprovalImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionApproval")
+		case "eventId":
+			out.Values[i] = ec._IntegrationDefinitionApproval_eventId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actor":
+			out.Values[i] = ec._IntegrationDefinitionApproval_actor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._IntegrationDefinitionApproval_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "occurredAt":
+			out.Values[i] = ec._IntegrationDefinitionApproval_occurredAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionDestinationImplementors = []string{"IntegrationDefinitionDestination"}
+
+func (ec *executionContext) _IntegrationDefinitionDestination(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionDestination) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionDestinationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionDestination")
+		case "artifactId":
+			out.Values[i] = ec._IntegrationDefinitionDestination_artifactId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revisionId":
+			out.Values[i] = ec._IntegrationDefinitionDestination_revisionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digest":
+			out.Values[i] = ec._IntegrationDefinitionDestination_digest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "class":
+			out.Values[i] = ec._IntegrationDefinitionDestination_class(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionDetailImplementors = []string{"IntegrationDefinitionDetail"}
+
+func (ec *executionContext) _IntegrationDefinitionDetail(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionDetail) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionDetailImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionDetail")
+		case "definition":
+			out.Values[i] = ec._IntegrationDefinitionDetail_definition(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validation":
+			out.Values[i] = ec._IntegrationDefinitionDetail_validation(ctx, field, obj)
+		case "approval":
+			out.Values[i] = ec._IntegrationDefinitionDetail_approval(ctx, field, obj)
+		case "release":
+			out.Values[i] = ec._IntegrationDefinitionDetail_release(ctx, field, obj)
+		case "realValidationAvailable":
+			out.Values[i] = ec._IntegrationDefinitionDetail_realValidationAvailable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionDraftResultImplementors = []string{"IntegrationDefinitionDraftResult"}
+
+func (ec *executionContext) _IntegrationDefinitionDraftResult(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionDraftResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionDraftResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionDraftResult")
+		case "definition":
+			out.Values[i] = ec._IntegrationDefinitionDraftResult_definition(ctx, field, obj)
+		case "problems":
+			out.Values[i] = ec._IntegrationDefinitionDraftResult_problems(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionPolicyImplementors = []string{"IntegrationDefinitionPolicy"}
+
+func (ec *executionContext) _IntegrationDefinitionPolicy(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionPolicy) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionPolicyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionPolicy")
+		case "classification":
+			out.Values[i] = ec._IntegrationDefinitionPolicy_classification(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rawRetention":
+			out.Values[i] = ec._IntegrationDefinitionPolicy_rawRetention(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionReleaseImplementors = []string{"IntegrationDefinitionRelease"}
+
+func (ec *executionContext) _IntegrationDefinitionRelease(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionRelease) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionReleaseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionRelease")
+		case "releaseId":
+			out.Values[i] = ec._IntegrationDefinitionRelease_releaseId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digest":
+			out.Values[i] = ec._IntegrationDefinitionRelease_digest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validationId":
+			out.Values[i] = ec._IntegrationDefinitionRelease_validationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "approvalEventId":
+			out.Values[i] = ec._IntegrationDefinitionRelease_approvalEventId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishedBy":
+			out.Values[i] = ec._IntegrationDefinitionRelease_publishedBy(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishedReason":
+			out.Values[i] = ec._IntegrationDefinitionRelease_publishedReason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishedAt":
+			out.Values[i] = ec._IntegrationDefinitionRelease_publishedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionSourceImplementors = []string{"IntegrationDefinitionSource"}
+
+func (ec *executionContext) _IntegrationDefinitionSource(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionSource) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionSourceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionSource")
+		case "artifactId":
+			out.Values[i] = ec._IntegrationDefinitionSource_artifactId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revisionId":
+			out.Values[i] = ec._IntegrationDefinitionSource_revisionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "digest":
+			out.Values[i] = ec._IntegrationDefinitionSource_digest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceId":
+			out.Values[i] = ec._IntegrationDefinitionSource_sourceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDefinitionValidationImplementors = []string{"IntegrationDefinitionValidation"}
+
+func (ec *executionContext) _IntegrationDefinitionValidation(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDefinitionValidation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDefinitionValidationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDefinitionValidation")
+		case "validationId":
+			out.Values[i] = ec._IntegrationDefinitionValidation_validationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "passed":
+			out.Values[i] = ec._IntegrationDefinitionValidation_passed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "codes":
+			out.Values[i] = ec._IntegrationDefinitionValidation_codes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "checkedAt":
+			out.Values[i] = ec._IntegrationDefinitionValidation_checkedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._IntegrationDefinitionValidation_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceRevision":
+			out.Values[i] = ec._IntegrationDefinitionValidation_sourceRevision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "actor":
+			out.Values[i] = ec._IntegrationDefinitionValidation_actor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._IntegrationDefinitionValidation_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationDeploymentPolicyViewImplementors = []string{"IntegrationDeploymentPolicyView"}
+
+func (ec *executionContext) _IntegrationDeploymentPolicyView(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationDeploymentPolicyView) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationDeploymentPolicyViewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationDeploymentPolicyView")
+		case "validationTimeoutSeconds":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_validationTimeoutSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validationMaxAgeSeconds":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_validationMaxAgeSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scheduleMode":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_scheduleMode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cronExpression":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_cronExpression(ctx, field, obj)
+		case "timezone":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_timezone(ctx, field, obj)
+		case "healthStartupGraceSeconds":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_healthStartupGraceSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "healthCheckIntervalSeconds":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_healthCheckIntervalSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "healthTimeoutSeconds":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_healthTimeoutSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "healthFailureThreshold":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_healthFailureThreshold(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxInFlight":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_maxInFlight(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxQueued":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_maxQueued(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxMessagesPerSecond":
+			out.Values[i] = ec._IntegrationDeploymentPolicyView_maxMessagesPerSecond(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var integrationExecutionArtifactRevisionsImplementors = []string{"IntegrationExecutionArtifactRevisions"}
 
 func (ec *executionContext) _IntegrationExecutionArtifactRevisions(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationExecutionArtifactRevisions) graphql.Marshaler {
@@ -65278,6 +70635,163 @@ func (ec *executionContext) _IntegrationPreviewRoute(ctx context.Context, sel as
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationRawRetentionImplementors = []string{"IntegrationRawRetention"}
+
+func (ec *executionContext) _IntegrationRawRetention(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationRawRetention) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationRawRetentionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationRawRetention")
+		case "mode":
+			out.Values[i] = ec._IntegrationRawRetention_mode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ttlSeconds":
+			out.Values[i] = ec._IntegrationRawRetention_ttlSeconds(ctx, field, obj)
+		case "purpose":
+			out.Values[i] = ec._IntegrationRawRetention_purpose(ctx, field, obj)
+		case "storageRevision":
+			out.Values[i] = ec._IntegrationRawRetention_storageRevision(ctx, field, obj)
+		case "encryptionKey":
+			out.Values[i] = ec._IntegrationRawRetention_encryptionKey(ctx, field, obj)
+		case "accessAuditRequired":
+			out.Values[i] = ec._IntegrationRawRetention_accessAuditRequired(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationRegistryArtifactImplementors = []string{"IntegrationRegistryArtifact"}
+
+func (ec *executionContext) _IntegrationRegistryArtifact(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationRegistryArtifact) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationRegistryArtifactImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationRegistryArtifact")
+		case "integrationId":
+			out.Values[i] = ec._IntegrationRegistryArtifact_integrationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "profile":
+			out.Values[i] = ec._IntegrationRegistryArtifact_profile(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workflow":
+			out.Values[i] = ec._IntegrationRegistryArtifact_workflow(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceId":
+			out.Values[i] = ec._IntegrationRegistryArtifact_sourceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "format":
+			out.Values[i] = ec._IntegrationRegistryArtifact_format(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationSecretReferenceImplementors = []string{"IntegrationSecretReference"}
+
+func (ec *executionContext) _IntegrationSecretReference(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationSecretReference) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSecretReferenceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSecretReference")
+		case "provider":
+			out.Values[i] = ec._IntegrationSecretReference_provider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "key":
+			out.Values[i] = ec._IntegrationSecretReference_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._IntegrationSecretReference_version(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -66413,6 +71927,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "validateConnectionSpec":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_validateConnectionSpec(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validateIntegrationDefinitionDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_validateIntegrationDefinitionDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createIntegrationDefinitionDraft":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createIntegrationDefinitionDraft(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "validateIntegrationDefinition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_validateIntegrationDefinition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "approveIntegrationDefinition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_approveIntegrationDefinition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishIntegrationDefinition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_publishIntegrationDefinition(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -70552,6 +76101,69 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_engineRuntime(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "integrationDefinitions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_integrationDefinitions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "integrationDefinition":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_integrationDefinition(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "integrationRegistryArtifacts":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_integrationRegistryArtifacts(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -74736,6 +80348,31 @@ func (ec *executionContext) marshalNConnectionRevision2ᚕgitlabᚗflexinferᚗa
 	return ret
 }
 
+func (ec *executionContext) unmarshalNConnectionRevisionRefInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionRevisionRefInput(ctx context.Context, v any) (model.ConnectionRevisionRefInput, error) {
+	res, err := ec.unmarshalInputConnectionRevisionRefInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNConnectionRevisionRefInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionRevisionRefInputᚄ(ctx context.Context, v any) ([]model.ConnectionRevisionRefInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.ConnectionRevisionRefInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNConnectionRevisionRefInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionRevisionRefInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNConnectionRevisionRefInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionRevisionRefInput(ctx context.Context, v any) (*model.ConnectionRevisionRefInput, error) {
+	res, err := ec.unmarshalInputConnectionRevisionRefInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNConnectionRuntimeState2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionRuntimeState(ctx context.Context, sel ast.SelectionSet, v *model.ConnectionRuntimeState) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -74797,6 +80434,21 @@ func (ec *executionContext) marshalNConnectionSecretBinding2ᚕgitlabᚗflexinfe
 func (ec *executionContext) unmarshalNConnectionSecretBindingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionSecretBindingInput(ctx context.Context, v any) (model.ConnectionSecretBindingInput, error) {
 	res, err := ec.unmarshalInputConnectionSecretBindingInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNConnectionSecretBindingInput2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionSecretBindingInputᚄ(ctx context.Context, v any) ([]model.ConnectionSecretBindingInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]model.ConnectionSecretBindingInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNConnectionSecretBindingInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐConnectionSecretBindingInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalNCreateConnectionInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐCreateConnectionInput(ctx context.Context, v any) (model.CreateConnectionInput, error) {
@@ -76116,6 +81768,11 @@ func (ec *executionContext) marshalNIntegrationArtifactRevision2ᚖgitlabᚗflex
 	return ec._IntegrationArtifactRevision(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNIntegrationArtifactRevisionInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevisionInput(ctx context.Context, v any) (*model.IntegrationArtifactRevisionInput, error) {
+	res, err := ec.unmarshalInputIntegrationArtifactRevisionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNIntegrationBundle2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationBundle(ctx context.Context, sel ast.SelectionSet, v model.IntegrationBundle) graphql.Marshaler {
 	return ec._IntegrationBundle(ctx, sel, &v)
 }
@@ -76128,6 +81785,185 @@ func (ec *executionContext) marshalNIntegrationBundle2ᚖgitlabᚗflexinferᚗai
 		return graphql.Null
 	}
 	return ec._IntegrationBundle(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinition2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinition(ctx context.Context, sel ast.SelectionSet, v model.IntegrationDefinition) graphql.Marshaler {
+	return ec._IntegrationDefinition(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinition2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationDefinition) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationDefinition2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinition(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationDefinition2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinition(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinition) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationDefinition(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNIntegrationDefinitionCommandInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionCommandInput(ctx context.Context, v any) (model.IntegrationDefinitionCommandInput, error) {
+	res, err := ec.unmarshalInputIntegrationDefinitionCommandInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionDestination2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDestination(ctx context.Context, sel ast.SelectionSet, v model.IntegrationDefinitionDestination) graphql.Marshaler {
+	return ec._IntegrationDefinitionDestination(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionDestination2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDestinationᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationDefinitionDestination) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationDefinitionDestination2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDestination(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionDetail2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail(ctx context.Context, sel ast.SelectionSet, v model.IntegrationDefinitionDetail) graphql.Marshaler {
+	return ec._IntegrationDefinitionDetail(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionDetail2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionDetail) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionDetail(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNIntegrationDefinitionDraftInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDraftInput(ctx context.Context, v any) (model.IntegrationDefinitionDraftInput, error) {
+	res, err := ec.unmarshalInputIntegrationDefinitionDraftInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionDraftResult2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDraftResult(ctx context.Context, sel ast.SelectionSet, v model.IntegrationDefinitionDraftResult) graphql.Marshaler {
+	return ec._IntegrationDefinitionDraftResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionDraftResult2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDraftResult(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionDraftResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionDraftResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionPolicy2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionPolicy(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionPolicy) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionPolicy(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationDefinitionSource2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionSource(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionSource) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionSource(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNIntegrationDefinitionValidateInput2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionValidateInput(ctx context.Context, v any) (model.IntegrationDefinitionValidateInput, error) {
+	res, err := ec.unmarshalInputIntegrationDefinitionValidateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNIntegrationDeploymentPolicyView2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDeploymentPolicyView(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDeploymentPolicyView) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationDeploymentPolicyView(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNIntegrationExecutionArtifactRevisions2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationExecutionArtifactRevisions(ctx context.Context, sel ast.SelectionSet, v model.IntegrationExecutionArtifactRevisions) graphql.Marshaler {
@@ -76368,6 +82204,64 @@ func (ec *executionContext) marshalNIntegrationPreviewRoute2ᚕgitlabᚗflexinfe
 	return ret
 }
 
+func (ec *executionContext) marshalNIntegrationRawRetention2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRawRetention(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationRawRetention) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationRawRetention(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIntegrationRegistryArtifact2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRegistryArtifact(ctx context.Context, sel ast.SelectionSet, v model.IntegrationRegistryArtifact) graphql.Marshaler {
+	return ec._IntegrationRegistryArtifact(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationRegistryArtifact2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRegistryArtifactᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationRegistryArtifact) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationRegistryArtifact2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRegistryArtifact(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNIntegrationSession2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx context.Context, sel ast.SelectionSet, v model.IntegrationSession) graphql.Marshaler {
 	return ec._IntegrationSession(ctx, sel, &v)
 }
@@ -76438,6 +82332,16 @@ func (ec *executionContext) marshalNIntegrationSessionEvent2ᚖgitlabᚗflexinfe
 		return graphql.Null
 	}
 	return ec._IntegrationSessionEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNIntegrationValidationMode2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationValidationMode(ctx context.Context, v any) (model.IntegrationValidationMode, error) {
+	var res model.IntegrationValidationMode
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNIntegrationValidationMode2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationValidationMode(ctx context.Context, sel ast.SelectionSet, v model.IntegrationValidationMode) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNJSON2map(ctx context.Context, v any) (map[string]any, error) {
@@ -80396,6 +86300,80 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	_ = ctx
 	res := graphql.MarshalInt(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationArtifactRevision) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationArtifactRevision(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOIntegrationArtifactRevisionInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevisionInput(ctx context.Context, v any) (*model.IntegrationArtifactRevisionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputIntegrationArtifactRevisionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOIntegrationDefinitionApproval2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionApproval(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionApproval) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionApproval(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOIntegrationDefinitionDetail2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionDetail(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionDetail) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionDetail(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOIntegrationDefinitionRelease2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionRelease(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionRelease) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionRelease(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOIntegrationDefinitionValidation2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDefinitionValidation(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationDefinitionValidation) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationDefinitionValidation(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOIntegrationDeploymentPolicyInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationDeploymentPolicyInput(ctx context.Context, v any) (*model.IntegrationDeploymentPolicyInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputIntegrationDeploymentPolicyInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOIntegrationRawRetentionInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationRawRetentionInput(ctx context.Context, v any) (*model.IntegrationRawRetentionInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputIntegrationRawRetentionInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOIntegrationSecretReference2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSecretReference(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSecretReference) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationSecretReference(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOIntegrationSecretReferenceInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSecretReferenceInput(ctx context.Context, v any) (*model.IntegrationSecretReferenceInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputIntegrationSecretReferenceInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSession) graphql.Marshaler {

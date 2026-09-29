@@ -68,11 +68,12 @@ func TestTransportGateRoleMapShape(t *testing.T) {
 	// .loom/38 C-0 added ten fine-grained root fields (the connection catalog
 	// and engineRuntime) and nothing to the compatibility bucket; C-2 added
 	// four more (connectionCaptures and the three sample-intake mutations).
-	if total != 145 {
-		t.Errorf("mapped root fields = %d, want 145", total)
+	// .loom/42 E-1 added eight (three definition reads, five authoring writes).
+	if total != 153 {
+		t.Errorf("mapped root fields = %d, want 153", total)
 	}
-	if fineGrained != 40 {
-		t.Errorf("fine-grained root fields = %d, want 40", fineGrained)
+	if fineGrained != 48 {
+		t.Errorf("fine-grained root fields = %d, want 48", fineGrained)
 	}
 	if compatibility != 105 {
 		t.Errorf("compatibility-bucket root fields = %d, want 105", compatibility)

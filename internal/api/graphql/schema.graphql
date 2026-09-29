@@ -2842,6 +2842,18 @@ type ConnectionRevision {
   revisionJson: String!
   """The draft version this revision was compiled from."""
   compiledFromVersion: Int!
+  """
+  The runtime source identity the revision carries (source_id); null for a
+  destination. A definition binds it as source.sourceId (.loom/42 E-1).
+  """
+  sourceId: ID
+  """production or sandbox; null for a source."""
+  destinationClass: String
+  """
+  The secret binding names this revision's own ValidateAgainst requires a
+  definition to bind. Names only, never a reference or a value.
+  """
+  secretBindingNames: [String!]!
   createdBy: OperatorPrincipal!
   createdReason: String!
   createdAt: DateTime!
@@ -3090,6 +3102,276 @@ extend type Mutation {
   archiveConnection(input: ConnectionCommandInput!): Connection!
   compileConnection(input: ConnectionCommandInput!): ConnectionCompileResult!
   validateConnectionSpec(input: ValidateConnectionSpecInput!): [ConnectionProblem!]!
+}
+
+# =============================================================================
+# Integration definition authoring (.loom/42 E-1)
+#
+# The lifecycle catalog's definitions, authored from the IDE with the same
+# implementation `fi-fhir lifecycle seed` uses (internal/integration/lifecycle/
+# authoring), so the CLI and the IDE cannot author different bytes for the
+# same inputs. A definition binds one compiled source connection revision, a
+# profile and workflow pair the runtime's resolver proves against the static
+# integration registry, compiled destination revisions, secret binding
+# REFERENCES (never values), and policy. Drafts are validated, approved, and
+# published here; deploy stays on the Operator page.
+#
+# Reads require integration.operator; writes additionally require
+# integration.deployment.operator, re-checked by the authoring service.
+# =============================================================================
+
+"""The runtime check a validation performs; every mode records its own codes."""
+enum IntegrationValidationMode {
+  """The batch provider lists one object of the input location. Only for the batch source this replica mounts."""
+  REAL
+  """Contacts nothing: source mounted by a fresh replica, source bindings bound. Code VALIDATION_STATIC."""
+  STATIC
+  """Records VALIDATION_SKIPPED; the reason must be at least 16 bytes."""
+  SKIP
+}
+
+type IntegrationDefinitionSource {
+  artifactId: ID!
+  revisionId: ID!
+  digest: String!
+  sourceId: ID!
+}
+
+type IntegrationDefinitionDestination {
+  artifactId: ID!
+  revisionId: ID!
+  digest: String!
+  """production or sandbox."""
+  class: String!
+}
+
+type IntegrationSecretReference {
+  """env, file, vault, aws-ssm, or k8s."""
+  provider: String!
+  key: String!
+  version: String
+}
+
+type IntegrationRawRetention {
+  """ephemeral or encrypted."""
+  mode: String!
+  ttlSeconds: Int
+  purpose: String
+  storageRevision: IntegrationArtifactRevision
+  encryptionKey: IntegrationSecretReference
+  accessAuditRequired: Boolean!
+}
+
+type IntegrationDefinitionPolicy {
+  """Always phi."""
+  classification: String!
+  rawRetention: IntegrationRawRetention!
+}
+
+type IntegrationDeploymentPolicyView {
+  validationTimeoutSeconds: Int!
+  validationMaxAgeSeconds: Int!
+  """continuous or cron."""
+  scheduleMode: String!
+  cronExpression: String
+  timezone: String
+  healthStartupGraceSeconds: Int!
+  healthCheckIntervalSeconds: Int!
+  healthTimeoutSeconds: Int!
+  healthFailureThreshold: Int!
+  maxInFlight: Int!
+  maxQueued: Int!
+  maxMessagesPerSecond: Int!
+}
+
+"""One definition revision and its lifecycle snapshot."""
+type IntegrationDefinition {
+  definitionId: ID!
+  revisionId: ID!
+  """The definition revision's semantic digest."""
+  digest: String!
+  parentRevisionId: ID
+  """draft, validated, approved, published, deployed, paused, or retired."""
+  state: String!
+  """Optimistic snapshot version; every write names it as expectedVersion."""
+  version: Int!
+  health: String!
+  releaseId: ID
+  validationPassed: Boolean!
+  validationCheckedAt: DateTime
+  validationExpiresAt: DateTime
+  source: IntegrationDefinitionSource!
+  profile: IntegrationArtifactRevision!
+  workflow: IntegrationArtifactRevision!
+  destinations: [IntegrationDefinitionDestination!]!
+  """References only: a name and where the secret lives, never its value."""
+  secretBindings: [ConnectionSecretBinding!]!
+  policy: IntegrationDefinitionPolicy!
+  deployment: IntegrationDeploymentPolicyView!
+  createdBy: OperatorPrincipal!
+  createdReason: String!
+  createdAt: DateTime!
+  updatedBy: OperatorPrincipal!
+  updatedReason: String!
+  updatedAt: DateTime!
+}
+
+"""The current connection-validation record of a definition revision."""
+type IntegrationDefinitionValidation {
+  validationId: ID!
+  passed: Boolean!
+  """Outcome codes, e.g. VALIDATION_STATIC, SOURCE_MOUNTED, VALIDATION_SKIPPED, INPUT_LISTED."""
+  codes: [String!]!
+  checkedAt: DateTime!
+  expiresAt: DateTime!
+  """The exact source revision the check was recorded against."""
+  sourceRevision: IntegrationArtifactRevision!
+  actor: OperatorPrincipal!
+  reason: String!
+}
+
+"""The approval event a release binds."""
+type IntegrationDefinitionApproval {
+  eventId: ID!
+  actor: OperatorPrincipal!
+  reason: String!
+  occurredAt: DateTime!
+}
+
+"""The immutable, digest-verified release a publish created."""
+type IntegrationDefinitionRelease {
+  releaseId: ID!
+  """The release record's own digest."""
+  digest: String!
+  validationId: ID!
+  approvalEventId: ID!
+  publishedBy: OperatorPrincipal!
+  publishedReason: String!
+  publishedAt: DateTime!
+}
+
+type IntegrationDefinitionDetail {
+  definition: IntegrationDefinition!
+  """Null until the first validation is recorded."""
+  validation: IntegrationDefinitionValidation
+  """Null until approved."""
+  approval: IntegrationDefinitionApproval
+  """Null until published."""
+  release: IntegrationDefinitionRelease
+  """True when REAL validation can run for this definition's source on this replica."""
+  realValidationAvailable: Boolean!
+}
+
+"""
+One static-registry integration's profile and workflow refs, proven with the
+processor.RevisionResolver the runtime resolves admissions with. These are the
+only refs a definition can bind until resolution moves onto the catalog.
+"""
+type IntegrationRegistryArtifact {
+  integrationId: ID!
+  profile: IntegrationArtifactRevision!
+  workflow: IntegrationArtifactRevision!
+  sourceId: ID!
+  format: String!
+}
+
+type IntegrationDefinitionDraftResult {
+  """Null exactly when a blocking problem was found; nothing was written then."""
+  definition: IntegrationDefinitionDetail
+  """Every code but UNUSED_BINDING blocks."""
+  problems: [ConnectionProblem!]!
+}
+
+input ConnectionRevisionRefInput {
+  artifactId: ID!
+  revisionId: ID!
+}
+
+input IntegrationArtifactRevisionInput {
+  artifactId: ID!
+  revisionId: ID!
+  digest: String!
+}
+
+input IntegrationSecretReferenceInput {
+  provider: String!
+  key: String!
+  version: String
+}
+
+input IntegrationRawRetentionInput {
+  """ephemeral (default) or encrypted."""
+  mode: String!
+  ttlSeconds: Int
+  purpose: String
+  storageRevision: IntegrationArtifactRevisionInput
+  encryptionKey: IntegrationSecretReferenceInput
+}
+
+input IntegrationDeploymentPolicyInput {
+  validationTimeoutSeconds: Int!
+  validationMaxAgeSeconds: Int!
+  scheduleMode: String!
+  cronExpression: String
+  timezone: String
+  healthStartupGraceSeconds: Int!
+  healthCheckIntervalSeconds: Int!
+  healthTimeoutSeconds: Int!
+  healthFailureThreshold: Int!
+  maxInFlight: Int!
+  maxQueued: Int!
+  maxMessagesPerSecond: Int!
+}
+
+input IntegrationDefinitionDraftInput {
+  definitionId: ID!
+  revisionId: ID!
+  parentRevisionId: ID
+  """A compiled source connection revision."""
+  source: ConnectionRevisionRefInput!
+  """Compiled destination connection revisions."""
+  destinations: [ConnectionRevisionRefInput!]!
+  """From integrationRegistryArtifacts."""
+  profile: IntegrationArtifactRevisionInput!
+  workflow: IntegrationArtifactRevisionInput!
+  """References only; a value is never accepted anywhere."""
+  secretBindings: [ConnectionSecretBindingInput!]!
+  """Omitted: ephemeral."""
+  rawRetention: IntegrationRawRetentionInput
+  """Omitted: the default policy with FI_FHIR_LIFECYCLE_VALIDATION_MAX_AGE."""
+  deployment: IntegrationDeploymentPolicyInput
+}
+
+input IntegrationDefinitionCommandInput {
+  definitionId: ID!
+  revisionId: ID!
+  """Optimistic concurrency guard; a stale version is rejected, never retried."""
+  expectedVersion: Int!
+  reason: String!
+}
+
+input IntegrationDefinitionValidateInput {
+  definitionId: ID!
+  revisionId: ID!
+  expectedVersion: Int!
+  mode: IntegrationValidationMode!
+  reason: String!
+}
+
+extend type Query {
+  integrationDefinitions(includeRetired: Boolean): [IntegrationDefinition!]!
+  integrationDefinition(definitionId: ID!, revisionId: ID!): IntegrationDefinitionDetail
+  integrationRegistryArtifacts: [IntegrationRegistryArtifact!]!
+}
+
+extend type Mutation {
+  """Every pre-flight check, without a write."""
+  validateIntegrationDefinitionDraft(input: IntegrationDefinitionDraftInput!): [ConnectionProblem!]!
+  createIntegrationDefinitionDraft(input: IntegrationDefinitionDraftInput!, reason: String!): IntegrationDefinitionDraftResult!
+  """A failed check is recorded evidence, returned in validation; not an error."""
+  validateIntegrationDefinition(input: IntegrationDefinitionValidateInput!): IntegrationDefinitionDetail!
+  approveIntegrationDefinition(input: IntegrationDefinitionCommandInput!): IntegrationDefinitionDetail!
+  publishIntegrationDefinition(input: IntegrationDefinitionCommandInput!): IntegrationDefinitionDetail!
 }
 
 # =============================================================================

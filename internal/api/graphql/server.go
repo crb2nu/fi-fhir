@@ -86,6 +86,10 @@ type ServerConfig struct {
 	// connection catalog, which it does beside the control plane under the
 	// same gate. /api/auth/status reports it as connectionCatalog.
 	ConnectionCatalogConfigured bool
+	// DefinitionAuthoringConfigured reports that serve composed the
+	// definition editor's service (.loom/42 E-1): a lifecycle catalog, a
+	// connection catalog, and the static registry resolver it proves refs with.
+	DefinitionAuthoringConfigured bool
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
 	// TrustedNetworkAuthenticator optionally establishes the same deployment-
@@ -739,6 +743,20 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"connection capture is already finished",
 		"peek requires a compiled batch source connection",
 		"connection sample intake request failed":
+		return &gqlerror.Error{Message: presented.Message}
+	// Definition authoring outcomes (.loom/42 E-1). Each names a decision about
+	// the caller's own request; another tenant's definition is "not found".
+	case "integration definition authoring unavailable",
+		"integration definition authoring forbidden",
+		"invalid integration definition request",
+		"integration definition not found",
+		"integration definition version conflict",
+		"invalid integration definition transition",
+		"current connection validation required",
+		"another revision of this definition is deployed or paused",
+		"real validation is unavailable for this source on this replica",
+		"a real validation is already running on this replica",
+		"integration definition request failed":
 		return &gqlerror.Error{Message: presented.Message}
 	case ConnectionCaptureSourceUnavailableMessage:
 		// A fixed code, never one copied from the error: nothing a resolver
