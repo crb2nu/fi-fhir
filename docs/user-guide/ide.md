@@ -111,12 +111,12 @@ needs the workflow event stream. On deployments that stream Integration
 Sessions only, it says so and points to the recorded runs. The DSL is in
 [Workflow Configuration](workflows.md).
 
-### Events (`/events`), stage 5
+### Verification (`/events`), stage 5
 
-Browse recorded events, Live Stream, Patient Timeline and Statistics. Live
-Stream needs the `eventStream` subscription, which production deployments do
-not allow. There it shows "Live streaming for the event stream is not available
-on this deployment" and points to the Events browser.
+**Admissions**, **Statistics** and **Retention**, read from the durable
+admission records through the operator control plane (`integration.operator`).
+The page does not stream and has no patient timeline, and it says why. See
+[Verification](verification.md).
 
 ### Connections (`/connections`)
 

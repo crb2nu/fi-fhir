@@ -59,6 +59,8 @@ curl.
 Checks that rely on the fixture: operator-bundle 2 (Messages lists the
 receipts) and `E0-1`…`E0-6`; `E0-4` resubmits the dead letter, so later checks
 see one more queued attempt. Later lanes may rely on the counts above.
+`E2-1`…`E2-4` (lane E-2, Verification) read the three admissions
+(`E2E-FIXTURE-001`…`003`) and count the accepted receipts.
 
 ## Lane checks
 

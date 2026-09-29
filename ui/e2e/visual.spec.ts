@@ -122,14 +122,14 @@ const CAPTURES: Capture[] = [
   },
   {
     id: 'V8',
-    name: 'events-browse',
+    name: 'events-admissions',
     reach: async (page) => {
       await openIDE(page, '/events');
-      const view = page.getByRole('tabpanel', { name: 'Browse' });
+      const view = page.getByRole('tabpanel', { name: 'Admissions' });
       await expectOneOf(
-        view.getByText('No events match these filters.'),
-        view.getByRole('table', { name: 'Events', exact: true }),
-        view.getByText(/^Events could not be loaded/)
+        view.getByTestId('admissions-empty'),
+        view.getByRole('table', { name: 'Durable admissions', exact: true }),
+        view.getByRole('alert')
       );
     }
   },
@@ -172,6 +172,16 @@ const CAPTURES: Capture[] = [
         page.getByTestId('deployment-history').getByTestId('history-row').first(),
         page.getByTestId('deployment-focus-missing')
       );
+    }
+  },
+  {
+    // .loom/42 E-2: Verification › Statistics over the fixture's admissions.
+    id: 'V24',
+    name: 'events-statistics',
+    reach: async (page) => {
+      await openIDE(page, '/events');
+      await page.getByRole('tab', { name: 'Statistics' }).click();
+      await expectOneOf(page.getByTestId('statistics-series'), page.getByRole('alert'));
     }
   },
   {
@@ -289,7 +299,7 @@ const CAPTURES: Capture[] = [
   },
   ...(
     [
-      ['V18', 'demo-events-preflight', '/events', 'events-preflight'],
+      ['V18', 'demo-events-preflight', '/events', 'verification-preflight'],
       ['V19', 'demo-profiles-preflight', '/profiles', 'profiles-preflight'],
       ['V20', 'demo-terminology-preflight', '/terminology', 'terminology-preflight'],
       ['V21', 'demo-workflows-preflight', '/workflows', 'workflows-preflight']
