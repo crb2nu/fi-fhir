@@ -150,7 +150,8 @@ func (s *PostgresReadStore) GetMessageTrace(ctx context.Context, tenantID, recei
 func (s *PostgresReadStore) listEvents(ctx context.Context, tenantID, receiptID string) ([]EventSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT tenant_id, event_id, receipt_id, event_type, source_message_id,
-			correlation_id, classification, recorded_at, payload_json
+			correlation_id, classification, recorded_at, payload_json,
+			purge_after, purged_at
 		FROM integration_canonical_events
 		WHERE tenant_id = $1 AND receipt_id = $2
 		ORDER BY recorded_at, event_id
@@ -164,14 +165,21 @@ func (s *PostgresReadStore) listEvents(ctx context.Context, tenantID, receiptID 
 	for rows.Next() {
 		var event EventSummary
 		var payload []byte
+		var purgeAfter, purgedAt sql.NullTime
 		if err := rows.Scan(
 			&event.TenantID, &event.EventID, &event.ReceiptID, &event.EventType,
 			&event.SourceMessageID, &event.CorrelationID, &event.Classification,
-			&event.RecordedAt, &payload,
+			&event.RecordedAt, &payload, &purgeAfter, &purgedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan operator event: %w", err)
 		}
 		event.RecordedAt = event.RecordedAt.UTC()
+		if purgeAfter.Valid {
+			event.PurgeAfter = optionalTime(purgeAfter.Time)
+		}
+		if purgedAt.Valid {
+			event.PurgedAt = optionalTime(purgedAt.Time)
+		}
 		event.PayloadFields, event.PayloadTruncated = summarizePayload(payload)
 		events = append(events, event)
 	}

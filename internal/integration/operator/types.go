@@ -108,6 +108,11 @@ type EventSummary struct {
 	RecordedAt       time.Time
 	PayloadFields    []PayloadField
 	PayloadTruncated bool
+	// PurgeAfter is the retention deadline the purge worker stamped, if any.
+	PurgeAfter *time.Time
+	// PurgedAt is set once retention replaced the payload with a tombstone;
+	// PayloadFields then describe the tombstone, not the original document.
+	PurgedAt *time.Time
 }
 
 // RouteSummary is one persisted routing outcome for an event.
@@ -251,9 +256,12 @@ type DeploymentSummary struct {
 	Health              string
 	ValidationPassed    bool
 	ValidationExpiresAt *time.Time
-	UpdatedBy           PrincipalSummary
-	UpdatedReason       string
-	UpdatedAt           time.Time
+	// ValidationCurrent reports whether the lifecycle would accept Deploy or
+	// Resume right now: a passed validation record that has not expired.
+	ValidationCurrent bool
+	UpdatedBy         PrincipalSummary
+	UpdatedReason     string
+	UpdatedAt         time.Time
 }
 
 // LifecycleEventSummary is one append-only lifecycle transition.

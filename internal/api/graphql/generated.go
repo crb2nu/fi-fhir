@@ -991,6 +991,7 @@ type ComplexityRoot struct {
 		UpdatedAt           func(childComplexity int) int
 		UpdatedBy           func(childComplexity int) int
 		UpdatedReason       func(childComplexity int) int
+		ValidationCurrent   func(childComplexity int) int
 		ValidationExpiresAt func(childComplexity int) int
 		ValidationPassed    func(childComplexity int) int
 		Version             func(childComplexity int) int
@@ -1039,6 +1040,8 @@ type ComplexityRoot struct {
 		EventType        func(childComplexity int) int
 		PayloadFields    func(childComplexity int) int
 		PayloadTruncated func(childComplexity int) int
+		PurgeAfter       func(childComplexity int) int
+		PurgedAt         func(childComplexity int) int
 		ReceiptID        func(childComplexity int) int
 		RecordedAt       func(childComplexity int) int
 		SourceMessageID  func(childComplexity int) int
@@ -6373,6 +6376,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorDeployment.UpdatedReason(childComplexity), true
+	case "OperatorDeployment.validationCurrent":
+		if e.complexity.OperatorDeployment.ValidationCurrent == nil {
+			break
+		}
+
+		return e.complexity.OperatorDeployment.ValidationCurrent(childComplexity), true
 	case "OperatorDeployment.validationExpiresAt":
 		if e.complexity.OperatorDeployment.ValidationExpiresAt == nil {
 			break
@@ -6593,6 +6602,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorEvent.PayloadTruncated(childComplexity), true
+	case "OperatorEvent.purgeAfter":
+		if e.complexity.OperatorEvent.PurgeAfter == nil {
+			break
+		}
+
+		return e.complexity.OperatorEvent.PurgeAfter(childComplexity), true
+	case "OperatorEvent.purgedAt":
+		if e.complexity.OperatorEvent.PurgedAt == nil {
+			break
+		}
+
+		return e.complexity.OperatorEvent.PurgedAt(childComplexity), true
 	case "OperatorEvent.receiptId":
 		if e.complexity.OperatorEvent.ReceiptID == nil {
 			break
@@ -32216,6 +32237,8 @@ func (ec *executionContext) fieldContext_Mutation_pauseIntegrationDeployment(ctx
 				return ec.fieldContext_OperatorDeployment_validationPassed(ctx, field)
 			case "validationExpiresAt":
 				return ec.fieldContext_OperatorDeployment_validationExpiresAt(ctx, field)
+			case "validationCurrent":
+				return ec.fieldContext_OperatorDeployment_validationCurrent(ctx, field)
 			case "updatedBy":
 				return ec.fieldContext_OperatorDeployment_updatedBy(ctx, field)
 			case "updatedReason":
@@ -32279,6 +32302,8 @@ func (ec *executionContext) fieldContext_Mutation_resumeIntegrationDeployment(ct
 				return ec.fieldContext_OperatorDeployment_validationPassed(ctx, field)
 			case "validationExpiresAt":
 				return ec.fieldContext_OperatorDeployment_validationExpiresAt(ctx, field)
+			case "validationCurrent":
+				return ec.fieldContext_OperatorDeployment_validationCurrent(ctx, field)
 			case "updatedBy":
 				return ec.fieldContext_OperatorDeployment_updatedBy(ctx, field)
 			case "updatedReason":
@@ -32342,6 +32367,8 @@ func (ec *executionContext) fieldContext_Mutation_retireIntegrationDeployment(ct
 				return ec.fieldContext_OperatorDeployment_validationPassed(ctx, field)
 			case "validationExpiresAt":
 				return ec.fieldContext_OperatorDeployment_validationExpiresAt(ctx, field)
+			case "validationCurrent":
+				return ec.fieldContext_OperatorDeployment_validationCurrent(ctx, field)
 			case "updatedBy":
 				return ec.fieldContext_OperatorDeployment_updatedBy(ctx, field)
 			case "updatedReason":
@@ -32405,6 +32432,8 @@ func (ec *executionContext) fieldContext_Mutation_deployIntegrationRelease(ctx c
 				return ec.fieldContext_OperatorDeployment_validationPassed(ctx, field)
 			case "validationExpiresAt":
 				return ec.fieldContext_OperatorDeployment_validationExpiresAt(ctx, field)
+			case "validationCurrent":
+				return ec.fieldContext_OperatorDeployment_validationCurrent(ctx, field)
 			case "updatedBy":
 				return ec.fieldContext_OperatorDeployment_updatedBy(ctx, field)
 			case "updatedReason":
@@ -35163,6 +35192,35 @@ func (ec *executionContext) fieldContext_OperatorDeployment_validationExpiresAt(
 	return fc, nil
 }
 
+func (ec *executionContext) _OperatorDeployment_validationCurrent(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDeployment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDeployment_validationCurrent,
+		func(ctx context.Context) (any, error) {
+			return obj.ValidationCurrent, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDeployment_validationCurrent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDeployment",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OperatorDeployment_updatedBy(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDeployment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -36332,6 +36390,64 @@ func (ec *executionContext) fieldContext_OperatorEvent_payloadTruncated(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _OperatorEvent_purgeAfter(ctx context.Context, field graphql.CollectedField, obj *model.OperatorEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorEvent_purgeAfter,
+		func(ctx context.Context) (any, error) {
+			return obj.PurgeAfter, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorEvent_purgeAfter(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorEvent_purgedAt(ctx context.Context, field graphql.CollectedField, obj *model.OperatorEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorEvent_purgedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.PurgedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorEvent_purgedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OperatorLineage_lineageId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorLineage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -36757,6 +36873,10 @@ func (ec *executionContext) fieldContext_OperatorMessageTrace_events(_ context.C
 				return ec.fieldContext_OperatorEvent_payloadFields(ctx, field)
 			case "payloadTruncated":
 				return ec.fieldContext_OperatorEvent_payloadTruncated(ctx, field)
+			case "purgeAfter":
+				return ec.fieldContext_OperatorEvent_purgeAfter(ctx, field)
+			case "purgedAt":
+				return ec.fieldContext_OperatorEvent_purgedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OperatorEvent", field.Name)
 		},
@@ -45290,6 +45410,8 @@ func (ec *executionContext) fieldContext_Query_operatorDeployments(_ context.Con
 				return ec.fieldContext_OperatorDeployment_validationPassed(ctx, field)
 			case "validationExpiresAt":
 				return ec.fieldContext_OperatorDeployment_validationExpiresAt(ctx, field)
+			case "validationCurrent":
+				return ec.fieldContext_OperatorDeployment_validationCurrent(ctx, field)
 			case "updatedBy":
 				return ec.fieldContext_OperatorDeployment_updatedBy(ctx, field)
 			case "updatedReason":
@@ -67088,6 +67210,11 @@ func (ec *executionContext) _OperatorDeployment(ctx context.Context, sel ast.Sel
 			}
 		case "validationExpiresAt":
 			out.Values[i] = ec._OperatorDeployment_validationExpiresAt(ctx, field, obj)
+		case "validationCurrent":
+			out.Values[i] = ec._OperatorDeployment_validationCurrent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updatedBy":
 			out.Values[i] = ec._OperatorDeployment_updatedBy(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -67413,6 +67540,10 @@ func (ec *executionContext) _OperatorEvent(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "purgeAfter":
+			out.Values[i] = ec._OperatorEvent_purgeAfter(ctx, field, obj)
+		case "purgedAt":
+			out.Values[i] = ec._OperatorEvent_purgedAt(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
