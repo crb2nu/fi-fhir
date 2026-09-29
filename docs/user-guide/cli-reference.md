@@ -27,6 +27,7 @@ Global Options:
 | `fhir` | FHIR resource operations |
 | `config` | Configuration management |
 | `serve` | Start GraphQL API server |
+| `lifecycle` | Seed a batch integration definition into the lifecycle catalog |
 | `subscription` | Manage FHIR subscriptions |
 | `eventstore` | Event sourcing operations |
 | `projection` | Projection management |
@@ -570,6 +571,112 @@ introspect opaque access tokens.
 ```bash
 # After exporting the required preview environment
 fi-fhir serve --port 8080 --no-playground --no-introspection
+```
+
+---
+
+## lifecycle seed
+
+Create, validate, approve, and publish (optionally deploy) one batch
+integration definition revision in the PostgreSQL lifecycle catalog. This is
+the supported way to produce the definition a batch runner polls as
+`FI_FHIR_BATCH_DEFINITION_ID`; see
+[Integration deployment lifecycle](../operations/INTEGRATION-DEPLOYMENT-LIFECYCLE.md#seeding-a-batch-definition-from-the-cli).
+
+### Usage
+
+```bash
+fi-fhir lifecycle seed \
+  --source FILE --definition-id ID [--revision-id ID] \
+  --integration ID [--registry FILE] \
+  --destination FILE [--destination FILE ...] \
+  --principal ID --reason TEXT [--role ROLE ...] \
+  [--tenant ID] [--validate real|skip] [--through published|deployed] \
+  [--dry-run] [--destination-registry-out FILE|-] [--created-at RFC3339] \
+  [--validation-timeout SECONDS] [--validation-max-age SECONDS] \
+  [--max-in-flight N] [--max-queued N] [--max-messages-per-second N]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--source FILE` | Batch source revision JSON, the same file the runner mounts at `FI_FHIR_BATCH_SOURCE_CONFIG_PATH`. Its ref and `source_id` become the definition's source; each binding it names becomes a secret binding with provider `file` and key `batch/<name>`. Required |
+| `--definition-id ID` | Definition ID; the runner's `FI_FHIR_BATCH_DEFINITION_ID`. Required |
+| `--revision-id ID` | Definition revision (default `v1`) |
+| `--integration ID` | Static-registry entry whose profile and workflow refs the definition binds. Required |
+| `--registry FILE` | Static integration registry (default `FI_FHIR_INTEGRATION_REGISTRY_PATH`) |
+| `--destination FILE` | Destination revision JSON; repeatable. `-` reads one from standard input. Each binding it names becomes a secret binding with key `destinations/<name>` |
+| `--principal ID` | Operator identity recorded on the revision and on every transition. Required |
+| `--reason TEXT` | Audit reason, 1–1024 bytes. Required |
+| `--role ROLE` | Principal role; repeatable (default `integration:operator`) |
+| `--tenant ID` | Deployment tenant (default `FI_FHIR_DEPLOYMENT_TENANT_ID`) |
+| `--validate real\|skip` | `real` (default) builds the batch provider from the `FI_FHIR_BATCH_*` keys `serve` reads and lists one object of the input location. `skip` records `VALIDATION_SKIPPED` and needs a `--reason` of at least 16 bytes |
+| `--through published\|deployed` | `published` (default) stops after Publish so an operator deploys from the Studio Operator page; `deployed` continues through Deploy |
+| `--dry-run` | Print the definition revision and its refs; write nothing. Needs no database |
+| `--destination-registry-out FILE` | Also write the delivery worker's destination registry (`fi-fhir/destination-registry/v1`) for this definition; `-` puts it in the stdout summary instead. With `--dry-run` it is printed, never written |
+| `--created-at RFC3339` | Creation time of a new revision (default now). The digest covers it, the principal, the roles, and the reason, so fix all four to reproduce a digest |
+| `--validation-timeout`, `--validation-max-age` | Connection validation policy in seconds (defaults 5 and 300) |
+| `--max-in-flight`, `--max-queued`, `--max-messages-per-second` | Capacity policy (defaults 2, 10, 100) |
+
+The schedule is continuous and the health policy is startup grace 5 s,
+interval 30 s, timeout 5 s, failure threshold 3.
+
+Every non-log action in the registry entry's workflow must deliver to one of
+the `--destination` artifacts; otherwise the seed refuses, because the
+runtime planner would refuse every matching message. Re-running with the
+same inputs resumes from the stored state; a revision stored with different
+content is refused (seed the change as a new `--revision-id`).
+
+Outside `--dry-run` the command needs the `FI_FHIR_DATABASE_*` settings
+`serve` reads, and with `--validate real` the batch credentials for the
+source's provider (`FI_FHIR_BATCH_SFTP_KNOWN_HOSTS_FILE` plus
+`FI_FHIR_BATCH_SFTP_PRIVATE_KEY_FILE` or `FI_FHIR_BATCH_SFTP_PASSWORD[_FILE]`,
+or `FI_FHIR_BATCH_S3_ACCESS_KEY[_FILE]` and `FI_FHIR_BATCH_S3_SECRET_KEY[_FILE]`).
+A missing credential is refused before anything is written.
+
+### Output
+
+One JSON object on stdout. It carries no secret and no message content:
+
+```json
+{
+  "definition": {"artifact_id": "sftp-test-demo", "revision_id": "v1", "digest": "sha256:…"},
+  "definition_created_at": "2026-09-28T12:00:00Z",
+  "tenant_id": "tenant-a",
+  "state": "published",
+  "snapshot_version": 4,
+  "created_draft": true,
+  "transitions": ["create_draft", "validate_connection", "approve", "publish"],
+  "validation": {
+    "passed": true,
+    "codes": ["SOURCE_REACHABLE", "HOST_KEY_VERIFIED", "AUTH_OK", "INPUT_LISTED"],
+    "checked_at": "…", "expires_at": "…"
+  },
+  "release_id": "release-…",
+  "env": {"FI_FHIR_BATCH_DEFINITION_ID": "sftp-test-demo"},
+  "next": "deploy release release-… from the Studio Operator page …"
+}
+```
+
+A failed connection check still prints the summary, with codes such as
+`SOURCE_CONNECT_FAILED` or `INPUT_LIST_FAILED`, and exits non-zero; fix the
+source and re-run the same command.
+
+### Examples
+
+```bash
+# Check what would be written
+fi-fhir lifecycle seed --dry-run \
+  --source sftp-test-r1.json --definition-id sftp-test-demo \
+  --integration sftp-test-demo --destination st-elsewhere-r1.json \
+  --principal ops-alice --reason "seed the sftp-test demo definition"
+
+# Seed through published, then deploy from the Studio (or re-run with --through deployed)
+fi-fhir lifecycle seed \
+  --source /app/batch-sources/sftp-test-r1.json --definition-id sftp-test-demo \
+  --integration sftp-test-demo --destination st-elsewhere-r1.json \
+  --principal ops-alice --reason "seed the sftp-test demo definition"
 ```
 
 ---
