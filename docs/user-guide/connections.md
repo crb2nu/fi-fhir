@@ -136,9 +136,14 @@ On the **Revisions** tab, select a revision:
   of its destination refs).
 
 There is no definition editor yet (see [What may change](#what-may-change)).
-Definitions are still written by hand: in the static registry
-(`FI_FHIR_INTEGRATION_REGISTRY_PATH`) for HTTP ingress and preview, and in the
-PostgreSQL lifecycle catalog for MLLP and batch.
+For a batch source, `fi-fhir lifecycle seed` builds the definition in the
+PostgreSQL lifecycle catalog from the compiled source revision, a static
+registry entry's profile and workflow, and the compiled destination
+revisions, then validates, approves, and publishes it
+([CLI reference](cli-reference.md#lifecycle-seed)). Definitions for HTTP
+ingress and preview are still written by hand in the static registry
+(`FI_FHIR_INTEGRATION_REGISTRY_PATH`), and an MLLP definition has no supported
+path to the catalog yet.
 
 ### 5. Mount it in GitOps
 

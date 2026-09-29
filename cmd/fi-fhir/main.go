@@ -127,6 +127,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	case "lifecycle":
+		if err := runLifecycle(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "eventstore":
 		if err := runEventStore(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -187,6 +192,7 @@ Commands:
   subscription Manage FHIR subscriptions for bidirectional integration
   serve        Start the GraphQL API server
   delivery     Inspect help or replay/resubmit a durable dead letter
+  lifecycle    Seed a batch integration definition into the lifecycle catalog
   eventstore   Manage event store (init, stats, streams, read)
   projection   Manage projections (list, status, run, rebuild)
   terminology  Manage terminology database (init, load, status, crosswalk)

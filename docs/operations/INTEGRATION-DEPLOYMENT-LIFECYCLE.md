@@ -15,11 +15,14 @@ session's release when publication signing is configured
 `deploySessionPublication`), and the connection catalog shows which definition
 revisions name each connection revision and their state (`Connection.references`,
 the Connections page's Usage tab; see
-[Connection catalog operations](CONNECTION-CATALOG.md)). REST and the CLI
-expose none of them, and nothing outside tests creates or validates a
-definition draft. Slice 2.2's optional production MLLP adapter consumes the
-catalog's deployed binding; authenticated HTTP ingress remains on the verified
-startup registry.
+[Connection catalog operations](CONNECTION-CATALOG.md)). REST exposes none of
+them. The CLI's `fi-fhir lifecycle seed` is the supported way to create,
+validate, approve, and publish a **batch** definition outside tests (see
+[Seeding a batch definition from the CLI](#seeding-a-batch-definition-from-the-cli));
+deploy can stay a Studio action. An MLLP definition still has no supported
+path to a draft: the seed takes batch source revisions only. Slice 2.2's
+optional production MLLP adapter consumes the catalog's deployed binding;
+authenticated HTTP ingress remains on the verified startup registry.
 
 ## Versioned policy
 
@@ -98,6 +101,56 @@ before the stop transition or fails closed after it.
 The exact revision remains available for audit after pause or retirement. It is
 not runnable until the state machine permits it.
 
+## Seeding a batch definition from the CLI
+
+`fi-fhir lifecycle seed` ([CLI reference](../user-guide/cli-reference.md#lifecycle-seed))
+builds one `IntegrationDefinitionRevision` for a batch source and runs
+`CreateDraft` → `ValidateConnection` → `Approve` → `Publish`, and with
+`--through deployed` also `Deploy`. It is the sequence the batch proof's
+`deployBatchRevision` helper runs, now an operator command. Every transition
+names the snapshot version it read, the `--principal` (auth method
+`postgres`: the database connection authenticates the operator, as for
+`fi-fhir delivery replay`), and the `--reason`.
+
+Where each part of the definition comes from:
+
+| Field | Source |
+|---|---|
+| `source` | `--source`, the batch source revision the runner mounts: its ref and `source_id` |
+| `profile`, `workflow` | the `--integration` entry of the static registry (`FI_FHIR_INTEGRATION_REGISTRY_PATH`) |
+| `destinations` | each `--destination` revision's ref and class |
+| `secret_bindings` | every name the source declares (provider `file`, key `batch/<name>`) and every name a destination declares (key `destinations/<name>`) |
+| `deployment` | the policy defaults or flags; see the CLI reference |
+
+**Why the profile and workflow come from the static registry.** The batch
+runner never loads profile or workflow bytes from this catalog. `serve` builds
+one artifact resolver over the static registry and hands it to the batch
+runtime; at admission the processor resolves the deployed definition here,
+then loads the definition's profile and workflow from the registry by
+`(artifact_id, revision_id)` and refuses unless the recomputed digest equals
+the definition's ref byte for byte. A profile or workflow published into the
+Studio's own stores is not visible to that path. The seed therefore takes both
+refs from one registry entry and resolves them with the same resolver before
+writing anything, and refuses a workflow whose non-log actions deliver to a
+destination that is not among `--destination` (the planner would refuse every
+matching message).
+
+**Idempotent and resumable.** Re-running with the same inputs resumes from the
+stored state: a failed validation stays `draft` with its codes recorded, and
+the next run validates again; stale evidence is refreshed before any gated
+step. The creation audit is part of the digest, so resume compares the stored
+revision with these inputs rebuilt under the stored audit. Different content
+under the same revision ID is refused, never overwritten, because the tables
+are append-only; seed the change as a new `--revision-id`. A `paused` or
+`retired` revision is reported, not advanced.
+
+**Deploying from the Studio.** The default `--through published` leaves the
+deploy to the Operator page (`deployIntegrationRelease`). `Deploy` requires
+validation evidence younger than the policy's max age (300 s by default), and
+`serve`'s catalog has no connection validator, so deploy within the window
+printed as `validation.expires_at`. Once it has passed, re-run the same seed
+command: at `published` it refreshes the evidence and stops again.
+
 ## Verification
 
 Run unit and contract tests:
@@ -117,6 +170,19 @@ POSTGRES_TEST_URL='postgres://user:pass@host:5432/db?sslmode=disable' \
 
 The required `test:deployment-lifecycle` CI job also verifies that this exact
 test exists before running it. The job has `allow_failure: false`.
+
+The seed command's PostgreSQL proofs seed through `published`, resume to
+`deployed`, and hand the result to the batch runtime `serve` builds, which must
+ingest and archive a file; they also prove a changed source is refused with
+nothing written and a failed validation resumes once fixed:
+
+```bash
+POSTGRES_TEST_URL='postgres://user:pass@host:5432/db?sslmode=disable' make lifecycle-seed
+```
+
+The required `test:lifecycle-seed` CI job asserts the three proof names exist
+before running them. The flag, dry-run, destination-registry, validator, and
+resume-state tests need no database and run in `test:unit`.
 
 ## Rollback
 

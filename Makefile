@@ -40,6 +40,7 @@
 .PHONY: connection-catalog                                             # .loom/38 — C-0
 .PHONY: connection-capture                                             # .loom/38 — C-2
 .PHONY: wasm wasm-deps-check wasm-size-check wasm-smoke                # .loom/40 — D-0
+.PHONY: lifecycle-seed                                                 # lifecycle seed CLI
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -1248,6 +1249,20 @@ connection-capture:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^(TestConnectionCapture_(TapCapturesRedactedSamplesWithoutTouchingAdmission|OtherSourceCapturesNothing|TapFailureNeverChangesTheAck|ExpiresByTTL|RacingFramesNeverExceedMaxMessages|StartRefusesASourceTheTapCannotSee)|TestConnectionPeek_ReadsWithoutLeaseCheckpointOrArchive)$$' \
 		./internal/integration/connection
+
+# `fi-fhir lifecycle seed` (ci/test-lifecycle-seed.yml). Against a fresh
+# PostgreSQL database per proof and an in-process SSH/SFTP server with a pinned
+# host key: seed stops at published and is not runnable; --through deployed
+# resumes to deployed, ResolveRunnable matches the source, and the batch runtime
+# serve builds ingests and archives a two-message file; a changed source under
+# the same revision ID is refused with nothing written; a host-key mismatch
+# stays draft with SOURCE_CONNECT_FAILED and resumes once fixed. Requires
+# POSTGRES_TEST_URL; the proofs skip without it outside CI, which is why the CI
+# job asserts the names exist first.
+lifecycle-seed:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestLifecycleSeedPostgres_(PublishesThenResumesToDeployedAndTheRunnerIngests|RefusesAChangedSourceUnderTheSameRevision|FailedValidationStaysDraftAndResumesAfterTheFix)$$' \
+		./cmd/fi-fhir
 
 # .loom/40 Lane D-0: the browser kernel (cmd/fi-fhir-wasm, ci/test-wasm.yml).
 # `make wasm` writes dist/wasm/fi-fhir.wasm and the Go runtime's wasm_exec.js

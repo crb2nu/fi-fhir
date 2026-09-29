@@ -100,6 +100,8 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 			capturedErr = runETL(args[1:])
 		case "llm":
 			capturedErr = runLLM(args[1:])
+		case "lifecycle":
+			capturedErr = runLifecycle(args[1:])
 		case "version", "--version", "-v":
 			printVersion(os.Stdout, version)
 		case "help", "--help", "-h":

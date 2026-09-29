@@ -122,6 +122,33 @@ The definition must be deployed and its exact source ID, revision ID, digest,
 provider, and secret bindings must match the source document. Startup or polling
 fails closed on a mismatch.
 
+### Seeding the definition
+
+Create that definition with `fi-fhir lifecycle seed`, not by hand. Run it where
+the runner's own settings are, typically inside the API pod, against the same
+source file the runner mounts:
+
+```bash
+fi-fhir lifecycle seed \
+  --source /etc/fi-fhir/batch-source.json \
+  --definition-id integration-batch \
+  --integration <static-registry entry> \
+  --destination destination-r1.json \
+  --principal <operator id> --reason "<why>"
+```
+
+It reads `FI_FHIR_DEPLOYMENT_TENANT_ID`, `FI_FHIR_INTEGRATION_REGISTRY_PATH`,
+the `FI_FHIR_DATABASE_*` settings, and the provider credentials above; by
+default it validates the source for real (it lists one object of the input
+location, moving nothing), approves, and publishes. Deploy from the Studio
+Operator page within the printed `validation.expires_at`, or re-run with
+`--through deployed`. The printed `env.FI_FHIR_BATCH_DEFINITION_ID` is the value
+to configure here. The profile and workflow come from the static registry
+entry named by `--integration`, because that registry is where the runner
+loads them from; see
+[Integration deployment lifecycle](INTEGRATION-DEPLOYMENT-LIFECYCLE.md#seeding-a-batch-definition-from-the-cli)
+and the [CLI reference](../user-guide/cli-reference.md#lifecycle-seed).
+
 For S3, use file-backed credentials in production:
 
 ```text

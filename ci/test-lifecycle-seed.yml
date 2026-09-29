@@ -1,0 +1,39 @@
+# `fi-fhir lifecycle seed`: the supported way to create a batch integration
+# definition in the lifecycle catalog outside tests.
+#
+# Each proof runs the command's own code path (runLifecycleSeed, the
+# FI_FHIR_DATABASE_* loader serve uses, real connection validation against an
+# in-process SSH/SFTP server with a pinned host key) against a fresh
+# PostgreSQL 16 database. Seeding stops at published and is not runnable; a
+# second run with --through deployed resumes to deployed, ResolveRunnable
+# returns a binding the source's own ValidateAgainst accepts, and the batch
+# runtime serve builds (loadBatchRuntimeFromEnv, profile and workflow from the
+# static registry) ingests a two-message file, writes two receipts and two
+# outbox rows, and archives it. A changed source under the same revision ID is
+# refused with no row written and no state change; a pinned-host-key mismatch
+# records SOURCE_CONNECT_FAILED, stays draft, and resumes to published once the
+# key is right.
+#
+# The flag, dry-run, destination-registry, validator, and resume-state tests
+# need no database and run in test:unit.
+test:lifecycle-seed:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_lifecycle_seed_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_lifecycle_seed_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "lifecycle seed no longer produces a definition the batch runner resolves and ingests, stopped resuming, or overwrote or advanced a revision it should have refused."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make lifecycle-seed"
+    PROOF_DOCS: "docs/operations/INTEGRATION-DEPLOYMENT-LIFECYCLE.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard. Every proof t.Skips without POSTGRES_TEST_URL outside
+    # CI, so a renamed or deleted proof would make this job greener rather than
+    # redder without this step (AGENTS.md). Three names, and the count is
+    # asserted so a rename cannot silently shrink the set.
+    - >-
+      go test -tags=integration
+      -list '^TestLifecycleSeedPostgres_(PublishesThenResumesToDeployedAndTheRunnerIngests|RefusesAChangedSourceUnderTheSameRevision|FailedValidationStaysDraftAndResumesAfterTheFix)$'
+      ./cmd/fi-fhir
+      | rg -x 'TestLifecycleSeedPostgres_(PublishesThenResumesToDeployedAndTheRunnerIngests|RefusesAChangedSourceUnderTheSameRevision|FailedValidationStaysDraftAndResumesAfterTheFix)'
+      | awk 'END { if (NR != 3) exit 1 }'
+    - make lifecycle-seed
