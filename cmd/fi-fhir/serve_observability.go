@@ -7,6 +7,7 @@ import (
 	"time"
 
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
@@ -452,6 +453,98 @@ func (r *lifecycleHealthReporter) reportOnce(ctx context.Context) {
 				observability.F(observability.FieldStatus, string(health)),
 				observability.F(observability.FieldError, observability.Errf(err)))
 		}
+	}
+}
+
+// runtimeReportInterval is the cadence of both per-replica reports: lifecycle
+// health and runtime observations. The connection catalog calls an
+// observation stale at three of these.
+const runtimeReportInterval = time.Minute
+
+// runtimeObservationStore is the one store call the observation reporter
+// makes; *connection.PostgresStore satisfies it.
+type runtimeObservationStore interface {
+	UpsertObservation(ctx context.Context, observation connection.Observation) error
+}
+
+// runtimeObservationReporter writes which documents this replica mounted onto
+// the connection ledger's integration_runtime_observations, one row per
+// adapter and per delivery-registry destination, on the health-report timer
+// (.loom/39, "Convergence" step 1). Every replica runs its own, so a reader
+// can tell "observed on 2/3 replicas" from "mounted on the one that answered".
+// The rows are fixed at startup because serve mounts nothing after it.
+type runtimeObservationReporter struct {
+	store     runtimeObservationStore
+	replicaID string
+	rows      []connection.Observation
+	interval  time.Duration
+	logger    *slog.Logger
+}
+
+// newRuntimeObservationReporter returns nil when there is no store to write
+// to or nothing describes this replica.
+func newRuntimeObservationReporter(
+	store runtimeObservationStore,
+	description *connection.RuntimeDescription,
+	interval time.Duration,
+	logger *slog.Logger,
+) *runtimeObservationReporter {
+	if store == nil || description == nil || description.TenantID == "" || description.ReplicaID == "" {
+		return nil
+	}
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	if logger == nil {
+		logger = observability.NewDiscardLogger()
+	}
+	return &runtimeObservationReporter{
+		store:     store,
+		replicaID: description.ReplicaID,
+		rows:      description.Observations(),
+		interval:  interval,
+		logger:    logger,
+	}
+}
+
+// Run reports on start and then on every interval tick until cancellation. A
+// failed write is logged and retried on the next tick; it never stops serve.
+func (r *runtimeObservationReporter) Run(ctx context.Context) error {
+	if r == nil || ctx == nil {
+		return nil
+	}
+	ticker := time.NewTicker(r.interval)
+	defer ticker.Stop()
+	for {
+		r.reportOnce(ctx)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func (r *runtimeObservationReporter) reportOnce(ctx context.Context) {
+	failed := 0
+	var firstErr error
+	for _, row := range r.rows {
+		if err := r.store.UpsertObservation(ctx, row); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			failed++
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	if failed > 0 {
+		r.logger.WarnContext(ctx, "runtime observation heartbeat failed",
+			observability.F(observability.FieldComponent, "runtime-observations"),
+			observability.F(observability.FieldWorkerID, r.replicaID),
+			observability.F(observability.FieldCount, failed),
+			observability.F(observability.FieldError, observability.Errf(firstErr)))
 	}
 }
 

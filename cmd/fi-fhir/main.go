@@ -5197,9 +5197,20 @@ func runServe(args []string) error {
 			serveDurableDefinitionIDs(securePreviewRuntime),
 			"fi-fhir-runtime",
 			serveHealth,
-			time.Minute,
+			runtimeReportInterval,
 			serveLog,
 		)
+	}
+	// .loom/39 step 1: which documents this replica mounted, per replica, on
+	// the same cadence. Only a replica with the connection ledger can say.
+	var runtimeObservations *runtimeObservationReporter
+	if connectionStore != nil && engineRuntime.ReplicaID != engineRuntimeReplicaUnavailable {
+		runtimeObservations = newRuntimeObservationReporter(connectionStore, engineRuntime, runtimeReportInterval, serveLog)
+	}
+	if runtimeObservations == nil {
+		serveLog.Info("runtime observation heartbeat disabled: no connection ledger or replica id",
+			observability.F(observability.FieldComponent, "runtime-observations"),
+			observability.F(observability.FieldEnabled, false))
 	}
 
 	// Create server config
@@ -5301,6 +5312,15 @@ func runServe(args []string) error {
 		go func() {
 			errCh <- componentError{name: "session-stream", err: sessionRelay.Run(serveCtx)}
 		}()
+	}
+	if runtimeObservations != nil {
+		// Like the health report, never in the component table: a failed
+		// heartbeat must not stop the process.
+		go func() { _ = runtimeObservations.Run(serveCtx) }()
+		serveLog.Info("runtime observation heartbeat enabled",
+			observability.F(observability.FieldComponent, "runtime-observations"),
+			observability.F(observability.FieldWorkerID, engineRuntime.ReplicaID),
+			observability.F(observability.FieldEnabled, true))
 	}
 	if runtimeHealthReporter != nil {
 		// Deliberately not in the component table: a health *report* failing must
