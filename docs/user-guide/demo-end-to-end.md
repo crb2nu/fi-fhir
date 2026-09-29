@@ -20,20 +20,27 @@ Everything is LAN-only. Nothing in it is reachable from the internet.
 A batch file is one or more HL7v2 messages starting with `MSH`, separated by
 CR, LF or CRLF. The v1 kernel admits ADT^A01-shaped messages (MSH, EVN, PID,
 PV1, optional NTE); NK1 and IN1 segments are rejected, and an admit without a
-visit number in PV1-19 cannot be projected to FHIR. Two synthetic admits:
+visit number in PV1-19 cannot be projected to FHIR. The `adt-east` profile
+the demo definition uses knows one assigning authority, `HOSP`, so patient
+and visit identifiers carry it. Two synthetic admits in the shape the batch
+proof uses (verified on 2026-09-29: both delivered to the hospital):
 
 ```text
-MSH|^~\&|DEMOADT|STELSEWHERE|FIFHIR|DEMO|20260928120000||ADT^A01^ADT_A01|DEMO-0001|P|2.5.1
-EVN|A01|20260928120000
-PID|1||MRN-100001^^^STELSEWHERE^MR||DOE^JANE^Q||19800101|F|||123 DEMO ST^^SPRINGFIELD^IL^62701||^PRN^PH^^^217^5550101
-PV1|1|I|MED^101^A^STELSEWHERE||||1234^ATTEND^ALICE|||MED||||||||V-500001^^^STELSEWHERE^VN|||||||||||||||||||||||||20260928120000
-MSH|^~\&|DEMOADT|STELSEWHERE|FIFHIR|DEMO|20260928121500||ADT^A01^ADT_A01|DEMO-0002|P|2.5.1
-EVN|A01|20260928121500
-PID|1||MRN-100002^^^STELSEWHERE^MR||ROE^JOHN^R||19751115|M|||456 DEMO AVE^^SPRINGFIELD^IL^62702||^PRN^PH^^^217^5550102
-PV1|1|I|SURG^202^B^STELSEWHERE||||5678^ATTEND^BOB|||SURG||||||||V-500002^^^STELSEWHERE^VN|||||||||||||||||||||||||20260928121500
+MSH|^~\&|STELSEWHERE-ADT|FAC|APP|FAC|20260929120000-0400||ADT^A01^ADT_A01|DEMO-2001|P|2.5.1
+EVN|A01|20260929120000||||20260929120000-0400
+PID|1||MRN-100001^^^HOSP^MR||Doe^Jane||19800101|F
+PV1|1|I|UNIT^101^A^FAC||||||||||||||||V-500001|||||||||||||||||||||||||20260929120000
+MSH|^~\&|STELSEWHERE-ADT|FAC|APP|FAC|20260929121500-0400||ADT^A01^ADT_A01|DEMO-2002|P|2.5.1
+EVN|A01|20260929121500||||20260929121500-0400
+PID|1||MRN-100002^^^HOSP^MR||Roe^John||19751115|M
+PV1|1|I|UNIT^202^B^FAC||||||||||||||||V-500002|||||||||||||||||||||||||20260929121500
 ```
 
-Save it as `adt-batch.hl7`. Every identifier above is invented.
+Save it as `adt-batch.hl7` with CR segment terminators. Every identifier above
+is invented. Messages the kernel refuses (for example a PID-3 with an
+assigning authority the profile does not know) quarantine the whole file
+with `INVALID_MESSAGE`: it stays in `/inbound`, nothing is admitted, and the
+runner will not retry it. Fix the content and drop it under a new name.
 
 ## 2. Drop it
 
