@@ -92,4 +92,60 @@ describe('Tabs', () => {
     await fireEvent.click(live); // Enter/Space on a <button> dispatch click
     expect(onchange).toHaveBeenCalledWith('live');
   });
+
+  it('renders a toned badge with its own label and test id, in place of count', () => {
+    const withBadge: TabItem[] = [
+      { id: 'output', label: 'Output' },
+      {
+        id: 'problems',
+        label: 'Problems',
+        count: 9,
+        badge: { value: 2, tone: 'danger', label: '2 problems', testid: 'problems-badge', class: 'danger' }
+      }
+    ];
+    render(Tabs, { props: { items: withBadge, value: 'output' } });
+
+    const badge = screen.getByTestId('problems-badge');
+    expect(badge).toHaveTextContent('2');
+    expect(badge).toHaveAttribute('aria-label', '2 problems');
+    expect(badge).toHaveAttribute('data-tone', 'danger');
+    expect(badge).toHaveClass('danger');
+    expect(screen.getByRole('tab', { name: /^Problems/ }).querySelector('.ui-tab-count')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Problems 2 problems' })).toBeInTheDocument();
+  });
+
+  it('marks a dirty tab with an announced dot', () => {
+    render(Tabs, { props: { items: [{ id: 'a', label: 'Profiles', dirty: true }], value: 'a' } });
+    expect(screen.getByRole('img', { name: 'Unsaved changes' })).toBeInTheDocument();
+  });
+
+  it('reports every activation through onselect, changes only through onchange', async () => {
+    const onselect = vi.fn();
+    const onchange = vi.fn();
+    render(Tabs, { props: { items, value: 'browse', onselect, onchange } });
+
+    await fireEvent.click(screen.getByRole('tab', { name: 'Browse' }));
+    expect(onselect).toHaveBeenCalledWith('browse');
+    expect(onchange).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByRole('tab', { name: 'Statistics' }));
+    expect(onselect).toHaveBeenLastCalledWith('stats');
+    expect(onchange).toHaveBeenCalledWith('stats');
+  });
+
+  it('with onclose: a close button per tab and Delete closes the focused tab', async () => {
+    const onclose = vi.fn();
+    render(Tabs, { props: { items, value: 'browse', onclose } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Close Statistics' }));
+    expect(onclose).toHaveBeenCalledWith('stats');
+
+    await fireEvent.keyDown(screen.getByRole('tab', { name: 'Browse' }), { key: 'Delete' });
+    expect(onclose).toHaveBeenLastCalledWith('browse');
+  });
+
+  it('without onclose, Delete does nothing and no close buttons render', async () => {
+    render(Tabs, { props: { items, value: 'browse' } });
+    expect(screen.queryByRole('button', { name: /^Close / })).not.toBeInTheDocument();
+  });
 });

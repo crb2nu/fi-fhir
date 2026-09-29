@@ -54,6 +54,7 @@ export type EditorTab = WorkspaceDocument;
 
 export type PanelTab = 'output' | 'problems' | 'debug' | 'trace' | 'copilot';
 
+/** Orientation of a SplitPane (the HL7 intake editor/results split). */
 export type SplitOrientation = 'horizontal' | 'vertical';
 
 export interface IDEState {
@@ -62,11 +63,8 @@ export interface IDEState {
   activeView: IDEView;
   /** All open documents (tabs). */
   documents: WorkspaceDocument[];
-  /** Active document in the primary pane. */
+  /** Active document. */
   activeDocumentId: string | null;
-  /** Document shown in the secondary (split) pane, if any. */
-  secondaryDocumentId: string | null;
-  workspaceSplit: boolean;
   bottomPanelOpen: boolean;
   bottomPanelHeight: number;
   activePanelTab: PanelTab;

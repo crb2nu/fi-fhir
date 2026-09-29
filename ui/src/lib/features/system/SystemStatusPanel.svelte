@@ -26,6 +26,7 @@
   import { HealthDocument } from '$lib/gen/graphql';
   import { accessCapabilities, missingRolesFor } from '$lib/graphql/accessCapabilities';
   import { fetchFleet, fleetSentence, summarizeFleet, type FleetSummary } from '$lib/features/operator/fleet';
+  import { describeConnectionFailure } from '$lib/features/connections/connectionsErrors';
 
   type HttpHealth = {
     status?: string;
@@ -56,7 +57,11 @@
   const fleetBlocked = $derived.by((): string | null => {
     const access = $accessCapabilities;
     if (access.state !== 'known') return null;
-    if (access.capabilities.controlPlane === false) return 'The control plane is not configured on this deployment.';
+    // The same precedence as Connections › Engine: replicas report heartbeats
+    // through the connection catalog, so "not configured" is about the catalog.
+    if (access.capabilities.controlPlane === false || access.capabilities.connectionCatalog === false) {
+      return 'The connection catalog is not configured on this deployment, so no replica reports heartbeats.';
+    }
     if (access.capabilities.connectionsRead === false) {
       const roles = missingRolesFor(access, 'connectionsRead');
       return `Needs ${(roles.length > 0 ? roles : ['integration.operator']).join(', ')}; not queried.`;
@@ -77,7 +82,7 @@
       fleet = {
         state: 'error',
         checkedAt: new Date().toISOString(),
-        message: e instanceof Error ? e.message : String(e)
+        message: describeConnectionFailure(e).message
       };
     }
   }
@@ -169,10 +174,10 @@
   const fleetStatus = $derived.by((): { label: string; tone: BadgeTone; detail: string | undefined } => {
     if (fleetBlocked) return { label: 'not read', tone: 'neutral', detail: fleetBlocked };
     if (fleet.state === 'ok') {
-      const { fresh, total } = fleet.data;
+      const { fresh, stale } = fleet.data;
       return {
-        label: total === 0 ? 'none' : `${fresh} / ${total}`,
-        tone: total > 0 && fresh === total ? 'success' : total === 0 ? 'neutral' : 'warning',
+        label: fresh === 0 && stale === 0 ? 'none' : `${fresh} fresh`,
+        tone: fresh > 0 ? 'success' : stale > 0 ? 'warning' : 'neutral',
         detail: fleetSentence(fleet.data)
       };
     }
@@ -218,7 +223,7 @@
       <Td mono truncate muted value={detailOf(gql)} />
       <Td numeric muted value={checkedOf(gql)} />
     </Tr>
-    <Tr data-testid="health-fleet" data-fresh={fleet.state === 'ok' ? fleet.data.fresh : undefined} data-total={fleet.state === 'ok' ? fleet.data.total : undefined}>
+    <Tr data-testid="health-fleet" data-fresh={fleet.state === 'ok' ? fleet.data.fresh : undefined} data-stale={fleet.state === 'ok' ? fleet.data.stale : undefined}>
       <Td>Engine fleet</Td>
       <Td><Badge tone={fleetStatus.tone} dot>{fleetStatus.label}</Badge></Td>
       <Td truncate muted value={fleetStatus.detail} />

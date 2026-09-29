@@ -24,6 +24,7 @@ const laneChecks = [
   ...[['operator-bundle', 'E2-1.'], ['operator-bundle', 'E2-2.'], ['operator-bundle', 'E2-3.'], ['operator-bundle', 'E2-4.'], ['preview-only', 'E2-5.'], ['visual', 'V24.']] // E-2
 ];
 for (const [project, prefix] of laneChecks) (required[project] ??= []).push(prefix);
+required['operator-bundle'].push('E4-1.', 'E4-2.', 'E4-3.'); // .loom/42 E-4 shell honesty (shell.spec.ts)
 
 const [reportPath] = process.argv.slice(2);
 if (!reportPath) {

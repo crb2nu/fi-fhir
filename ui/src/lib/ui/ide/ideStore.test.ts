@@ -15,8 +15,9 @@ import {
   setBottomPanelHeight,
   setActivePanelTab,
   openPanelTab,
-  toggleWorkspaceSplit,
-  setWorkspaceSplit,
+  markDirty,
+  clearDirty,
+  isDirty,
   createWorkspaceTab,
   resolveNextWorkspaceTabId,
   resetIDEState,
@@ -53,9 +54,10 @@ describe('ideStore', () => {
       expect(state.activeTabId).toBeNull();
     });
 
-    it('should have split workspace closed by default', () => {
-      const state = get(ideState);
-      expect(state.workspaceSplit).toBe(false);
+    it('has no split workspace (removed with its placeholder pane)', () => {
+      const state = get(ideState) as unknown as Record<string, unknown>;
+      expect('workspaceSplit' in state).toBe(false);
+      expect('secondaryDocumentId' in state).toBe(false);
     });
 
     it('should have bottom panel closed by default', () => {
@@ -286,20 +288,47 @@ describe('ideStore', () => {
     });
   });
 
-  describe('workspace split', () => {
-    it('should toggle workspace split state', () => {
-      expect(get(ideState).workspaceSplit).toBe(false);
-      toggleWorkspaceSplit();
-      expect(get(ideState).workspaceSplit).toBe(true);
-      toggleWorkspaceSplit();
-      expect(get(ideState).workspaceSplit).toBe(false);
+  describe('unsaved changes', () => {
+    it('marks and clears a tab, and shows the mark on its document', () => {
+      openTab(createWorkspaceTab('/profiles'));
+      expect(get(ideState).documents[0]?.dirty).toBe(false);
+
+      markDirty('/profiles');
+      expect(isDirty('/profiles')).toBe(true);
+      expect(get(ideState).documents[0]?.dirty).toBe(true);
+
+      clearDirty('/profiles');
+      expect(isDirty('/profiles')).toBe(false);
+      expect(get(ideState).documents[0]?.dirty).toBe(false);
     });
 
-    it('should set workspace split state explicitly', () => {
-      setWorkspaceSplit(true);
-      expect(get(ideState).workspaceSplit).toBe(true);
-      setWorkspaceSplit(false);
-      expect(get(ideState).workspaceSplit).toBe(false);
+    it('treats markDirty(id, false) as clearDirty', () => {
+      markDirty('/workflows');
+      markDirty('/workflows', false);
+      expect(isDirty('/workflows')).toBe(false);
+    });
+
+    it('keeps a mark made before the tab opens and applies it on open', () => {
+      markDirty('/connections');
+      openTab(createWorkspaceTab('/connections'));
+      expect(get(ideState).documents.find((doc) => doc.id === '/connections')?.dirty).toBe(true);
+    });
+
+    it('never persists a dirty mark: a reload starts clean', () => {
+      openTab(createWorkspaceTab('/profiles'));
+      markDirty('/profiles');
+      const stored = JSON.parse(localStorage.getItem('fi-fhir-ide-layout') ?? '{}') as {
+        openTabs: Array<{ dirty: boolean }>;
+      };
+      expect(stored.openTabs.map((tab) => tab.dirty)).toEqual([false]);
+
+      resetIDEState();
+      localStorage.setItem(
+        'fi-fhir-ide-layout',
+        JSON.stringify({ ...stored, openTabs: [{ ...createWorkspaceTab('/profiles'), dirty: true }] })
+      );
+      expect(restoreLayout()).toBe(true);
+      expect(get(ideState).documents[0]?.dirty).toBe(false);
     });
   });
 
@@ -328,7 +357,6 @@ describe('ideStore', () => {
         JSON.stringify({
           openTabs: [createWorkspaceTab('/operator')],
           activeTabId: '/operator',
-          workspaceSplit: false,
           bottomPanelOpen: false,
           activePanelTab: 'output',
           activeView: 'operator',
@@ -346,7 +374,6 @@ describe('ideStore', () => {
         JSON.stringify({
           openTabs: [createWorkspaceTab('/connections')],
           activeTabId: '/connections',
-          workspaceSplit: false,
           bottomPanelOpen: false,
           activePanelTab: 'output',
           activeView: 'connections',
@@ -368,7 +395,6 @@ describe('ideStore', () => {
             { ...createWorkspaceTab('/operator'), title: 'Operations' },
           ],
           activeTabId: '/operator',
-          workspaceSplit: false,
           bottomPanelOpen: false,
           activePanelTab: 'output',
           activeView: 'operator',
@@ -388,7 +414,6 @@ describe('ideStore', () => {
             { id: 'trace:1a2b3c4d', type: 'trace', title: 'Active Trace', dirty: false },
           ],
           activeTabId: 'trace:1a2b3c4d',
-          workspaceSplit: false,
           bottomPanelOpen: false,
           activePanelTab: 'output',
           activeView: 'hl7',

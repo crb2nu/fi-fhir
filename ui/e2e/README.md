@@ -28,20 +28,21 @@ through the real code paths of the same binary:
    `fixtures/destination-fhir-primary.json` (a synthetic FHIR destination
    revision whose digest the seed verifies), and the preview registry's
    `adt-east` integration for the profile and workflow refs.
-2. **One dead-lettered admission.** Side process A is a short-lived
+2. **Two dead-lettered admissions.** Side process A is a short-lived
    `fi-fhir serve` on :18095 with the durable HTTP ingress (`/v1/hl7v2`,
    bearer) and the delivery worker pointed at a Kafka broker that does not
    exist (`127.0.0.1:9`, `FI_FHIR_DELIVERY_MAX_ATTEMPTS=3`). `E2E-FIXTURE-001`
-   is admitted; the worker claims it three times and dead-letters it with
-   `KAFKA_PUBLISH_FAILED`: six audit rows (`claimed`, `retry_scheduled` ×2,
-   `dlq_entered`) and one open dead letter. A stops once the dead letter
-   exists.
+   (correlation `e2e-fixture-dead-letter`) and `E2E-FIXTURE-004` (correlation
+   `e2e-fixture-resubmit`) are admitted; the worker claims each three times
+   and dead-letters it with `KAFKA_PUBLISH_FAILED`: six audit rows each
+   (`claimed`, `retry_scheduled` ×2, `dlq_entered`) and two open dead letters.
+   A stops once both exist.
 3. **Two queued admissions.** Side process B on :18096 runs the ingress
    alone; `E2E-FIXTURE-002` and `-003` are admitted and their attempts stay
    `queued`.
 
-So the stack starts with **3 accepted receipts, 2 queued attempts, 1 open dead
-letter and 1 deployed definition**; `fixture.sh` asserts those counts with
+So the stack starts with **4 accepted receipts, 2 queued attempts, 2 open dead
+letters and 1 deployed definition**; `fixture.sh` asserts those counts with
 `psql` and writes them to `e2e-results/fixture.json`. Deliveries are never
 asserted: nothing in the stack reaches a destination.
 
@@ -57,10 +58,15 @@ refuses any request carrying an `Origin` header, so `fixture.sh` posts with
 curl.
 
 Checks that rely on the fixture: operator-bundle 2 (Messages lists the
-receipts) and `E0-1`…`E0-6`; `E0-4` resubmits the dead letter, so later checks
-see one more queued attempt. Later lanes may rely on the counts above.
-`E2-1`…`E2-4` (lane E-2, Verification) read the three admissions
-(`E2E-FIXTURE-001`…`003`) and count the accepted receipts.
+receipts) and `E0-1`…`E0-6`. Only `E0-4` writes, and only to the
+`e2e-fixture-resubmit` dead letter: after it, that dead letter is closed by
+resubmit and one child attempt is `queued` (3 queued, 1 open dead letter). The
+`e2e-fixture-dead-letter` attempt and its six audit rows never change, so a
+later check (or lane) that needs an untouched dead letter uses that
+correlation id. Later lanes may rely on the counts above, adjusted for E0-4
+when they run after it.
+`E2-1`…`E2-4` (lane E-2, Verification) read the fixture's admissions
+(every `E2E-FIXTURE-00n`) and count the accepted receipts.
 
 ## Lane checks
 
