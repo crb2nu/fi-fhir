@@ -6,7 +6,7 @@
  */
 import { get, writable } from 'svelte/store';
 
-export type ConnectionsView = 'sources' | 'destinations' | 'engine';
+export type ConnectionsView = 'sources' | 'destinations' | 'definitions' | 'engine';
 
 export interface ConnectionsIntent {
   view: ConnectionsView;

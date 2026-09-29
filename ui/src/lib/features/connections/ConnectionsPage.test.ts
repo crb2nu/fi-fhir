@@ -235,7 +235,7 @@ afterEach(() => {
 });
 
 describe('Connections — honest states', () => {
-  it('is a toolbar titled Connections with Sources, Destinations and Engine tabs', async () => {
+  it('is a toolbar titled Connections with Sources, Destinations, Definitions and Engine tabs', async () => {
     setAccessStatus(status());
     render(ConnectionsPage);
 
@@ -243,6 +243,7 @@ describe('Connections — honest states', () => {
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent?.trim())).toEqual([
       'Sources',
       'Destinations',
+      'Definitions',
       'Engine'
     ]);
     await waitFor(() => expect(api.fetchConnections).toHaveBeenCalledWith('SOURCE', false));

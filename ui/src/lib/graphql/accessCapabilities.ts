@@ -38,6 +38,12 @@ export interface AccessCapabilities {
   connectionsWrite: boolean | null;
   controlPlane: boolean | null;
   connectionCatalog: boolean | null;
+  /**
+   * Definition authoring (.loom/42 E-1): the deployment composed the editor
+   * AND this identity holds its write roles. `false` with an empty
+   * `missingRoles.definitionAuthoring` means not configured here.
+   */
+  definitionAuthoring: boolean | null;
 }
 
 export type CapabilityKey = keyof Omit<AccessCapabilities, 'subscriptions' | 'llmConfigured'>;
@@ -108,7 +114,8 @@ export function parseAuthStatus(body: unknown): AccessCapabilityState {
       connectionsRead: reportedBoolean(caps.connectionsRead),
       connectionsWrite: reportedBoolean(caps.connectionsWrite),
       controlPlane: reportedBoolean(caps.controlPlane),
-      connectionCatalog: reportedBoolean(caps.connectionCatalog)
+      connectionCatalog: reportedBoolean(caps.connectionCatalog),
+      definitionAuthoring: reportedBoolean(caps.definitionAuthoring)
     },
     missingRoles: missing
   };
