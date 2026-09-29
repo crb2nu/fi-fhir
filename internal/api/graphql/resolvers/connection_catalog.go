@@ -191,7 +191,30 @@ func (r *queryResolver) engineRuntime(ctx context.Context) (*model.EngineRuntime
 		return nil, catalogConnectionError(err)
 	}
 	projected := projectEngineRuntime(r.EngineRuntimeDescription.Clone())
+	if r.ConnectionCatalog != nil {
+		observations, err := r.ConnectionCatalog.Observations(ctx)
+		if err != nil {
+			return nil, catalogConnectionError(err)
+		}
+		projected.Observations = projectEngineObservations(observations)
+	}
 	return &projected, nil
+}
+
+func projectEngineObservations(observations []connection.ObservationView) []model.EngineObservation {
+	projected := make([]model.EngineObservation, 0, len(observations))
+	for _, observation := range observations {
+		projected = append(projected, model.EngineObservation{
+			ReplicaID:   observation.ReplicaID,
+			Adapter:     observation.Adapter,
+			ArtifactID:  optionalPreviewString(observation.ArtifactID),
+			RevisionID:  optionalPreviewString(observation.RevisionID),
+			Digest:      optionalPreviewString(observation.Digest),
+			HeartbeatAt: observation.HeartbeatAt.UTC(),
+			Stale:       observation.Stale,
+		})
+	}
+	return projected
 }
 
 func (r *mutationResolver) createConnection(ctx context.Context, input model.CreateConnectionInput) (*model.Connection, error) {
@@ -371,11 +394,13 @@ func projectConnection(item connection.Connection) model.Connection {
 		Archived:       item.Archived(),
 		References:     references,
 		Runtime: &model.ConnectionRuntimeState{
-			Mounted:    item.Runtime.Mounted,
-			Role:       optionalPreviewString(item.Runtime.Role),
-			Detail:     optionalPreviewString(item.Runtime.Detail),
-			RevisionID: optionalPreviewString(item.Runtime.RevisionID),
-			Digest:     optionalPreviewString(item.Runtime.Digest),
+			Mounted:          item.Runtime.Mounted,
+			Role:             optionalPreviewString(item.Runtime.Role),
+			Detail:           optionalPreviewString(item.Runtime.Detail),
+			RevisionID:       optionalPreviewString(item.Runtime.RevisionID),
+			Digest:           optionalPreviewString(item.Runtime.Digest),
+			ObservedReplicas: item.Runtime.ObservedReplicas,
+			TotalReplicas:    item.Runtime.TotalReplicas,
 		},
 		CreatedBy:     projectAuditPrincipal(item.Created.Principal),
 		CreatedAt:     item.Created.OccurredAt.UTC(),
@@ -460,9 +485,10 @@ func projectEngineRuntime(description connection.RuntimeDescription) model.Engin
 			IntegrationCount: description.Registry.IntegrationCount,
 			Integrations:     integrations,
 		},
-		Adapters:   adapters,
-		Ledgers:    ledgers,
-		Properties: properties,
+		Adapters:     adapters,
+		Ledgers:      ledgers,
+		Properties:   properties,
+		Observations: []model.EngineObservation{},
 	}
 	if description.DestinationIdentity != nil {
 		destinations := make([]model.EngineDestination, 0, len(description.DestinationIdentity.Destinations))

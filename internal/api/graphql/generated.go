@@ -281,11 +281,13 @@ type ComplexityRoot struct {
 	}
 
 	ConnectionRuntimeState struct {
-		Detail     func(childComplexity int) int
-		Digest     func(childComplexity int) int
-		Mounted    func(childComplexity int) int
-		RevisionID func(childComplexity int) int
-		Role       func(childComplexity int) int
+		Detail           func(childComplexity int) int
+		Digest           func(childComplexity int) int
+		Mounted          func(childComplexity int) int
+		ObservedReplicas func(childComplexity int) int
+		RevisionID       func(childComplexity int) int
+		Role             func(childComplexity int) int
+		TotalReplicas    func(childComplexity int) int
 	}
 
 	ConnectionSecretBinding struct {
@@ -400,6 +402,16 @@ type ComplexityRoot struct {
 		Version func(childComplexity int) int
 	}
 
+	EngineObservation struct {
+		Adapter     func(childComplexity int) int
+		ArtifactID  func(childComplexity int) int
+		Digest      func(childComplexity int) int
+		HeartbeatAt func(childComplexity int) int
+		ReplicaID   func(childComplexity int) int
+		RevisionID  func(childComplexity int) int
+		Stale       func(childComplexity int) int
+	}
+
 	EngineProperty struct {
 		Key    func(childComplexity int) int
 		Secret func(childComplexity int) int
@@ -430,6 +442,7 @@ type ComplexityRoot struct {
 		IntegrationSessions func(childComplexity int) int
 		Ledgers             func(childComplexity int) int
 		LlmConfigured       func(childComplexity int) int
+		Observations        func(childComplexity int) int
 		Properties          func(childComplexity int) int
 		Registry            func(childComplexity int) int
 		ReplicaID           func(childComplexity int) int
@@ -2968,6 +2981,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ConnectionRuntimeState.Mounted(childComplexity), true
+	case "ConnectionRuntimeState.observedReplicas":
+		if e.complexity.ConnectionRuntimeState.ObservedReplicas == nil {
+			break
+		}
+
+		return e.complexity.ConnectionRuntimeState.ObservedReplicas(childComplexity), true
 	case "ConnectionRuntimeState.revisionId":
 		if e.complexity.ConnectionRuntimeState.RevisionID == nil {
 			break
@@ -2980,6 +2999,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ConnectionRuntimeState.Role(childComplexity), true
+	case "ConnectionRuntimeState.totalReplicas":
+		if e.complexity.ConnectionRuntimeState.TotalReplicas == nil {
+			break
+		}
+
+		return e.complexity.ConnectionRuntimeState.TotalReplicas(childComplexity), true
 
 	case "ConnectionSecretBinding.key":
 		if e.complexity.ConnectionSecretBinding.Key == nil {
@@ -3449,6 +3474,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.EngineLedger.Version(childComplexity), true
 
+	case "EngineObservation.adapter":
+		if e.complexity.EngineObservation.Adapter == nil {
+			break
+		}
+
+		return e.complexity.EngineObservation.Adapter(childComplexity), true
+	case "EngineObservation.artifactId":
+		if e.complexity.EngineObservation.ArtifactID == nil {
+			break
+		}
+
+		return e.complexity.EngineObservation.ArtifactID(childComplexity), true
+	case "EngineObservation.digest":
+		if e.complexity.EngineObservation.Digest == nil {
+			break
+		}
+
+		return e.complexity.EngineObservation.Digest(childComplexity), true
+	case "EngineObservation.heartbeatAt":
+		if e.complexity.EngineObservation.HeartbeatAt == nil {
+			break
+		}
+
+		return e.complexity.EngineObservation.HeartbeatAt(childComplexity), true
+	case "EngineObservation.replicaId":
+		if e.complexity.EngineObservation.ReplicaID == nil {
+			break
+		}
+
+		return e.complexity.EngineObservation.ReplicaID(childComplexity), true
+	case "EngineObservation.revisionId":
+		if e.complexity.EngineObservation.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.EngineObservation.RevisionID(childComplexity), true
+	case "EngineObservation.stale":
+		if e.complexity.EngineObservation.Stale == nil {
+			break
+		}
+
+		return e.complexity.EngineObservation.Stale(childComplexity), true
+
 	case "EngineProperty.key":
 		if e.complexity.EngineProperty.Key == nil {
 			break
@@ -3572,6 +3640,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.EngineRuntime.LlmConfigured(childComplexity), true
+	case "EngineRuntime.observations":
+		if e.complexity.EngineRuntime.Observations == nil {
+			break
+		}
+
+		return e.complexity.EngineRuntime.Observations(childComplexity), true
 	case "EngineRuntime.properties":
 		if e.complexity.EngineRuntime.Properties == nil {
 			break
@@ -15998,6 +16072,10 @@ func (ec *executionContext) fieldContext_Connection_runtime(_ context.Context, f
 				return ec.fieldContext_ConnectionRuntimeState_revisionId(ctx, field)
 			case "digest":
 				return ec.fieldContext_ConnectionRuntimeState_digest(ctx, field)
+			case "observedReplicas":
+				return ec.fieldContext_ConnectionRuntimeState_observedReplicas(ctx, field)
+			case "totalReplicas":
+				return ec.fieldContext_ConnectionRuntimeState_totalReplicas(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ConnectionRuntimeState", field.Name)
 		},
@@ -17419,6 +17497,64 @@ func (ec *executionContext) fieldContext_ConnectionRuntimeState_digest(_ context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionRuntimeState_observedReplicas(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionRuntimeState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionRuntimeState_observedReplicas,
+		func(ctx context.Context) (any, error) {
+			return obj.ObservedReplicas, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionRuntimeState_observedReplicas(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionRuntimeState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionRuntimeState_totalReplicas(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionRuntimeState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionRuntimeState_totalReplicas,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalReplicas, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionRuntimeState_totalReplicas(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionRuntimeState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -19760,6 +19896,209 @@ func (ec *executionContext) fieldContext_EngineLedger_version(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _EngineObservation_replicaId(ctx context.Context, field graphql.CollectedField, obj *model.EngineObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineObservation_replicaId,
+		func(ctx context.Context) (any, error) {
+			return obj.ReplicaID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineObservation_replicaId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EngineObservation_adapter(ctx context.Context, field graphql.CollectedField, obj *model.EngineObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineObservation_adapter,
+		func(ctx context.Context) (any, error) {
+			return obj.Adapter, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineObservation_adapter(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EngineObservation_artifactId(ctx context.Context, field graphql.CollectedField, obj *model.EngineObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineObservation_artifactId,
+		func(ctx context.Context) (any, error) {
+			return obj.ArtifactID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineObservation_artifactId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EngineObservation_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.EngineObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineObservation_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineObservation_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EngineObservation_digest(ctx context.Context, field graphql.CollectedField, obj *model.EngineObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineObservation_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineObservation_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EngineObservation_heartbeatAt(ctx context.Context, field graphql.CollectedField, obj *model.EngineObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineObservation_heartbeatAt,
+		func(ctx context.Context) (any, error) {
+			return obj.HeartbeatAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineObservation_heartbeatAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EngineObservation_stale(ctx context.Context, field graphql.CollectedField, obj *model.EngineObservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineObservation_stale,
+		func(ctx context.Context) (any, error) {
+			return obj.Stale, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineObservation_stale(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineObservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _EngineProperty_key(ctx context.Context, field graphql.CollectedField, obj *model.EngineProperty) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -20653,6 +20992,51 @@ func (ec *executionContext) fieldContext_EngineRuntime_properties(_ context.Cont
 				return ec.fieldContext_EngineProperty_source(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EngineProperty", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EngineRuntime_observations(ctx context.Context, field graphql.CollectedField, obj *model.EngineRuntime) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_EngineRuntime_observations,
+		func(ctx context.Context) (any, error) {
+			return obj.Observations, nil
+		},
+		nil,
+		ec.marshalNEngineObservation2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEngineObservationᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_EngineRuntime_observations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EngineRuntime",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "replicaId":
+				return ec.fieldContext_EngineObservation_replicaId(ctx, field)
+			case "adapter":
+				return ec.fieldContext_EngineObservation_adapter(ctx, field)
+			case "artifactId":
+				return ec.fieldContext_EngineObservation_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_EngineObservation_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_EngineObservation_digest(ctx, field)
+			case "heartbeatAt":
+				return ec.fieldContext_EngineObservation_heartbeatAt(ctx, field)
+			case "stale":
+				return ec.fieldContext_EngineObservation_stale(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EngineObservation", field.Name)
 		},
 	}
 	return fc, nil
@@ -45318,6 +45702,8 @@ func (ec *executionContext) fieldContext_Query_engineRuntime(_ context.Context, 
 				return ec.fieldContext_EngineRuntime_ledgers(ctx, field)
 			case "properties":
 				return ec.fieldContext_EngineRuntime_properties(ctx, field)
+			case "observations":
+				return ec.fieldContext_EngineRuntime_observations(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type EngineRuntime", field.Name)
 		},
@@ -62099,6 +62485,16 @@ func (ec *executionContext) _ConnectionRuntimeState(ctx context.Context, sel ast
 			out.Values[i] = ec._ConnectionRuntimeState_revisionId(ctx, field, obj)
 		case "digest":
 			out.Values[i] = ec._ConnectionRuntimeState_digest(ctx, field, obj)
+		case "observedReplicas":
+			out.Values[i] = ec._ConnectionRuntimeState_observedReplicas(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalReplicas":
+			out.Values[i] = ec._ConnectionRuntimeState_totalReplicas(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -62805,6 +63201,66 @@ func (ec *executionContext) _EngineLedger(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var engineObservationImplementors = []string{"EngineObservation"}
+
+func (ec *executionContext) _EngineObservation(ctx context.Context, sel ast.SelectionSet, obj *model.EngineObservation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, engineObservationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EngineObservation")
+		case "replicaId":
+			out.Values[i] = ec._EngineObservation_replicaId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "adapter":
+			out.Values[i] = ec._EngineObservation_adapter(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "artifactId":
+			out.Values[i] = ec._EngineObservation_artifactId(ctx, field, obj)
+		case "revisionId":
+			out.Values[i] = ec._EngineObservation_revisionId(ctx, field, obj)
+		case "digest":
+			out.Values[i] = ec._EngineObservation_digest(ctx, field, obj)
+		case "heartbeatAt":
+			out.Values[i] = ec._EngineObservation_heartbeatAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stale":
+			out.Values[i] = ec._EngineObservation_stale(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var enginePropertyImplementors = []string{"EngineProperty"}
 
 func (ec *executionContext) _EngineProperty(ctx context.Context, sel ast.SelectionSet, obj *model.EngineProperty) graphql.Marshaler {
@@ -63052,6 +63508,11 @@ func (ec *executionContext) _EngineRuntime(ctx context.Context, sel ast.Selectio
 			}
 		case "properties":
 			out.Values[i] = ec._EngineRuntime_properties(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "observations":
+			out.Values[i] = ec._EngineRuntime_observations(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -74656,6 +75117,54 @@ func (ec *executionContext) marshalNEngineLedger2ᚕgitlabᚗflexinferᚗaiᚋli
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNEngineLedger2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEngineLedger(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEngineObservation2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEngineObservation(ctx context.Context, sel ast.SelectionSet, v model.EngineObservation) graphql.Marshaler {
+	return ec._EngineObservation(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNEngineObservation2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEngineObservationᚄ(ctx context.Context, sel ast.SelectionSet, v []model.EngineObservation) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEngineObservation2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐEngineObservation(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)

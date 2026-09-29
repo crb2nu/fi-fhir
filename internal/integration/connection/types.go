@@ -268,6 +268,12 @@ type RuntimeState struct {
 	Detail     string
 	RevisionID string
 	Digest     string
+	// ObservedReplicas counts replicas with a fresh heartbeat that report a
+	// revision of this connection mounted; TotalReplicas counts replicas
+	// with any fresh heartbeat. Both come from integration_runtime_observations,
+	// not from this replica's description.
+	ObservedReplicas int
+	TotalReplicas    int
 }
 
 // Observation is one replica's heartbeat for one adapter: the row

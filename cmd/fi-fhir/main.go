@@ -5116,6 +5116,9 @@ func runServe(args []string) error {
 		if err != nil {
 			return fmt.Errorf("configure connection catalog: %w", err)
 		}
+		// The staleness of every replica's observation rows is judged against
+		// the cadence the replicas report at (runtimeObservationReporter).
+		connectionService.SetObservationInterval(runtimeReportInterval)
 		resolverOpts = append(resolverOpts, resolvers.WithConnectionCatalog(connectionService))
 		connectionCatalogConfigured = true
 		serveLog.Info("connection catalog configured",

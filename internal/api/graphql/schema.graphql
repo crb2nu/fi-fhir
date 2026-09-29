@@ -2876,6 +2876,14 @@ type ConnectionRuntimeState {
   revisionId: ID
   """The mounted revision's digest; null exactly when revisionId is."""
   digest: String
+  """
+  Replicas with a fresh heartbeat (engineRuntime.observations, stale false)
+  that report a revision of this connection mounted. Unlike mounted, this is
+  every replica's report, not only the one that answered.
+  """
+  observedReplicas: Int!
+  """Replicas with any fresh heartbeat; observedReplicas of totalReplicas."""
+  totalReplicas: Int!
 }
 
 """
@@ -2967,6 +2975,29 @@ type EngineRuntime {
   """Every forward-only migration ledger and the version this binary expects."""
   ledgers: [EngineLedger!]!
   properties: [EngineProperty!]!
+  """
+  Every replica's heartbeat rows from the connection ledger, this one's
+  included, ordered by replica and adapter. Empty when the connection catalog
+  is not configured.
+  """
+  observations: [EngineObservation!]!
+}
+
+"""
+One replica's report of one adapter: which document it mounted, and when it
+last said so. adapter is http, mllp, batch, delivery, or
+destination:<artifact id>. artifactId, revisionId, and digest are null when the
+adapter is disabled or mounts no document of its own.
+"""
+type EngineObservation {
+  replicaId: String!
+  adapter: String!
+  artifactId: ID
+  revisionId: ID
+  digest: String
+  heartbeatAt: DateTime!
+  """True when heartbeatAt is older than three report intervals."""
+  stale: Boolean!
 }
 
 type EngineRegistry {

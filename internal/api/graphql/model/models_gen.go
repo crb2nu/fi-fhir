@@ -235,6 +235,12 @@ type ConnectionRuntimeState struct {
 	RevisionID *string `json:"revisionId,omitempty"`
 	// The mounted revision's digest; null exactly when revisionId is.
 	Digest *string `json:"digest,omitempty"`
+	// Replicas with a fresh heartbeat (engineRuntime.observations, stale false)
+	// that report a revision of this connection mounted. Unlike mounted, this is
+	// every replica's report, not only the one that answered.
+	ObservedReplicas int `json:"observedReplicas"`
+	// Replicas with any fresh heartbeat; observedReplicas of totalReplicas.
+	TotalReplicas int `json:"totalReplicas"`
 }
 
 // A reference to a secret: never its value.
@@ -357,6 +363,21 @@ type EngineLedger struct {
 	Version int    `json:"version"`
 }
 
+// One replica's report of one adapter: which document it mounted, and when it
+// last said so. adapter is http, mllp, batch, delivery, or
+// destination:<artifact id>. artifactId, revisionId, and digest are null when the
+// adapter is disabled or mounts no document of its own.
+type EngineObservation struct {
+	ReplicaID   string    `json:"replicaId"`
+	Adapter     string    `json:"adapter"`
+	ArtifactID  *string   `json:"artifactId,omitempty"`
+	RevisionID  *string   `json:"revisionId,omitempty"`
+	Digest      *string   `json:"digest,omitempty"`
+	HeartbeatAt time.Time `json:"heartbeatAt"`
+	// True when heartbeatAt is older than three report intervals.
+	Stale bool `json:"stale"`
+}
+
 type EngineProperty struct {
 	// The environment variable that sets it; change it in GitOps.
 	Key string `json:"key"`
@@ -406,6 +427,10 @@ type EngineRuntime struct {
 	// Every forward-only migration ledger and the version this binary expects.
 	Ledgers    []EngineLedger   `json:"ledgers"`
 	Properties []EngineProperty `json:"properties"`
+	// Every replica's heartbeat rows from the connection ledger, this one's
+	// included, ordered by replica and adapter. Empty when the connection catalog
+	// is not configured.
+	Observations []EngineObservation `json:"observations"`
 }
 
 type EventClassificationRule struct {
