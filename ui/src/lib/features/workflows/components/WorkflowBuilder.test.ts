@@ -4,6 +4,7 @@ import { get } from 'svelte/store';
 import WorkflowBuilder from './WorkflowBuilder.svelte';
 import { resetWorkflowBuilderOpened, workflowDraft } from '../workflowStore';
 import { workflowProblemCounts } from '$lib/ui/ide/panels/workflowProblemsStore';
+import { clearDirty, isDirty } from '$lib/ui/ide/ideStore';
 
 const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
@@ -86,6 +87,7 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
   afterEach(() => {
     confirmSpy.mockRestore();
     workflowDraft.reset();
+    clearDirty('/workflows');
   });
 
   it('opens on the untouched default draft without problems, errors or toasts', () => {
@@ -143,6 +145,15 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
     expect(screen.getByTestId('workflow-save-version')).toBeEnabled();
   });
 
+  it('marks the Workflows tab dirty while managed changes are unsaved', async () => {
+    render(WorkflowBuilder, { props: { managedSelection: SELECTION } });
+    await screen.findByTestId('workflow-yaml-only');
+    expect(isDirty('/workflows')).toBe(false);
+
+    workflowDraft.update((draft) => ({ ...draft, version: '1.1' }));
+    await waitFor(() => expect(isDirty('/workflows')).toBe(true));
+  });
+
   it('sees dropping the nested value as an unsaved change (the baseline no longer hides it)', async () => {
     render(WorkflowBuilder, { props: { managedSelection: SELECTION } });
     await screen.findByTestId('workflow-yaml-only');
@@ -179,7 +190,7 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
 
     await fireEvent.click(screen.getByTestId('workflow-publish-version'));
 
-    const dialog = await screen.findByRole('dialog', { name: 'Publish v1 to staging?' });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Publish v1 to staging?' });
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(mocks.publishWorkflowVersion).not.toHaveBeenCalled();
 
@@ -191,7 +202,7 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
         environment: 'staging'
       })
     );
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
   it('cancels a publish with Escape', async () => {
@@ -199,10 +210,10 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
     await screen.findByTestId('workflow-yaml-only');
 
     await fireEvent.click(screen.getByTestId('workflow-publish-version'));
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('alertdialog');
     await fireEvent.keyDown(dialog, { key: 'Escape' });
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(mocks.publishWorkflowVersion).not.toHaveBeenCalled();
   });
 

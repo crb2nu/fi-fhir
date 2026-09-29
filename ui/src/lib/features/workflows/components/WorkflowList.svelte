@@ -9,6 +9,7 @@
   import {
     Badge,
     Button,
+    Dialog,
     EmptyState,
     Field,
     Icon,
@@ -22,7 +23,6 @@
     Tr
   } from '$lib/ui/primitives';
   import type { BadgeTone, KeyValueItem, SelectOption } from '$lib/ui/primitives';
-  import WorkflowConfirmDialog from './WorkflowConfirmDialog.svelte';
   import {
     definitionEditBlocker,
     filterDefinitions,
@@ -862,17 +862,24 @@
   {/if}
 </div>
 
-<WorkflowConfirmDialog
+<Dialog
   open={!!archiveTarget}
   title={`Archive ${archiveTarget?.name ?? ''}?`}
-  message="Archiving hides the definition from the active inventory. The API refuses new versions and publishes for it until it is restored to draft; its releases and version history stay as they are. The audit trail records who archived it."
-  confirmLabel="Archive"
-  tone="danger"
-  busy={archiving}
-  testid="workflow-archive-dialog"
-  onconfirm={() => void confirmArchive()}
-  oncancel={() => (archiveTarget = null)}
-/>
+  description="Archiving hides the definition from the active inventory. The API refuses new versions and publishes for it until it is restored to draft; its releases and version history stay as they are. The audit trail records who archived it."
+  size="sm"
+  role="alertdialog"
+  initialFocus="[data-dialog-cancel]"
+  dismissible={!archiving}
+  data-testid="workflow-archive-dialog"
+  onclose={() => (archiveTarget = null)}
+>
+  {#snippet footer()}
+    <Button size="md" variant="ghost" data-dialog-cancel disabled={archiving} onclick={() => (archiveTarget = null)}
+      >Cancel</Button
+    >
+    <Button size="md" variant="danger" loading={archiving} onclick={() => void confirmArchive()}>Archive</Button>
+  {/snippet}
+</Dialog>
 
 <style>
   .status-filter {

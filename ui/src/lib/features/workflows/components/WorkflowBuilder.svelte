@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import Check from '@lucide/svelte/icons/check';
   import Circle from '@lucide/svelte/icons/circle';
@@ -13,6 +14,7 @@
   import {
     Badge,
     Button,
+    Dialog,
     EmptyState,
     Field,
     Icon,
@@ -30,7 +32,6 @@
   import DryRunPanel from './DryRunPanel.svelte';
   import GenerateFromDescription from './GenerateFromDescription.svelte';
   import WorkflowDraftLibrary from './WorkflowDraftLibrary.svelte';
-  import WorkflowConfirmDialog from './WorkflowConfirmDialog.svelte';
   import { workflowDraft, workflowSavedDrafts } from '../workflowStore';
   import { draftToYaml, listYamlOnlyFields, yamlToDraft } from '../workflowYaml';
   import {
@@ -62,6 +63,7 @@
   import type { GetWorkflowVersionsQuery, ListWorkflowApprovalRequestsQuery, DryRunResult } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
   import { isErrorToasted } from '$lib/graphql/client';
+  import { clearDirty, markDirty } from '$lib/ui/ide/ideStore';
 
   // Opening the builder no longer makes the draft "live": the untouched
   // default draft is nobody's work, so it shows no errors here and puts
@@ -221,6 +223,11 @@
       }
     }
   }
+
+  // The Workflows tab shows unsaved managed changes (and closing it asks) while
+  // the builder holds them; the baseline lives here, so leaving clears it.
+  $: markDirty('/workflows', hasUnsavedManagedChanges);
+  onDestroy(() => clearDirty('/workflows'));
 
   function getSelectedVersionRecord(): WorkflowVersionItem | null {
     return versionHistory.find((version) => version.id === selectedVersionId) ?? null;
@@ -1292,15 +1299,23 @@
   </aside>
 </div>
 
-<WorkflowConfirmDialog
+<Dialog
   open={!!confirmRequest}
   title={confirmRequest?.title ?? ''}
-  message={confirmRequest?.message ?? ''}
-  confirmLabel={confirmRequest?.confirmLabel ?? 'Confirm'}
-  tone={confirmRequest?.tone ?? 'primary'}
-  onconfirm={() => settleConfirm(true)}
-  oncancel={() => settleConfirm(false)}
-/>
+  description={confirmRequest?.message ?? ''}
+  size="sm"
+  role="alertdialog"
+  initialFocus="[data-dialog-cancel]"
+  data-testid="workflow-confirm-dialog"
+  onclose={() => settleConfirm(false)}
+>
+  {#snippet footer()}
+    <Button size="md" variant="ghost" data-dialog-cancel onclick={() => settleConfirm(false)}>Cancel</Button>
+    <Button size="md" variant={confirmRequest?.tone ?? 'primary'} onclick={() => settleConfirm(true)}>
+      {confirmRequest?.confirmLabel ?? 'Confirm'}
+    </Button>
+  {/snippet}
+</Dialog>
 
 <style>
   .builder {
