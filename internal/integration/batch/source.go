@@ -247,6 +247,13 @@ func validateSFTP(policy SFTPPolicy) error {
 	return nil
 }
 
+// SecretBindingNames lists every lifecycle binding name this source requires,
+// in declaration order. ValidateAgainst refuses a deployed release that omits
+// any of them. Names only, never a value.
+func (r SourceRevision) SecretBindingNames() []string {
+	return r.secretBindingNames()
+}
+
 func (r SourceRevision) secretBindingNames() []string {
 	if r.S3 != nil {
 		return []string{r.S3.AccessKeyBinding, r.S3.SecretAccessKeyBinding}

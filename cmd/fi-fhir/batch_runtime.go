@@ -127,32 +127,48 @@ func requireBatchWorkloadIdentity(source integrationbatch.SourceRevision) error 
 	return nil
 }
 
+// batchProviderSecrets is the credential material one batch source needs, read
+// from the FI_FHIR_BATCH_* keys. It exists only to construct a provider and is
+// never logged, marshaled, or persisted.
+type batchProviderSecrets struct {
+	s3   integrationbatch.S3Secrets
+	sftp integrationbatch.SFTPSecrets
+}
+
 func loadBatchProviderFromEnv(source integrationbatch.SourceRevision) (integrationbatch.Provider, error) {
+	secrets, err := loadBatchProviderSecretsFromEnv(source)
+	if err != nil {
+		return nil, err
+	}
+	return newBatchProvider(source, secrets)
+}
+
+// loadBatchProviderSecretsFromEnv reads exactly the keys the source's provider
+// and auth mode declare. It performs no network I/O, so `lifecycle seed` can
+// refuse a missing credential before it writes anything and still build the
+// provider (which dials, for SFTP) inside the bounded connection validation.
+func loadBatchProviderSecretsFromEnv(source integrationbatch.SourceRevision) (batchProviderSecrets, error) {
 	switch source.Provider {
 	case integrationbatch.ProviderS3:
 		accessKey, err := loadSingleLineSecret(
 			"FI_FHIR_BATCH_S3_ACCESS_KEY", "FI_FHIR_BATCH_S3_ACCESS_KEY_FILE", "batch S3 access key",
 		)
 		if err != nil {
-			return nil, err
+			return batchProviderSecrets{}, err
 		}
 		secretKey, err := loadSingleLineSecret(
 			"FI_FHIR_BATCH_S3_SECRET_KEY", "FI_FHIR_BATCH_S3_SECRET_KEY_FILE", "batch S3 secret key",
 		)
 		if err != nil {
-			return nil, err
+			return batchProviderSecrets{}, err
 		}
-		provider, err := integrationbatch.NewS3Provider(source, integrationbatch.S3Secrets{
+		return batchProviderSecrets{s3: integrationbatch.S3Secrets{
 			AccessKeyID: accessKey, SecretAccessKey: secretKey,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("configure batch S3 provider: %w", err)
-		}
-		return provider, nil
+		}}, nil
 	case integrationbatch.ProviderSFTP:
 		knownHostsPath, err := requiredEnv("FI_FHIR_BATCH_SFTP_KNOWN_HOSTS_FILE")
 		if err != nil {
-			return nil, err
+			return batchProviderSecrets{}, err
 		}
 		secrets := integrationbatch.SFTPSecrets{KnownHostsPath: knownHostsPath}
 		if source.SFTP.PasswordBinding != "" {
@@ -172,9 +188,24 @@ func loadBatchProviderFromEnv(source integrationbatch.SourceRevision) (integrati
 			}
 		}
 		if err != nil {
-			return nil, err
+			return batchProviderSecrets{}, err
 		}
-		provider, err := integrationbatch.NewSFTPProvider(source, secrets)
+		return batchProviderSecrets{sftp: secrets}, nil
+	default:
+		return batchProviderSecrets{}, fmt.Errorf("configure batch provider: unsupported provider")
+	}
+}
+
+func newBatchProvider(source integrationbatch.SourceRevision, secrets batchProviderSecrets) (integrationbatch.Provider, error) {
+	switch source.Provider {
+	case integrationbatch.ProviderS3:
+		provider, err := integrationbatch.NewS3Provider(source, secrets.s3)
+		if err != nil {
+			return nil, fmt.Errorf("configure batch S3 provider: %w", err)
+		}
+		return provider, nil
+	case integrationbatch.ProviderSFTP:
+		provider, err := integrationbatch.NewSFTPProvider(source, secrets.sftp)
 		if err != nil {
 			return nil, fmt.Errorf("configure batch SFTP provider: %w", err)
 		}
