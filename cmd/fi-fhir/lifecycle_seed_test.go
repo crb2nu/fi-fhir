@@ -537,7 +537,7 @@ func TestLifecycleUsage(t *testing.T) {
 // --- Connection validation ---------------------------------------------------
 
 func seedSFTPSecrets(knownHosts, password string) batchProviderSecrets {
-	return batchProviderSecrets{sftp: integrationbatch.SFTPSecrets{KnownHostsPath: knownHosts, Password: password}}
+	return batchProviderSecrets{SFTP: integrationbatch.SFTPSecrets{KnownHostsPath: knownHosts, Password: password}}
 }
 
 func seedRevisionFor(t *testing.T, source integrationbatch.SourceRevision) integration.IntegrationDefinitionRevision {

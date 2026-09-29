@@ -16,6 +16,9 @@ import (
 // no profile or workflow ref can be proven.
 var ErrRegistryUnavailable = errors.New("static integration registry unavailable")
 
+// ErrUnknownIntegration means the registry has no entry with that ID.
+var ErrUnknownIntegration = errors.New("integration is not in the integration registry")
+
 // RegistryArtifact is one static-registry integration's profile and workflow
 // refs, proven with the runtime's own resolver. It is the honest source of
 // refs a definition may bind until resolution moves onto the catalog
@@ -63,7 +66,7 @@ func (r *Registry) Artifact(ctx context.Context, integrationID string) (Registry
 	}
 	binding, err := r.static.LookupPreviewBinding(ctx, r.tenantID, integrationID)
 	if err != nil {
-		return RegistryArtifact{}, fmt.Errorf("integration %q is not in the integration registry", integrationID)
+		return RegistryArtifact{}, fmt.Errorf("%w: %q", ErrUnknownIntegration, integrationID)
 	}
 	raw, err := r.static.LoadDefinitionRevision(
 		ctx, r.tenantID, binding.IntegrationRevision.ArtifactID, binding.IntegrationRevision.RevisionID,

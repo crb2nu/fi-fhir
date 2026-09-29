@@ -9,6 +9,7 @@ import (
 
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle/authoring"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 )
@@ -129,11 +130,9 @@ func requireBatchWorkloadIdentity(source integrationbatch.SourceRevision) error 
 
 // batchProviderSecrets is the credential material one batch source needs, read
 // from the FI_FHIR_BATCH_* keys. It exists only to construct a provider and is
-// never logged, marshaled, or persisted.
-type batchProviderSecrets struct {
-	s3   integrationbatch.S3Secrets
-	sftp integrationbatch.SFTPSecrets
-}
+// never logged, marshaled, or persisted. The type is shared with the definition
+// editor's in-process batch validator.
+type batchProviderSecrets = authoring.BatchSecrets
 
 func loadBatchProviderFromEnv(source integrationbatch.SourceRevision) (integrationbatch.Provider, error) {
 	secrets, err := loadBatchProviderSecretsFromEnv(source)
@@ -162,7 +161,7 @@ func loadBatchProviderSecretsFromEnv(source integrationbatch.SourceRevision) (ba
 		if err != nil {
 			return batchProviderSecrets{}, err
 		}
-		return batchProviderSecrets{s3: integrationbatch.S3Secrets{
+		return batchProviderSecrets{S3: integrationbatch.S3Secrets{
 			AccessKeyID: accessKey, SecretAccessKey: secretKey,
 		}}, nil
 	case integrationbatch.ProviderSFTP:
@@ -190,29 +189,14 @@ func loadBatchProviderSecretsFromEnv(source integrationbatch.SourceRevision) (ba
 		if err != nil {
 			return batchProviderSecrets{}, err
 		}
-		return batchProviderSecrets{sftp: secrets}, nil
+		return batchProviderSecrets{SFTP: secrets}, nil
 	default:
 		return batchProviderSecrets{}, fmt.Errorf("configure batch provider: unsupported provider")
 	}
 }
 
 func newBatchProvider(source integrationbatch.SourceRevision, secrets batchProviderSecrets) (integrationbatch.Provider, error) {
-	switch source.Provider {
-	case integrationbatch.ProviderS3:
-		provider, err := integrationbatch.NewS3Provider(source, secrets.s3)
-		if err != nil {
-			return nil, fmt.Errorf("configure batch S3 provider: %w", err)
-		}
-		return provider, nil
-	case integrationbatch.ProviderSFTP:
-		provider, err := integrationbatch.NewSFTPProvider(source, secrets.sftp)
-		if err != nil {
-			return nil, fmt.Errorf("configure batch SFTP provider: %w", err)
-		}
-		return provider, nil
-	default:
-		return nil, fmt.Errorf("configure batch provider: unsupported provider")
-	}
+	return authoring.NewBatchProvider(source, secrets)
 }
 
 // resolveBatchWorkerID derives a per-process batch worker identity.
