@@ -14,6 +14,9 @@ import (
 
 // Config holds the complete application configuration.
 type Config struct {
+	deprecationNotices []string
+	envAliasError      error
+
 	// Server configuration for HTTP endpoints
 	Server ServerConfig `yaml:"server" json:"server"`
 
@@ -486,6 +489,8 @@ func Load(configPath string) (*Config, error) {
 // ApplyEnv applies environment variable overrides to the config.
 // Uses FI_FHIR_ prefix with uppercase names and underscores.
 func (c *Config) ApplyEnv() {
+	c.deprecationNotices = nil
+	c.envAliasError = nil
 	// Server
 	c.Server.Host = getEnvString("FI_FHIR_SERVER_HOST", c.Server.Host)
 	c.Server.Port = getEnvInt("FI_FHIR_SERVER_PORT", c.Server.Port)
@@ -508,6 +513,18 @@ func (c *Config) ApplyEnv() {
 
 	// FHIR
 	c.FHIR.BaseURL = getEnvString("FI_FHIR_FHIR_BASE_URL", c.FHIR.BaseURL)
+	canonicalURL := os.Getenv("FI_FHIR_FHIR_BASE_URL")
+	aliasURL := os.Getenv("FI_FHIR_FHIR_SERVER_URL")
+	if aliasURL != "" {
+		c.deprecationNotices = append(c.deprecationNotices,
+			"FI_FHIR_FHIR_SERVER_URL is deprecated; use FI_FHIR_FHIR_BASE_URL")
+		switch {
+		case canonicalURL == "":
+			c.FHIR.BaseURL = aliasURL
+		case canonicalURL != aliasURL:
+			c.envAliasError = fmt.Errorf("FI_FHIR_FHIR_BASE_URL and FI_FHIR_FHIR_SERVER_URL have conflicting values")
+		}
+	}
 	c.FHIR.Timeout = getEnvDuration("FI_FHIR_FHIR_TIMEOUT", c.FHIR.Timeout)
 	c.FHIR.AuthType = getEnvString("FI_FHIR_FHIR_AUTH_TYPE", c.FHIR.AuthType)
 	c.FHIR.Username = getEnvString("FI_FHIR_FHIR_USERNAME", c.FHIR.Username)
@@ -616,9 +633,22 @@ func (c *Config) ApplyEnv() {
 	c.Secrets.Provider = getEnvString("FI_FHIR_SECRETS_PROVIDER", c.Secrets.Provider)
 }
 
+// DeprecationNotices returns notices for deprecated environment variables in use.
+func (c *Config) DeprecationNotices() []string {
+	return append([]string(nil), c.deprecationNotices...)
+}
+
+// EnvAliasError reports conflicting canonical and deprecated environment values.
+func (c *Config) EnvAliasError() error {
+	return c.envAliasError
+}
+
 // Validate checks the configuration for errors.
 func (c *Config) Validate() []error {
 	var errs []error
+	if err := c.EnvAliasError(); err != nil {
+		errs = append(errs, err)
+	}
 
 	// Server validation
 	if c.Server.Port < 1 || c.Server.Port > 65535 {

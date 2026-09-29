@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -205,6 +206,54 @@ func TestApplyEnv(t *testing.T) {
 	}
 	if cfg.Terminology.Pins["icd10cm"] != "FY2024" {
 		t.Errorf("Expected terminology pin icd10cm=FY2024, got %q", cfg.Terminology.Pins["icd10cm"])
+	}
+}
+
+func TestApplyEnvFHIRServerURLAlias(t *testing.T) {
+	tests := []struct {
+		name, canonical, alias, wantURL string
+		wantNotice, wantConflict        bool
+	}{
+		{name: "canonical only", canonical: "https://canonical.example/fhir", wantURL: "https://canonical.example/fhir"},
+		{name: "alias only", alias: "https://alias.example/fhir", wantURL: "https://alias.example/fhir", wantNotice: true},
+		{name: "both equal", canonical: "https://same.example/fhir", alias: "https://same.example/fhir", wantURL: "https://same.example/fhir", wantNotice: true},
+		{name: "both different", canonical: "https://canonical.example/fhir", alias: "https://alias.example/fhir", wantURL: "https://canonical.example/fhir", wantNotice: true, wantConflict: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("FI_FHIR_FHIR_BASE_URL", tt.canonical)
+			t.Setenv("FI_FHIR_FHIR_SERVER_URL", tt.alias)
+			cfg := Default()
+			cfg.ApplyEnv()
+			if cfg.FHIR.BaseURL != tt.wantURL {
+				t.Errorf("FHIR.BaseURL = %q, want %q", cfg.FHIR.BaseURL, tt.wantURL)
+			}
+			notices := cfg.DeprecationNotices()
+			if tt.wantNotice {
+				if len(notices) != 1 || !strings.Contains(notices[0], "FI_FHIR_FHIR_BASE_URL") {
+					t.Errorf("DeprecationNotices() = %q, want one notice naming canonical key", notices)
+				}
+			} else if len(notices) != 0 {
+				t.Errorf("DeprecationNotices() = %q, want none", notices)
+			}
+			err := cfg.EnvAliasError()
+			if tt.wantConflict {
+				if err == nil || !strings.Contains(err.Error(), "FI_FHIR_FHIR_BASE_URL") || !strings.Contains(err.Error(), "FI_FHIR_FHIR_SERVER_URL") {
+					t.Errorf("EnvAliasError() = %v, want error naming both keys", err)
+				}
+				found := false
+				for _, validationErr := range cfg.Validate() {
+					if strings.Contains(validationErr.Error(), "FI_FHIR_FHIR_BASE_URL") && strings.Contains(validationErr.Error(), "FI_FHIR_FHIR_SERVER_URL") {
+						found = true
+					}
+				}
+				if !found {
+					t.Error("Validate() did not report alias conflict")
+				}
+			} else if err != nil {
+				t.Errorf("EnvAliasError() = %v, want nil", err)
+			}
+		})
 	}
 }
 

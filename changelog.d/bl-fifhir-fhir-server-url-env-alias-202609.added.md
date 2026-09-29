@@ -1,0 +1,1 @@
+- Accept `FI_FHIR_FHIR_SERVER_URL` as a deprecated alias in `pkg/config/config.go`, warn and reject conflicts in `cmd/fi-fhir/main.go`, report both FHIR URL keys in `cmd/fi-fhir/engine_runtime.go`, and cover the behavior in `pkg/config/config_test.go` and `cmd/fi-fhir/serve_cli_test.go`.
