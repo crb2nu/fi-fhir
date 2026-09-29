@@ -40,7 +40,7 @@ capabilities, pages try the request and report any failure inline.
   arrow keys, Home and End move between them. Home (`/`), Connections and
   Operator are not stages.
 - **Activity bar**: Home, HL7 / Intake, Profiles, Terminology, Workflows,
-  Events, Connections, Operator.
+  Verification, Connections, Operator.
 - **Status bar**: the API connection ("Connected", "Connecting", "Offline",
   from `/health` every 30 s), the access chip, **Next:** *the following
   stage*, and the build tag.

@@ -134,7 +134,7 @@
     { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', group: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
     { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', group: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
     { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', group: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
-    { id: 'nav:events', label: 'Go to Events', hint: '/events', group: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
+    { id: 'nav:events', label: 'Go to Verification', hint: '/events', group: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
     { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', group: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => goto(resolve('/connections')) },
     { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', group: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
     { id: 'cmd:new-source-connection', label: 'New source connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'source', 'mllp', 'http', 'batch', 's3', 'sftp', 'create'], run: () => openConnections({ view: 'sources', openNew: true }) },

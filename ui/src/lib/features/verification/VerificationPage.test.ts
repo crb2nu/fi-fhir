@@ -181,6 +181,49 @@ describe('VerificationPage admissions', () => {
     expect(api.fetchAdmissions.mock.calls[2]![1]).toEqual({ first: 25, after: 'cursor-1' });
   });
 
+  it('pages and refreshes with the applied filters, never un-applied input', async () => {
+    setAccessStatus(status({}));
+    api.fetchAdmissions.mockResolvedValue(page([admission('receipt-1')], true, 'cursor-a'));
+    render(VerificationPage);
+    await screen.findByTestId('admission-row');
+
+    // Apply filter A.
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Event type' }), { target: { value: 'patient_admit' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(2));
+    const applied = api.fetchAdmissions.mock.calls[1]![0];
+    expect(applied).toMatchObject({ eventType: 'patient_admit', includePurged: false });
+
+    // Edit the inputs without applying, then page and refresh.
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Event type' }), { target: { value: 'lab_result' } });
+    await fireEvent.click(screen.getByTestId('admissions-include-purged'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(3));
+    expect(api.fetchAdmissions.mock.calls[2]![0]).toEqual(applied);
+    expect(api.fetchAdmissions.mock.calls[2]![1]).toEqual({ first: 25, after: 'cursor-a' });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh admissions' }));
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(4));
+    expect(api.fetchAdmissions.mock.calls[3]![0]).toEqual(applied);
+    expect(api.fetchAdmissions.mock.calls[3]![1]).toEqual({ first: 25, after: 'cursor-a' });
+  });
+
+  it('Clear resets every filter, Include tombstoned too', async () => {
+    setAccessStatus(status({}));
+    api.fetchAdmissions.mockResolvedValue(page([admission('receipt-1')]));
+    render(VerificationPage);
+    await screen.findByTestId('admission-row');
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Receipt' }), { target: { value: 'receipt-1' } });
+    await fireEvent.click(screen.getByTestId('admissions-include-purged'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(2));
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(3));
+    expect(api.fetchAdmissions.mock.calls[2]![0]).toMatchObject({ receiptId: null, includePurged: false });
+    expect(screen.getByTestId('admissions-include-purged')).not.toBeChecked();
+  });
+
   it('marks a tombstoned admission', async () => {
     setAccessStatus(status({}));
     api.fetchAdmissions.mockResolvedValueOnce(

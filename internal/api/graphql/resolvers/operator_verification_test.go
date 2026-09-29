@@ -1,6 +1,8 @@
 package resolvers
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,5 +87,32 @@ func TestProjectOperatorAdmissionStatisticsKeepsListsNonNilAndTheBucket(t *testi
 	}
 	if projected.EventsByType == nil || projected.ReceiptsByDefinition == nil || projected.AttemptsByDestination == nil {
 		t.Fatal("grouped lists are non-null in the schema; empty groups must project empty lists")
+	}
+}
+
+// TestOperatorCanonicalEventsNeverReturnAPayloadValue runs a planted value
+// through the real payload summarizer and the GraphQL projection: the
+// structure reaches the response, the value never does.
+func TestOperatorCanonicalEventsNeverReturnAPayloadValue(t *testing.T) {
+	const sentinel = "RESOLVER-PHI-SENTINEL-3K8"
+	fields, truncated := operator.SummarizeCanonicalPayload([]byte(
+		`{"patient":{"mrn":"` + sentinel + `","name":{"family":"` + sentinel + `"}},"` + sentinel + `":{"x":1}}`,
+	))
+	record := operator.CanonicalEventRecord{
+		Event: operator.EventSummary{
+			EventID: "event-1", ReceiptID: "receipt-1", EventType: "patient_admit",
+			PayloadFields: fields, PayloadTruncated: truncated,
+		},
+		ReceiptStatus: "accepted",
+	}
+	encoded, err := json.Marshal(projectOperatorCanonicalEvent(record))
+	if err != nil {
+		t.Fatalf("marshal projection: %v", err)
+	}
+	if strings.Contains(string(encoded), sentinel) {
+		t.Fatalf("the projection returned a payload value or dynamic key: %s", encoded)
+	}
+	if !strings.Contains(string(encoded), "patient.mrn") {
+		t.Fatalf("negative control: the structural projection is missing, so the check proves nothing: %s", encoded)
 	}
 }

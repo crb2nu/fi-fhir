@@ -50,9 +50,13 @@ them.
 
 **Filters** are exact matches on columns: event type, definition, receipt,
 MSH-10, correlation ID, and a recorded-at window (From/To, in your local time,
-sent as UTC). Tombstoned events are hidden unless you check **Include
-tombstoned**. **Previous**/**Next** page through the results 25 at a time with
-the server's cursor.
+sent as UTC). The Admissions window is **inclusive at both ends, to the end of
+the To minute**: "To 04:11" includes an event recorded at 04:11:59, as on
+Operator's Messages and Delivery. Tombstoned events are hidden unless you check
+**Include tombstoned**. Filters take effect when you press **Apply**;
+**Previous**/**Next** and refresh keep the filters you applied, even if you have
+edited the inputs since. **Clear** resets every filter, Include tombstoned
+too. Results come 25 at a time with the server's cursor.
 
 `/events?receipt=<id>` opens Admissions filtered to that receipt. The Operator
 trace links here from its receipt.
@@ -72,7 +76,10 @@ snapshot:
 
 Pick the window with **Last hour**, **Last 24 hours** (both counted by hour),
 **Last 7 days** (by day) or **Custom**. A custom window of two days or less is
-counted by hour, and a longer one by day. The server counts at most 744
+counted by hour, and a longer one by day. Unlike the Admissions filter, a
+statistics window is **half-open**: it includes From and stops just before To,
+so consecutive windows never count a receipt twice. "To 05:00" counts up to
+04:59:59.999. The server counts at most 744
 buckets. It refuses a wider window rather than cutting it short, and the page
 says so before it asks. The line beside the picker states the window exactly
 as it was counted, in UTC.

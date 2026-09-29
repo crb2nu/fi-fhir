@@ -196,3 +196,10 @@ func nextBucket(start time.Time, bucket StatisticsBucket) time.Time {
 	}
 	return start.Add(time.Hour)
 }
+
+// SummarizeCanonicalPayload is the structural projection every canonical
+// event read applies (summarizePayload): field paths and JSON kinds, never a
+// value. Exported so layers above the store can prove the rule end to end.
+func SummarizeCanonicalPayload(raw []byte) ([]PayloadField, bool) {
+	return summarizePayload(raw)
+}

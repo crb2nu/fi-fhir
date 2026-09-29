@@ -33,6 +33,7 @@
   import { formatTimestamp } from '$lib/features/operator/attemptPresentation';
   import { describeOperatorFailure } from '$lib/features/operator/operatorErrors';
   import { readTimeWindow } from '$lib/features/operator/timeWindow';
+  import type { OperatorCanonicalEventFilter } from '$lib/gen/graphql';
   import { fetchAdmissions, type Admission } from './verificationApi';
   import { connectionHref, definitionHref, operatorReceiptHref } from './verificationLinks';
 
@@ -44,6 +45,18 @@
   let { initialReceiptId = null }: Props = $props();
 
   const PAGE_SIZE = 25;
+
+  /** Every filter the browse sends, resolved: exactly one snapshot per Apply. */
+  interface AdmissionFilter extends OperatorCanonicalEventFilter {
+    eventType: string | null;
+    definitionId: string | null;
+    receiptId: string | null;
+    sourceMessageId: string | null;
+    correlationId: string | null;
+    from: string | null;
+    to: string | null;
+    includePurged: boolean;
+  }
 
   let admissions = $state<Admission[]>([]);
   let loading = $state(true);
@@ -64,35 +77,63 @@
   let includePurged = $state(false);
   let seq = 0;
 
+  const NO_FILTER: AdmissionFilter = {
+    eventType: null,
+    definitionId: null,
+    receiptId: null,
+    sourceMessageId: null,
+    correlationId: null,
+    from: null,
+    to: null,
+    includePurged: false
+  };
+  /**
+   * The filters the list is showing, fixed by Apply, Clear and a deep link.
+   * Paging and Refresh read this snapshot, never the live inputs, so a cursor
+   * is only ever sent with the filters that produced it.
+   */
+  let applied = $state<AdmissionFilter>({ ...NO_FILTER });
+
   const selected = $derived(admissions.find((row) => row.eventId === selectedId) ?? null);
   const filtered = $derived(
-    Boolean(eventType || definition || receipt || sourceMessage || correlation || from || to)
+    Boolean(
+      applied.eventType ||
+        applied.definitionId ||
+        applied.receiptId ||
+        applied.sourceMessageId ||
+        applied.correlationId ||
+        applied.from ||
+        applied.to
+    )
   );
 
-  async function load(nextCursor: string | null): Promise<void> {
+  /** Snapshots the inputs; false (with the reason shown) when the window is invalid. */
+  function snapshot(): boolean {
     const window = readTimeWindow(from, to);
     if (!window.ok) {
       filterError = window.message;
-      return;
+      return false;
     }
     filterError = null;
+    applied = {
+      eventType: eventType.trim() || null,
+      definitionId: definition.trim() || null,
+      receiptId: receipt.trim() || null,
+      sourceMessageId: sourceMessage.trim() || null,
+      correlationId: correlation.trim() || null,
+      from: window.window.from,
+      to: window.window.to,
+      includePurged
+    };
+    return true;
+  }
+
+  async function load(nextCursor: string | null): Promise<void> {
     const current = ++seq;
     loading = true;
     error = null;
     try {
-      const page = await fetchAdmissions(
-        {
-          eventType: eventType.trim() || null,
-          definitionId: definition.trim() || null,
-          receiptId: receipt.trim() || null,
-          sourceMessageId: sourceMessage.trim() || null,
-          correlationId: correlation.trim() || null,
-          from: window.window.from,
-          to: window.window.to,
-          includePurged
-        },
-        { first: PAGE_SIZE, after: nextCursor }
-      );
+      const page = await fetchAdmissions({ ...applied }, { first: PAGE_SIZE, after: nextCursor });
       if (current !== seq) return;
       admissions = page.nodes;
       hasNextPage = page.pageInfo.hasNextPage;
@@ -110,8 +151,14 @@
 
   function apply(event?: Event): void {
     event?.preventDefault();
+    if (!snapshot()) return;
     cursors = [];
     void load(null);
+  }
+
+  /** Re-reads the page on screen with the applied filters. */
+  function reload(): void {
+    void load(cursors.at(-1) ?? null);
   }
 
   function clearFilters(): void {
@@ -122,6 +169,7 @@
     correlation = '';
     from = '';
     to = '';
+    includePurged = false;
     apply();
   }
 
@@ -139,6 +187,7 @@
 
   onMount(() => {
     if (initialReceiptId) receipt = initialReceiptId;
+    snapshot();
     void load(null);
   });
 
@@ -152,7 +201,7 @@
 <div class="admissions">
   <Panel title="Admissions" flush data-testid="verification-admissions">
     {#snippet actions()}
-      <IconButton icon={RefreshCw} label="Refresh admissions" {loading} onclick={() => apply()} />
+      <IconButton icon={RefreshCw} label="Refresh admissions" {loading} onclick={reload} />
     {/snippet}
 
     <form class="filters" aria-label="Admission filters" onsubmit={apply}>
@@ -182,7 +231,7 @@
         Include tombstoned
       </label>
       <Button type="submit" disabled={loading}>Apply</Button>
-      {#if filtered}
+      {#if filtered || applied.includePurged}
         <Button variant="ghost" onclick={clearFilters} disabled={loading}>Clear</Button>
       {/if}
     </form>
@@ -193,12 +242,12 @@
     {#if loading && admissions.length === 0}
       <EmptyState message="Loading admissions" aria-busy="true" aria-live="polite" />
     {:else if error}
-      <EmptyState icon={CircleAlert} role="alert" message={error} actionLabel="Retry" onaction={() => apply()} />
+      <EmptyState icon={CircleAlert} role="alert" message={error} actionLabel="Retry" onaction={reload} />
     {:else if admissions.length === 0}
       <EmptyState
         icon={Inbox}
         data-testid="admissions-empty"
-        message={filtered || includePurged
+        message={filtered || applied.includePurged
           ? 'No admissions match these filters.'
           : 'No admissions yet. A message the engine accepts over HTTP, MLLP or a batch source is recorded here once committed.'}
       />

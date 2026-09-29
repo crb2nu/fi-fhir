@@ -39,7 +39,7 @@ const viewLinks: SidebarViewLink[] = [
   { view: 'profiles', label: 'Profiles', href: '/profiles' },
   { view: 'terminology', label: 'Terminology', href: '/terminology' },
   { view: 'workflows', label: 'Workflows', href: '/workflows' },
-  { view: 'events', label: 'Events', href: '/events' },
+  { view: 'events', label: 'Verification', href: '/events' },
   { view: 'connections', label: 'Connections', href: '/connections' },
   { view: 'operator', label: 'Operator', href: '/operator' },
 ];
@@ -52,7 +52,7 @@ const contexts: Record<SidebarView, SidebarContext> = {
     actions: [
       { label: 'HL7 / Intake', href: '/hl7', hint: 'Load, parse and preview inbound messages.' },
       { label: 'Operator', href: '/operator', hint: 'Trace receipts and recover failed deliveries.' },
-      { label: 'Events', href: '/events', hint: 'Browse the semantic events that were delivered.' },
+      { label: 'Verification', href: '/events', hint: 'Browse the admissions the engine committed.' },
     ],
   },
   hl7: {
@@ -62,7 +62,7 @@ const contexts: Record<SidebarView, SidebarContext> = {
     actions: [
       { label: 'Profiles', href: '/profiles', hint: 'Identifier and tolerance rules for this source.' },
       { label: 'Terminology', href: '/terminology', hint: 'Code mappings applied after parsing.' },
-      { label: 'Events', href: '/events', hint: 'The events a processed message produced.' },
+      { label: 'Verification', href: '/events', hint: 'The canonical events an admitted message produced.' },
     ],
   },
   profiles: {
@@ -82,7 +82,7 @@ const contexts: Record<SidebarView, SidebarContext> = {
     actions: [
       { label: 'Profiles', href: '/profiles', hint: 'Profile rules that feed the mappings.' },
       { label: 'Workflows', href: '/workflows', hint: 'Routing logic that uses translated codes.' },
-      { label: 'Events', href: '/events', hint: 'The resulting semantic events.' },
+      { label: 'Verification', href: '/events', hint: 'The canonical events admissions produced.' },
     ],
   },
   workflows: {
@@ -91,7 +91,7 @@ const contexts: Record<SidebarView, SidebarContext> = {
     description: 'Routes, transforms and actions that deliver normalized events to destinations.',
     actions: [
       { label: 'Terminology', href: '/terminology', hint: 'Terms the routes match on.' },
-      { label: 'Events', href: '/events', hint: 'How routed outcomes landed.' },
+      { label: 'Verification', href: '/events', hint: 'Admission and delivery counts over a window.' },
       { label: 'HL7 / Intake', href: '/hl7', hint: 'Trace a delivery back to raw input.' },
     ],
   },
@@ -121,7 +121,7 @@ const contexts: Record<SidebarView, SidebarContext> = {
     description: 'What production did, and audited recovery with a recorded reason.',
     actions: [
       { label: 'Workflows', href: '/workflows', hint: 'The route and actions behind a delivery.' },
-      { label: 'Events', href: '/events', hint: 'Events a receipt produced.' },
+      { label: 'Verification', href: '/events', hint: 'Canonical events a receipt produced.' },
       { label: 'Home', href: '/', hint: 'Integration health across stages.' },
     ],
   },

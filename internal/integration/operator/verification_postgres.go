@@ -179,6 +179,10 @@ func (s *PostgresReadStore) AdmissionStatistics(
 		case "rejected":
 			bucket.Rejected += count
 			stats.RejectedReceipts += count
+		default:
+			// The schema's CHECK admits only these two; a third would be
+			// silently missing from every total, so the read fails instead.
+			return fmt.Errorf("unknown receipt status %q", status)
 		}
 		return nil
 	}); err != nil {
@@ -213,6 +217,8 @@ func (s *PostgresReadStore) AdmissionStatistics(
 		case "failed":
 			bucket.Failed += count
 			stats.FailedAttempts += count
+		default:
+			return fmt.Errorf("unknown delivery attempt status %q", status)
 		}
 		return nil
 	}); err != nil {
