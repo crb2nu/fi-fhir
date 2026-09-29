@@ -4,12 +4,16 @@
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import Inbox from '@lucide/svelte/icons/inbox';
   import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
+  import Archive from '@lucide/svelte/icons/archive';
+  import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
   import {
     Badge,
     Button,
+    Dialog,
     EmptyState,
     Field,
     Icon,
+    Input,
     KeyValue,
     Select,
     Table,
@@ -18,9 +22,17 @@
     Th,
     Tr
   } from '$lib/ui/primitives';
-  import type { BadgeTone, KeyValueItem } from '$lib/ui/primitives';
+  import type { BadgeTone, KeyValueItem, SelectOption } from '$lib/ui/primitives';
   import {
+    definitionEditBlocker,
+    filterDefinitions,
+    isArchivedDefinition,
+    type DefinitionFilter
+  } from '../definitionLifecycle';
+  import {
+    archiveWorkflowDefinition,
     fetchWorkflowDefinitions,
+    updateWorkflowDefinition,
     fetchWorkflowVersions,
     publishWorkflowVersion,
     rollbackWorkflowVersion,
@@ -42,6 +54,7 @@
     workflowId: string;
     name: string;
     description: string | null;
+    status: string | null;
     versionId: string | null;
     versionNumber: number | null;
   };
@@ -67,6 +80,33 @@
   let runResultByWorkflow: Record<string, TriggerResult | undefined> = {};
   let runErrorByWorkflow: Record<string, string | undefined> = {};
 
+  // Definition lifecycle (.loom/42 E-5): rename, re-describe, archive, restore.
+  const STATUS_FILTER_OPTIONS: SelectOption[] = [
+    { value: 'active', label: 'Active' },
+    { value: 'archived', label: 'Archived' },
+    { value: 'all', label: 'All' }
+  ];
+  let statusFilter: DefinitionFilter = 'active';
+  let editName = '';
+  let editDescription = '';
+  let editForId: string | null = null;
+  let savingDetails = false;
+  let detailsError: string | null = null;
+  let archiveTarget: WorkflowItem | null = null;
+  let archiving = false;
+  let restoringId: string | null = null;
+
+  $: filtered = filterDefinitions(workflows, statusFilter);
+  $: if (selected && selected.id !== editForId) {
+    editForId = selected.id;
+    editName = selected.name;
+    editDescription = selected.description ?? '';
+    detailsError = null;
+  }
+  $: detailsReason = selected
+    ? definitionEditBlocker(selected, { name: editName, description: editDescription })
+    : null;
+
   let versionsByWorkflowId: Record<string, WorkflowVersionItem[] | undefined> = {};
   let loadingVersionsByWorkflowId: Record<string, boolean> = {};
   let versionErrorByWorkflowId: Record<string, string | undefined> = {};
@@ -76,7 +116,7 @@
   let publishingByWorkflowId: Record<string, boolean> = {};
   let rollingBackByWorkflowId: Record<string, boolean> = {};
 
-  $: selected = workflows.find((wf) => wf.id === selectedWorkflowId) ?? null;
+  $: selected = filtered.visible.find((wf) => wf.id === selectedWorkflowId) ?? null;
 
   onMount(() => {
     void loadWorkflows();
@@ -93,16 +133,88 @@
         }
       });
       workflows = data.workflowDefinitions;
-      // Keep the details pane populated: the first record is selected until
-      // the operator picks another one.
-      const first = workflows[0];
-      if (first && !workflows.some((wf) => wf.id === selectedWorkflowId)) {
-        selectWorkflow(first);
-      }
+      keepSelectionVisible();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load workflows';
     } finally {
       loading = false;
+    }
+  }
+
+  // Keep the details pane populated: the first visible record is selected
+  // until the operator picks another one.
+  function keepSelectionVisible() {
+    const visible = filterDefinitions(workflows, statusFilter).visible;
+    const first = visible[0];
+    if (first && !visible.some((wf) => wf.id === selectedWorkflowId)) {
+      selectWorkflow(first);
+    }
+  }
+
+  function setStatusFilter(value: string) {
+    statusFilter = value as DefinitionFilter;
+    keepSelectionVisible();
+  }
+
+  /** Replaces one definition in the list with what the API answered. */
+  function replaceDefinition(next: WorkflowItem) {
+    workflows = workflows.map((wf) => (wf.id === next.id ? next : wf));
+  }
+
+  async function saveDetails(workflow: WorkflowItem) {
+    if (detailsReason) return;
+    savingDetails = true;
+    detailsError = null;
+    try {
+      const data = await updateWorkflowDefinition({
+        id: workflow.id,
+        name: editName.trim(),
+        description: editDescription.trim()
+      });
+      replaceDefinition(data.updateWorkflowDefinition);
+      editForId = null;
+      toasts.success(`Saved definition ${data.updateWorkflowDefinition.name}`);
+    } catch (err) {
+      detailsError = err instanceof Error ? err.message : 'Failed to update the definition';
+      if (!isErrorToasted(err)) toasts.error(detailsError);
+    } finally {
+      savingDetails = false;
+    }
+  }
+
+  async function confirmArchive() {
+    const target = archiveTarget;
+    if (!target) return;
+    archiving = true;
+    detailsError = null;
+    try {
+      const data = await archiveWorkflowDefinition(target.id);
+      replaceDefinition(data.archiveWorkflowDefinition);
+      archiveTarget = null;
+      keepSelectionVisible();
+      toasts.success(`Archived ${target.name}`);
+    } catch (err) {
+      archiveTarget = null;
+      detailsError = err instanceof Error ? err.message : 'Failed to archive the definition';
+      if (!isErrorToasted(err)) toasts.error(detailsError);
+    } finally {
+      archiving = false;
+    }
+  }
+
+  async function restoreDefinition(workflow: WorkflowItem) {
+    restoringId = workflow.id;
+    detailsError = null;
+    try {
+      const data = await updateWorkflowDefinition({ id: workflow.id, status: 'draft' });
+      replaceDefinition(data.updateWorkflowDefinition);
+      keepSelectionVisible();
+      toasts.success(`Restored ${workflow.name} to draft`);
+    } catch (err) {
+      detailsError = err instanceof Error ? err.message : 'Failed to restore the definition';
+      if (!isErrorToasted(err)) toasts.error(detailsError);
+    } finally {
+      restoringId = null;
     }
   }
 
@@ -242,7 +354,7 @@
 
   /** State describes the lifecycle: archived, published somewhere, or a draft. */
   function workflowState(workflow: WorkflowItem): { label: string; tone: BadgeTone } {
-    if (workflow.status === 'archived') return { label: 'archived', tone: 'danger' };
+    if (isArchivedDefinition(workflow)) return { label: 'archived', tone: 'danger' };
     if (publishedEnvironments(workflow).length > 0) return { label: 'published', tone: 'success' };
     return { label: workflow.status || 'draft', tone: 'neutral' };
   }
@@ -328,6 +440,7 @@
       workflowId: workflow.id,
       name: workflow.name,
       description: workflow.description ?? null,
+      status: workflow.status ?? null,
       versionId: getSelectedVersionId(workflow) ?? null,
       versionNumber: workflow.latestVersion?.versionNumber ?? null
     });
@@ -393,10 +506,8 @@
   async function publishSelectedVersion(workflow: WorkflowItem) {
     const workflowId = workflow.id;
     const versionId = getSelectedVersionId(workflow);
-    if (!versionId) {
-      toasts.error('Select a version to publish');
-      return;
-    }
+    // The button is disabled without a version; nothing to publish.
+    if (!versionId) return;
     const environment = getSelectedEnvironment(workflowId);
     publishingByWorkflowId = { ...publishingByWorkflowId, [workflowId]: true };
 
@@ -425,10 +536,8 @@
   async function rollbackToSelectedVersion(workflow: WorkflowItem) {
     const workflowId = workflow.id;
     const versionId = getSelectedVersionId(workflow);
-    if (!versionId) {
-      toasts.error('Select a version to roll back to');
-      return;
-    }
+    // The button is disabled without a version; nothing to roll back to.
+    if (!versionId) return;
     const environment = getSelectedEnvironment(workflowId);
     rollingBackByWorkflowId = {
       ...rollingBackByWorkflowId,
@@ -463,8 +572,19 @@
     <Button variant="ghost" icon={RefreshCw} onclick={loadWorkflows} disabled={loading}>
       {loading ? 'Refreshing...' : 'Refresh'}
     </Button>
-    <span class="count text-mono">
-      {workflows.length} workflow{workflows.length === 1 ? '' : 's'}
+    <div class="status-filter">
+      <Select
+        aria-label="Definition status"
+        options={STATUS_FILTER_OPTIONS}
+        value={statusFilter}
+        onchange={(e) => setStatusFilter(e.currentTarget.value)}
+        data-testid="workflow-status-filter"
+      />
+    </div>
+    <span class="count text-mono" data-testid="workflow-count">
+      {filtered.visible.length} workflow{filtered.visible.length === 1 ? '' : 's'}{filtered.hiddenArchived > 0
+        ? ` · ${filtered.hiddenArchived} archived hidden`
+        : ''}
     </span>
   </div>
 
@@ -476,6 +596,8 @@
     </EmptyState>
   {:else if workflows.length === 0}
     <EmptyState icon={Inbox} message="No managed workflows. Create a definition in Design." />
+  {:else if filtered.visible.length === 0}
+    <EmptyState icon={Inbox} data-testid="workflow-filter-empty" message={filtered.emptyMessage} />
   {:else}
     <div class="split">
       <Table label="Managed workflows" class="split-table" layout="fixed">
@@ -488,7 +610,7 @@
             <Th width="150px">Updated</Th>
           </tr>
         {/snippet}
-        {#each workflows as wf (wf.id)}
+        {#each filtered.visible as wf (wf.id)}
           {@const state = workflowState(wf)}
           {@const envs = publishedEnvironments(wf)}
           <Tr
@@ -538,6 +660,65 @@
           </div>
 
           <KeyValue items={detailItems(wf)} />
+
+          <section class="details-section" aria-labelledby="inventory-definition-title">
+            <h3 id="inventory-definition-title" class="section-title">Definition</h3>
+            <Field label="Name">
+              <Input mono bind:value={editName} data-testid="workflow-definition-name" />
+            </Field>
+            <Field label="Description">
+              <Input bind:value={editDescription} placeholder="Optional description" />
+            </Field>
+            <p class="note">
+              Renaming changes the definition only. Saved versions keep the name they were saved with, so publishing
+              or rolling back to an earlier version ships that version's old name; the next version must use the new
+              name.
+            </p>
+            <div class="button-row">
+              <Button
+                loading={savingDetails}
+                disabled={!!detailsReason}
+                onclick={() => saveDetails(wf)}
+                data-testid="workflow-definition-save"
+              >
+                {savingDetails ? 'Saving...' : 'Save details'}
+              </Button>
+              {#if isArchivedDefinition(wf)}
+                <Button
+                  icon={ArchiveRestore}
+                  loading={restoringId === wf.id}
+                  onclick={() => restoreDefinition(wf)}
+                  data-testid="workflow-definition-restore"
+                >
+                  Restore to draft
+                </Button>
+              {:else}
+                <Button
+                  variant="ghost"
+                  icon={Archive}
+                  onclick={() => (archiveTarget = wf)}
+                  data-testid="workflow-definition-archive"
+                >
+                  Archive
+                </Button>
+              {/if}
+            </div>
+            {#if detailsReason}
+              <p class="note" data-testid="workflow-definition-blocked">Save details is unavailable: {detailsReason}</p>
+            {/if}
+            {#if isArchivedDefinition(wf)}
+              <p class="note">
+                Archived: the API refuses new versions and publishes for this definition until it is restored to
+                draft. Its releases stay as they are.
+              </p>
+            {/if}
+            {#if detailsError}
+              <p class="inline-error" role="alert">
+                <Icon icon={CircleAlert} />
+                <span>{detailsError}</span>
+              </p>
+            {/if}
+          </section>
 
           <section class="details-section" aria-labelledby="inventory-publish-title">
             <h3 id="inventory-publish-title" class="section-title">Publish</h3>
@@ -595,14 +776,14 @@
                 variant="primary"
                 loading={!!publishingByWorkflowId[wf.id]}
                 onclick={() => publishSelectedVersion(wf)}
-                disabled={!selectedVersion || wf.status === 'archived'}
+                disabled={!selectedVersion || isArchivedDefinition(wf)}
               >
                 {publishingByWorkflowId[wf.id] ? 'Publishing...' : 'Publish'}
               </Button>
               <Button
                 loading={!!rollingBackByWorkflowId[wf.id]}
                 onclick={() => rollbackToSelectedVersion(wf)}
-                disabled={!selectedVersion || wf.status === 'archived'}
+                disabled={!selectedVersion || isArchivedDefinition(wf)}
               >
                 {rollingBackByWorkflowId[wf.id] ? 'Rolling back...' : 'Rollback'}
               </Button>
@@ -681,7 +862,30 @@
   {/if}
 </div>
 
+<Dialog
+  open={!!archiveTarget}
+  title={`Archive ${archiveTarget?.name ?? ''}?`}
+  description="Archiving hides the definition from the active inventory. The API refuses new versions and publishes for it until it is restored to draft; its releases and version history stay as they are. The audit trail records who archived it."
+  size="sm"
+  role="alertdialog"
+  initialFocus="[data-dialog-cancel]"
+  dismissible={!archiving}
+  data-testid="workflow-archive-dialog"
+  onclose={() => (archiveTarget = null)}
+>
+  {#snippet footer()}
+    <Button size="md" variant="ghost" data-dialog-cancel disabled={archiving} onclick={() => (archiveTarget = null)}
+      >Cancel</Button
+    >
+    <Button size="md" variant="danger" loading={archiving} onclick={() => void confirmArchive()}>Archive</Button>
+  {/snippet}
+</Dialog>
+
 <style>
+  .status-filter {
+    width: 140px;
+  }
+
   .inventory {
     display: flex;
     flex-direction: column;

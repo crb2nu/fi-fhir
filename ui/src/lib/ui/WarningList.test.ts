@@ -375,4 +375,46 @@ describe('WarningList', () => {
       expect(screen.queryByRole('button', { name: 'Inspect' })).not.toBeInTheDocument();
     });
   });
+
+  describe('accept fix (onAcceptFix)', () => {
+    const fixable = createWarning({
+      code: 'PID_3_MISSING',
+      path: 'PID-3[0].1',
+      fixSuggestion: 'Send the MRN in PID-3',
+      diagnosticId: 'diag-1'
+    });
+
+    it('offers "Accept fix" beside a fix suggestion and calls back with the diagnostic id', async () => {
+      const onAcceptFix = vi.fn();
+      render(WarningList, { props: { groups: createGroups([fixable]), onAcceptFix } });
+
+      expect(screen.getByText('Send the MRN in PID-3')).toBeInTheDocument();
+      await fireEvent.click(screen.getByRole('button', { name: 'Accept fix' }));
+      expect(onAcceptFix).toHaveBeenCalledWith('diag-1');
+    });
+
+    it('shows no button without the callback, without a diagnostic id, or once accepted', () => {
+      const { unmount } = render(WarningList, { props: { groups: createGroups([fixable]) } });
+      expect(screen.queryByRole('button', { name: 'Accept fix' })).not.toBeInTheDocument();
+      unmount();
+
+      const noId = render(WarningList, {
+        props: { groups: createGroups([{ ...fixable, diagnosticId: null }]), onAcceptFix: vi.fn() }
+      });
+      expect(screen.queryByRole('button', { name: 'Accept fix' })).not.toBeInTheDocument();
+      noId.unmount();
+
+      render(WarningList, {
+        props: { groups: createGroups([{ ...fixable, fixAccepted: true }]), onAcceptFix: vi.fn() }
+      });
+      expect(screen.queryByRole('button', { name: 'Accept fix' })).not.toBeInTheDocument();
+      expect(screen.getByTestId('warning-fix-accepted')).toHaveTextContent('fix accepted');
+    });
+
+    it('keeps the filter input id the HL7 page focuses', () => {
+      const { container } = render(WarningList, { props: { groups: createGroups([fixable]) } });
+      expect(container.querySelector('#warning-filter')).toBeInstanceOf(HTMLInputElement);
+    });
+  });
 });
+

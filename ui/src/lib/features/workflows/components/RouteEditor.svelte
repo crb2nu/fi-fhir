@@ -9,11 +9,38 @@
   import FilterEditor from './FilterEditor.svelte';
   import TransformList from './TransformList.svelte';
   import ActionList from './ActionList.svelte';
-  import type { RouteDraft, FilterDraft, ActionDraft, TransformDraft } from '../workflowTypes';
+  import type {
+    RouteDraft,
+    FilterDraft,
+    ActionDraft,
+    TransformDraft,
+    WorkflowDraftIssue
+  } from '../workflowTypes';
   import type { DryRunRouteResult } from '$lib/gen/graphql';
 
   export let route: RouteDraft;
   export let dryRunResult: DryRunRouteResult | null = null;
+  /** This route's validation issues, shown beside the fields they are about. */
+  export let issues: WorkflowDraftIssue[] = [];
+
+  function fieldErrors(
+    all: WorkflowDraftIssue[],
+    key: 'actionKey' | 'transformKey'
+  ): Record<string, Record<string, string>> {
+    const out: Record<string, Record<string, string>> = {};
+    for (const issue of all) {
+      const itemKey = issue[key];
+      if (!itemKey) continue;
+      const configKey = issue.field === 'action.type' ? 'type' : (issue.configKey ?? '');
+      out[itemKey] = { ...(out[itemKey] ?? {}), [configKey]: issue.message };
+    }
+    return out;
+  }
+
+  $: nameError = issues.find((issue) => issue.field === 'route.name')?.message ?? null;
+  $: actionsError = issues.find((issue) => issue.field === 'route.actions')?.message ?? null;
+  $: actionErrors = fieldErrors(issues, 'actionKey');
+  $: transformErrors = fieldErrors(issues, 'transformKey');
 
   const dispatch = createEventDispatcher<{
     toggleExpand: void;
@@ -101,7 +128,7 @@
   {#if route.expanded}
     <div class="route-body" id={`route-body-${route._key}`}>
       <div class="name-row">
-        <Field label="Route name">
+        <Field label="Route name" error={nameError ? 'Route name is required' : null}>
           <Input
             mono
             value={route.name}
@@ -120,6 +147,7 @@
         <h4 class="section-title">Transforms</h4>
         <TransformList
           transforms={route.transforms}
+          errors={transformErrors}
           on:add={() => dispatch('addTransform')}
           on:remove={(e) => dispatch('removeTransform', e.detail)}
           on:change={(e) => dispatch('changeTransform', e.detail)}
@@ -129,8 +157,12 @@
 
       <section class="section">
         <h4 class="section-title">Actions</h4>
+        {#if actionsError}
+          <p class="section-error" role="alert">Add at least one action; a route without one is rejected.</p>
+        {/if}
         <ActionList
           actions={route.actions}
+          errors={actionErrors}
           on:add={() => dispatch('addAction')}
           on:remove={(e) => dispatch('removeAction', e.detail)}
           on:change={(e) => dispatch('changeAction', e.detail)}
@@ -263,5 +295,12 @@
     letter-spacing: var(--tracking-label);
     text-transform: uppercase;
     color: var(--color-text-tertiary);
+  }
+
+  .section-error {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-danger-text);
   }
 </style>

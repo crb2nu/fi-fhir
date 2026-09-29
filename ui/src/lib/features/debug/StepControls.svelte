@@ -9,12 +9,14 @@
 
   export let state: DebugSessionState = 'idle';
   export let onPlay: (() => void) | undefined = undefined;
+  /** Why a session cannot start yet; disables Play and becomes its title. */
+  export let playBlockedReason: string | null = null;
   export let onStep: (() => void) | undefined = undefined;
   export let onContinue: (() => void) | undefined = undefined;
   export let onRestart: (() => void) | undefined = undefined;
   export let onStop: (() => void) | undefined = undefined;
 
-  $: canPlay = state === 'idle';
+  $: canPlay = state === 'idle' && !playBlockedReason;
   $: canStep = state === 'paused';
   $: canContinue = state === 'paused';
   $: canRestart = state === 'paused' || state === 'completed';
@@ -26,7 +28,7 @@
     class="control-btn"
     class:active={canPlay}
     disabled={!canPlay}
-    title="Play (F5)"
+    title={playBlockedReason && state === 'idle' ? playBlockedReason : 'Play (F5)'}
     aria-label="Play"
     on:click={() => onPlay?.()}
   >

@@ -9,6 +9,8 @@
   import type { TransformDraft } from '../workflowTypes';
 
   export let transforms: TransformDraft[];
+  /** Field messages per item key, then per config key. */
+  export let errors: Record<string, Record<string, string>> = {};
 
   const dispatch = createEventDispatcher<{
     add: void;
@@ -46,6 +48,7 @@
       <div class="item-body">
         <TransformEditor
           {transform}
+          errors={errors[transform._key] ?? {}}
           on:change={(e) => dispatch('change', { transformKey: transform._key, transform: e.detail })}
         />
       </div>
