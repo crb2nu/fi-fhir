@@ -281,9 +281,10 @@ function createWorkflowDraftStore() {
 export const workflowDraft = createWorkflowDraftStore();
 
 /**
- * True once the workflow builder has been opened in this page session. Until
- * then (and while the draft is still the empty default) the draft is not
- * "live", so its validation errors do not reach the global Problems badge.
+ * An explicit request to treat the draft as live even while it is still the
+ * empty default. The builder does not set it on mount (`.loom/42` E-5): the
+ * untouched default is nobody's work, so it stays out of the Problems badge
+ * until it differs from the default.
  */
 const builderOpenedStore = writable<boolean>(false);
 export const workflowBuilderOpened = { subscribe: builderOpenedStore.subscribe };
@@ -297,6 +298,11 @@ export function resetWorkflowBuilderOpened(): void {
   builderOpenedStore.set(false);
 }
 
+/** A yamlOnly bag counts as content: a draft carrying one is someone's work. */
+function isEmptyBag(bag: Record<string, unknown> | undefined): boolean {
+  return !bag || Object.keys(bag).length === 0;
+}
+
 function sameEmptyRoute(route: RouteDraft): boolean {
   // Drafts restored from localStorage may predate a field; treat absent as empty.
   return (
@@ -304,6 +310,8 @@ function sameEmptyRoute(route: RouteDraft): boolean {
     (route.filter?.eventTypes?.length ?? 0) === 0 &&
     (route.filter?.sources?.length ?? 0) === 0 &&
     !(route.filter?.condition ?? '').trim() &&
+    isEmptyBag(route.yamlOnly) &&
+    isEmptyBag(route.filter?.yamlOnly) &&
     (route.transforms?.length ?? 0) === 0 &&
     (route.actions?.length ?? 0) === 0
   );
@@ -318,6 +326,7 @@ export function isEmptyDefaultDraft(draft: WorkflowDraft): boolean {
   return (
     !(draft.name ?? '').trim() &&
     draft.version === '1.0' &&
+    isEmptyBag(draft.yamlOnly) &&
     Array.isArray(draft.routes) &&
     draft.routes.length === 1 &&
     draft.routes.every(sameEmptyRoute)

@@ -157,6 +157,58 @@ mutation CreateWorkflowDefinition($input: CreateWorkflowDefinitionInput!) {
   }
 }
 
+mutation UpdateWorkflowDefinition($input: UpdateWorkflowDefinitionInput!) {
+  updateWorkflowDefinition(input: $input) {
+    id
+    name
+    description
+    status
+    createdAt
+    updatedAt
+    latestVersion {
+      id
+      workflowId
+      versionNumber
+      createdAt
+      createdBy
+      notes
+      validation {
+        valid
+        errors
+        warnings
+        info
+      }
+    }
+    publishedVersionsByEnv
+  }
+}
+
+mutation ArchiveWorkflowDefinition($input: ArchiveWorkflowDefinitionInput!) {
+  archiveWorkflowDefinition(input: $input) {
+    id
+    name
+    description
+    status
+    createdAt
+    updatedAt
+    latestVersion {
+      id
+      workflowId
+      versionNumber
+      createdAt
+      createdBy
+      notes
+      validation {
+        valid
+        errors
+        warnings
+        info
+      }
+    }
+    publishedVersionsByEnv
+  }
+}
+
 mutation SaveWorkflowVersion($input: SaveWorkflowVersionInput!) {
   saveWorkflowVersion(input: $input) {
     id

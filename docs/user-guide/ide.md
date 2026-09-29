@@ -106,10 +106,15 @@ Browse, Upload, Review (pending mappings), Resolver and Workflows. See
 ### Workflows (`/workflows`), stage 4
 
 Inventory, Design and Verification. A workflow draft can be simulated, then
-published, approved and deployed through the lifecycle. The live monitor
-needs the workflow event stream. On deployments that stream Integration
-Sessions only, it says so and points to the recorded runs. The DSL is in
-[Workflow Configuration](workflows.md).
+published, approved and deployed through the lifecycle. Design validates the
+draft beside each field and disables Save and Publish with the reason; keys the
+builder cannot edit are listed as YAML-only fields and saved as written.
+Inventory renames, re-describes, archives and restores definitions, with an
+Active/Archived filter. Verification opens a recorded run's trace in the Trace
+panel. The live monitor needs the workflow event stream. On deployments that
+stream Integration Sessions only, it says so and points to the recorded runs.
+Details are in [Managing Workflows in the IDE](workflows.md#managing-workflows-in-the-ide);
+the DSL is in [Workflow Configuration](workflows.md).
 
 ### Events (`/events`), stage 5
 

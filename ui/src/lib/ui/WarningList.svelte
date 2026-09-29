@@ -1,14 +1,26 @@
 <script lang="ts">
+  /**
+   * WarningList — parse warnings grouped by phase, with a filter, LLM
+   * explanations and per-warning actions. Built on the primitives
+   * (`.loom/37`, `.loom/42` E-5).
+   *
+   * `onAcceptFix` (optional): when set, a warning that carries a
+   * `fixSuggestion` and a `diagnosticId` gets an "Accept fix" button that calls
+   * it with that id. The page owns the mutation (`acceptDiagnosticFix`).
+   */
   import type { WarningGroup, WarningLike } from '$lib/domain/warnings';
   import { browser } from '$app/environment';
   import { createEventDispatcher } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
+  import { Badge, Button, Input } from '$lib/ui/primitives';
 
   export let groups: readonly WarningGroup[];
   export let selectedPath: string | null = null;
   export let enableControls = true;
   /** Set of warning codes currently being explained */
   export let explainLoadingCodes: SvelteSet<string> = new SvelteSet();
+  /** Accepts a diagnostic's fix suggestion; renders "Accept fix" when set. */
+  export let onAcceptFix: ((diagnosticId: string) => void) | undefined = undefined;
 
   const dispatch = createEventDispatcher<{
     select: WarningLike;
@@ -35,6 +47,15 @@
   /** Check if a warning can be resolved via AI */
   function canResolve(w: WarningLike): boolean {
     return ['W042', 'E099'].includes(w.code) && !!w.explanation;
+  }
+
+  /** The fix can be accepted: the page wired the handler and the server named the diagnostic. */
+  function canAcceptFix(w: WarningLike): boolean {
+    return !!onAcceptFix && !!w.fixSuggestion && !!w.diagnosticId && !w.fixAccepted;
+  }
+
+  function acceptFix(w: WarningLike) {
+    if (w.diagnosticId) onAcceptFix?.(w.diagnosticId);
   }
 
   // Track which explanations are expanded
@@ -97,41 +118,37 @@
   {#if enableControls}
     <div class="controls">
       <div class="search">
-        <label class="sr-only" for="warning-filter">
-          Filter warnings
-        </label>
-        <input
-          id="warning-filter"
-          class="input"
-          type="text"
-          bind:value={query}
-          placeholder="Filter warnings by code, message, phase, path…"
-        />
+        <label class="sr-only" for="warning-filter">Filter warnings</label>
+        <div class="search-input">
+          <Input
+            id="warning-filter"
+            bind:value={query}
+            placeholder="Filter warnings by code, message, phase, path…"
+          />
+        </div>
         {#if query.trim()}
-          <button class="clear" type="button" on:click={() => (query = '')}>Clear</button>
+          <Button variant="ghost" onclick={() => (query = '')}>Clear</Button>
         {/if}
-        <span class="count">{shown}/{total}</span>
+        <span class="count text-mono">{shown}/{total}</span>
       </div>
 
       <div class="filters">
-        <div class="chip-row">
-          <button
-            class="chip"
-            class:active={phase === 'all'}
-            type="button"
-            on:click={() => (phase = 'all')}
+        <div class="phase-row" role="group" aria-label="Phase">
+          <Button
+            variant={phase === 'all' ? 'secondary' : 'ghost'}
+            aria-pressed={phase === 'all'}
+            onclick={() => (phase = 'all')}
           >
             all
-          </button>
+          </Button>
           {#each phases as p (p)}
-            <button
-              class="chip"
-              class:active={phase === p}
-              type="button"
-              on:click={() => (phase = p)}
+            <Button
+              variant={phase === p ? 'secondary' : 'ghost'}
+              aria-pressed={phase === p}
+              onclick={() => (phase = p)}
             >
               {p}
-            </button>
+            </Button>
           {/each}
         </div>
 
@@ -142,18 +159,13 @@
           </label>
 
           {#if unexplainedCount > 0}
-            <button
-              class="explain-all-btn"
-              type="button"
-              disabled={anyLoading}
-              on:click={() => dispatch('explainAll')}
-            >
+            <Button disabled={anyLoading} onclick={() => dispatch('explainAll')}>
               {#if anyLoading}
                 Explaining...
               {:else}
                 Explain All ({unexplainedCount})
               {/if}
-            </button>
+            </Button>
           {/if}
         </div>
       </div>
@@ -162,10 +174,10 @@
 
   <div class="groups">
     {#each filteredGroups as g (g.phase)}
-      <div class="group">
+      <section class="group" aria-label={`${g.phase} warnings`}>
         <div class="group-title">
           <span class="phase">{g.phase}</span>
-          <span class="count">{g.items.length}</span>
+          <Badge mono>{g.items.length}</Badge>
         </div>
         <ul class="list">
           {#each g.items as w, idx (w.phase + ':' + w.code + ':' + idx)}
@@ -174,13 +186,13 @@
               <div class="item" data-selected={selectedPath !== null && w.path === selectedPath}>
                 <div class="item-content">
                   <button class="main" on:click={() => dispatch('select', w)} type="button">
-                    <div class="top">
+                    <span class="top">
                       <span class="code">{w.code}</span>
                       {#if w.path}
                         <span class="path" title={w.path}>{w.path}</span>
                       {/if}
-                    </div>
-                    <div class="msg">{w.message}</div>
+                    </span>
+                    <span class="msg">{w.message}</span>
                   </button>
 
                   {#if w.explanation}
@@ -192,7 +204,7 @@
                         on:click|stopPropagation={() => toggleExplanation(wKey)}
                       >
                         {#if w.fromCache}
-                          <span class="cache-badge">cached</span>
+                          <Badge>cached</Badge>
                         {/if}
                         {expandedExplanations.has(wKey) ? 'Hide' : 'View'} Explanation
                       </button>
@@ -213,56 +225,57 @@
                         </div>
                       {/if}
                     </div>
+                  {:else if w.fixSuggestion}
+                    <div class="fix-suggestion">
+                      <strong>Suggested fix:</strong>
+                      <p>{w.fixSuggestion}</p>
+                    </div>
+                  {/if}
+
+                  {#if w.fixSuggestion && w.fixAccepted}
+                    <Badge tone="success" dot data-testid="warning-fix-accepted">fix accepted</Badge>
                   {/if}
                 </div>
 
                 <div class="actions">
+                  {#if canAcceptFix(w)}
+                    <Button
+                      variant="primary"
+                      title="Accept the suggested fix for this diagnostic"
+                      data-testid="warning-accept-fix"
+                      onclick={() => acceptFix(w)}
+                    >
+                      Accept fix
+                    </Button>
+                  {/if}
                   {#if !w.explanation}
                     {@const loading = isWarningLoading(w)}
-                    <button
-                      class="mini explain-btn"
-                      type="button"
+                    <Button
+                      variant="ghost"
                       title="Get LLM explanation"
                       disabled={loading}
-                      on:click|stopPropagation={() => dispatch('explain', w)}
+                      onclick={() => dispatch('explain', w)}
                     >
                       {loading ? '...' : 'Explain'}
-                    </button>
+                    </Button>
                   {/if}
                   {#if canResolve(w)}
-                    <button
-                      class="mini resolve-btn"
-                      type="button"
-                      title="Resolve mapping with AI"
-                      on:click|stopPropagation={() => dispatch('resolve', w)}
-                    >
+                    <Button variant="ghost" title="Resolve mapping with AI" onclick={() => dispatch('resolve', w)}>
                       Resolve
-                    </button>
+                    </Button>
                   {/if}
                   {#if w.path}
-                    <button
-                      class="mini"
-                      type="button"
-                      title="Copy path"
-                      on:click|stopPropagation={() => copyText(w.path ?? '')}
-                    >
-                      Copy
-                    </button>
-                    <button
-                      class="mini"
-                      type="button"
-                      title="Open inspector"
-                      on:click|stopPropagation={() => dispatch('inspect', w)}
-                    >
+                    <Button variant="ghost" title="Copy path" onclick={() => copyText(w.path ?? '')}>Copy</Button>
+                    <Button variant="ghost" title="Open inspector" onclick={() => dispatch('inspect', w)}>
                       Inspect
-                    </button>
+                    </Button>
                   {/if}
                 </div>
               </div>
             </li>
           {/each}
         </ul>
-      </div>
+      </section>
     {/each}
   </div>
 {/if}
@@ -270,392 +283,217 @@
 <style>
   .empty {
     color: var(--color-text-tertiary);
+    font-size: var(--text-ui);
   }
 
   .controls {
     display: grid;
-    gap: 10px;
-    margin-bottom: 12px;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
   }
 
   .search {
     display: flex;
     align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
-  .input {
-    flex: 1;
-    min-width: 240px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-input);
-    color: var(--color-text-primary);
-    outline: none;
-    transition: var(--transition-all);
+  .search-input {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  .input::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  .input:hover:not(:disabled):not(:focus) {
-    border-color: var(--color-border-strong);
-  }
-
-  .input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: var(--shadow-focus);
-  }
-
-  .clear {
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-    color: var(--color-text-secondary);
-    font-weight: 700;
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .clear:hover {
-    background: var(--color-bg-hover);
+  .count {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
   }
 
   .filters {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--space-2);
     flex-wrap: wrap;
   }
 
-  .chip-row {
+  .phase-row {
     display: flex;
-    gap: 8px;
     flex-wrap: wrap;
-  }
-
-  .chip {
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-    color: var(--color-text-secondary);
-    font-weight: 750;
-    cursor: pointer;
-    transition: var(--transition-all);
-  }
-
-  .chip:hover {
-    background: var(--color-bg-hover);
-  }
-
-  .chip.active {
-    border-color: var(--color-primary-border);
-    background: var(--color-primary-muted);
-  }
-
-  .checkbox {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-text-secondary);
-    font-weight: 650;
-    font-size: 0.9rem;
+    gap: 2px;
   }
 
   .filter-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: var(--space-3);
   }
 
-  .explain-all-btn {
-    padding: 6px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(129, 140, 248, 0.4);
-    background: rgba(129, 140, 248, 0.15);
-    color: rgba(129, 140, 248, 0.95);
-    font-weight: 700;
-    font-size: 0.85rem;
+  .checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-ui);
+    color: var(--color-text-secondary);
     cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .explain-all-btn:hover:not(:disabled) {
-    background: rgba(129, 140, 248, 0.25);
-    border-color: rgba(129, 140, 248, 0.6);
-  }
-
-  .explain-all-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 
   .groups {
-    display: grid;
-    gap: 12px;
-  }
-
-  .group {
-    border-radius: 12px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
   }
 
   .group-title {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-    color: var(--color-text-primary);
-    font-weight: 700;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
   }
 
   .phase {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    font-size: 0.95rem;
-  }
-
-  .count {
-    padding: 2px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
-    color: var(--color-text-secondary);
-    font-size: 0.85rem;
+    font-size: var(--text-label);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
   }
 
   .list {
-    list-style: none;
-    padding: 0;
+    display: flex;
+    flex-direction: column;
     margin: 0;
-    display: grid;
-    gap: 10px;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-sm);
   }
 
-  .li {
-    list-style: none;
+  .li + .li {
+    border-top: 1px solid var(--color-border-subtle);
   }
 
   .item {
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-surface);
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    padding: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .item[data-selected='true'] {
+    background: var(--color-primary-muted);
+    box-shadow: inset 2px 0 0 var(--color-primary);
   }
 
   .item-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--space-1);
     min-width: 0;
   }
 
   .main {
-    width: 100%;
-    text-align: left;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    cursor: pointer;
-    color: inherit;
-  }
-
-  .main:hover {
-    opacity: 0.98;
-  }
-
-  .item[data-selected='true'] {
-    border-color: rgba(59, 130, 246, 0.45);
-    background: rgba(59, 130, 246, 0.12);
-  }
-
-  .actions {
     display: flex;
-    gap: 8px;
-    align-items: start;
-  }
-
-  .mini {
-    padding: 6px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--color-border-default);
-    background: var(--color-bg-elevated);
-    color: var(--color-text-secondary);
-    font-weight: 750;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
     cursor: pointer;
-    white-space: nowrap;
-    transition: var(--transition-all);
   }
 
-  .mini:hover {
-    background: var(--color-bg-hover);
+  .main:focus-visible,
+  .explain-toggle:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-sm);
   }
 
   .top {
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
+    gap: var(--space-2);
+    min-width: 0;
   }
 
   .code {
-    font-weight: 800;
+    font-family: var(--font-mono);
+    font-size: var(--text-ui);
+    font-weight: var(--font-semibold);
     color: var(--color-text-primary);
   }
 
-  .title-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .sev-badge {
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    font-weight: 700;
-  }
-  .sev-badge.error {
-    background: rgba(239, 68, 68, 0.15);
-    color: rgba(248, 113, 113, 0.95);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-  }
-  .sev-badge.warning {
-    background: rgba(245, 158, 11, 0.15);
-    color: rgba(253, 230, 138, 0.95);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-  }
-  .sev-badge.info {
-    background: rgba(59, 130, 246, 0.15);
-    color: rgba(147, 197, 253, 0.95);
-    border: 1px solid rgba(59, 130, 246, 0.35);
-  }
-
   .path {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    font-size: 0.85rem;
-    color: var(--color-text-tertiary);
     overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 60%;
   }
 
   .msg {
-    margin-top: 6px;
+    font-size: var(--text-ui);
+    line-height: var(--leading-snug);
     color: var(--color-text-secondary);
-    line-height: 1.4;
   }
 
-  /* LLM Explanation styles */
+  .actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 2px;
+  }
+
   .explanation {
-    margin-top: 10px;
-    border-top: 1px solid var(--color-border-subtle);
-    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   .explain-toggle {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    color: rgba(129, 140, 248, 0.9);
-    font-weight: 600;
-    font-size: 0.9rem;
-    background: none;
-    border: none;
+    align-self: flex-start;
+    gap: var(--space-1);
     padding: 0;
-  }
-
-  .explain-toggle:hover {
-    color: rgba(129, 140, 248, 1);
-  }
-
-  .cache-badge {
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    background: rgba(34, 197, 94, 0.2);
-    border: 1px solid rgba(34, 197, 94, 0.3);
-    border-radius: 4px;
-    color: rgba(34, 197, 94, 0.9);
-    margin-left: 2px;
+    border: 0;
+    background: none;
+    color: var(--color-accent-text);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
   }
 
   .explain-content {
-    margin-top: 10px;
-    padding: 12px;
-    background: var(--color-bg-surface);
-    border-radius: 8px;
-    border: 1px solid var(--color-border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-left: 2px solid var(--color-border-default);
   }
 
-  .explain-text {
-    margin: 0;
-    color: var(--color-text-secondary);
-    line-height: 1.5;
-  }
-
-  .fix-suggestion {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--color-border-subtle);
-  }
-
-  .fix-suggestion strong {
-    color: rgba(251, 191, 36, 0.9);
-    font-weight: 700;
-  }
-
+  .explain-text,
   .fix-suggestion p {
-    margin: 6px 0 0;
+    margin: 0;
+    font-size: var(--text-ui);
+    line-height: var(--leading-snug);
     color: var(--color-text-secondary);
-    line-height: 1.4;
   }
 
+  .fix-suggestion,
   .impact {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--color-border-subtle);
+    font-size: var(--text-ui);
     color: var(--color-text-secondary);
   }
 
+  .fix-suggestion strong,
   .impact strong {
-    color: rgba(239, 68, 68, 0.9);
-    font-weight: 700;
-  }
-
-  .explain-btn {
-    border-color: rgba(129, 140, 248, 0.3);
-    color: rgba(129, 140, 248, 0.9);
-  }
-
-  .explain-btn:hover {
-    background: rgba(129, 140, 248, 0.1);
-    border-color: rgba(129, 140, 248, 0.5);
-  }
-
-  .explain-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .resolve-btn {
-    border-color: rgba(16, 185, 129, 0.3);
-    color: rgba(16, 185, 129, 0.95);
-    background: rgba(16, 185, 129, 0.05);
-  }
-
-  .resolve-btn:hover {
-    background: rgba(16, 185, 129, 0.15);
-    border-color: rgba(16, 185, 129, 0.5);
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
   }
 </style>

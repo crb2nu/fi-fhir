@@ -52,8 +52,9 @@ export default defineConfig({
   projects: [
     {
       name: 'operator-bundle',
-      // shell.spec.ts (.loom/42 E-4) sorts after operator-bundle.spec.ts.
-      testMatch: ['operator-bundle.spec.ts', 'shell.spec.ts'],
+      // Lanes add their checks in operator-bundle.<area>.spec.ts files;
+      // shell.spec.ts (.loom/42 E-4) runs after them.
+      testMatch: ['operator-bundle*.spec.ts', 'shell.spec.ts'],
       use: { baseURL: process.env.E2E_BUNDLE_URL ?? 'http://127.0.0.1:3000' }
     },
     {

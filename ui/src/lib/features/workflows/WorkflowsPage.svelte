@@ -19,6 +19,7 @@
         workflowId: string;
         name: string;
         description: string | null;
+        status: string | null;
         versionId: string | null;
         versionNumber: number | null;
       }
@@ -32,6 +33,7 @@
       workflowId: string;
       name: string;
       description: string | null;
+      status: string | null;
       versionId: string | null;
       versionNumber: number | null;
     }>
