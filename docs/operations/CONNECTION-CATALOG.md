@@ -38,8 +38,8 @@ to put a sample. Startup logs `connection sample intake` with `enabled`.
 |---|---|
 | Ledger table | `integration_connection_schema_migrations` |
 | Advisory lock key | `5064657639792058909` (`connectionMigrationLockKey`, `internal/integration/connection/postgres.go`), distinct from every other `*MigrationLockKey` |
-| Migrations | `0001_connection_catalog.sql` (C-0: drafts, revisions, captures, guards), `0002_connection_capture_intake.sql` (C-2: capture problems, cancellation, object path, one armed stream capture per source) |
-| `SchemaVersion` | `2` |
+| Migrations | `0001_connection_catalog.sql` (C-0: drafts, revisions, captures, guards), `0002_connection_capture_intake.sql` (C-2: capture problems, cancellation, object path, one armed stream capture per source), `0003_runtime_observations.sql` (.loom/39 step 1: per-replica runtime observations) |
+| `SchemaVersion` | `3` |
 | Ledger name | `connection` (`observability.SchemaLedgerConnection`) |
 
 The migrator follows `AGENTS.md` § Migration authoring: it takes
@@ -50,8 +50,8 @@ other six (submission, session, lifecycle, batch, destination, terminology).
 Where the version shows:
 
 - `fi-fhir version` prints every ledger; this one is the line
-  `connection   2`.
-- `/metrics` reports `fi_fhir_schema_ledger_version{ledger="connection"} 2`.
+  `connection   3`.
+- `/metrics` reports `fi_fhir_schema_ledger_version{ledger="connection"} 3`.
 - `engineRuntime.ledgers` (the Engine tab's Ledgers table) lists the same
   seven.
 
@@ -61,14 +61,19 @@ round trip that brings back every row and trigger.
 
 ## Tables and their rules
 
-All three tables are guarded by row-level triggers in the
-`0004_audit_immutability.sql` idiom. No row in any of them is ever deleted.
+The drafts, revisions, and captures tables are guarded by row-level triggers
+in the `0004_audit_immutability.sql` idiom. No row in any of them is ever
+deleted. `integration_runtime_observations` is the exception on purpose: it is
+a heartbeat table, upserted in place, with no trigger (see
+[Runtime observations](#runtime-observations)).
 
 | Table | Shape | Rules the schema enforces |
 |---|---|---|
 | `integration_connection_drafts` | one row per `(tenant_id, artifact_id)`: direction, kind, name, description, `spec_json`, `secret_bindings_json`, `version`, `archived_at`, created/updated audit | Identity (tenant, id, direction, kind) and creation audit never change; every update raises `version` by exactly one (an expected-version update); an archived row is frozen; direction must match kind. |
 | `integration_connection_revisions` | one row per compile: `revision_text` (the exact bytes, returned verbatim as `revisionJson`), `revision_json` (the same document as JSONB, `CHECK revision_text::jsonb = revision_json`), `digest`, `compiled_from_version`, created audit | Append-only (`UPDATE` and `DELETE` raise); `UNIQUE (tenant_id, digest)`; revision ids are `1`, `2`, … per connection. |
 | `integration_connection_captures` | one row per peek or stream capture (see [Capture audit](#capture-audit)) | Provenance frozen, `object_path` included; while `armed`, only `status`, `captured`, `completed_at` (and on finish `problems_json`, `cancellation_json`) advance, each by an update that raises `version` by one; `captured` never decreases and never exceeds `max_messages`; a finished row is frozen; at most one armed stream capture per `(tenant_id, source_id)` (unique partial index). |
+
+| `integration_runtime_observations` | one row per `(tenant_id, replica_id, adapter)`: `definition_id`, `artifact_id`, `revision_id`, `digest` (all nullable), `observed_at`, `heartbeat_at`; index on `(tenant_id, digest)` | Upsert-only: every heartbeat rewrites the row in place. `observed_at` moves only when the reported digest or revision changes; `heartbeat_at` moves on every tick. No immutability trigger. |
 
 Two columns hold a revision because JSONB alone cannot return exact bytes (it
 reorders keys), and the digest is over exact bytes.
@@ -96,6 +101,56 @@ Service rules on top of the schema (`internal/integration/connection/service.go`
   failing field (the constructors return one coarse error on purpose).
   `TestConnectionChecker_MirrorsConstructorBounds` drives every bound through
   both, so `CONSTRUCTOR_REJECTED` is never produced.
+
+## Runtime observations
+
+`engineRuntime` and a connection's `runtime.mounted` describe only the replica
+that answered the request. `integration_runtime_observations` is every
+replica's report, so a reader can say "observed on N/N replicas" (.loom/39,
+"Convergence" step 1).
+
+- **Who writes.** Every `serve` replica with the durable submission database
+  (the same condition that migrates this ledger) runs its own reporter
+  (`runtimeObservationReporter`, `cmd/fi-fhir/serve_observability.go`). There is
+  no leader: a leader-only report would hide exactly the divergence this table
+  exists to show. `replica_id` is `hostname-pid`, the MLLP rate quota's holder
+  id. Without the database, or when the replica id cannot be derived, the
+  reporter is off and startup logs one INFO line, `runtime observation heartbeat
+  disabled` (`component=runtime-observations`).
+- **What it writes.** One row per adapter row of the runtime description —
+  `http`, `mllp`, `batch`, `delivery`, enabled or not — plus one row per
+  destination in the delivery identity registry, with adapter
+  `destination:<artifact id>`. A disabled adapter's row has null identity
+  columns, so "this replica runs no MLLP listener" and "this replica has not
+  reported" are different answers. For the MLLP listener and batch runner,
+  `artifact_id` is the runtime source id and `digest` the mounted source
+  revision's digest; for the HTTP ingress, `digest` is the source digest of the
+  definition it is bound to.
+- **Cadence.** On start, then once per `runtimeReportInterval` (one minute), the
+  same timer as the lifecycle health report. Rows are fixed at startup, because
+  `serve` mounts nothing after it. A failed write logs one WARN per tick,
+  `runtime observation heartbeat failed`, and is retried on the next tick; it
+  never stops the process.
+- **Staleness.** A row is stale when `heartbeat_at` is more than three report
+  intervals old (`ObservationStaleFactor`). Stale rows are not deleted; a
+  replica that was scaled away stays visible as stale.
+- **Where it shows.** `engineRuntime.observations` lists every row of the
+  tenant with `stale`. A connection's `runtime.observedReplicas` counts the
+  replicas with a fresh heartbeat that report any revision of that connection
+  mounted, and `runtime.totalReplicas` counts the replicas with any fresh
+  heartbeat. Without the connection catalog, `observations` is an empty list.
+  Both fields are gated by the existing `integration.operator` rule for
+  `engineRuntime` and `connections`.
+
+To see the fleet from SQL:
+
+```sql
+SELECT replica_id, adapter, digest, heartbeat_at,
+       heartbeat_at < now() - interval '3 minutes' AS stale
+FROM integration_runtime_observations
+WHERE tenant_id = '<tenant>'
+ORDER BY replica_id, adapter;
+```
 
 ## Roles
 
@@ -322,7 +377,7 @@ message.
 
 | Job | Make target | Proves |
 |---|---|---|
-| `test:connection-catalog` (`ci/test-connection-catalog.yml`) | `make connection-catalog` | Nine PostgreSQL proofs (`TestConnectionCatalog_*`, count asserted by an existence guard): two replicas migrate concurrently; create → stale update refused → compile, and the bytes decode with the kind's own decoder to the stored digest; a lifecycle definition naming a digest shows in `references`; restart preserves every row byte for byte; the schema refuses an `UPDATE` on a revision; secret material, unknown keys, and malformed bindings are refused with code and path and nothing is written; cross-tenant reads are not found; writes without `integration.deployment.operator` are forbidden; racing compiles claim one revision. |
+| `test:connection-catalog` (`ci/test-connection-catalog.yml`) | `make connection-catalog` | Ten PostgreSQL proofs (`TestConnectionCatalog_*`; the existence guard asserts the original nine by name): two replicas migrate concurrently; create → stale update refused → compile, and the bytes decode with the kind's own decoder to the stored digest; a lifecycle definition naming a digest shows in `references`; restart preserves every row byte for byte; the schema refuses an `UPDATE` on a revision; secret material, unknown keys, and malformed bindings are refused with code and path and nothing is written; cross-tenant reads are not found; writes without `integration.deployment.operator` are forbidden; racing compiles claim one revision; a runtime observation upserts in place, moving `observed_at` only when the digest changes, and stays per replica and per tenant. |
 | `test:connection-capture` (`ci/test-connection-capture.yml`) | `make connection-capture` | Seven proofs over a real MLLP listener, the durable processor, and MinIO: a capture armed at `maxMessages: 2` turns three admitted frames into exactly two redacted, sealed samples while every receipt and ACK matches an unarmed run; another source captures nothing (negative control); a closed session store changes no ACK and counts `reason="session_store"`; a 1 s TTL expires; racing frames never exceed `maxMessages`; a source no tap can see is refused; a peek lists and reads (NK1-2 and IN1-16 masked) while the batch tables and bucket stay byte-identical and the runner still ingests the object. |
 
 Both extend `.integration-proof` and skip without their services, which is why
