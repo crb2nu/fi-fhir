@@ -5,10 +5,20 @@
 
 // ─── Draft types (client-side builder state) ───────────────────────────────
 
+/**
+ * Keys a YAML document carried that the builder has no control for. They are
+ * kept verbatim and written back by `draftToYaml`, so loading a version and
+ * saving it again never drops them (`.loom/42` E-5). The builder lists them in
+ * its "YAML-only fields" notice.
+ */
+export type YamlOnlyValues = Record<string, unknown>;
+
 export type WorkflowDraft = {
   name: string;
   version: string;
   routes: RouteDraft[];
+  /** Top-level keys other than name, version and routes. */
+  yamlOnly?: YamlOnlyValues;
 };
 
 export type RouteDraft = {
@@ -19,12 +29,16 @@ export type RouteDraft = {
   transforms: TransformDraft[];
   actions: ActionDraft[];
   expanded: boolean;
+  /** Route keys other than name, filter, transform and actions. */
+  yamlOnly?: YamlOnlyValues;
 };
 
 export type FilterDraft = {
   eventTypes: string[];
   sources: string[];
   condition: string;
+  /** Filter keys other than event_type, source and condition. */
+  yamlOnly?: YamlOnlyValues;
 };
 
 export type TransformType = 'set_field' | 'map_terminology' | 'redact' | 'explain_warnings';
@@ -33,12 +47,29 @@ export type TransformDraft = {
   _key: string;
   type: TransformType;
   config: Record<string, string>;
+  /** Keys beside the transform's own key on the same list item. */
+  yamlOnly?: YamlOnlyValues;
+  /** Keys inside the transform's block the builder has no field for. */
+  innerYamlOnly?: YamlOnlyValues;
+  /**
+   * A transform the builder cannot represent at all (an unknown kind, or a
+   * value of the wrong shape): the list item exactly as written. `type` and
+   * `config` are placeholders and `draftToYaml` writes `raw` back.
+   */
+  raw?: YamlOnlyValues;
 };
 
 export type ActionDraft = {
   _key: string;
   type: string;
+  /** Scalar settings (strings; numbers and booleans as their text). */
   config: Record<string, string>;
+  /**
+   * Nested maps and lists. The engine reads action settings as flat scalars
+   * (`Action.UnmarshalYAML` in internal/workflow/types.go), so these have no
+   * effect at runtime; they are kept so the document round-trips.
+   */
+  yamlOnly?: YamlOnlyValues;
 };
 
 // ─── Transform field registry ──────────────────────────────────────────────
@@ -137,45 +168,80 @@ export const ACTION_FIELDS: Record<string, ActionFieldDef[]> = {
 export const ACTION_TYPES = Object.keys(ACTION_FIELDS);
 
 /**
- * Validate a workflow draft for import/edit execution readiness.
- * Returns a list of human-readable issues; empty means valid.
+ * One structural problem in a workflow draft, located precisely enough for
+ * the builder to put the message beside the field it is about.
  */
-export function validateWorkflowDraft(draft: WorkflowDraft): string[] {
-  const issues: string[] = [];
+export type WorkflowDraftIssue = {
+  /** Full sentence, "<location>: <message>" (the Problems panel's format). */
+  text: string;
+  /** The field the message belongs to. */
+  field:
+    | 'name'
+    | 'routes'
+    | 'route.name'
+    | 'route.actions'
+    | 'transform.field'
+    | 'action.type'
+    | 'action.field';
+  message: string;
+  routeKey?: string;
+  transformKey?: string;
+  actionKey?: string;
+  /** For transform.field / action.field: the config key. */
+  configKey?: string;
+};
+
+/**
+ * Structural validation of a workflow draft, one issue per problem, each
+ * pointing at a route, transform or action by its builder key.
+ */
+export function collectWorkflowDraftIssues(draft: WorkflowDraft): WorkflowDraftIssue[] {
+  const issues: WorkflowDraftIssue[] = [];
+  const push = (issue: Omit<WorkflowDraftIssue, 'text'>, location?: string) => {
+    issues.push({ ...issue, text: location ? `${location}: ${issue.message}` : issue.message });
+  };
 
   if (!draft.name.trim()) {
-    issues.push('Workflow name is required');
+    push({ field: 'name', message: 'Workflow name is required' });
   }
 
   if (draft.routes.length === 0) {
-    issues.push('At least one route is required');
+    push({ field: 'routes', message: 'At least one route is required' });
   }
 
   for (let i = 0; i < draft.routes.length; i += 1) {
     const route = draft.routes[i]!;
     const routeLabel = route.name.trim() || `Route ${i + 1}`;
+    const routeKey = route._key;
 
     if (!route.name.trim()) {
-      issues.push(`${routeLabel}: route name is required`);
+      push({ field: 'route.name', routeKey, message: 'route name is required' }, routeLabel);
     }
 
     if (route.actions.length === 0) {
-      issues.push(`${routeLabel}: at least one action is required`);
+      push({ field: 'route.actions', routeKey, message: 'at least one action is required' }, routeLabel);
     }
 
     for (let j = 0; j < route.transforms.length; j += 1) {
       const transform = route.transforms[j]!;
+      // A transform kept verbatim from YAML is not the builder's to judge.
+      if (transform.raw) continue;
       const transformLabel = `${routeLabel}, transform ${j + 1}`;
+      const at = (configKey: string, message: string) =>
+        push(
+          { field: 'transform.field', routeKey, transformKey: transform._key, configKey, message },
+          transformLabel
+        );
       if (transform.type === 'set_field' && !(transform.config.expression ?? '').trim()) {
-        issues.push(`${transformLabel}: expression is required`);
+        at('expression', 'expression is required');
       }
       if (transform.type === 'map_terminology') {
-        if (!(transform.config.field ?? '').trim()) issues.push(`${transformLabel}: field is required`);
-        if (!(transform.config.from ?? '').trim()) issues.push(`${transformLabel}: from system is required`);
-        if (!(transform.config.to ?? '').trim()) issues.push(`${transformLabel}: to system is required`);
+        if (!(transform.config.field ?? '').trim()) at('field', 'field is required');
+        if (!(transform.config.from ?? '').trim()) at('from', 'from system is required');
+        if (!(transform.config.to ?? '').trim()) at('to', 'to system is required');
       }
       if (transform.type === 'redact' && !(transform.config.fields ?? '').trim()) {
-        issues.push(`${transformLabel}: fields are required`);
+        at('fields', 'fields are required');
       }
     }
 
@@ -183,7 +249,10 @@ export function validateWorkflowDraft(draft: WorkflowDraft): string[] {
       const action = route.actions[j]!;
       const actionLabel = `${routeLabel}, action ${j + 1}`;
       if (!action.type.trim()) {
-        issues.push(`${actionLabel}: action type is required`);
+        push(
+          { field: 'action.type', routeKey, actionKey: action._key, message: 'action type is required' },
+          actionLabel
+        );
         continue;
       }
 
@@ -192,13 +261,30 @@ export function validateWorkflowDraft(draft: WorkflowDraft): string[] {
         if (!def.required) continue;
         const value = action.config[def.key] ?? '';
         if (!value.trim()) {
-          issues.push(`${actionLabel}: ${def.label} is required`);
+          push(
+            {
+              field: 'action.field',
+              routeKey,
+              actionKey: action._key,
+              configKey: def.key,
+              message: `${def.label} is required`
+            },
+            actionLabel
+          );
         }
       }
     }
   }
 
   return issues;
+}
+
+/**
+ * Validate a workflow draft for import/edit execution readiness.
+ * Returns a list of human-readable issues; empty means valid.
+ */
+export function validateWorkflowDraft(draft: WorkflowDraft): string[] {
+  return collectWorkflowDraftIssues(draft).map((issue) => issue.text);
 }
 
 // ─── Event type presets ────────────────────────────────────────────────────

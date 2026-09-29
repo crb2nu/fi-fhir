@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { draftToYaml, yamlToDraft } from './workflowYaml';
+import yaml from 'js-yaml';
+import { draftToYaml, listYamlOnlyFields, yamlToDraft } from './workflowYaml';
 import type { WorkflowDraft } from './workflowTypes';
 
 describe('workflowYaml', () => {
@@ -240,4 +241,92 @@ describe('workflowYaml', () => {
       expect(parsed.routes[0]!.transforms).toEqual([]);
     });
   });
+
+  describe('faithful round trip (nested action config, unknown keys)', () => {
+    // A document the builder cannot fully edit: nested action config, keys the
+    // builder has no control for at every level, a transform kind it does not
+    // know. yamlToDraft -> draftToYaml must keep every one of them.
+    const SOURCE = `
+name: e5-nested
+version: "2.1"
+description: kept at the top level
+routes:
+  - name: admits
+    priority: 5
+    filter:
+      event_type: PATIENT_ADMIT
+      tenant: east
+    transform:
+      - set_field: event.status = "seen"
+      - map_terminology:
+          field: code
+          from: ICD-10
+          to: SNOMED-CT
+          autoroute: true
+      - uppercase: patient.name
+    actions:
+      - type: log
+        level: info
+        message: admitted
+        labels:
+          unit: 4B
+          shift: night
+        tags: [adt, east]
+      - type: fhir
+        server: https://fhir.example.test
+        token_url: https://auth.example.test/token
+        retry_max: 3
+`;
+
+    it('keeps nested action config intact in the draft model', () => {
+      const draft = yamlToDraft(SOURCE);
+      const log = draft.routes[0]!.actions[0]!;
+      expect(log.config).toEqual({ level: 'info', message: 'admitted' });
+      expect(log.yamlOnly).toEqual({ labels: { unit: '4B', shift: 'night' }, tags: ['adt', 'east'] });
+      // The old parser wrote String(v): "[object Object]".
+      expect(JSON.stringify(draft)).not.toContain('[object Object]');
+    });
+
+    it('writes every key back, so the document survives yamlToDraft -> draftToYaml', () => {
+      const before = yaml.load(SOURCE) as Record<string, unknown>;
+      const after = yaml.load(draftToYaml(yamlToDraft(SOURCE))) as Record<string, unknown>;
+      // Scalars come back as text (the engine reads action settings as strings).
+      const fhirBefore = ((before.routes as Record<string, unknown>[])[0]!.actions as Record<string, unknown>[])[1]!;
+      fhirBefore.retry_max = '3';
+      expect(after).toEqual(before);
+    });
+
+    it('is stable: a second round trip changes nothing', () => {
+      const once = draftToYaml(yamlToDraft(SOURCE));
+      expect(draftToYaml(yamlToDraft(once))).toBe(once);
+    });
+
+    it('lets a baseline see a lost nested value (the divergence the old model hid)', () => {
+      const draft = yamlToDraft(SOURCE);
+      const baseline = draftToYaml(draft);
+      const edited = structuredClone(draft);
+      delete edited.routes[0]!.actions[0]!.yamlOnly;
+      expect(draftToYaml(edited)).not.toBe(baseline);
+    });
+
+    it('lists the exact keys the builder cannot edit', () => {
+      const fields = listYamlOnlyFields(yamlToDraft(SOURCE));
+      expect(fields).toEqual([
+        { location: 'Workflow', key: 'description', reason: 'no-control' },
+        { location: 'Route "admits"', key: 'priority', reason: 'no-control' },
+        { location: 'Route "admits", filter', key: 'tenant', reason: 'no-control' },
+        { location: 'Route "admits", transform 2 (map_terminology)', key: 'autoroute', reason: 'no-control' },
+        { location: 'Route "admits", transform 3', key: 'uppercase', reason: 'transform' },
+        { location: 'Route "admits", action 1 (log)', key: 'labels', reason: 'nested' },
+        { location: 'Route "admits", action 1 (log)', key: 'tags', reason: 'nested' },
+        { location: 'Route "admits", action 2 (fhir)', key: 'token_url', reason: 'no-control' },
+        { location: 'Route "admits", action 2 (fhir)', key: 'retry_max', reason: 'no-control' }
+      ]);
+    });
+
+    it('lists nothing for a document the builder models completely', () => {
+      expect(listYamlOnlyFields(yamlToDraft(draftToYaml(sampleDraft)))).toEqual([]);
+    });
+  });
 });
+

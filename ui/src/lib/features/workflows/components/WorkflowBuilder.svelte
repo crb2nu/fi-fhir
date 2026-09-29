@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import Check from '@lucide/svelte/icons/check';
   import Circle from '@lucide/svelte/icons/circle';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import FileCode from '@lucide/svelte/icons/file-code';
+  import Info from '@lucide/svelte/icons/info';
   import Play from '@lucide/svelte/icons/play';
   import Plus from '@lucide/svelte/icons/plus';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
@@ -30,13 +30,24 @@
   import DryRunPanel from './DryRunPanel.svelte';
   import GenerateFromDescription from './GenerateFromDescription.svelte';
   import WorkflowDraftLibrary from './WorkflowDraftLibrary.svelte';
+  import WorkflowConfirmDialog from './WorkflowConfirmDialog.svelte';
+  import { workflowDraft, workflowSavedDrafts, isWorkflowValid } from '../workflowStore';
+  import { draftToYaml, listYamlOnlyFields, yamlToDraft } from '../workflowYaml';
   import {
-    workflowDraft,
-    workflowSavedDrafts,
-    isWorkflowValid,
-    markWorkflowBuilderOpened
-  } from '../workflowStore';
-  import { draftToYaml, yamlToDraft } from '../workflowYaml';
+    approvalBlockers,
+    blockerSentence,
+    compareBlocker,
+    createBlocker,
+    draftSummary,
+    issuesByRoute,
+    liveDraftIssues,
+    nameFieldError,
+    promoteBlocker,
+    publishBlockers,
+    readinessItems,
+    saveBlocker,
+    type BuilderState
+  } from '../builderValidation';
   import {
     createWorkflowDefinition,
     fetchWorkflowApprovalRequests,
@@ -51,16 +62,16 @@
   import { toasts } from '$lib/ui/toastStore';
   import { isErrorToasted } from '$lib/graphql/client';
 
-  // Opening the builder makes the draft "live": from now on its validation
-  // belongs in the Problems badge, even while it is still empty.
-  onMount(() => {
-    markWorkflowBuilderOpened();
-  });
+  // Opening the builder no longer makes the draft "live": the untouched
+  // default draft is nobody's work, so it shows no errors here and puts
+  // nothing in the Problems badge until it differs from the default.
 
   type ManagedSelection = {
     workflowId: string;
     name: string;
     description: string | null;
+    /** The definition's status (`draft`, `archived`); absent from older callers. */
+    status?: string | null;
     versionId: string | null;
     versionNumber: number | null;
   };
@@ -70,6 +81,13 @@
   type DiffLine = {
     kind: DiffLineKind;
     text: string;
+  };
+  type ConfirmRequest = {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    tone: 'primary' | 'danger';
+    resolve: (confirmed: boolean) => void;
   };
 
   export let managedSelection: ManagedSelection | null = null;
@@ -81,6 +99,7 @@
   let linkedWorkflowId = '';
   let linkedWorkflowName = '';
   let linkedDescription = '';
+  let linkedStatus: string | null = null;
   let versionNotes = '';
   let publishEnvironment = 'staging';
   let versionHistory: WorkflowVersionItem[] = [];
@@ -98,6 +117,7 @@
   let selectionSyncKey = '';
   let selectedTemplateId = WORKFLOW_TEMPLATES[0]?.id ?? '';
   let templateOverrideName = '';
+  let templateError: string | null = null;
   let approvalStateByVersion: WorkflowApprovalItem[] = [];
   let loadingApprovalState = false;
   let approvalStateError: string | null = null;
@@ -115,6 +135,7 @@
   let promotingImportYaml = false;
 
   let lastDryRunResult: DryRunResult | null = null;
+  let confirmRequest: ConfirmRequest | null = null;
 
   const ENVIRONMENT_OPTIONS = [
     { value: 'staging', label: 'staging' },
@@ -124,28 +145,42 @@
 
   $: selectedVersionRecord = versionHistory.find((version) => version.id === selectedVersionId) ?? null;
 
-  // This is a legacy-mode component: a template expression re-runs only when a
-  // variable it names changes, not when state read inside a called function
-  // does. The readiness checks read that state inside functions, so they are
-  // recomputed here whenever one of their inputs changes.
-  $: readinessInputs = [
+  // One snapshot of everything the validation model reads. This is a
+  // legacy-mode component, so naming every input here is what makes the
+  // derived sentences below re-run when any of them changes.
+  $: builderState = {
+    draft: $workflowDraft,
     linkedWorkflowId,
+    linkedWorkflowName,
+    linkedStatus,
+    versions: versionHistory,
     selectedVersionId,
-    versionHistory,
     hasUnsavedManagedChanges,
     publishEnvironment,
-    approvalStateByVersion,
-    $isWorkflowValid
-  ] as const;
-  $: readiness = readinessInputs && {
-    canPublish: canPublishSelectedVersion(),
-    canApprove: canRequestApproval(),
-    publishBlockers: getPublishBlockers(),
-    approvalBlockers: getApprovalBlockers(),
-    items: getReadinessItems($isWorkflowValid),
-    approvalGranted: hasApprovedProductionRequest(),
-    approvalPending: hasPendingProductionRequest()
+    approvals: approvalStateByVersion,
+    compareFromVersionId,
+    compareToVersionId
+  } satisfies BuilderState;
+
+  $: draftIssues = liveDraftIssues($workflowDraft);
+  $: routeIssues = issuesByRoute(draftIssues);
+  $: summaryLine = draftSummary($workflowDraft);
+  $: nameError = nameFieldError(builderState);
+  $: yamlOnlyFields = listYamlOnlyFields($workflowDraft);
+  $: saveReason = saveBlocker(builderState);
+  $: createReason = createBlocker(builderState);
+  $: compareReason = compareBlocker(builderState);
+  $: promoteReason = promoteBlocker(builderState, $workflowDraft.name);
+  $: readiness = {
+    publishBlockers: publishBlockers(builderState),
+    approvalBlockers: approvalBlockers(builderState),
+    items: readinessItems(builderState),
+    approvalGranted: approvalStateByVersion.some((item) => item.status === 'approved'),
+    approvalPending: approvalStateByVersion.some((item) => item.status === 'pending')
   };
+  $: canPublish = readiness.publishBlockers.length === 0;
+  $: canApprove = readiness.approvalBlockers.length === 0;
+  $: publishReason = blockerSentence('Publish', readiness.publishBlockers);
 
   function formatTime(ts: string): string {
     const date = new Date(ts);
@@ -155,19 +190,6 @@
       date.getHours()
     )}:${pad(date.getMinutes())}`;
   }
-
-  // Explanatory tooltips for disabled managed-version controls (UX policy B2/D2:
-  // preconditions are surfaced on the disabled control, not via a post-click toast).
-  $: saveDisabledReason = !linkedWorkflowId
-    ? 'Create or open a managed workflow definition first'
-    : !$isWorkflowValid
-      ? 'Resolve workflow validation errors before saving'
-      : undefined;
-  $: compareDisabledReason = !linkedWorkflowId
-    ? 'Create or open a managed workflow definition first'
-    : !compareFromVersionId || !compareToVersionId
-      ? 'Select two versions to compare'
-      : undefined;
 
   function handleDryRunResult(result: DryRunResult | null) {
     lastDryRunResult = result;
@@ -183,6 +205,8 @@
 
   // Compares the live draft ($workflowDraft, so edits are seen) with the
   // baseline, which is always draftToYaml output so formatting never counts.
+  // The draft model keeps every key the YAML carried (nested action config
+  // included), so a baseline built this way no longer hides a divergence.
   $: {
     if (!managedBaselineYaml) {
       hasUnsavedManagedChanges = false;
@@ -200,123 +224,39 @@
     return versionHistory.find((version) => version.id === selectedVersionId) ?? null;
   }
 
-  function hasApprovedProductionRequest(): boolean {
-    return approvalStateByVersion.some((item) => item.status === 'approved');
+  /** Opens the confirmation dialog and resolves with the operator's choice. */
+  function askConfirm(request: Omit<ConfirmRequest, 'resolve'>): Promise<boolean> {
+    confirmRequest?.resolve(false);
+    return new Promise((resolve) => {
+      confirmRequest = { ...request, resolve };
+    });
   }
 
-  function hasPendingProductionRequest(): boolean {
-    return approvalStateByVersion.some((item) => item.status === 'pending');
+  function settleConfirm(confirmed: boolean) {
+    const request = confirmRequest;
+    confirmRequest = null;
+    request?.resolve(confirmed);
   }
 
-  function getReadinessItems(workflowValid: boolean): Array<{ key: string; label: string; ready: boolean }> {
-    const selectedVersion = getSelectedVersionRecord();
-    return [
-      {
-        key: 'definition',
-        label: 'Managed definition linked',
-        ready: !!linkedWorkflowId
-      },
-      {
-        key: 'version-selected',
-        label: 'Version selected',
-        ready: !!selectedVersionId
-      },
-      {
-        key: 'draft-valid',
-        label: 'Current draft is structurally valid',
-        ready: workflowValid
-      },
-      {
-        key: 'version-valid',
-        label: 'Selected server version passed validation',
-        ready: !!selectedVersion?.validation.valid
-      },
-      {
-        key: 'production-approval',
-        label:
-          publishEnvironment === 'production'
-            ? 'Production approval is approved'
-            : 'Production approval not required for non-production publish',
-        ready: publishEnvironment === 'production' ? hasApprovedProductionRequest() : true
-      }
-    ];
-  }
-
-  function getPublishBlockers(): string[] {
-    const blockers: string[] = [];
-    const selectedVersion = getSelectedVersionRecord();
-
-    if (!linkedWorkflowId) {
-      blockers.push('Managed definition is not linked');
-    }
-    if (!selectedVersionId) {
-      blockers.push('No version is selected');
-    }
-    if (selectedVersion && !selectedVersion.validation.valid) {
-      blockers.push('Selected version has validation errors');
-    }
-    if (hasUnsavedManagedChanges) {
-      blockers.push('Builder has unsaved managed changes');
-    }
-    if (publishEnvironment === 'production' && !hasApprovedProductionRequest()) {
-      blockers.push('Production approval is not approved for selected version');
-    }
-
-    return blockers;
-  }
-
-  function canPublishSelectedVersion(): boolean {
-    return getPublishBlockers().length === 0;
-  }
-
-  function getApprovalBlockers(): string[] {
-    const blockers: string[] = [];
-    const selectedVersion = getSelectedVersionRecord();
-
-    if (!linkedWorkflowId) {
-      blockers.push('Managed definition is not linked');
-    }
-    if (!selectedVersionId) {
-      blockers.push('No version is selected');
-    }
-    if (selectedVersion && !selectedVersion.validation.valid) {
-      blockers.push('Selected version has validation errors');
-    }
-    if (hasUnsavedManagedChanges) {
-      blockers.push('Builder has unsaved managed changes');
-    }
-    if (publishEnvironment !== 'production') {
-      blockers.push('Set publish environment to production to request approval');
-    }
-    if (hasApprovedProductionRequest()) {
-      blockers.push('Selected version is already approved for production');
-    } else if (hasPendingProductionRequest()) {
-      blockers.push('Approval request is already pending for selected version');
-    }
-
-    return blockers;
-  }
-
-  function canRequestApproval(): boolean {
-    return getApprovalBlockers().length === 0;
-  }
-
-  function confirmPublishTarget(): boolean {
+  async function confirmPublishTarget(): Promise<boolean> {
     const selectedVersion = getSelectedVersionRecord();
     if (!selectedVersion) return false;
-    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
-
-    return window.confirm(
-      `Publish v${selectedVersion.versionNumber} to ${publishEnvironment}?`
-    );
+    return askConfirm({
+      title: `Publish v${selectedVersion.versionNumber} to ${publishEnvironment}?`,
+      message: `${linkedWorkflowName || 'This workflow'} v${selectedVersion.versionNumber} becomes the version ${publishEnvironment} runs. The previous release stays in the history and can be rolled back to from Inventory.`,
+      confirmLabel: `Publish to ${publishEnvironment}`,
+      tone: publishEnvironment === 'production' ? 'danger' : 'primary'
+    });
   }
 
-  function shouldProceedWithManagedDiscard(actionLabel: string): boolean {
+  async function shouldProceedWithManagedDiscard(actionLabel: string): Promise<boolean> {
     if (!hasUnsavedManagedChanges) return true;
-    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
-    return window.confirm(
-      `You have unsaved managed changes in the builder. Continue and ${actionLabel}?`
-    );
+    return askConfirm({
+      title: 'Discard unsaved changes?',
+      message: `The builder has changes that are not saved as a version. Continue and ${actionLabel}? The changes are lost.`,
+      confirmLabel: 'Discard changes',
+      tone: 'danger'
+    });
   }
 
   function computeNaiveLineDiff(fromYaml: string, toYaml: string): {
@@ -352,23 +292,12 @@
   }
 
   async function compareSelectedVersions() {
+    // The button is disabled with its reason shown while this is non-null.
+    if (compareReason) return;
     compareError = null;
     compareLines = [];
     compareAddedCount = 0;
     compareRemovedCount = 0;
-
-    if (!linkedWorkflowId) {
-      toasts.error('Create or open a managed workflow definition first');
-      return;
-    }
-    if (!compareFromVersionId || !compareToVersionId) {
-      toasts.error('Select two versions to compare');
-      return;
-    }
-    if (compareFromVersionId === compareToVersionId) {
-      toasts.error('Choose two different versions to compare');
-      return;
-    }
 
     comparingVersions = true;
     try {
@@ -451,6 +380,7 @@
     linkedWorkflowId = selection.workflowId;
     linkedWorkflowName = selection.name;
     linkedDescription = selection.description ?? '';
+    linkedStatus = selection.status ?? null;
     lifecycleError = null;
     publishEnvironment = 'staging';
     loadedVersionNumber = selection.versionNumber ?? null;
@@ -465,14 +395,12 @@
     await refreshApprovalStateIfNeeded();
   }
 
-  function applyTemplate() {
-    if (!shouldProceedWithManagedDiscard('replace the current draft with a template')) {
-      return;
-    }
-
+  async function applyTemplate() {
+    templateError = null;
     const template = WORKFLOW_TEMPLATES.find((item) => item.id === selectedTemplateId);
-    if (!template) {
-      toasts.error('Select a workflow template first');
+    // The select always holds a template; nothing to do without one.
+    if (!template) return;
+    if (!(await shouldProceedWithManagedDiscard('replace the current draft with a template'))) {
       return;
     }
 
@@ -487,11 +415,10 @@
         linkedWorkflowName = draft.name;
       }
       managedBaselineYaml = null;
-
-      toasts.success(`Loaded template: ${template.name}`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load template';
-      toasts.error(message);
+      // The builder shows the new draft on success; a failure stays beside
+      // the Template field until the next attempt.
+      templateError = err instanceof Error ? err.message : 'The template could not be loaded.';
     }
   }
 
@@ -551,11 +478,8 @@
   }
 
   async function createManagedDefinition() {
+    if (createReason) return;
     const name = get(workflowDraft).name.trim();
-    if (!name) {
-      toasts.error('Workflow name is required to create a managed definition');
-      return;
-    }
 
     creatingDefinition = true;
     lifecycleError = null;
@@ -568,6 +492,7 @@
       linkedWorkflowId = data.createWorkflowDefinition.id;
       linkedWorkflowName = data.createWorkflowDefinition.name;
       linkedDescription = data.createWorkflowDefinition.description ?? '';
+      linkedStatus = data.createWorkflowDefinition.status;
       versionHistory = [];
       selectedVersionId = '';
       loadedVersionNumber = null;
@@ -586,21 +511,8 @@
   }
 
   async function saveManagedVersion() {
-    if (!linkedWorkflowId) {
-      toasts.error('Create or open a managed workflow definition first');
-      return;
-    }
-
+    if (saveReason) return;
     const draft = get(workflowDraft);
-    if (!draft.name.trim()) {
-      toasts.error('Workflow name is required');
-      return;
-    }
-
-    if (linkedWorkflowName && draft.name.trim() !== linkedWorkflowName) {
-      toasts.error(`Draft name must match managed definition name "${linkedWorkflowName}"`);
-      return;
-    }
 
     savingVersion = true;
     lifecycleError = null;
@@ -632,7 +544,7 @@
 
   async function loadVersionIntoBuilder(versionId: string) {
     if (!versionId) return;
-    if (!shouldProceedWithManagedDiscard('load a different managed version')) {
+    if (!(await shouldProceedWithManagedDiscard('load a different managed version'))) {
       return;
     }
     loadingVersion = true;
@@ -665,13 +577,8 @@
   }
 
   async function publishManagedVersion() {
-    const blockers = getPublishBlockers();
-    if (blockers.length > 0) {
-      toasts.error(`Publish blocked: ${blockers[0]}`);
-      return;
-    }
-
-    if (!confirmPublishTarget()) {
+    if (!canPublish) return;
+    if (!(await confirmPublishTarget())) {
       return;
     }
 
@@ -696,11 +603,7 @@
   }
 
   async function requestApproval() {
-    const blockers = getApprovalBlockers();
-    if (blockers.length > 0) {
-      toasts.error(`Approval request blocked: ${blockers[0]}`);
-      return;
-    }
+    if (!canApprove) return;
 
     requestingApproval = true;
     lifecycleError = null;
@@ -729,8 +632,8 @@
     await refreshApprovalStateIfNeeded();
   }
 
-  function resetDraftWithGuard() {
-    if (!shouldProceedWithManagedDiscard('reset the current draft')) {
+  async function resetDraftWithGuard() {
+    if (!(await shouldProceedWithManagedDiscard('reset the current draft'))) {
       return;
     }
     workflowDraft.reset();
@@ -739,21 +642,16 @@
 
   async function promoteSnapshotToServer(event: CustomEvent<{ snapshotId: string }>) {
     const snapshotId = event.detail.snapshotId;
-    if (!linkedWorkflowId) {
-      toasts.error('Create or open a managed workflow definition first');
-      return;
-    }
-
     const snapshot = get(workflowSavedDrafts).find((item) => item.id === snapshotId);
     if (!snapshot) {
-      toasts.error('Snapshot not found');
+      lifecycleError = 'That local snapshot no longer exists.';
       return;
     }
-
-    if (linkedWorkflowName && snapshot.draft.name.trim() !== linkedWorkflowName) {
-      toasts.error(
-        `Snapshot name "${snapshot.draft.name}" does not match managed definition "${linkedWorkflowName}"`
-      );
+    const blocked = promoteBlocker(builderState, snapshot.draft.name);
+    if (blocked) {
+      // Persistent state, not an event: it stays beside the managed version
+      // until the snapshot or the definition changes (.loom/22 B1).
+      lifecycleError = `Snapshot "${snapshot.name}" cannot be promoted. ${blocked}`;
       return;
     }
 
@@ -782,15 +680,9 @@
   }
 
   async function promoteImportedYamlToServer(event: CustomEvent<{ yaml: string; draftName: string }>) {
-    if (!linkedWorkflowId) {
-      toasts.error('Create or open a managed workflow definition first');
-      return;
-    }
-
-    if (linkedWorkflowName && event.detail.draftName && event.detail.draftName !== linkedWorkflowName) {
-      toasts.error(
-        `Imported YAML name "${event.detail.draftName}" does not match managed definition "${linkedWorkflowName}"`
-      );
+    const blocked = promoteBlocker(builderState, event.detail.draftName);
+    if (blocked) {
+      lifecycleError = `The imported YAML cannot be promoted. ${blocked}`;
       return;
     }
 
@@ -817,12 +709,13 @@
     }
   }
 
-  function unlinkManagedDefinition() {
-    if (!shouldProceedWithManagedDiscard('unlink the managed definition')) {
+  async function unlinkManagedDefinition() {
+    if (!(await shouldProceedWithManagedDiscard('unlink the managed definition'))) {
       return;
     }
     linkedWorkflowId = '';
     linkedWorkflowName = '';
+    linkedStatus = null;
     versionHistory = [];
     selectedVersionId = '';
     loadedVersionNumber = null;
@@ -840,9 +733,21 @@
 
 <div class="builder">
   <div class="builder-main">
+    {#if summaryLine}
+      <p
+        class="summary-line"
+        class:is-error={draftIssues.length > 0}
+        role="status"
+        data-testid="workflow-draft-summary"
+      >
+        <Icon icon={draftIssues.length > 0 ? CircleAlert : Check} />
+        <span>{summaryLine}</span>
+      </p>
+    {/if}
+
     <Panel title="Definition">
       <div class="form-grid">
-        <Field label="Workflow name">
+        <Field label="Workflow name" error={nameError}>
           <Input
             mono
             value={$workflowDraft.name}
@@ -869,7 +774,7 @@
         <Field label="Description" class="span-2">
           <Input bind:value={linkedDescription} placeholder="Optional managed workflow description" />
         </Field>
-        <Field label="Template">
+        <Field label="Template" error={templateError}>
           <Select bind:value={selectedTemplateId}>
             {#each WORKFLOW_TEMPLATES as template (template.id)}
               <option value={template.id}>{template.name} · {template.description}</option>
@@ -879,7 +784,7 @@
         <Field label="Template name override">
           <div class="inline-control">
             <Input bind:value={templateOverrideName} placeholder="Optional name for the new draft" />
-            <Button onclick={applyTemplate}>Create from template</Button>
+            <Button onclick={() => void applyTemplate()}>Create from template</Button>
           </div>
         </Field>
       </div>
@@ -897,6 +802,7 @@
           {#each $workflowDraft.routes as route (route._key)}
             <RouteEditor
               {route}
+              issues={routeIssues[route._key] ?? []}
               dryRunResult={lastDryRunResult?.routeResults.find((r) => r.routeName === route.name) ?? null}
               on:toggleExpand={() => workflowDraft.toggleRouteExpanded(route._key)}
               on:remove={() => workflowDraft.removeRoute(route._key)}
@@ -921,6 +827,39 @@
         </div>
       {/if}
     </Panel>
+
+    {#if yamlOnlyFields.length > 0}
+      <Panel title="YAML-only fields" data-testid="workflow-yaml-only">
+        {#snippet actions()}
+          <Badge mono>{yamlOnlyFields.length}</Badge>
+        {/snippet}
+        <div class="stack">
+          <p class="note">
+            <Icon icon={Info} />
+            <span
+              >This draft carries keys the builder has no control for. They are saved exactly as written; change
+              them in YAML (Draft library, Import workflow YAML). Nested action values have no effect at runtime:
+              the engine reads action settings as flat values.</span
+            >
+          </p>
+          <ul class="yaml-only-list">
+            {#each yamlOnlyFields as field, idx (idx)}
+              <li>
+                <span class="yaml-only-location">{field.location}</span>
+                <code class="yaml-only-key">{field.key}</code>
+                <span class="yaml-only-reason"
+                  >{field.reason === 'nested'
+                    ? 'nested value'
+                    : field.reason === 'transform'
+                      ? 'transform the builder cannot edit'
+                      : 'no builder field'}</span
+                >
+              </li>
+            {/each}
+          </ul>
+        </div>
+      </Panel>
+    {/if}
 
     <div class="draft-actions" role="group" aria-label="Draft actions">
       <Button
@@ -958,7 +897,7 @@
         {showGenerate ? 'Hide generator' : 'Generate with AI'}
       </Button>
       <span class="spacer"></span>
-      <Button variant="ghost" icon={RotateCcw} onclick={resetDraftWithGuard}>Reset</Button>
+      <Button variant="ghost" icon={RotateCcw} onclick={() => void resetDraftWithGuard()}>Reset</Button>
     </div>
 
     {#if showPreview}
@@ -974,8 +913,8 @@
     {/if}
 
     <WorkflowDraftLibrary
-      pushToServerEnabled={!!linkedWorkflowId}
-      promoteImportEnabled={!!linkedWorkflowId}
+      pushToServerEnabled={!!linkedWorkflowId && linkedStatus !== 'archived'}
+      promoteImportEnabled={!!linkedWorkflowId && linkedStatus !== 'archived'}
       on:pushSnapshot={promoteSnapshotToServer}
       on:promoteImportYaml={promoteImportedYamlToServer}
     />
@@ -993,6 +932,7 @@
               truncate: true
             },
             { key: 'Name', value: linkedWorkflowName, mono: true, truncate: true },
+            { key: 'Status', value: linkedStatus },
             {
               key: 'Loaded',
               value: loadedVersionNumber !== null ? `v${loadedVersionNumber}` : null,
@@ -1042,19 +982,20 @@
             variant="primary"
             onclick={saveManagedVersion}
             loading={savingVersion}
-            disabled={!linkedWorkflowId || !$isWorkflowValid}
-            title={saveDisabledReason}
+            disabled={!!saveReason}
+            data-testid="workflow-save-version"
           >
             {savingVersion ? 'Saving...' : 'Save version'}
           </Button>
           <Button
             onclick={publishManagedVersion}
             loading={publishingVersion}
-            disabled={!readiness.canPublish}
+            disabled={!canPublish}
+            data-testid="workflow-publish-version"
           >
             {publishingVersion ? 'Publishing...' : 'Publish'}
           </Button>
-          <Button onclick={requestApproval} loading={requestingApproval} disabled={!readiness.canApprove}>
+          <Button onclick={requestApproval} loading={requestingApproval} disabled={!canApprove}>
             {requestingApproval
               ? 'Requesting...'
               : publishEnvironment === 'production'
@@ -1078,12 +1019,27 @@
           <Button
             onclick={createManagedDefinition}
             loading={creatingDefinition}
-            disabled={!!linkedWorkflowId}
+            disabled={!!createReason}
+            data-testid="workflow-create-definition"
           >
             {creatingDefinition ? 'Creating...' : 'Create definition'}
           </Button>
-          <Button variant="ghost" onclick={unlinkManagedDefinition}>Unlink</Button>
+          <Button variant="ghost" onclick={() => void unlinkManagedDefinition()} disabled={!linkedWorkflowId}
+            >Unlink</Button
+          >
         </div>
+
+        <ul class="reasons" aria-label="Unavailable actions">
+          {#if saveReason}
+            <li data-testid="workflow-save-blocked">Save version is unavailable: {saveReason}</li>
+          {/if}
+          {#if publishReason}
+            <li data-testid="workflow-publish-blocked">{publishReason}</li>
+          {/if}
+          {#if createReason && !linkedWorkflowId}
+            <li data-testid="workflow-create-blocked">Create definition is unavailable: {createReason}</li>
+          {/if}
+        </ul>
 
         {#if hasUnsavedManagedChanges}
           <p class="note is-warning">
@@ -1110,7 +1066,7 @@
       <div class="stack">
         <div class="check-group">
           <h3 class="group-title">Publish</h3>
-          {#if readiness.canPublish}
+          {#if canPublish}
             <p class="check is-ready">
               <Icon icon={Check} />
               <span>Ready to publish to <span class="text-mono">{publishEnvironment}</span></span>
@@ -1126,7 +1082,7 @@
 
         <div class="check-group">
           <h3 class="group-title">Approval</h3>
-          {#if readiness.canApprove}
+          {#if canApprove}
             <p class="check is-ready">
               <Icon icon={Check} />
               <span>Ready for a production approval request</span>
@@ -1278,8 +1234,7 @@
             <Button
               onclick={compareSelectedVersions}
               loading={comparingVersions}
-              disabled={!linkedWorkflowId || !compareFromVersionId || !compareToVersionId}
-              title={compareDisabledReason}
+              disabled={!!compareReason}
             >
               {comparingVersions ? 'Comparing...' : 'Compare'}
             </Button>
@@ -1292,6 +1247,9 @@
             {/if}
           </div>
 
+          {#if compareReason}
+            <p class="note" data-testid="workflow-compare-blocked">Compare is unavailable: {compareReason}</p>
+          {/if}
           {#if compareError}
             <p class="note is-error" role="alert">
               <Icon icon={CircleAlert} />
@@ -1316,6 +1274,16 @@
   </aside>
 </div>
 
+<WorkflowConfirmDialog
+  open={!!confirmRequest}
+  title={confirmRequest?.title ?? ''}
+  message={confirmRequest?.message ?? ''}
+  confirmLabel={confirmRequest?.confirmLabel ?? 'Confirm'}
+  tone={confirmRequest?.tone ?? 'primary'}
+  onconfirm={() => settleConfirm(true)}
+  oncancel={() => settleConfirm(false)}
+/>
+
 <style>
   .builder {
     display: grid;
@@ -1323,6 +1291,66 @@
     align-items: start;
     gap: var(--space-3);
     min-width: 0;
+  }
+
+  .summary-line {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-ui);
+    color: var(--color-text-secondary);
+  }
+
+  .summary-line.is-error {
+    color: var(--color-danger-text);
+  }
+
+  .reasons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    color: var(--color-text-tertiary);
+  }
+
+  .reasons:empty {
+    display: none;
+  }
+
+  .yaml-only-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-ui);
+  }
+
+  .yaml-only-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  .yaml-only-location {
+    color: var(--color-text-secondary);
+  }
+
+  .yaml-only-key {
+    font-family: var(--font-mono);
+    color: var(--color-text-primary);
+  }
+
+  .yaml-only-reason {
+    color: var(--color-text-tertiary);
+    font-size: var(--text-xs);
   }
 
   .builder-main,
