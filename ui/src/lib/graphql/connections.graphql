@@ -71,6 +71,8 @@ fragment ConnectionFields on Connection {
     mounted
     role
     detail
+    revisionId
+    digest
   }
   createdBy {
     ...ConnectionPrincipalFields

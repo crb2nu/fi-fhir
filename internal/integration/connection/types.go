@@ -260,10 +260,14 @@ type Reference struct {
 
 // RuntimeState reports whether this replica mounts a revision of the
 // connection. Role is one of the RuntimeRole* constants when Mounted.
+// RevisionID and Digest name the mounted revision; both are empty when not
+// mounted and for the HTTP ingress, which is bound by definition id.
 type RuntimeState struct {
-	Mounted bool
-	Role    string
-	Detail  string
+	Mounted    bool
+	Role       string
+	Detail     string
+	RevisionID string
+	Digest     string
 }
 
 // Connection is the read projection of one draft: the draft itself, its

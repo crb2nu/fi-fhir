@@ -23,7 +23,8 @@ func TestProjectConnectionNeverReturnsNullForANonNullField(t *testing.T) {
 		projected.CreatedBy.Roles == nil {
 		t.Fatalf("a non-null field projected as nil: %+v", projected)
 	}
-	if projected.Runtime.Mounted || projected.Runtime.Role != nil || projected.Runtime.Detail != nil {
+	if projected.Runtime.Mounted || projected.Runtime.Role != nil || projected.Runtime.Detail != nil ||
+		projected.Runtime.RevisionID != nil || projected.Runtime.Digest != nil {
 		t.Fatalf("an unmounted connection reports a role: %+v", projected.Runtime)
 	}
 	if projected.Direction != model.ConnectionDirectionSource || projected.Kind != model.ConnectionKindBatchSftp ||
@@ -50,8 +51,13 @@ func TestProjectConnectionCarriesTheDraft(t *testing.T) {
 			Created: integration.AuditEnvelope{Principal: principal, Reason: "compile", OccurredAt: archivedAt},
 		},
 		References: []connection.Reference{{DefinitionID: "d", RevisionID: "r", Digest: "sha256:abc", State: "deployed", Health: "healthy"}},
-		Runtime:    connection.RuntimeState{Mounted: true, Role: connection.RuntimeRoleDeliveryRegistry, Detail: "revision 2: registry"},
+		Runtime: connection.RuntimeState{Mounted: true, Role: connection.RuntimeRoleDeliveryRegistry,
+			Detail: "revision 2: registry", RevisionID: "2", Digest: "sha256:abc"},
 	})
+	if runtime := projected.Runtime; runtime.RevisionID == nil || *runtime.RevisionID != "2" ||
+		runtime.Digest == nil || *runtime.Digest != "sha256:abc" {
+		t.Fatalf("runtime = %+v, want revision 2 and its digest", runtime)
+	}
 	if !projected.Archived || projected.UpdatedReason != "archive" || projected.Spec["class"] != "sandbox" ||
 		len(projected.SecretBindings) != 1 || projected.SecretBindings[0].Version != nil ||
 		len(projected.References) != 1 || *projected.Runtime.Role != connection.RuntimeRoleDeliveryRegistry {

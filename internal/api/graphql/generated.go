@@ -281,9 +281,11 @@ type ComplexityRoot struct {
 	}
 
 	ConnectionRuntimeState struct {
-		Detail  func(childComplexity int) int
-		Mounted func(childComplexity int) int
-		Role    func(childComplexity int) int
+		Detail     func(childComplexity int) int
+		Digest     func(childComplexity int) int
+		Mounted    func(childComplexity int) int
+		RevisionID func(childComplexity int) int
+		Role       func(childComplexity int) int
 	}
 
 	ConnectionSecretBinding struct {
@@ -2954,12 +2956,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ConnectionRuntimeState.Detail(childComplexity), true
+	case "ConnectionRuntimeState.digest":
+		if e.complexity.ConnectionRuntimeState.Digest == nil {
+			break
+		}
+
+		return e.complexity.ConnectionRuntimeState.Digest(childComplexity), true
 	case "ConnectionRuntimeState.mounted":
 		if e.complexity.ConnectionRuntimeState.Mounted == nil {
 			break
 		}
 
 		return e.complexity.ConnectionRuntimeState.Mounted(childComplexity), true
+	case "ConnectionRuntimeState.revisionId":
+		if e.complexity.ConnectionRuntimeState.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.ConnectionRuntimeState.RevisionID(childComplexity), true
 	case "ConnectionRuntimeState.role":
 		if e.complexity.ConnectionRuntimeState.Role == nil {
 			break
@@ -15980,6 +15994,10 @@ func (ec *executionContext) fieldContext_Connection_runtime(_ context.Context, f
 				return ec.fieldContext_ConnectionRuntimeState_role(ctx, field)
 			case "detail":
 				return ec.fieldContext_ConnectionRuntimeState_detail(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_ConnectionRuntimeState_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_ConnectionRuntimeState_digest(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ConnectionRuntimeState", field.Name)
 		},
@@ -17336,6 +17354,64 @@ func (ec *executionContext) _ConnectionRuntimeState_detail(ctx context.Context, 
 }
 
 func (ec *executionContext) fieldContext_ConnectionRuntimeState_detail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionRuntimeState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionRuntimeState_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionRuntimeState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionRuntimeState_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionRuntimeState_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectionRuntimeState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectionRuntimeState_digest(ctx context.Context, field graphql.CollectedField, obj *model.ConnectionRuntimeState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectionRuntimeState_digest,
+		func(ctx context.Context) (any, error) {
+			return obj.Digest, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectionRuntimeState_digest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ConnectionRuntimeState",
 		Field:      field,
@@ -62019,6 +62095,10 @@ func (ec *executionContext) _ConnectionRuntimeState(ctx context.Context, sel ast
 			out.Values[i] = ec._ConnectionRuntimeState_role(ctx, field, obj)
 		case "detail":
 			out.Values[i] = ec._ConnectionRuntimeState_detail(ctx, field, obj)
+		case "revisionId":
+			out.Values[i] = ec._ConnectionRuntimeState_revisionId(ctx, field, obj)
+		case "digest":
+			out.Values[i] = ec._ConnectionRuntimeState_digest(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

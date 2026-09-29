@@ -85,7 +85,7 @@ function mllpRow(overrides: Partial<ConnectionRow> = {}): ConnectionRow {
     archived: false,
     latestRevision: null,
     references: [],
-    runtime: { mounted: false, role: null, detail: null },
+    runtime: { mounted: false, role: null, detail: null, revisionId: null, digest: null },
     createdBy: { id: 'e2e-ide-operator', kind: 'service' },
     createdAt: '2026-09-26T10:00:00Z',
     updatedBy: { id: 'e2e-ide-operator', kind: 'service' },
@@ -332,7 +332,13 @@ describe('Connections — the catalog table and details', () => {
       mllpRow({
         latestRevision: { artifactId: 'adt-east-mllp', revisionId: '1', digest: DIGEST, compiledFromVersion: 2, createdAt: '2026-09-26T10:06:00Z' },
         references: [{ definitionId: 'adt-to-fhir', revisionId: '1', digest: DIGEST, state: 'draft', health: 'unknown' }],
-        runtime: { mounted: true, role: 'mllp-listener', detail: 'revision 1: MLLP listener on 0.0.0.0:22575 for definition adt-to-fhir' }
+        runtime: {
+          mounted: true,
+          role: 'mllp-listener',
+          detail: 'revision 1: MLLP listener on 0.0.0.0:22575 for definition adt-to-fhir',
+          revisionId: '1',
+          digest: DIGEST
+        }
       })
     ]);
     render(ConnectionsPage);

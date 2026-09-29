@@ -24,7 +24,8 @@ export interface ConnectionStatusInput {
   archived?: boolean | undefined;
   latestRevision: { revisionId: string; compiledFromVersion: number } | null;
   references: ReadonlyArray<{ definitionId: string; state: string }>;
-  runtime: { mounted: boolean; detail: string | null };
+  /** revisionId is absent or null from servers before it was a field. */
+  runtime: { mounted: boolean; detail: string | null; revisionId?: string | null | undefined };
 }
 
 export type ConnectionStatusKey = 'archived' | 'draft' | 'compiled' | 'referenced' | 'deployed' | 'mounted';
@@ -50,12 +51,21 @@ export function mountedRevisionId(detail: string | null): string | null {
   return match ? (match[1] ?? null) : null;
 }
 
+/**
+ * The mounted revision: the runtime's structured revisionId when it sends
+ * one, else — an older server, or the HTTP ingress, which is bound by
+ * definition and carries no revisionId — the id the detail names.
+ */
+export function runtimeRevisionId(runtime: ConnectionStatusInput['runtime']): string | null {
+  return runtime.revisionId ?? mountedRevisionId(runtime.detail);
+}
+
 export function connectionStatus(input: ConnectionStatusInput): ConnectionStatusToken[] {
   const tokens: ConnectionStatusToken[] = [];
   const latest = input.latestRevision;
   const edited = latest !== null && input.version > latest.compiledFromVersion;
   const mounted = input.runtime.mounted;
-  const mountedRevision = mounted ? mountedRevisionId(input.runtime.detail) : null;
+  const mountedRevision = mounted ? runtimeRevisionId(input.runtime) : null;
 
   if (input.archived) {
     tokens.push({

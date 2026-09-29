@@ -66,9 +66,17 @@
       items={[
         { key: 'Mounted here', value: row.runtime.mounted ? 'Yes' : 'No' },
         { key: 'Role', value: row.runtime.role, mono: true },
-        { key: 'Detail', value: row.runtime.detail }
+        { key: 'Revision', value: row.runtime.revisionId, mono: true }
       ]}
-    />
+    >
+      <!-- Truncated with the full digest in title, as the Revisions tab does. -->
+      <dt>Digest</dt>
+      <dd class="digest" class:empty={!row.runtime.digest} title={row.runtime.digest ?? undefined}>
+        {row.runtime.digest ? shortHash(row.runtime.digest, 16) : '—'}
+      </dd>
+      <dt>Detail</dt>
+      <dd class:empty={!row.runtime.detail}>{row.runtime.detail || '—'}</dd>
+    </KeyValue>
   </Panel>
 </div>
 
@@ -78,5 +86,14 @@
     flex-direction: column;
     gap: var(--space-3);
     padding: var(--space-3);
+  }
+
+  .digest {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+  }
+
+  .empty {
+    color: var(--color-text-muted);
   }
 </style>

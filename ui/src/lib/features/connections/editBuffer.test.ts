@@ -38,7 +38,7 @@ function row(overrides: Partial<ConnectionRow> = {}): ConnectionRow {
     archived: false,
     latestRevision: null,
     references: [],
-    runtime: { mounted: false, role: null, detail: null },
+    runtime: { mounted: false, role: null, detail: null, revisionId: null, digest: null },
     createdBy: { id: 'operator@example.test', kind: 'human' },
     createdAt: '2026-09-26T10:00:00Z',
     updatedBy: { id: 'operator@example.test', kind: 'human' },

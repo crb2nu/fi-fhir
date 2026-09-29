@@ -230,6 +230,11 @@ type ConnectionRuntimeState struct {
 	Role *string `json:"role,omitempty"`
 	// Which revision is mounted, and by what; null when not mounted.
 	Detail *string `json:"detail,omitempty"`
+	// The mounted revision's id; null when not mounted and for http-ingress,
+	// which is bound by definition id rather than a mounted document.
+	RevisionID *string `json:"revisionId,omitempty"`
+	// The mounted revision's digest; null exactly when revisionId is.
+	Digest *string `json:"digest,omitempty"`
 }
 
 // A reference to a secret: never its value.
