@@ -113,14 +113,14 @@ func NewService(config Config) (*Service, error) {
 	if clock == nil {
 		clock = time.Now
 	}
-	var real *integration.SourceRevisionRef
+	var realSource *integration.SourceRevisionRef
 	if config.RealSource != nil {
 		copied := *config.RealSource
-		real = &copied
+		realSource = &copied
 	}
 	return &Service{
 		catalog: config.Catalog, revisions: config.Revisions, registry: config.Registry,
-		tenantID: config.TenantID, maxAge: maxAge, realSource: real, clock: clock,
+		tenantID: config.TenantID, maxAge: maxAge, realSource: realSource, clock: clock,
 		realSlot: make(chan struct{}, 1),
 	}, nil
 }

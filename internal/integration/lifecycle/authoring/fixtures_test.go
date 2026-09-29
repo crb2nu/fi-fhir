@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -52,11 +51,4 @@ func testDefinition(t *testing.T, definitionID, sourceArtifactID string) integra
 		t.Fatal(err)
 	}
 	return revision
-}
-
-func testCommand(revision integration.IntegrationDefinitionRevision, version int64, reason string) lifecycle.Command {
-	return lifecycle.Command{
-		TenantID: revision.TenantID, DefinitionID: revision.DefinitionID, RevisionID: revision.RevisionID,
-		ExpectedVersion: version, Principal: testPrincipal(), Reason: reason,
-	}
 }

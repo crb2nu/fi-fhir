@@ -129,11 +129,12 @@ func (r *definitionAuthoringRuntime) sourceBindingNames(ctx context.Context, sou
 	if revision.Digest != source.Digest {
 		return nil, false, nil
 	}
-	described, err := authoring.SourceFromDocument(revision.Kind, revision.Document)
-	if err != nil {
-		return nil, false, nil
+	// A stored document that no longer decodes has unknown names: the check
+	// then says BINDINGS_NOT_CHECKED rather than claiming anything.
+	if described, decodeErr := authoring.SourceFromDocument(revision.Kind, revision.Document); decodeErr == nil {
+		return described.BindingNames, true, nil
 	}
-	return described.BindingNames, true, nil
+	return nil, false, nil
 }
 
 // validationDetailWriter logs a REAL probe's provider error. The batch

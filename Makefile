@@ -41,6 +41,7 @@
 .PHONY: connection-capture                                             # .loom/38 — C-2
 .PHONY: wasm wasm-deps-check wasm-size-check wasm-smoke                # .loom/40 — D-0
 .PHONY: lifecycle-seed                                                 # lifecycle seed CLI
+.PHONY: definition-authoring                                           # .loom/42 — E-1
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
@@ -1265,6 +1266,17 @@ lifecycle-seed:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^TestLifecycleSeedPostgres_(PublishesThenResumesToDeployedAndTheRunnerIngests|RefusesAChangedSourceUnderTheSameRevision|FailedValidationStaysDraftAndResumesAfterTheFix)$$' \
 		./cmd/fi-fhir
+
+# .loom/42 E-1: definition authoring (ci/test-definition-authoring.yml). The
+# catalog serve builds hosts SKIP and STATIC validation in process; compiled
+# connections plus a registry entry become a draft through authoring.Service,
+# which refuses what the runtime could not ingest, and the draft is validated,
+# approved, and published. Requires POSTGRES_TEST_URL; the proofs skip without
+# it outside CI, which is why the CI job asserts the names exist first.
+definition-authoring:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestDefinitionAuthoringPostgres_(ServeCatalogHostsSkipAndStaticValidation|EditorAuthorsValidatesApprovesAndPublishes)$$' \
+		./internal/integration/lifecycle/authoring
 
 # .loom/40 Lane D-0: the browser kernel (cmd/fi-fhir-wasm, ci/test-wasm.yml).
 # `make wasm` writes dist/wasm/fi-fhir.wasm and the Go runtime's wasm_exec.js
