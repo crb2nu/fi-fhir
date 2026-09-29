@@ -28,6 +28,7 @@ describe('primitives from a legacy-syntax parent', () => {
     expect(Object.keys(primitives).sort()).toEqual([
       'Badge',
       'Button',
+      'Dialog',
       'EmptyState',
       'Field',
       'Icon',

@@ -242,7 +242,8 @@ Svelte 5 runes components. They work from legacy-syntax parents too
 |---|---|---|
 | `Button` | Actions | `variant` primary/secondary/ghost/danger · `size` sm/md · `icon` · `iconOnly` · `loading` |
 | `IconButton` | Icon-only actions and toggles | `icon` · `label` (required: name + tooltip) · `pressed` · `variant` (ghost) |
-| `Tabs` | Views of one route; underline | `items` · `bind:value` · `onchange` · `label` · `activation` auto/manual |
+| `Tabs` | Views of one route; underline | `items` (`count`, toned `badge`, `dirty`, `title`) · `bind:value` · `onchange` · `onselect` (every activation) · `onclose` (close buttons + Delete) · `label` · `activation` auto/manual |
+| `Dialog` | Modal decisions and forms | `bind:open` or `onclose` · `title` · `description` · `size` sm/md/lg · `dismissible` (off while a write runs) · `initialFocus` · `footer` snippet · `layout="bare"` (the palette) |
 | `Badge` | State or count labels | `tone` neutral/accent/success/warning/danger/info · `mono` · `dot` |
 | `Panel` | A bordered region | `title` · `titleTag` · `header`/`actions` snippets · `flush` |
 | `Toolbar` | Top of every route | `title` · `titleTag` (h1) · `heading`/`tabs`/`actions` snippets |
@@ -352,7 +353,8 @@ Map legacy patterns to primitives; delete the legacy CSS as you go.
 | Legacy pattern | Replace with |
 |---|---|
 | Pill tabs, `$lib/ui/Tabs.svelte` (7 imports) | `Tabs` (underline) in the route's `Toolbar` |
-| Bottom-panel tab strip (`ui/ide/BottomPanel.svelte`) | **The one exception to `Tabs`**: its own underline tablist with the primitive's metrics and keyboard model, because the Problems tab carries `problems-badge` (a mono `Badge` with its test id, "N problems" label and state tone) and `TabItem.count` cannot. Follow-up: a `TabItem.badge` snippet on the `Tabs` primitive, then switch. |
+| Bottom-panel and editor tab strips (`ui/ide/BottomPanel.svelte`, `EditorTabs.svelte`) | Done in `.loom/42` E-4: both are `Tabs`; the Problems count is a `TabItem.badge`, editor tabs use `onclose` and `dirty`. |
+| Hand-rolled modal markup (`ConfirmModal`, the reason dialogs, the command palette) | `Dialog` (E-4 migrated those four; `ConnectionIntakeDialog`, `MappingEditor`, `ProfileSelector`, `IdentifierEditor`, `TerminologyEditor`, `EventRulesEditor` remain for their owners) |
 | Numbered stepper pill rows ("01 RAW SOURCE ▸ 02 …") | Remove; the bottom panel and results pane already carry that state |
 | Hero `<h1>` + subtitle, `$lib/ui/PageHeader.svelte` (6 imports), `DocumentHost` title block | `Toolbar title="…"` |
 | Explainer / "recommended move" / "next up" cards | A `?` `IconButton` + `Popover`, or nothing |
