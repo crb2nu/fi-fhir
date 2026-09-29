@@ -132,6 +132,8 @@ func serveProperties() []serveProperty {
 		{key: resolvers.EnvWorkflowDebugSessionTTL, defaultValue: resolvers.DefaultWorkflowDebugSessionTTL.String()},
 		{key: resolvers.EnvFHIRSubscriptionAllowedHosts},
 		{key: resolvers.EnvFHIRSubscriptionMaxClients, defaultValue: strconv.Itoa(resolvers.DefaultFHIRSubscriptionMaxClients)},
+		{key: "FI_FHIR_FHIR_BASE_URL"},
+		{key: "FI_FHIR_FHIR_SERVER_URL"},
 
 		{key: "FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED", defaultValue: "false"},
 		{key: "FI_FHIR_INTEGRATION_SESSION_ENABLED", defaultValue: "false"},

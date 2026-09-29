@@ -47,6 +47,21 @@ func TestServe_DryRun_PrintsConfig(t *testing.T) {
 	}
 }
 
+func TestServe_RejectsConflictingFHIRURLs(t *testing.T) {
+	t.Setenv("FI_FHIR_FHIR_BASE_URL", "https://canonical.example/fhir")
+	t.Setenv("FI_FHIR_FHIR_SERVER_URL", "https://alias.example/fhir")
+	err := runServe(nil)
+	if err == nil || !strings.Contains(err.Error(), "FI_FHIR_FHIR_BASE_URL") || !strings.Contains(err.Error(), "FI_FHIR_FHIR_SERVER_URL") {
+		t.Fatalf("runServe() = %v, want conflict naming both keys", err)
+	}
+}
+
+func TestServe_UsageDocumentsFHIRServerURLAlias(t *testing.T) {
+	if !strings.Contains(serveUsage, "FI_FHIR_FHIR_SERVER_URL (deprecated alias of FI_FHIR_FHIR_BASE_URL)") {
+		t.Fatal("serve usage does not document deprecated FHIR server URL alias")
+	}
+}
+
 func TestServe_DryRun_WithWorkflow_PrintsWorkflowInfo(t *testing.T) {
 	tmpDir := t.TempDir()
 	workflowPath := filepath.Join(tmpDir, "workflow.yaml")

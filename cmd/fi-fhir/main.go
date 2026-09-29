@@ -2960,6 +2960,7 @@ func runConfigEnv(args []string) error {
 
 		// FHIR
 		{"fhir", "FI_FHIR_FHIR_BASE_URL", "FHIR server base URL", ""},
+		{"fhir", "FI_FHIR_FHIR_SERVER_URL", "Deprecated alias of FI_FHIR_FHIR_BASE_URL", ""},
 		{"fhir", "FI_FHIR_FHIR_TIMEOUT", "FHIR request timeout", "30s"},
 		{"fhir", "FI_FHIR_FHIR_AUTH_TYPE", "Authentication type (none, basic, bearer, oauth2)", "none"},
 		{"fhir", "FI_FHIR_FHIR_USERNAME", "Basic auth username", ""},
@@ -4539,6 +4540,9 @@ func runServe(args []string) error {
 
 	runtimeConfig := config.Default()
 	runtimeConfig.ApplyEnv()
+	if err := runtimeConfig.EnvAliasError(); err != nil {
+		return err
+	}
 	serveCtx, cancelServe := context.WithCancel(context.Background())
 	defer cancelServe()
 	securePreviewRuntime, err := loadServeIntegrationRuntimeFromEnv(serveCtx)
@@ -4565,6 +4569,9 @@ func runServe(args []string) error {
 		Format:   runtimeConfig.Observability.LogFormat,
 		TenantID: securePreviewRuntime.tenantID,
 	})
+	for _, notice := range runtimeConfig.DeprecationNotices() {
+		serveLog.Warn(notice)
+	}
 	warnTransportGrantWithoutControlPlaneRole(serveLog, securePreviewRuntime.configuredGraphQLPrincipals())
 	warnTrustedNetworkAdmitsAnyAddress(serveLog, securePreviewRuntime.trustedNetwork)
 
@@ -5578,6 +5585,9 @@ Optional static-mode trusted-network access:
     (0.0.0.0/0, ::/0), which gives FI_FHIR_GRAPHQL_ROLES to every caller; refused
     at startup without it. For a public least-privilege deployment only (the
     hosted demo: integration:preview, no database); serve logs a WARN naming the roles.
+
+Optional FHIR client environment:
+  FI_FHIR_FHIR_SERVER_URL (deprecated alias of FI_FHIR_FHIR_BASE_URL)
 
 Optional workflow and FHIR subscription allowlists (unset = most restrictive):
   FI_FHIR_WORKFLOW_EXEC_ALLOWLIST      Absolute executables the exec action may run;
