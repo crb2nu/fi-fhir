@@ -18,6 +18,8 @@ const required = {
   ]
 };
 
+required['operator-bundle'].push('E4-1.', 'E4-2.', 'E4-3.'); // .loom/42 E-4 shell honesty (shell.spec.ts)
+
 const [reportPath] = process.argv.slice(2);
 if (!reportPath) {
   console.error('usage: check-report.mjs <report.json>');
