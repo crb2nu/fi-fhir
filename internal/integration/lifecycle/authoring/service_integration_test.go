@@ -69,8 +69,8 @@ func problemCodes(problems []connection.Problem) []string {
 }
 
 // The definition editor end to end against PostgreSQL, composed as serve
-// composes it: the lifecycle catalog with the mode-dispatching validator,
-// the connection catalog, and the golden static registry. Compiled MLLP and
+// composes it: the lifecycle catalog with the mode-dispatching validator over
+// CatalogFacts, the connection catalog, and the golden static registry. Compiled MLLP and
 // FHIR connections plus registry entry adt-east become a draft; the
 // pre-flight refuses an unbound secret, a destination the workflow does not
 // deliver to, and a taken revision ID without writing; STATIC fails while no
@@ -89,35 +89,9 @@ func TestDefinitionAuthoringPostgres_EditorAuthorsValidatesApprovesAndPublishes(
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
-	var connections *connection.Service
-	validators := Validators{
-		Skip: SkipValidator(),
-		Static: StaticValidator(StaticChecks{
-			SourceMounted: func(ctx context.Context, source integration.ArtifactRevisionRef) (bool, error) {
-				views, err := connections.Observations(ctx)
-				if err != nil {
-					return false, err
-				}
-				for _, view := range views {
-					if !view.Stale && view.Digest == source.Digest {
-						return true, nil
-					}
-				}
-				return false, nil
-			},
-			SourceBindingNames: func(ctx context.Context, source integration.ArtifactRevisionRef) ([]string, bool, error) {
-				revision, err := connections.GetRevision(ctx, source.ArtifactID, source.RevisionID)
-				if errors.Is(err, connection.ErrNotFound) || (err == nil && revision.Digest != source.Digest) {
-					return nil, false, nil
-				}
-				if err != nil {
-					return nil, false, err
-				}
-				described, err := SourceFromDocument(revision.Kind, revision.Document)
-				return described.BindingNames, err == nil, nil
-			},
-		}),
-	}
+	// The same facts serve's STATIC check reads, bound late as serve binds them.
+	var facts CatalogFacts
+	validators := Validators{Skip: SkipValidator(), Static: StaticValidator(facts.Checks())}
 	catalog, err := lifecycle.NewPostgresCatalog(db, lifecycle.Config{ValidateConnection: validators.Func()})
 	if err != nil {
 		t.Fatal(err)
@@ -125,10 +99,11 @@ func TestDefinitionAuthoringPostgres_EditorAuthorsValidatesApprovesAndPublishes(
 	if err := catalog.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
-	connections, err = connection.NewService(store, catalog, nil, testTenant)
+	connections, err := connection.NewService(store, catalog, nil, testTenant)
 	if err != nil {
 		t.Fatal(err)
 	}
+	facts.Bind(connections, nil)
 	file, err := os.Open(filepath.Join("..", "..", "..", "..", "testdata", "golden", "integration", "adt-http", "preview-registry.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -219,9 +194,18 @@ func TestDefinitionAuthoringPostgres_EditorAuthorsValidatesApprovesAndPublishes(
 		definition.Revision.Deployment.ConnectionValidation.MaxAgeSeconds != DefaultValidationMaxAgeSeconds {
 		t.Fatalf("draft = %+v", definition)
 	}
+	// Identical content is the stored revision (the seed's resume rule);
+	// different content under the same ID is refused.
 	again, err := service.CreateDraft(writer, input, "author the east MLLP definition")
-	if err != nil || again.Definition != nil || !contains(problemCodes(again.Problems), CodeAlreadyExists) {
-		t.Fatalf("second create = %+v, %v", again, err)
+	if err != nil || again.Definition == nil || again.Definition.Revision.Digest != definition.Revision.Digest {
+		t.Fatalf("identical second create = %+v, %v", again, err)
+	}
+	changed := input
+	changed.SecretBindings = append([]integration.SecretBinding(nil), input.SecretBindings...)
+	changed.SecretBindings[0].Reference.Key = "mllp/another-cert.pem"
+	conflict, err := service.CreateDraft(writer, changed, "author the east MLLP definition")
+	if err != nil || conflict.Definition != nil || !contains(problemCodes(conflict.Problems), CodeAlreadyExists) {
+		t.Fatalf("changed second create = %+v, %v", conflict, err)
 	}
 
 	command := Command{DefinitionID: "adt-east-mllp", RevisionID: "v1", ExpectedVersion: 1, Reason: "static check of the east listener"}

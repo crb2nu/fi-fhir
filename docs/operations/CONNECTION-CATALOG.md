@@ -389,8 +389,9 @@ new read (`ListDefinitions`) joins snapshots to revisions.
 **Composition.** `serve` builds `authoring.Service` when it has a lifecycle
 catalog (the durable database), this catalog, and the static registry
 (`FI_FHIR_INTEGRATION_REGISTRY_PATH`, always loaded by `serve`);
-`/api/auth/status` reports `capabilities.definitionAuthoring` true only when
-that holds **and** the caller has the write roles.
+`/api/auth/status` reports that deployment fact as
+`capabilities.definitionAuthoring`, and the roles the writes need as
+`missingRoles.definitionAuthoring`.
 
 **Roles.** Reads (`integrationDefinitions`, `integrationDefinition`,
 `integrationRegistryArtifacts`) need `integration.operator`; writes
@@ -400,13 +401,25 @@ that holds **and** the caller has the write roles.
 The service re-checks both. Deploy stays `deployIntegrationRelease` on the
 operator plane.
 
+**Drafts.** Every secret binding reference, and a raw-retention encryption
+key, is checked with this catalog's own rules
+(`connection.CheckSecretBindingReferences`, `CheckSecretReference`): at most
+`MaxSecretBindings`, provider in the allow-list, key and version at most 256
+characters with no whitespace, no certificate or key material
+(`SECRET_VALUE_FORBIDDEN`); no problem message repeats a value, because a
+definition revision is append-only. The profile and workflow refs must be one
+static-registry entry's pair. Creating a revision that is already stored is
+idempotent: rebuilt under the stored creation audit, an equal digest returns
+the stored revision and different content is `ALREADY_EXISTS` (the seed's
+resume rule).
+
 **Validation modes.** `serve` installs one `ConnectionValidatorFunc` on its
 lifecycle catalog that dispatches on the mode the service puts on the context;
 a call that names no mode records `CONNECTION_CHECK_ERROR`.
 
 | Mode | Runs | Records |
 |---|---|---|
-| `REAL` | The batch validator the seed runs (`authoring.BatchValidator`), only for the batch source this replica mounts (`FI_FHIR_BATCH_SOURCE_CONFIG_PATH`), with the `FI_FHIR_BATCH_*` credentials the co-located batch runner already uses, so it opens no connection the pod does not already open. One REAL probe per replica at a time. Any other source is refused with "real validation is unavailable for this source on this replica" before anything is written. | The seed's codes |
+| `REAL` | The batch validator the seed runs (`authoring.BatchValidator`), only for the batch source this replica mounts (`FI_FHIR_BATCH_SOURCE_CONFIG_PATH`), with the `FI_FHIR_BATCH_*` credentials the co-located batch runner already uses, so it opens no connection the pod does not already open. One REAL probe per replica at a time, held until the probe goroutine exits; an API-started check is capped at 20 s (recorded as `CONNECTION_CHECK_TIMEOUT`). Any other source is refused with "real validation is unavailable for this source on this replica" before anything is written. | The seed's codes |
 | `STATIC` | Nothing external. `SOURCE_MOUNTED` when this replica mounts the source digest or a fresh `integration_runtime_observations` row reports it; the source revision's binding names checked against the definition's bindings. Secret values are not resolved (`BINDINGS_NOT_CHECKED`): adapters load their own material at startup. | `VALIDATION_STATIC`, `SOURCE_MOUNTED`/`SOURCE_NOT_MOUNTED`, `BINDINGS_NOT_CHECKED`/`BINDING_UNRESOLVABLE` |
 | `SKIP` | Nothing; the reason must be at least 16 bytes. | `VALIDATION_SKIPPED` |
 

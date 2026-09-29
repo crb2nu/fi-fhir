@@ -336,9 +336,9 @@ The tab says what it cannot do before it tries:
 
 | You see | Meaning | Fix |
 |---|---|---|
-| "Definition authoring is not configured on this deployment." | `capabilities.definitionAuthoring` is false and no role is missing: `serve` has no lifecycle catalog, connection catalog, or static registry. | As for the catalog above; `serve` always loads `FI_FHIR_INTEGRATION_REGISTRY_PATH`. |
+| "Definition authoring is not configured on this deployment." | `capabilities.definitionAuthoring` is false: `serve` has no lifecycle catalog, connection catalog, or static registry. | As for the catalog above; `serve` always loads `FI_FHIR_INTEGRATION_REGISTRY_PATH`. |
 | "Definitions need `integration.operator` …" | The identity cannot read. Nothing is queried. | Grant `integration.operator`. |
-| A read-only status line | The identity reads but lacks `integration.deployment.operator`. | Grant it as well. |
+| A read-only status line | `missingRoles.definitionAuthoring` is not empty: the identity reads but lacks `integration.deployment.operator`. | Grant it as well. |
 
 ### The table
 

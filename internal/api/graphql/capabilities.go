@@ -169,9 +169,10 @@ func deriveAuthStatus(security integration.SecurityContext, config *ServerConfig
 	status.Capabilities.LLM.Configured = config.LLMConfigured
 	status.Capabilities.ControlPlane = config.OperatorControlPlaneConfigured
 	status.Capabilities.ConnectionCatalog = config.ConnectionCatalogConfigured
-	var authoringRoles bool
-	authoringRoles, status.MissingRoles.DefinitionAuthoring = definitionAuthoringCapability.evaluate(roles)
-	status.Capabilities.DefinitionAuthoring = authoringRoles && config.DefinitionAuthoringConfigured
+	// A deployment fact, like controlPlane; the roles its writes need are in
+	// missingRoles.definitionAuthoring.
+	status.Capabilities.DefinitionAuthoring = config.DefinitionAuthoringConfigured
+	_, status.MissingRoles.DefinitionAuthoring = definitionAuthoringCapability.evaluate(roles)
 	return status
 }
 

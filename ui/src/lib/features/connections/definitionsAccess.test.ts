@@ -30,15 +30,13 @@ describe('definitionsPreflight', () => {
 
   it('says not configured first: no control plane, no catalog, or no authoring service', () => {
     expect(definitionsPreflight(state({ controlPlane: false, connectionsRead: false }))?.reason).toBe('not-configured');
-    expect(definitionsPreflight(state({ definitionAuthoring: false }, { definitionAuthoring: [] }))?.reason).toBe(
-      'not-configured'
-    );
+    expect(definitionsPreflight(state({ definitionAuthoring: false }))?.reason).toBe('not-configured');
   });
 
   it('names the missing read role, then the missing write roles', () => {
     expect(
       definitionsPreflight(
-        state({ connectionsRead: false, definitionAuthoring: false }, {
+        state({ connectionsRead: false }, {
           connectionsRead: ['integration.operator'],
           definitionAuthoring: ['integration.operator', 'integration.deployment.operator']
         })
@@ -46,7 +44,7 @@ describe('definitionsPreflight', () => {
     ).toEqual({ reason: 'missing-role', principal: 'e2e', missingRoles: ['integration.operator'] });
     expect(
       definitionsPreflight(
-        state({ definitionAuthoring: false, connectionsWrite: false }, {
+        state({ connectionsWrite: false }, {
           definitionAuthoring: ['integration.deployment.operator']
         })
       )

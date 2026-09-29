@@ -2,8 +2,7 @@
  * What the Definitions tab may do, from `/api/auth/status` (.loom/42 E-1), in
  * the Connections precedence:
  *   1. not configured — the control plane, the catalog, or the authoring
- *      service is absent on this deployment (definitionAuthoring false with no
- *      missing role says so);
+ *      service (the deployment fact `definitionAuthoring`) is absent;
  *   2. missing role — the identity cannot read definitions; nothing is queried;
  *   3. read only — the identity reads but cannot author; every write is
  *      disabled with one status line naming the missing roles.
@@ -21,12 +20,7 @@ export function definitionsPreflight(state: AccessCapabilityState): DefinitionsP
   if (state.state !== 'known') return null;
   const { controlPlane, connectionCatalog, connectionsRead, connectionsWrite, definitionAuthoring } =
     state.capabilities;
-  const authoringMissing = missingRolesFor(state, 'definitionAuthoring');
-  if (
-    controlPlane === false ||
-    connectionCatalog === false ||
-    (definitionAuthoring === false && authoringMissing.length === 0)
-  ) {
+  if (controlPlane === false || connectionCatalog === false || definitionAuthoring === false) {
     return { reason: 'not-configured', keys: CATALOG_PREREQUISITE_KEYS };
   }
   if (connectionsRead === false) {
@@ -37,7 +31,8 @@ export function definitionsPreflight(state: AccessCapabilityState): DefinitionsP
       missingRoles: reported.length > 0 ? reported : [CONNECTION_READ_ROLE]
     };
   }
-  if (definitionAuthoring === false || connectionsWrite === false) {
+  const authoringMissing = missingRolesFor(state, 'definitionAuthoring');
+  if (authoringMissing.length > 0 || connectionsWrite === false) {
     const reported = authoringMissing.length > 0 ? authoringMissing : missingRolesFor(state, 'connectionsWrite');
     return { reason: 'read-only', missingRoles: reported.length > 0 ? reported : [CONNECTION_WRITE_ROLE] };
   }

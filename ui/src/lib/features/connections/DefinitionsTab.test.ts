@@ -195,7 +195,7 @@ describe('Connections › Definitions', () => {
 
   it('is read only without the deployment grant: the line names the role and New is disabled', async () => {
     setAccessStatus(
-      status({ connectionsWrite: false, definitionAuthoring: false }, { definitionAuthoring: ['integration.deployment.operator'] })
+      status({ connectionsWrite: false }, { definitionAuthoring: ['integration.deployment.operator'] })
     );
     render(ConnectionsPage);
     await openDefinitions();
@@ -283,6 +283,29 @@ describe('Connections › Definitions', () => {
     );
     await waitFor(() => expect(screen.getByTestId('definition-details')).toHaveAttribute('data-state', 'validated'));
     expect(screen.getByTestId('definition-approve')).toBeEnabled();
+  });
+
+  it('places a refused binding reference on its row and keeps Create disabled', async () => {
+    setAccessStatus(status());
+    definitions.checkDraft.mockResolvedValue([
+      {
+        code: 'SECRET_VALUE_FORBIDDEN',
+        path: 'secretBindings[0].key',
+        message: 'a binding names a secret; it never carries certificate or key material'
+      }
+    ]);
+    render(ConnectionsPage);
+    await openDefinitions();
+    await fireEvent.click(await screen.findByTestId('definitions-new'));
+    const form = await screen.findByTestId('definition-new');
+    await waitFor(() => expect(within(form).getByTestId('definition-new-source')).toBeInTheDocument());
+    await fireEvent.change(within(form).getByTestId('definition-new-source'), { target: { value: 'adt-mllp' } });
+    await fireEvent.click(within(form).getByRole('checkbox', { name: /fhir-primary/ }));
+    await fireEvent.click(within(form).getByTestId('definition-check'));
+    const problems = await within(form).findByTestId('definition-problems');
+    expect(problems).toHaveAttribute('data-blocking', 'true');
+    expect(within(form).getAllByText('fhir-token key').length).toBeGreaterThan(0);
+    expect(within(form).getByTestId('definition-create')).toBeDisabled();
   });
 
   it('refuses SKIP with a short reason inside the dialog, without a request', async () => {

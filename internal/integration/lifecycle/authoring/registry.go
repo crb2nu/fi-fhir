@@ -116,7 +116,12 @@ func (r *Registry) Artifacts(ctx context.Context) ([]RegistryArtifact, error) {
 	return artifacts, nil
 }
 
-// Resolve proves one profile/workflow pair and returns the workflow bytes.
+// ErrMixedPair means the profile and workflow refs do not come from one
+// registry entry, as the seed always takes them.
+var ErrMixedPair = errors.New("profile and workflow refs are not one registry entry's pair")
+
+// Resolve proves one profile/workflow pair — both refs from the same registry
+// entry, resolved as the runtime resolves them — and returns the workflow bytes.
 func (r *Registry) Resolve(
 	ctx context.Context,
 	profile, workflowRef integration.ArtifactRevisionRef,
@@ -124,9 +129,17 @@ func (r *Registry) Resolve(
 	if r == nil || r.resolver == nil {
 		return nil, ErrRegistryUnavailable
 	}
-	resolved, err := r.resolver.Resolve(ctx, r.tenantID, profile, workflowRef)
-	if err != nil {
-		return nil, err
+	for _, summary := range r.static.Integrations() {
+		artifact, err := r.Artifact(ctx, summary.IntegrationID)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			continue
+		}
+		if artifact.Profile == profile && artifact.Workflow == workflowRef {
+			return artifact.WorkflowYAML, nil
+		}
 	}
-	return resolved.WorkflowYAML(), nil
+	return nil, ErrMixedPair
 }

@@ -136,6 +136,13 @@
     }
   }
 
+  // `secretBindings[2].key` → `fhir-token key`: the row the problem is about.
+  function bindingLabel(path: string): string {
+    const match = /^secretBindings\[(\d+)\](?:\.(\w+))?/.exec(path);
+    const row = match ? form.bindings[Number(match[1])] : undefined;
+    return row ? `${row.name}${match?.[2] ? ` ${match[2]}` : ''}` : path;
+  }
+
   const sourceOptions = $derived(
     compiledSources.map((choice) => ({
       value: choice.id,
@@ -247,8 +254,9 @@
           <p class="note">The chosen revisions name no secret bindings.</p>
         {:else}
           <p class="note">
-            Pre-filled from each connection's own binding references. A reference says where a secret lives; a value is
-            never accepted.
+            Pre-filled from each connection's current binding references (a compiled revision stores binding names only).
+            A reference says where a secret lives: a key of at most 256 characters with no whitespace, never a value and
+            never certificate or key material.
           </p>
           <div class="bindings" data-testid="definition-new-bindings">
             {#each form.bindings as binding (binding.name)}
@@ -261,7 +269,9 @@
           </div>
         {/if}
         {#each problemsAt('secretBindings') as problem (problem.path + problem.code + problem.message)}
-          <p class={problem.code === 'UNUSED_BINDING' ? 'warning' : 'problem'} role="alert">{problem.message}</p>
+          <p class={problem.code === 'UNUSED_BINDING' ? 'warning' : 'problem'} role="alert">
+            {#if problem.path !== 'secretBindings'}<code>{bindingLabel(problem.path)}</code>&nbsp;{/if}{problem.message}
+          </p>
         {/each}
       </section>
 
@@ -297,7 +307,7 @@
           </div>
           <p class="note">You are recorded as the authorizer, and retained-data access is audited.</p>
         {/if}
-        {#each problemsAt('policy') as problem (problem.path + problem.code)}
+        {#each [...problemsAt('rawRetention'), ...problemsAt('policy')] as problem (problem.path + problem.code)}
           <p class="problem" role="alert">{problem.path}: {problem.message}</p>
         {/each}
       </section>

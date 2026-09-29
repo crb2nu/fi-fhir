@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
@@ -189,6 +192,32 @@ func NewBatchProvider(source batch.SourceRevision, secrets BatchSecrets) (batch.
 	}
 }
 
+// probeTicket lets a caller hold a single-flight slot until the probe
+// goroutine a BatchValidator starts has actually exited, not merely until the
+// validator returned: a probe may outlive the catalog's deadline by its
+// bounded dial.
+type probeTicket struct {
+	once    sync.Once
+	release func()
+	started atomic.Bool
+}
+
+func (t *probeTicket) done() {
+	if t != nil {
+		t.once.Do(t.release)
+	}
+}
+
+type probeTicketKey struct{}
+
+// withProbeTicket returns a context whose BatchValidator probe calls release
+// on exit, and the ticket; the caller calls ticket.done() itself when no
+// probe started. release runs exactly once.
+func withProbeTicket(ctx context.Context, release func()) (context.Context, *probeTicket) {
+	ticket := &probeTicket{release: release}
+	return context.WithValue(ctx, probeTicketKey{}, ticket), ticket
+}
+
 // BatchValidator builds the provider the runner would build and lists at most
 // one object of the input location. The SFTP provider dials without a
 // context, so the probe runs beside the catalog's deadline; on expiry the
@@ -202,6 +231,20 @@ func BatchValidator(
 	build BatchProviderFactory,
 	detail io.Writer,
 ) lifecycle.ConnectionValidatorFunc {
+	return BatchValidatorWithLimit(source, secrets, build, detail, 0)
+}
+
+// BatchValidatorWithLimit is BatchValidator whose check never runs longer than
+// limit (when positive), whatever the definition's validation timeout: an API
+// request does not hold a probe for up to 300 s. On the limit the catalog
+// records CONNECTION_CHECK_TIMEOUT, as it does for its own deadline.
+func BatchValidatorWithLimit(
+	source batch.SourceRevision,
+	secrets BatchSecrets,
+	build BatchProviderFactory,
+	detail io.Writer,
+	limit time.Duration,
+) lifecycle.ConnectionValidatorFunc {
 	if build == nil {
 		build = NewBatchProvider
 	}
@@ -209,12 +252,22 @@ func BatchValidator(
 		if revision.Source.ArtifactRevisionRef != source.Reference() || revision.Source.SourceID != source.SourceID {
 			return lifecycle.ConnectionValidationOutcome{Codes: []string{CodeSourceMismatch}}, nil
 		}
+		if limit > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, limit)
+			defer cancel()
+		}
 		type probeResult struct {
 			outcome lifecycle.ConnectionValidationOutcome
 			detail  error
 		}
+		ticket, _ := ctx.Value(probeTicketKey{}).(*probeTicket)
+		if ticket != nil {
+			ticket.started.Store(true)
+		}
 		done := make(chan probeResult, 1)
 		go func() {
+			defer ticket.done()
 			outcome, probeDetail := probeBatchSource(ctx, source, secrets, build)
 			done <- probeResult{outcome: outcome, detail: probeDetail}
 		}()

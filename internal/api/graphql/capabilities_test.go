@@ -185,9 +185,8 @@ func TestAuthCapabilities(t *testing.T) {
 			missing: allRolesHeld,
 		},
 		{
-			// .loom/42 E-1: definitionAuthoring needs both the deployment fact
-			// and the write roles; without the fact and with every role held,
-			// missingRoles is empty, which is how a surface says "not configured".
+			// .loom/42 E-1: definitionAuthoring is the deployment fact; the
+			// roles its writes need are in missingRoles.definitionAuthoring.
 			name:     "definition authoring configured",
 			security: securityFor("network", "fi-fhir-ide-operator", operatorBundle...),
 			config: ServerConfig{
@@ -208,7 +207,7 @@ func TestAuthCapabilities(t *testing.T) {
 			},
 			capabilities: accessCapabilities{
 				OperatorRead: true, ClinicalRead: true, ConnectionsRead: true, Subscriptions: none,
-				ControlPlane: true, ConnectionCatalog: true,
+				ControlPlane: true, ConnectionCatalog: true, DefinitionAuthoring: true,
 			},
 			missing: missingRoles{
 				OperatorRead:        none,

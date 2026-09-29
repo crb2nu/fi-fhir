@@ -280,9 +280,15 @@ func (s *Service) Check(ctx context.Context, input DraftInput) ([]connection.Pro
 	if err != nil {
 		return nil, err
 	}
-	_, problems, err := s.assemble(ctx, security, input, "pre-flight check of a definition draft")
-	if err != nil {
+	created := s.created(security, "pre-flight check of a definition draft")
+	_, problems, err := s.assemble(ctx, security, input, created)
+	if err != nil || connection.HasBlocking(problems) {
+		return problems, err
+	}
+	if _, conflict, err := s.existing(ctx, security, input); err != nil {
 		return nil, err
+	} else if conflict != nil {
+		problems = append(problems, *conflict)
 	}
 	return problems, nil
 }
@@ -305,21 +311,35 @@ func (s *Service) CreateDraft(ctx context.Context, input DraftInput, reason stri
 	if err != nil {
 		return CreateResult{}, err
 	}
-	revision, problems, err := s.assemble(ctx, security, input, trimmed)
+	revision, problems, err := s.assemble(ctx, security, input, s.created(security, trimmed))
 	if err != nil {
 		return CreateResult{}, err
 	}
 	if connection.HasBlocking(problems) || revision == nil {
 		return CreateResult{Problems: problems}, nil
 	}
-	if _, err := s.catalog.CreateDraft(ctx, *revision); err != nil {
-		if errors.Is(err, lifecycle.ErrAlreadyExists) {
-			return CreateResult{Problems: append(problems, connection.Problem{
-				Code: CodeAlreadyExists, Path: "revisionId",
-				Message: "this definition revision already exists; revisions are append-only, so choose a new revision ID",
-			})}, nil
-		}
+	// Idempotent, as the seed is: an identical revision already stored is
+	// returned; a different one under the same ID is refused.
+	existing, conflict, err := s.existing(ctx, security, input)
+	if err != nil {
 		return CreateResult{}, err
+	}
+	if conflict != nil {
+		return CreateResult{Problems: append(problems, *conflict)}, nil
+	}
+	if existing == nil {
+		if _, err := s.catalog.CreateDraft(ctx, *revision); err != nil {
+			if !errors.Is(err, lifecycle.ErrAlreadyExists) {
+				return CreateResult{}, err
+			}
+			// Another writer created it between the read and the insert.
+			if _, conflict, err = s.existing(ctx, security, input); err != nil {
+				return CreateResult{}, err
+			}
+			if conflict != nil {
+				return CreateResult{Problems: append(problems, *conflict)}, nil
+			}
+		}
 	}
 	definition, err := s.definition(ctx, security.TenantID, revision.DefinitionID, revision.RevisionID)
 	if err != nil {
@@ -328,13 +348,53 @@ func (s *Service) CreateDraft(ctx context.Context, input DraftInput, reason stri
 	return CreateResult{Definition: &definition, Problems: problems}, nil
 }
 
+// created is the creation audit of a draft the caller writes now.
+func (s *Service) created(security integration.SecurityContext, reason string) integration.AuditEnvelope {
+	principal := security.Principal
+	principal.Roles = append([]string(nil), security.Principal.Roles...)
+	return integration.AuditEnvelope{
+		TenantID: security.TenantID, Principal: principal, Reason: reason,
+		OccurredAt: s.clock().UTC().Truncate(time.Second),
+	}
+}
+
+// existing compares the input with a revision already stored under its
+// identity, the way `lifecycle seed` does (verifyExistingSeedDefinition):
+// rebuilt under the stored revision's own creation audit, an equal digest is
+// the same revision (returned), a different one is a conflict problem. Both
+// are nil when nothing is stored.
+func (s *Service) existing(
+	ctx context.Context,
+	security integration.SecurityContext,
+	input DraftInput,
+) (*lifecycle.DefinitionRow, *connection.Problem, error) {
+	row, err := s.catalog.GetDefinition(ctx, security.TenantID, input.DefinitionID, input.RevisionID)
+	if errors.Is(err, lifecycle.ErrNotFound) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	rebuilt, problems, err := s.assemble(ctx, security, input, row.Revision.Created)
+	if err != nil {
+		return nil, nil, err
+	}
+	if connection.HasBlocking(problems) || rebuilt == nil || rebuilt.Digest != row.Revision.Digest {
+		return nil, &connection.Problem{
+			Code: CodeAlreadyExists, Path: "revisionId",
+			Message: "this definition revision is already stored with different content; revisions are append-only, so choose a new revision ID",
+		}, nil
+	}
+	return &row, nil, nil
+}
+
 // assemble resolves the input into a definition revision and the problems
 // that block or warn. It returns a nil revision when a problem blocks.
 func (s *Service) assemble(
 	ctx context.Context,
 	security integration.SecurityContext,
 	input DraftInput,
-	reason string,
+	created integration.AuditEnvelope,
 ) (*integration.IntegrationDefinitionRevision, []connection.Problem, error) {
 	problems := make([]connection.Problem, 0)
 	add := func(code, path, message string) {
@@ -350,14 +410,18 @@ func (s *Service) assemble(
 	if input.ParentRevisionID != "" && !validIdentity(input.ParentRevisionID) {
 		add(connection.CodeInvalidValue, "parentRevisionId", "the parent revision ID is malformed")
 	}
-	if validIdentity(input.DefinitionID) && validIdentity(input.RevisionID) {
-		_, err := s.catalog.GetSnapshot(ctx, security.TenantID, input.DefinitionID, input.RevisionID)
-		switch {
-		case err == nil:
-			add(CodeAlreadyExists, "revisionId", "this definition revision already exists; revisions are append-only, so choose a new revision ID")
-		case !errors.Is(err, lifecycle.ErrNotFound):
-			return nil, nil, err
-		}
+	// Secret references are checked with the connection catalog's own rules
+	// before anything else: a definition revision is append-only, so a pasted
+	// value must never reach it.
+	for _, problem := range connection.CheckSecretBindingReferences(input.SecretBindings) {
+		problem.Path = "secretBindings" + strings.TrimPrefix(problem.Path, "secret_bindings")
+		problems = append(problems, problem)
+	}
+	if input.RawRetention != nil && input.RawRetention.EncryptionKey != nil {
+		problems = append(problems, connection.CheckSecretReference("rawRetention.encryptionKey", *input.RawRetention.EncryptionKey)...)
+	}
+	if input.RawRetention != nil && strings.Contains(input.RawRetention.Purpose, "-----BEGIN") {
+		add(connection.CodeSecretValueForbidden, "rawRetention.purpose", "a purpose never carries certificate or key material")
 	}
 
 	var source Source
@@ -429,7 +493,7 @@ func (s *Service) assemble(
 			return nil, nil, ctx.Err()
 		}
 		add(CodeArtifactUnresolved, "profile",
-			"the profile and workflow refs do not resolve with the runtime's resolver over the static integration registry; choose a pair from the registry artifacts")
+			"the profile and workflow refs are not one static-registry entry's pair as the runtime's resolver proves it; choose a pair from the registry artifacts")
 	}
 	if resolved && len(destinations) == len(input.Destinations) && len(destinations) > 0 {
 		var planErr *WorkflowDestinationError
@@ -461,8 +525,8 @@ func (s *Service) assemble(
 	for index, binding := range input.SecretBindings {
 		bound[binding.Name] = struct{}{}
 		if _, needed := required[binding.Name]; !needed && binding.Name != "" {
-			add(connection.CodeUnusedBinding, fmt.Sprintf("secretBindings[%d]", index),
-				fmt.Sprintf("no chosen revision names binding %q", binding.Name))
+			add(connection.CodeUnusedBinding, fmt.Sprintf("secretBindings[%d].name", index),
+				"no chosen revision names this binding")
 		}
 	}
 	names := make([]string, 0, len(required))
@@ -484,7 +548,6 @@ func (s *Service) assemble(
 		policy.RawRetention = *input.RawRetention
 		if policy.RawRetention.EffectiveMode() == integration.RawRetentionModeEncrypted {
 			// Encrypted retention is authorized by the author, audited on access.
-			policy.RawRetention.AuthorizedBy = security.Principal
 			policy.RawRetention.AccessAuditRequired = true
 		}
 	}
@@ -492,17 +555,16 @@ func (s *Service) assemble(
 	if input.Deployment != nil {
 		deployment = *input.Deployment
 	}
-	principal := security.Principal
-	principal.Roles = append([]string(nil), security.Principal.Roles...)
+	if policy.RawRetention.EffectiveMode() == integration.RawRetentionModeEncrypted {
+		// The stored authorizer and audit flag, not the caller's, when this
+		// rebuilds an existing revision for comparison.
+		policy.RawRetention.AuthorizedBy = created.Principal
+	}
 	revision, err := BuildDefinition(Draft{
 		DefinitionID: input.DefinitionID, RevisionID: input.RevisionID, ParentRevisionID: input.ParentRevisionID,
 		TenantID: security.TenantID, Source: source, Profile: input.Profile, Workflow: input.Workflow,
 		Destinations: destinations, SecretBindings: input.SecretBindings,
-		Policy: policy, Deployment: deployment,
-		Created: integration.AuditEnvelope{
-			TenantID: security.TenantID, Principal: principal, Reason: reason,
-			OccurredAt: s.clock().UTC().Truncate(time.Second),
-		},
+		Policy: policy, Deployment: deployment, Created: created,
 	})
 	if err != nil {
 		var violations *integration.ValidationError
@@ -554,10 +616,19 @@ func (s *Service) Validate(ctx context.Context, command Command, mode Mode) (Def
 		}
 		select {
 		case s.realSlot <- struct{}{}:
-			defer func() { <-s.realSlot }()
 		default:
 			return Definition{}, ErrRealBusy
 		}
+		// The slot is held until the probe goroutine exits, which may be after
+		// this request returns (a dial outliving the deadline); when no probe
+		// starts, it is released here.
+		var ticket *probeTicket
+		ctx, ticket = withProbeTicket(ctx, func() { <-s.realSlot })
+		defer func() {
+			if !ticket.started.Load() {
+				ticket.done()
+			}
+		}()
 	default:
 		return Definition{}, ErrInvalidRequest
 	}

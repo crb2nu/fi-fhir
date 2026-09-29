@@ -39,9 +39,9 @@ export interface AccessCapabilities {
   controlPlane: boolean | null;
   connectionCatalog: boolean | null;
   /**
-   * Definition authoring (.loom/42 E-1): the deployment composed the editor
-   * AND this identity holds its write roles. `false` with an empty
-   * `missingRoles.definitionAuthoring` means not configured here.
+   * Definition authoring (.loom/42 E-1): a deployment fact, like
+   * `controlPlane`. The roles its writes need are in
+   * `missingRoles.definitionAuthoring`.
    */
   definitionAuthoring: boolean | null;
 }

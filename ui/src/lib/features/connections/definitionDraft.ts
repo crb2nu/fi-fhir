@@ -273,7 +273,7 @@ export function definitionFromQuery(search: string): { definitionId: string; rev
 export const MODE_TEXT = {
   REAL: 'Contacts the source: the batch provider this replica runs lists one object of the input location with the credentials the batch runner uses. Offered only for the batch source this replica mounts.',
   STATIC:
-    'Contacts nothing. Records whether a replica reported this exact source revision mounted in its recent heartbeats and whether the source’s secret bindings are bound. It does not prove the endpoint is reachable.',
+    'Contacts nothing. Records whether a replica reported this exact source revision mounted in its recent heartbeats and whether the source’s secret bindings are bound. It does not prove the endpoint is reachable; for a batch source, REAL is the check that contacts it.',
   SKIP: 'Checks nothing. Records VALIDATION_SKIPPED with your reason, which must be at least 16 characters.'
 } as const;
 
