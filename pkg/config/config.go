@@ -522,7 +522,7 @@ func (c *Config) ApplyEnv() {
 		case canonicalURL == "":
 			c.FHIR.BaseURL = aliasURL
 		case canonicalURL != aliasURL:
-			c.envAliasError = fmt.Errorf("FI_FHIR_FHIR_BASE_URL and FI_FHIR_FHIR_SERVER_URL have conflicting values")
+			c.envAliasError = fmt.Errorf("FI_FHIR_FHIR_BASE_URL and deprecated FI_FHIR_FHIR_SERVER_URL are set to different values; unset FI_FHIR_FHIR_SERVER_URL")
 		}
 	}
 	c.FHIR.Timeout = getEnvDuration("FI_FHIR_FHIR_TIMEOUT", c.FHIR.Timeout)
