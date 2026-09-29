@@ -28,7 +28,7 @@
   import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
-  import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
+  import { registerCommands, unregisterCommands, type Command } from '$lib/ui/ide/commandRegistry';
   import {
     Badge,
     Button,
@@ -457,7 +457,6 @@
   $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $state.data);
   $: selectedValue = selectedLocation ? getHL7Value($hl7, selectedLocation) : null;
 
-  let paletteOpen = false;
 
   function isEditableTarget(t: EventTarget | null): boolean {
     const el = t as HTMLElement | null;
@@ -991,9 +990,10 @@
   }
 
   $: paletteCommands = (() => {
-    const cmds: PaletteCommand[] = [
+    const cmds: Command[] = [
       {
         id: 'preview',
+        group: 'HL7',
         label: 'Preview (parse)',
         hint: 'Cmd/Ctrl+Enter',
         keywords: ['run', 'parse', 'preview'],
@@ -1001,6 +1001,7 @@
       },
       {
         id: 'process',
+        group: 'HL7',
         label: 'Process message',
         hint: grantPreflight ? `Needs ${grantPreflight.missingRoles.join(', ')}` : 'Submit to pipeline',
         keywords: ['submit', 'process', 'workflow'],
@@ -1008,6 +1009,7 @@
       },
       {
         id: 'load-file',
+        group: 'HL7',
         label: 'Load HL7 file…',
         hint: 'Cmd/Ctrl+O',
         keywords: ['open', 'file', 'upload'],
@@ -1015,6 +1017,7 @@
       },
       {
         id: 'open-samples',
+        group: 'HL7',
         label: 'Open samples',
         hint: 'Browse inbox',
         keywords: ['samples', 'inbox'],
@@ -1024,6 +1027,7 @@
       },
       {
         id: 'go-warnings',
+        group: 'HL7',
         label: 'Go to warnings',
         hint: 'Tab',
         keywords: ['warnings', 'phase'],
@@ -1033,6 +1037,7 @@
       },
       {
         id: 'go-events',
+        group: 'HL7',
         label: 'Go to events',
         hint: 'Tab',
         keywords: ['events', 'canonical'],
@@ -1042,6 +1047,7 @@
       },
       {
         id: 'go-extraction',
+        group: 'HL7',
         label: 'Go to extraction',
         hint: 'Tab',
         keywords: ['extraction', 'fields'],
@@ -1051,6 +1057,7 @@
       },
       {
         id: 'go-inspector',
+        group: 'HL7',
         label: 'Go to inspector',
         hint: 'Tab',
         keywords: ['inspector', 'hl7', 'segments'],
@@ -1060,6 +1067,7 @@
       },
       {
         id: 'go-profile',
+        group: 'HL7',
         label: 'Go to profile draft',
         hint: 'Tab',
         keywords: ['profile', 'draft', 'fix'],
@@ -1069,6 +1077,7 @@
       },
       {
         id: 'go-process',
+        group: 'HL7',
         label: 'Go to process',
         hint: 'Tab',
         keywords: ['process', 'submit'],
@@ -1078,6 +1087,7 @@
       },
       {
         id: 'focus-warnings-filter',
+        group: 'HL7',
         label: 'Focus warnings filter',
         hint: 'Jump to warnings search',
         keywords: ['warnings', 'search', 'filter'],
@@ -1088,6 +1098,7 @@
       },
       {
         id: 'focus-inspector-filter',
+        group: 'HL7',
         label: 'Focus inspector filter',
         hint: 'Jump to segment filter',
         keywords: ['inspector', 'segments', 'search'],
@@ -1098,6 +1109,7 @@
       },
       {
         id: 'next-warning',
+        group: 'HL7',
         label: 'Next warning (with path)',
         hint: 'Alt+ArrowDown',
         keywords: ['warnings', 'next'],
@@ -1105,6 +1117,7 @@
       },
       {
         id: 'prev-warning',
+        group: 'HL7',
         label: 'Previous warning (with path)',
         hint: 'Alt+ArrowUp',
         keywords: ['warnings', 'previous'],
@@ -1112,6 +1125,7 @@
       },
       {
         id: 'clear-selection',
+        group: 'HL7',
         label: 'Clear selection',
         hint: 'Esc',
         keywords: ['clear', 'selection', 'reset'],
@@ -1123,6 +1137,7 @@
     if (raw) {
       cmds.unshift({
         id: 'copy-raw',
+        group: 'HL7',
         label: 'Copy raw HL7',
         hint: 'Editor contents',
         keywords: ['copy', 'raw', 'message'],
@@ -1133,6 +1148,7 @@
     if (msh9) {
       cmds.unshift({
         id: 'copy-msh-9',
+        group: 'HL7',
         label: 'Copy MSH-9 (message type)',
         hint: 'ADT^A01',
         keywords: ['copy', 'msh', 'type', 'event'],
@@ -1142,6 +1158,7 @@
     if (msh10) {
       cmds.unshift({
         id: 'copy-msh-10',
+        group: 'HL7',
         label: 'Copy MSH-10 (control ID)',
         hint: 'Correlation ID',
         keywords: ['copy', 'msh', 'id', 'control'],
@@ -1151,6 +1168,7 @@
     if (msh12) {
       cmds.unshift({
         id: 'copy-msh-12',
+        group: 'HL7',
         label: 'Copy MSH-12 (version)',
         hint: '2.5.1',
         keywords: ['copy', 'msh', 'version'],
@@ -1162,6 +1180,7 @@
     if (path) {
       cmds.unshift({
         id: 'copy-path',
+        group: 'HL7',
         label: 'Copy selected path',
         hint: 'Cmd/Ctrl+Shift+C',
         keywords: ['copy', 'path'],
@@ -1172,6 +1191,7 @@
     if (value) {
       cmds.unshift({
         id: 'copy-value',
+        group: 'HL7',
         label: 'Copy selected value',
         hint: 'Cmd/Ctrl+Shift+X',
         keywords: ['copy', 'value'],
@@ -1181,6 +1201,11 @@
 
     return cmds;
   })();
+
+  // The shell's one palette (Cmd/Ctrl+K) lists these above its own while the
+  // page is mounted; re-registering the same source replaces the list, so it
+  // follows selection changes.
+  $: registerCommands('hl7', paletteCommands, { priority: 10 });
 
   onMount(() => {
     const linkedSession = new URL(window.location.href).searchParams.get('session')?.trim();
@@ -1206,7 +1231,6 @@
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (paletteOpen) return;
       if (isEditableTarget(e.target)) return;
 
       const mod = e.metaKey || e.ctrlKey;
@@ -1223,12 +1247,6 @@
         if ($state.loading) return;
         e.preventDefault();
         fileInputEl?.click();
-        return;
-      }
-
-      if (mod && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        paletteOpen = true;
         return;
       }
 
@@ -1278,12 +1296,12 @@
       unsub();
       unsubProblemNavigation();
       setSessionDiagnostics(null);
+      unregisterCommands('hl7');
       window.removeEventListener('keydown', onKeyDown);
     };
   });
 </script>
 
-<CommandPalette bind:open={paletteOpen} title="HL7 commands" commands={paletteCommands} />
 
 <div class="intake">
   <Toolbar title="HL7 intake">

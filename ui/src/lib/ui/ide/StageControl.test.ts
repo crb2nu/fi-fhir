@@ -1,16 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
+import { evidenceOf } from './__fixtures__/journeyEvidence';
 
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 
 const { default: StageControl } = await import('./StageControl.svelte');
 
-// The header's stage control replaced the JourneyProgress band; these carry
-// over what that band's tests pinned (current stage, completed stages, links)
-// plus the keyboard model of a segmented control.
 describe('StageControl', () => {
   it('renders the five stages as links in order', () => {
-    render(StageControl, { props: { pathname: '/profiles' } });
+    render(StageControl, { props: { pathname: '/profiles', evidence: null } });
 
     const nav = screen.getByRole('navigation', { name: 'Stages' });
     const links = Array.from(nav.querySelectorAll('a'));
@@ -30,41 +28,62 @@ describe('StageControl', () => {
     ]);
   });
 
-  it('marks the stage matching the pathname as current and earlier stages done', () => {
-    const { container } = render(StageControl, { props: { pathname: '/profiles/draft' } });
+  it('marks the route stage current and completes nothing before evidence arrives', () => {
+    const { container } = render(StageControl, { props: { pathname: '/workflows/draft', evidence: null } });
 
     const current = container.querySelector('a[aria-current="step"]');
-    expect(current).toHaveTextContent('Normalization');
+    expect(current).toHaveTextContent('Delivery');
     expect(current).toHaveClass('is-current');
-    expect(container.querySelectorAll('a[data-state="complete"]')).toHaveLength(1);
-    expect(container.querySelector('a[data-state="complete"]')).toHaveTextContent('Source Intake');
-    // Done stages carry the check glyph; the current and upcoming ones do not.
-    expect(container.querySelectorAll('.stage-check')).toHaveLength(1);
-    expect(container.querySelectorAll('a[data-state="upcoming"]')).toHaveLength(3);
+    // Earlier stages are NOT complete because they come first.
+    expect(container.querySelectorAll('a[data-state="complete"]')).toHaveLength(0);
+    expect(container.querySelectorAll('.stage-check')).toHaveLength(0);
+    expect(container.querySelectorAll('a[data-state="pending"]')).toHaveLength(5);
+  });
+
+  it('checks the stages whose evidence exists, wherever they sit', () => {
+    const evidence = evidenceOf({ verification: 'complete', normalization: 'complete' });
+    const { container } = render(StageControl, { props: { pathname: '/hl7', evidence } });
+
+    const complete = Array.from(container.querySelectorAll('a[data-state="complete"]'));
+    expect(complete.map((link) => link.getAttribute('data-stage'))).toEqual(['normalization', 'verification']);
+    expect(container.querySelectorAll('.stage-check')).toHaveLength(2);
+    expect(container.querySelector('a[data-stage="source-intake"]')).toHaveAttribute('data-state', 'incomplete');
+  });
+
+  it('shows an unknown stage as not complete and says why in its title and name', () => {
+    const evidence = evidenceOf({ translation: 'unknown' });
+    const { container } = render(StageControl, { props: { pathname: '/', evidence } });
+
+    const stage = container.querySelector('a[data-stage="translation"]')!;
+    expect(stage).toHaveAttribute('data-state', 'unknown');
+    expect(stage).not.toHaveClass('is-complete');
+    expect(stage.querySelector('.stage-unknown')).not.toBeNull();
+    expect(stage).toHaveAttribute('title', 'Stage 3 of 5: Translation — unknown. translation is unknown.');
+    expect(screen.getByRole('link', { name: 'Translation, stage 3 of 5, unknown' })).toBe(stage);
   });
 
   it('marks no stage current off the stage routes', () => {
-    const { container } = render(StageControl, { props: { pathname: '/operator' } });
+    const { container } = render(StageControl, { props: { pathname: '/operator', evidence: evidenceOf() } });
 
     expect(container.querySelector('a[aria-current]')).toBeNull();
-    expect(container.querySelectorAll('a[data-state="upcoming"]')).toHaveLength(5);
+    expect(container.querySelectorAll('a[data-state="incomplete"]')).toHaveLength(5);
   });
 
   it('is one tab stop on the current stage, first stage when none is current', () => {
-    const { container, unmount } = render(StageControl, { props: { pathname: '/workflows' } });
+    const { container, unmount } = render(StageControl, { props: { pathname: '/workflows', evidence: null } });
     const stops = Array.from(container.querySelectorAll('a[tabindex="0"]'));
     expect(stops).toHaveLength(1);
     expect(stops[0]).toHaveTextContent('Delivery');
     unmount();
 
-    const home = render(StageControl, { props: { pathname: '/' } });
+    const home = render(StageControl, { props: { pathname: '/', evidence: null } });
     const homeStops = Array.from(home.container.querySelectorAll('a[tabindex="0"]'));
     expect(homeStops).toHaveLength(1);
     expect(homeStops[0]).toHaveTextContent('Source Intake');
   });
 
   it('moves focus between segments with the arrow, Home and End keys', async () => {
-    const { container } = render(StageControl, { props: { pathname: '/terminology' } });
+    const { container } = render(StageControl, { props: { pathname: '/terminology', evidence: null } });
     const links = Array.from(container.querySelectorAll('a')) as HTMLAnchorElement[];
 
     links[2]!.focus();

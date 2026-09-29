@@ -1,7 +1,7 @@
 /**
  * Tests for the ConfirmModal component.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import ConfirmModal from './ConfirmModal.svelte';
 
@@ -72,25 +72,36 @@ describe('ConfirmModal', () => {
       expect(dialog).toHaveAttribute('aria-modal', 'true');
     });
 
-    it('should have aria-labelledby for title', () => {
-      render(ConfirmModal, { props: { open: true } });
+    it('is labelled by its title and described by its message', () => {
+      render(ConfirmModal, { props: { open: true, title: 'Delete Item', message: 'This action cannot be undone.' } });
 
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toHaveAttribute('aria-labelledby', 'modal-title');
+      const dialog = screen.getByRole('dialog', { name: 'Delete Item' });
+      const described = document.getElementById(dialog.getAttribute('aria-describedby') ?? '');
+      expect(described).toHaveTextContent('This action cannot be undone.');
     });
 
-    it('should have aria-describedby for message', () => {
+    it('has a close button labelled for assistive tech', () => {
       render(ConfirmModal, { props: { open: true } });
 
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toHaveAttribute('aria-describedby', 'modal-message');
+      expect(screen.getByRole('button', { name: 'Close dialog' })).toBeInTheDocument();
     });
 
-    it('should have backdrop with close aria-label', () => {
-      render(ConfirmModal, { props: { open: true } });
+    it('cancels on Escape and dispatches cancel', async () => {
+      const onCancel = vi.fn();
+      render(ConfirmModal, { props: { open: true }, events: { cancel: onCancel } });
 
-      const backdrop = screen.getByRole('button', { name: 'Close dialog' });
-      expect(backdrop).toBeInTheDocument();
+      await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(onCancel).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('ignores Escape while loading', async () => {
+      render(ConfirmModal, { props: { open: true, loading: true } });
+
+      await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
   });
 
@@ -118,10 +129,10 @@ describe('ConfirmModal', () => {
       });
     });
 
-    it('should close when backdrop is clicked', async () => {
+    it('should close when the backdrop is clicked', async () => {
       render(ConfirmModal, { props: { open: true } });
 
-      const backdrop = screen.getByRole('button', { name: 'Close dialog' });
+      const backdrop = screen.getByRole('dialog').parentElement!;
       await fireEvent.click(backdrop);
 
       await waitFor(() => {
@@ -135,14 +146,14 @@ describe('ConfirmModal', () => {
       render(ConfirmModal, { props: { open: true } });
 
       const confirmButton = screen.getByRole('button', { name: 'Confirm' });
-      expect(confirmButton).toHaveClass('primary');
+      expect(confirmButton).toHaveAttribute('data-variant', 'primary');
     });
 
     it('should render with danger variant when specified', () => {
       render(ConfirmModal, { props: { open: true, variant: 'danger' } });
 
       const confirmButton = screen.getByRole('button', { name: 'Confirm' });
-      expect(confirmButton).toHaveClass('danger');
+      expect(confirmButton).toHaveAttribute('data-variant', 'danger');
     });
   });
 });

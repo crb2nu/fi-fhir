@@ -12,6 +12,7 @@
  */
 export { default as Badge } from './Badge.svelte';
 export { default as Button } from './Button.svelte';
+export { default as Dialog } from './Dialog.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
 export { default as Field } from './Field.svelte';
 export { default as Icon } from './Icon.svelte';
@@ -39,5 +40,6 @@ export type {
   PopoverTriggerProps,
   SelectOption,
   SortDirection,
+  TabBadge,
   TabItem
 } from './types';
