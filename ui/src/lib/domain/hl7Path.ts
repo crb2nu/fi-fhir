@@ -46,6 +46,8 @@ function isSegmentId(s: string): boolean {
  * - `PID.3[0]` (segment.field[repetitionIndex])
  * - `PID.3[0].1` (segment.field[repetitionIndex].component)
  * - `PV1-2` / `PV1-2.1` (segment-field(.component))
+ * - `PID-3[0]` / `PID-3[0].1` (segment-field[repetitionIndex](.component)),
+ *   the form the lineage panel and session diagnostics use
  */
 export function parseHL7Path(path: string | null | undefined): HL7PathLocation | null {
   const p = (path ?? '').trim();
@@ -69,72 +71,44 @@ export function parseHL7Path(path: string | null | undefined): HL7PathLocation |
   // Dot notation: SEG.N, optionally with [rep], optionally with .component
   {
     const m = /^([A-Z0-9]{3})(?:\[(\d+)\])?\.(\d+)(?:\[(\d+)\])?(?:\.(\d+))?$/.exec(p);
-    if (m) {
-      const segmentId = m[1]!;
-      const segmentOccurrence = m[2] !== undefined ? Number(m[2]) : null;
-      const field = Number(m[3]!);
-      const repetition = m[4] !== undefined ? Number(m[4]) : null;
-      const component = m[5] !== undefined ? Number(m[5]) : null;
-
-      if (!Number.isFinite(field) || field <= 0) return null;
-      if (segmentOccurrence !== null && (!Number.isFinite(segmentOccurrence) || segmentOccurrence < 0))
-        return null;
-
-      if (repetition !== null && component !== null) {
-        return {
-          kind: 'repetition_component',
-          segmentId,
-          ...(segmentOccurrence !== null ? { segmentOccurrence } : {}),
-          field,
-          repetition,
-          component
-        };
-      }
-      if (repetition !== null) {
-        return {
-          kind: 'repetition',
-          segmentId,
-          ...(segmentOccurrence !== null ? { segmentOccurrence } : {}),
-          field,
-          repetition
-        };
-      }
-      if (component !== null) {
-        return {
-          kind: 'component',
-          segmentId,
-          ...(segmentOccurrence !== null ? { segmentOccurrence } : {}),
-          field,
-          component
-        };
-      }
-      return { kind: 'field', segmentId, ...(segmentOccurrence !== null ? { segmentOccurrence } : {}), field };
-    }
+    if (m) return fieldLocation(m);
   }
 
-  // Dash notation: SEG-N, optionally .component
+  // Dash notation: SEG-N, optionally with [rep], optionally with .component
   {
-    const m = /^([A-Z0-9]{3})(?:\[(\d+)\])?-(\d+)(?:\.(\d+))?$/.exec(p);
-    if (m) {
-      const segmentId = m[1]!;
-      const segmentOccurrence = m[2] !== undefined ? Number(m[2]) : null;
-      const field = Number(m[3]!);
-      const component = m[4] !== undefined ? Number(m[4]) : null;
-      if (!Number.isFinite(field) || field <= 0) return null;
-      if (segmentOccurrence !== null && (!Number.isFinite(segmentOccurrence) || segmentOccurrence < 0))
-        return null;
-      if (component !== null) {
-        return {
-          kind: 'component',
-          segmentId,
-          ...(segmentOccurrence !== null ? { segmentOccurrence } : {}),
-          field,
-          component
-        };
-      }
-      return { kind: 'field', segmentId, ...(segmentOccurrence !== null ? { segmentOccurrence } : {}), field };
-    }
+    const m = /^([A-Z0-9]{3})(?:\[(\d+)\])?-(\d+)(?:\[(\d+)\])?(?:\.(\d+))?$/.exec(p);
+    if (m) return fieldLocation(m);
   }
 
   return null;
+}
+
+/**
+ * Builds a field-level location from a dot- or dash-notation match: groups are
+ * segment id, segment occurrence, field, field repetition and component.
+ * Dot and dash notation address the same thing, so they share this.
+ */
+function fieldLocation(m: RegExpExecArray): HL7PathLocation | null {
+  const segmentId = m[1]!;
+  const segmentOccurrence = m[2] !== undefined ? Number(m[2]) : null;
+  const field = Number(m[3]!);
+  const repetition = m[4] !== undefined ? Number(m[4]) : null;
+  const component = m[5] !== undefined ? Number(m[5]) : null;
+
+  if (!Number.isFinite(field) || field <= 0) return null;
+  if (segmentOccurrence !== null && (!Number.isFinite(segmentOccurrence) || segmentOccurrence < 0)) {
+    return null;
+  }
+  const occurrence = segmentOccurrence !== null ? { segmentOccurrence } : {};
+
+  if (repetition !== null && component !== null) {
+    return { kind: 'repetition_component', segmentId, ...occurrence, field, repetition, component };
+  }
+  if (repetition !== null) {
+    return { kind: 'repetition', segmentId, ...occurrence, field, repetition };
+  }
+  if (component !== null) {
+    return { kind: 'component', segmentId, ...occurrence, field, component };
+  }
+  return { kind: 'field', segmentId, ...occurrence, field };
 }
