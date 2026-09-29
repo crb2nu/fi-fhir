@@ -62,8 +62,20 @@
   import { resolveMapping } from '$lib/features/terminology/terminologyApi';
   import { toasts } from '$lib/ui/toastStore';
   import { SvelteSet } from 'svelte/reactivity';
-  import { createSession, integrationSessionEngineEnabled } from '$lib/features/integration-session';
-  import { accessCapabilities } from '$lib/graphql/accessCapabilities';
+  import {
+    createSession,
+    integrationSessionEngineEnabled,
+    isIntegrationSessionBuildEnabled,
+    projectSessionInspectorView,
+    projectSessionMeta
+  } from '$lib/features/integration-session';
+  import { accessCapabilities, capabilityOf, missingRolesFor } from '$lib/graphql/accessCapabilities';
+  import { replaceState } from '$app/navigation';
+  import History from '@lucide/svelte/icons/history';
+  import CheckCheck from '@lucide/svelte/icons/check-check';
+  import SessionSidebar from '$lib/features/integration-session/SessionSidebar.svelte';
+  import { createSessionWorkspace } from '$lib/features/integration-session/sessionWorkspace';
+  import { streamStatus } from '$lib/graphql/streamAvailability';
   import { createIntakeController } from '$lib/features/hl7/intake/intakeController';
   import { intakeEntry } from '$lib/features/hl7/intake/intakeState';
   import { compatibilityGrantPreflight, roleBlockedReason } from '$lib/features/access/rolePreflight';
@@ -124,8 +136,163 @@
     });
     const id = await creatingSession;
     pageSessionId ??= id;
+    void adoptSession(pageSessionId);
     return pageSessionId;
   }
+
+  // ── The session as a piece of work (.loom/42 E-3) ──────────────────────
+  // The sidebar reads the page's session back from the server (runs,
+  // diagnostics, publications, simulations), and `/hl7?session=<id>` reopens
+  // one: Home › Recent links here, and the page writes the parameter as soon
+  // as it has a session, so a reload comes back to the same work.
+  const workspace = createSessionWorkspace();
+  const workspaceState = workspace.state;
+  onDestroy(() => workspace.dispose());
+  let sessionRailOpen = true;
+  let shownRunId: string | null = null;
+  let acceptingFixes = false;
+  let acceptFixesError: string | null = null;
+  const sessionStream = streamStatus('integrationSessionEvents');
+
+  $: phiExport = {
+    allowed: capabilityOf($accessCapabilities, 'phiExport') !== false,
+    missing: missingRolesFor($accessCapabilities, 'phiExport')
+  };
+  $: sessionUnavailableReason = !isIntegrationSessionBuildEnabled()
+    ? 'This UI was built without the Integration Session engine (VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+    : capabilityOf($accessCapabilities, 'integrationSessions') === false
+      ? 'The API has no Integration Session workspace on this deployment (FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+      : $sessionStream.availability === 'unavailable'
+        ? 'The API cannot stream Integration Session runs here, so HL7 intake previews on the stateless path.'
+        : 'This identity has no Integration Session workspace on this deployment.';
+
+  /** Writes `?session=<id>` without a navigation, so a reload reopens this session. */
+  function setSessionUrl(id: string): void {
+    if (!browser) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('session') === id) return;
+    url.searchParams.set('session', id);
+    try {
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- the current page's own URL, with one query parameter set
+      replaceState(url, {});
+    } catch {
+      history.replaceState(history.state, '', url);
+    }
+  }
+
+  /** Opens `id` in the sidebar, or refreshes it (newest run selected) when it is already open. */
+  async function adoptSession(id: string): Promise<void> {
+    setSessionUrl(id);
+    const status = $workspaceState.status;
+    if (status.kind === 'ready' && status.sessionId === id) {
+      await workspace.refresh(true);
+      return;
+    }
+    if (status.kind === 'loading' && status.sessionId === id) return;
+    await workspace.open(id);
+  }
+
+  /** `/hl7?session=<id>`: reopen a session and show its newest run. */
+  async function openLinkedSession(id: string): Promise<void> {
+    if (!sessionEngineEnabled) {
+      workspace.markUnavailable(id);
+      return;
+    }
+    const opened = await workspace.open(id);
+    if (opened.status.kind !== 'ready') return;
+    // Later Previews and intake continue this session.
+    pageSessionId = id;
+    if (intakeEntryState.visible && !intakeEntryState.disabledReason) void intake.refresh();
+    const newest = opened.runs[0];
+    if (newest) await showRun(newest.id);
+  }
+
+  /** Loads a run of the page's session into the results pane. */
+  async function showRun(runId: string): Promise<void> {
+    const sessionId = pageSessionId ?? ($workspaceState.status.kind === 'ready' ? $workspaceState.status.sessionId : null);
+    if (!sessionId) return;
+    try {
+      const run = await workspace.runDetail(runId);
+      if (!run) {
+        state.update((s) => ({ ...s, error: `Run ${runId} is no longer in this session.` }));
+        return;
+      }
+      const streamState = run.status === 'completed' ? 'complete' : run.status === 'failed' ? 'error' : 'running';
+      const session = projectSessionMeta(sessionId, run.sampleId ?? '', run, streamState, null);
+      state.update((s) => ({
+        ...s,
+        loading: false,
+        error: null,
+        result: { parsePreview: projectSessionInspectorView(run), preview: null, session },
+        session
+      }));
+      setSessionDiagnostics(session);
+      shownRunId = run.id;
+      // A captured or peeked sample of this run is in Samples with its text:
+      // put it in the editor. A pasted sample's text stays on the server.
+      const captured = $samples.find((sample) => sample.session?.sampleId === run.sampleId);
+      if (captured) {
+        samplesStore.setActive(captured.id);
+        loadSample(captured);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      state.update((s) => ({ ...s, error: `Run ${runId} could not be read: ${message}` }));
+    }
+  }
+
+  /**
+   * Accepts the fix suggestion of the session diagnostic behind `warning`
+   * (diagnostics are the run's warnings, one for one: same code, path and
+   * message). WarningList's per-row callback (E-5) calls this; until then the
+   * Warnings header's "Accept fixes" does, for every open suggestion.
+   */
+  async function acceptFixForWarning(warning: WarningLike): Promise<boolean> {
+    const current = $state.session;
+    if (!current || current.mode !== 'session' || !current.id) return false;
+    const diagnostic = current.diagnostics.find(
+      (entry) =>
+        !entry.accepted &&
+        entry.code === warning.code &&
+        (entry.path ?? null) === (warning.path ?? null) &&
+        entry.message === warning.message
+    );
+    if (!diagnostic) return false;
+    const accepted = await workspace.acceptFix(diagnostic.id, current.id);
+    state.update((s) =>
+      s.session
+        ? {
+            ...s,
+            session: {
+              ...s.session,
+              diagnostics: s.session.diagnostics.map((entry) =>
+                entry.id === accepted.id ? { ...entry, accepted: true, acceptedAt: accepted.acceptedAt } : entry
+              )
+            }
+          }
+        : s
+    );
+    return true;
+  }
+
+  async function acceptOpenFixes(): Promise<void> {
+    acceptingFixes = true;
+    acceptFixesError = null;
+    try {
+      for (const warning of $state.result?.parsePreview.warnings ?? []) {
+        await acceptFixForWarning(warning);
+      }
+    } catch (error) {
+      acceptFixesError = error instanceof Error ? error.message : String(error);
+    } finally {
+      acceptingFixes = false;
+    }
+  }
+
+  $: sessionFixes = $state.session?.mode === 'session' ? $state.session.diagnostics.filter((d) => d.fixSuggestion) : [];
+  $: openFixes = sessionFixes.filter((d) => !d.accepted).length;
+  $: showSessionRail =
+    sessionRailOpen && (sessionEngineEnabled || $workspaceState.status.kind !== 'idle');
 
   // Sample intake from connections (.loom/38 C-3). The controller lives here,
   // not in the Samples tab, so a capture keeps arriving while another tab is open.
@@ -422,10 +589,13 @@
       lastRunRedactionMode =
         useRedactionForPreview && editorRedactionMode !== 'none' ? editorRedactionMode : 'none';
       state.update((s) => ({ ...s, loading: false, result, session: result.session ?? null }));
+      shownRunId = result.session?.runId ?? null;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       state.update((s) => ({ ...s, loading: false, error: msg }));
     }
+    // The run (or its failure) is now part of the session's history.
+    if (pageSessionId) void adoptSession(pageSessionId);
   }
 
   /**
@@ -969,6 +1139,9 @@
   })();
 
   onMount(() => {
+    const linkedSession = new URL(window.location.href).searchParams.get('session')?.trim();
+    if (linkedSession) void openLinkedSession(linkedSession);
+
     // Load a sample into the editor when the active sample *changes*. The
     // store re-emits on every samples update (a rename, tags, a removal of
     // another sample), and reloading then would overwrite the editor without
@@ -1092,6 +1265,18 @@
         on:change={loadFromFile}
         disabled={$state.loading}
       />
+      {#if sessionEngineEnabled || $workspaceState.status.kind !== 'idle'}
+        <Button
+          variant="ghost"
+          icon={History}
+          aria-pressed={sessionRailOpen}
+          title={sessionRailOpen ? 'Hide the session sidebar' : 'Show the session sidebar: runs, diagnostics, export'}
+          data-testid="hl7-session-toggle"
+          onclick={() => (sessionRailOpen = !sessionRailOpen)}
+        >
+          Session
+        </Button>
+      {/if}
       <Button
         variant="ghost"
         icon={FolderOpen}
@@ -1128,6 +1313,7 @@
   </div>
 
   <div class="workspace">
+    <div class="split-host">
     <SplitPane
       orientation="horizontal"
       initialSize={600}
@@ -1330,6 +1516,9 @@
               <div class="diagnostic">
                 <span class="mono">{diagnostic.code}</span>
                 <span class="diagnostic-message">{diagnostic.message}</span>
+                {#if diagnostic.accepted}
+                  <Badge tone="success">Fix accepted</Badge>
+                {/if}
                 {#if diagnostic.path}
                   <button
                     class="path-link mono"
@@ -1415,6 +1604,31 @@
             {#if !$state.result}
               <EmptyState align="start" message="Preview the message to list parse warnings by phase." />
             {:else}
+              {#if sessionFixes.length > 0}
+                <div class="warnings-head" data-testid="hl7-session-fixes" data-open={openFixes}>
+                  <span class="warnings-head-text">
+                    {sessionFixes.length - openFixes} of {sessionFixes.length} session fix suggestion{sessionFixes.length === 1
+                      ? ''
+                      : 's'} accepted
+                  </span>
+                  <Button
+                    variant="ghost"
+                    icon={CheckCheck}
+                    loading={acceptingFixes}
+                    disabled={openFixes === 0 || acceptingFixes}
+                    title={openFixes === 0
+                      ? 'Every fix suggestion of this run is accepted.'
+                      : 'Record that you accept the fix suggestion of every open diagnostic of this run'}
+                    data-testid="hl7-accept-fixes"
+                    onclick={() => void acceptOpenFixes()}
+                  >
+                    Accept fixes
+                  </Button>
+                </div>
+                {#if acceptFixesError}
+                  <p class="run-error" role="alert">Accepting fixes failed: {acceptFixesError}</p>
+                {/if}
+              {/if}
               <WarningList
                 groups={$warningsByPhase}
                 {selectedPath}
@@ -1542,6 +1756,19 @@
         </div>
       </div>
     </SplitPane>
+    </div>
+    {#if showSessionRail}
+      <SessionSidebar
+        {workspace}
+        view={$workspaceState}
+        {phiExport}
+        unavailableReason={sessionUnavailableReason}
+        {shownRunId}
+        onshowrun={(runId) => void showRun(runId)}
+        oninspectpath={inspectPath}
+        onclose={() => (sessionRailOpen = false)}
+      />
+    {/if}
   </div>
 </div>
 
@@ -1573,8 +1800,29 @@
   }
 
   .workspace {
+    display: flex;
     flex: 1 1 auto;
     min-height: 0;
+  }
+
+  .split-host {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .warnings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .warnings-head-text {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
   }
 
   /* ── Editor pane ───────────────────────────────────────────────────── */

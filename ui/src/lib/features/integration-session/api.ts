@@ -317,7 +317,7 @@ function projectExecutableProfile(profile: SourceProfile): Record<string, unknow
   };
 }
 
-function projectSessionInspectorView(
+export function projectSessionInspectorView(
   run: IntegrationSessionRunFieldsFragment
 ): ParsePreviewQuery['parsePreview'] {
   return {
@@ -329,7 +329,7 @@ function projectSessionInspectorView(
   };
 }
 
-function projectSessionMeta(
+export function projectSessionMeta(
   sessionId: string,
   sampleId: string,
   run: IntegrationSessionRunFieldsFragment,

@@ -31,6 +31,20 @@ const COMPLETED_RUN = {
   warnings: []
 };
 
+const SESSION_WORKSPACE = {
+  id: 'session-1',
+  name: 'HL7 source profile workspace',
+  description: null,
+  archived: false,
+  createdAt: '2026-01-01T09:00:00Z',
+  updatedAt: '2026-01-01T09:00:01Z',
+  samples: [],
+  currentProfileDraft: null,
+  currentWorkflowDraft: null,
+  workflowSimulations: [],
+  publications: []
+};
+
 function json(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 }
@@ -75,6 +89,11 @@ function fakeApi(options: { stream: 'open' | 'never'; failSampleOnCall?: number 
         return json({ data: { addSessionSample: { id: `sample-${sampleCalls}`, sessionId: 'session-1' } } });
       case 'RunStreamingSessionPreview':
         return json({ data: { runSessionPreview: COMPLETED_RUN } });
+      // The session sidebar reads the page's session back after each run (.loom/42 E-3).
+      case 'IntegrationSessionWorkspace':
+        return json({ data: { integrationSession: SESSION_WORKSPACE } });
+      case 'SessionRunHistory':
+        return json({ data: { sessionRuns: [] } });
       default:
         return json({ data: null, errors: [{ message: `unexpected operation ${operation}` }] });
     }
