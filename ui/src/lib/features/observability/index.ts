@@ -17,6 +17,4 @@ export {
   type ObservabilityState,
 } from './observabilityStore';
 
-export { default as MetricsPanel } from './MetricsPanel.svelte';
-export { default as LogViewer } from './LogViewer.svelte';
 export { default as AlertBadge } from './AlertBadge.svelte';

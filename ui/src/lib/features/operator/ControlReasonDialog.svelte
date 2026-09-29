@@ -10,10 +10,7 @@
    */
 
   import { createEventDispatcher } from 'svelte';
-  import { afterUpdate, tick } from 'svelte';
-  import X from '@lucide/svelte/icons/x';
-  import { Button, Field, IconButton, Input, Textarea } from '$lib/ui/primitives';
-  import { createDialogFocusController } from '$lib/domain/a11yDialog';
+  import { Button, Dialog, Field, Input, Textarea } from '$lib/ui/primitives';
   import {
     MAX_REASON_LENGTH,
     controlDraftReady,
@@ -44,9 +41,7 @@
   let idempotencyKey = '';
   let keyTouched = false;
   let attempted = false;
-  let dialogEl: HTMLDivElement | null = null;
   let wasOpen = false;
-  let focusCtl: ReturnType<typeof createDialogFocusController> | null = null;
   // Stable per dialog opening so retrying the identical intent reuses one key.
   let nonce = '';
 
@@ -62,24 +57,16 @@
     ? undefined
     : (issues.reason ?? issues.idempotencyKey ?? undefined);
 
-  afterUpdate(() => {
-    if (open && !wasOpen) {
+  // A fresh draft (and a fresh idempotency nonce) each time the dialog opens.
+  $: if (open !== wasOpen) {
+    if (open) {
       reason = '';
       keyTouched = false;
       attempted = false;
       nonce = Math.random().toString(36).slice(2, 10);
-      tick().then(() => {
-        if (!dialogEl) return;
-        focusCtl = createDialogFocusController(dialogEl);
-        focusCtl.focusInitial();
-      });
-    }
-    if (!open && wasOpen) {
-      focusCtl?.restoreFocus();
-      focusCtl = null;
     }
     wasOpen = open;
-  });
+  }
 
   function handleConfirm() {
     attempted = true;
@@ -90,145 +77,61 @@
   function handleCancel() {
     dispatch('cancel');
   }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      handleCancel();
-    }
-  }
 </script>
 
-{#if open}
-  <div
-    class="backdrop"
-    role="presentation"
-    on:click|self={handleCancel}
-    on:keydown={handleKeydown}
+<Dialog
+  {open}
+  {title}
+  description={description || undefined}
+  dismissible={!loading}
+  onclose={handleCancel}
+>
+  <Field
+    label="Reason"
+    id="control-reason"
+    required
+    hint="Recorded with your verified identity in the append-only audit trail."
+    error={attempted ? issues.reason : undefined}
   >
-    <div
-      class="dialog"
-      bind:this={dialogEl}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="control-dialog-title"
-      aria-describedby={description ? 'control-dialog-description' : undefined}
+    <Textarea
+      rows={3}
+      maxlength={MAX_REASON_LENGTH}
+      bind:value={reason}
+      placeholder="Why is this action necessary?"
+    />
+  </Field>
+
+  {#if requiresIdempotencyKey}
+    <Field
+      label="Idempotency key"
+      id="control-key"
+      hint="Derived from this action and reason. Repeating the identical request is a no-op."
+      error={issues.idempotencyKey}
     >
-      <header class="dialog-head">
-        <h2 id="control-dialog-title" class="title">{title}</h2>
-        <IconButton icon={X} label="Close dialog" onclick={handleCancel} disabled={loading} tabindex={-1} />
-      </header>
+      <Input bind:value={idempotencyKey} mono oninput={() => (keyTouched = true)} />
+    </Field>
+  {/if}
 
-      <div class="dialog-body">
-        {#if description}
-          <p id="control-dialog-description" class="description">{description}</p>
-        {/if}
+  {#if submitError}
+    <p class="submit-error" role="alert">{submitError}</p>
+  {/if}
 
-        <Field
-          label="Reason"
-          id="control-reason"
-          required
-          hint="Recorded with your verified identity in the append-only audit trail."
-          error={attempted ? issues.reason : undefined}
-        >
-          <Textarea
-            rows={3}
-            maxlength={MAX_REASON_LENGTH}
-            bind:value={reason}
-            placeholder="Why is this action necessary?"
-          />
-        </Field>
-
-        {#if requiresIdempotencyKey}
-          <Field
-            label="Idempotency key"
-            id="control-key"
-            hint="Derived from this action and reason. Repeating the identical request is a no-op."
-            error={issues.idempotencyKey}
-          >
-            <Input bind:value={idempotencyKey} mono oninput={() => (keyTouched = true)} />
-          </Field>
-        {/if}
-
-        {#if submitError}
-          <p class="submit-error" role="alert">{submitError}</p>
-        {/if}
-      </div>
-
-      <footer class="actions">
-        <Button variant="ghost" size="md" onclick={handleCancel} disabled={loading}>Cancel</Button>
-        <Button
-          {variant}
-          size="md"
-          onclick={handleConfirm}
-          disabled={!ready || loading}
-          {loading}
-          title={confirmBlockedReason}
-        >
-          {confirmText}
-        </Button>
-      </footer>
-    </div>
-  </div>
-{/if}
+  {#snippet footer()}
+    <Button variant="ghost" size="md" onclick={handleCancel} disabled={loading}>Cancel</Button>
+    <Button
+      {variant}
+      size="md"
+      onclick={handleConfirm}
+      disabled={!ready || loading}
+      {loading}
+      title={confirmBlockedReason}
+    >
+      {confirmText}
+    </Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-4);
-    background: var(--modal-backdrop);
-    z-index: var(--z-modal);
-  }
-
-  .dialog {
-    display: flex;
-    flex-direction: column;
-    width: min(32rem, 100%);
-    max-height: 90vh;
-    overflow: hidden;
-    background: var(--color-bg-overlay);
-    border: 1px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-xl);
-  }
-
-  .dialog-head {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    height: 40px;
-    padding: 0 var(--space-2) 0 var(--space-4);
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .title {
-    flex: 1 1 auto;
-    margin: 0;
-    font-family: var(--font-ui);
-    font-size: var(--text-lg);
-    font-weight: var(--font-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .dialog-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    overflow-y: auto;
-  }
-
-  .description {
-    margin: 0;
-    font-size: var(--text-ui);
-    line-height: var(--leading-ui);
-    color: var(--color-text-secondary);
-  }
-
   .submit-error {
     margin: 0;
     padding: var(--space-2) var(--space-3);
@@ -237,13 +140,5 @@
     background: var(--color-danger-bg);
     color: var(--color-danger-text);
     font-size: var(--text-xs);
-  }
-
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    border-top: 1px solid var(--color-border-subtle);
   }
 </style>
