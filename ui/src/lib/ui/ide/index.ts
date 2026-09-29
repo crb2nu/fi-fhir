@@ -23,12 +23,10 @@ export {
   openDocument,
   closeTab,
   closeDocument,
-  splitDocument,
   markDirty,
+  clearDirty,
+  isDirty,
   setActiveTab,
-  setSecondaryDocument,
-  toggleWorkspaceSplit,
-  setWorkspaceSplit,
   toggleBottomPanel,
   setBottomPanelHeight,
   setActivePanelTab,
@@ -38,6 +36,19 @@ export {
   resetIDEState,
   getIDEState,
 } from './ideStore';
+
+// Command registry (the one palette) and journey evidence
+export {
+  registerCommands,
+  registerCommand,
+  unregisterCommands,
+  unregisterCommand,
+  openPalette,
+  closePalette,
+  paletteOpen,
+  type Command,
+} from './commandRegistry';
+export { journeyEvidence, refreshJourneyEvidence } from './journeyState';
 
 // Keyboard shortcuts
 export { initKeyboardShortcuts } from './keyboardShortcuts';

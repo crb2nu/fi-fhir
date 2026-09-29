@@ -2,10 +2,11 @@
  * Tests for the merged IDE shell workspace behavior.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { get, writable } from 'svelte/store';
-import { ideState, resetIDEState } from './ideStore';
+import { ideState, markDirty, resetIDEState } from './ideStore';
+import { registerCommands, resetCommandRegistry } from './commandRegistry';
 import { takeConnectionsIntent } from '$lib/features/connections/connectionsIntent';
 
 const pageStore = writable({ url: new URL('http://localhost/hl7') });
@@ -18,6 +19,12 @@ vi.mock('$app/stores', () => ({ page: pageStore }));
 vi.mock('$app/navigation', () => ({ goto: gotoMock }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 
+const refreshJourneyEvidence = vi.fn(async () => {});
+vi.mock('./journeyState', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./journeyState')>()),
+  refreshJourneyEvidence,
+}));
+
 const { default: IDEShell } = await import('./IDEShell.svelte');
 
 // jsdom has no layout; the palette scrolls its active option into view.
@@ -26,7 +33,9 @@ Element.prototype.scrollIntoView ??= function scrollIntoView() {};
 describe('IDEShell workspace', () => {
   beforeEach(() => {
     gotoMock.mockClear();
+    refreshJourneyEvidence.mockClear();
     resetIDEState();
+    resetCommandRegistry();
     pageStore.set({ url: new URL('http://localhost/hl7') });
   });
 
@@ -76,16 +85,85 @@ describe('IDEShell workspace', () => {
     expect(get(ideState).activePanelTab).toBe('problems');
   });
 
-  it('toggles split workspace with Cmd+\\', async () => {
+  it('has no split workspace: Cmd+\\ is left alone', async () => {
     render(IDEShell);
     await tick();
 
-    expect(screen.queryByText('Split workspace')).not.toBeInTheDocument();
-
     await fireEvent.keyDown(window, { key: '\\', metaKey: true });
 
-    expect(screen.getByText('Split workspace')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Close split workspace' })).toBeInTheDocument();
+    expect(screen.queryByText('Split workspace')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close split workspace' })).not.toBeInTheDocument();
+  });
+
+  it('reads the journey evidence on mount and again on each route change', async () => {
+    render(IDEShell);
+    await tick();
+    expect(refreshJourneyEvidence).toHaveBeenCalledTimes(1);
+
+    pageStore.set({ url: new URL('http://localhost/profiles') });
+    await tick();
+    expect(refreshJourneyEvidence).toHaveBeenCalledTimes(2);
+
+    // Same route, new search params: no extra read.
+    pageStore.set({ url: new URL('http://localhost/profiles?tab=yaml') });
+    await tick();
+    expect(refreshJourneyEvidence).toHaveBeenCalledTimes(2);
+
+    // Leaving the journey reads again; moving between routes outside it does not.
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    await tick();
+    expect(refreshJourneyEvidence).toHaveBeenCalledTimes(3);
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    await tick();
+    expect(refreshJourneyEvidence).toHaveBeenCalledTimes(3);
+  });
+
+  it('asks before closing a tab with unsaved changes', async () => {
+    render(IDEShell);
+    await tick();
+    pageStore.set({ url: new URL('http://localhost/workflows') });
+    await tick();
+    markDirty('/workflows');
+    await tick();
+
+    expect(screen.getByRole('img', { name: 'Unsaved changes' })).toBeInTheDocument();
+    await fireEvent.click(screen.getByLabelText('Close Workflows'));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Close Workflows?' });
+    expect(dialog).toHaveTextContent('Workflows has changes that are not published yet.');
+    expect(screen.getByRole('button', { name: 'Close tab' })).toHaveAttribute('data-variant', 'secondary');
+    expect(gotoMock).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Keep open' }));
+    expect(screen.queryByRole('dialog', { name: 'Close Workflows?' })).not.toBeInTheDocument();
+    expect(get(ideState).documents.map((doc) => doc.id)).toContain('/workflows');
+
+    await fireEvent.click(screen.getByLabelText('Close Workflows'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    expect(get(ideState).documents.map((doc) => doc.id)).not.toContain('/workflows');
+    expect(gotoMock).toHaveBeenCalledWith('/hl7');
+  });
+
+  it('opens one palette on /hl7 with Cmd/Ctrl+K and the header button, listing route commands first', async () => {
+    const preview = vi.fn();
+    registerCommands('hl7', [{ id: 'preview', label: 'Preview (parse)', group: 'HL7', run: preview }], { priority: 10 });
+    render(IDEShell);
+    await tick();
+
+    await fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    const palette = await screen.findByRole('dialog', { name: 'Commands' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    const options = within(palette).getAllByRole('option');
+    expect(options[0]).toHaveTextContent('Preview (parse)');
+    expect(within(palette).getByRole('option', { name: /Go to Operator/ })).toBeInTheDocument();
+
+    await fireEvent.keyDown(within(palette).getByRole('textbox', { name: 'Search commands' }), { key: 'Enter' });
+    expect(preview).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Commands' })).not.toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Open commands' }));
+    expect(await screen.findByRole('dialog', { name: 'Commands' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
   });
 
   it('shows the stage breadcrumb for the current document', async () => {

@@ -18,7 +18,7 @@ describe('EditorTabs', () => {
       render(EditorTabs, { props: { tabs: defaultTabs, activeTabId: 'tab-1' } });
 
       expect(screen.getByRole('tab', { name: 'HL7 Message' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Workflow Config' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /^Workflow Config/ })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Event Log' })).toBeInTheDocument();
     });
 
@@ -39,7 +39,7 @@ describe('EditorTabs', () => {
     it('should mark active tab with aria-selected', () => {
       render(EditorTabs, { props: { tabs: defaultTabs, activeTabId: 'tab-2' } });
 
-      const activeTab = screen.getByRole('tab', { name: 'Workflow Config' });
+      const activeTab = screen.getByRole('tab', { name: /^Workflow Config/ });
       expect(activeTab).toHaveAttribute('aria-selected', 'true');
 
       const inactiveTab = screen.getByRole('tab', { name: 'HL7 Message' });
@@ -50,7 +50,7 @@ describe('EditorTabs', () => {
       render(EditorTabs, { props: { tabs: defaultTabs, activeTabId: 'tab-1' } });
 
       const activeTab = screen.getByRole('tab', { name: 'HL7 Message' });
-      expect(activeTab).toHaveClass('active');
+      expect(activeTab).toHaveClass('is-active');
     });
   });
 
@@ -95,6 +95,41 @@ describe('EditorTabs', () => {
     });
   });
 
+  describe('keyboard and primitive', () => {
+    it('is the Tabs primitive: one tab stop on the active tab', () => {
+      render(EditorTabs, { props: { tabs: defaultTabs, activeTabId: 'tab-3' } });
+
+      const tabs = screen.getAllByRole('tab');
+      expect(tabs.map((tab) => tab.getAttribute('tabindex'))).toEqual(['-1', '-1', '0']);
+      expect(tabs.every((tab) => tab.classList.contains('ui-tab'))).toBe(true);
+    });
+
+    it('closes the focused tab with Delete', async () => {
+      const closeFn = vi.fn();
+      render(EditorTabs, {
+        props: { tabs: defaultTabs, activeTabId: 'tab-1' },
+        events: { close: closeFn },
+      });
+
+      await fireEvent.keyDown(screen.getByRole('tab', { name: 'Event Log' }), { key: 'Delete' });
+      expect(closeFn.mock.calls[0]![0]!.detail).toBe('tab-3');
+    });
+
+    it('keeps the close buttons outside the tabs and out of the tab order', () => {
+      render(EditorTabs, { props: { tabs: defaultTabs, activeTabId: 'tab-1' } });
+
+      const close = screen.getByLabelText('Close HL7 Message');
+      expect(close.closest('[role="tab"]')).toBeNull();
+      expect(close).toHaveAttribute('tabindex', '-1');
+    });
+
+    it('announces an unsaved tab in its name', () => {
+      render(EditorTabs, { props: { tabs: defaultTabs, activeTabId: 'tab-1' } });
+
+      expect(screen.getByRole('tab', { name: 'Workflow Config Unsaved changes' })).toBeInTheDocument();
+    });
+  });
+
   describe('select event', () => {
     it('should dispatch select event when tab is clicked', async () => {
       const selectFn = vi.fn();
@@ -103,7 +138,7 @@ describe('EditorTabs', () => {
         events: { select: selectFn },
       });
 
-      const tab = screen.getByRole('tab', { name: 'Workflow Config' });
+      const tab = screen.getByRole('tab', { name: /^Workflow Config/ });
       await fireEvent.click(tab);
 
       expect(selectFn).toHaveBeenCalledTimes(1);
