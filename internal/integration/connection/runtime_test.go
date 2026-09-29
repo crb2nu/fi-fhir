@@ -205,3 +205,35 @@ func TestRuntimeStateForNamesTheMountedRevision(t *testing.T) {
 		t.Fatalf("a nil description yields %+v", state)
 	}
 }
+
+func TestRuntimeDescriptionObservationsReportsEveryAdapterAndDestination(t *testing.T) {
+	description := describedRuntime()
+	description.Adapters[1].SourceID = "adt-east"
+	description.Adapters[1].SourceRevisionID = "source-revision-2"
+	got := description.Observations()
+	want := []Observation{
+		{Adapter: AdapterHTTP, DefinitionID: "integration-adt", Digest: "sha256:" + strings.Repeat("1", 64)},
+		{Adapter: AdapterMLLP, DefinitionID: "adt-mllp", ArtifactID: "adt-east", RevisionID: "source-revision-2",
+			Digest: "sha256:" + strings.Repeat("2", 64)},
+		// Disabled: the row exists but names no document, even though the
+		// description carries a stale digest for it.
+		{Adapter: AdapterBatch},
+		{Adapter: AdapterDelivery},
+		{Adapter: ObservationDestinationPrefix + "dest-fhir", ArtifactID: "dest-fhir", RevisionID: "1",
+			Digest: "sha256:" + strings.Repeat("4", 64)},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Observations() returned %d rows, want %d: %+v", len(got), len(want), got)
+	}
+	for index := range want {
+		want[index].TenantID = "tenant-a"
+		want[index].ReplicaID = "host-1"
+		if got[index] != want[index] {
+			t.Errorf("row %d = %+v, want %+v", index, got[index], want[index])
+		}
+	}
+	var nilDescription *RuntimeDescription
+	if rows := nilDescription.Observations(); rows != nil {
+		t.Fatalf("nil description reported %+v", rows)
+	}
+}

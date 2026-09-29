@@ -270,6 +270,23 @@ type RuntimeState struct {
 	Digest     string
 }
 
+// Observation is one replica's heartbeat for one adapter: the row
+// integration_runtime_observations holds (.loom/39, "Convergence" step 1).
+// Adapter is an adapter kind (AdapterHTTP, AdapterMLLP, ...) or
+// ObservationDestinationPrefix + a destination artifact ID. The identity
+// fields are empty when the adapter is disabled or mounts no document.
+type Observation struct {
+	TenantID     string
+	ReplicaID    string
+	Adapter      string
+	DefinitionID string
+	ArtifactID   string
+	RevisionID   string
+	Digest       string
+	ObservedAt   time.Time
+	HeartbeatAt  time.Time
+}
+
 // Connection is the read projection of one draft: the draft itself, its
 // latest revision, the lifecycle definitions that reference any of its
 // revisions, and this replica's runtime state for it.

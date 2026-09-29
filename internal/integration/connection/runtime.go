@@ -357,3 +357,45 @@ func runtimeStateFor(revisions []RevisionDigest, mounted map[string]MountedDiges
 	}
 	return RuntimeState{}
 }
+
+// ObservationDestinationPrefix prefixes the adapter of one destination's
+// observation row: "destination:<artifact id>".
+const ObservationDestinationPrefix = "destination:"
+
+// Observations is what this replica reports on every heartbeat: one row per
+// adapter in AdapterOrder, enabled or not, and one per destination of the
+// delivery identity registry. A disabled adapter's row names no document, so
+// a reader can tell "this replica runs no MLLP listener" from "this replica
+// has not reported". The rows carry no heartbeat time; the store stamps it.
+func (d *RuntimeDescription) Observations() []Observation {
+	if d == nil {
+		return nil
+	}
+	observations := make([]Observation, 0, len(d.Adapters))
+	for _, adapter := range d.Adapters {
+		observation := Observation{TenantID: d.TenantID, ReplicaID: d.ReplicaID, Adapter: adapter.Kind}
+		if adapter.Enabled {
+			observation.DefinitionID = adapter.DefinitionID
+			observation.ArtifactID = adapter.SourceID
+			observation.RevisionID = adapter.SourceRevisionID
+			observation.Digest = adapter.SourceDigest
+		}
+		observations = append(observations, observation)
+	}
+	if d.DestinationIdentity != nil {
+		for _, destination := range d.DestinationIdentity.Destinations {
+			if destination.ArtifactID == "" {
+				continue
+			}
+			observations = append(observations, Observation{
+				TenantID:   d.TenantID,
+				ReplicaID:  d.ReplicaID,
+				Adapter:    ObservationDestinationPrefix + destination.ArtifactID,
+				ArtifactID: destination.ArtifactID,
+				RevisionID: destination.RevisionID,
+				Digest:     destination.Digest,
+			})
+		}
+	}
+	return observations
+}
