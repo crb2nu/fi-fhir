@@ -3,6 +3,13 @@
  *
  * Tabs are route documents (WorkspaceDocument). The editor-less artifact
  * document types were removed; `loadLayout` drops any a stored layout holds.
+ *
+ * Unsaved state: a feature with a draft that is not on the server calls
+ * `markDirty(tabId)` (the tab id is the route, e.g. '/profiles') and
+ * `clearDirty(tabId)` once it is saved or discarded. The editor tab shows a
+ * dot and closing it asks first. Dirty marks are kept for routes whose tab is
+ * not open, are never persisted, and a reload starts clean (in-memory drafts
+ * do not survive one).
  */
 import { writable, derived, get } from 'svelte/store';
 import type {
@@ -23,7 +30,6 @@ const LAYOUT_KEY = 'fi-fhir-ide-layout';
 interface PersistedLayout {
   openTabs: WorkspaceDocument[];
   activeTabId: string | null;
-  workspaceSplit: boolean;
   bottomPanelOpen: boolean;
   activePanelTab: PanelTab;
   activeView: IDEView;
@@ -53,7 +59,6 @@ function loadLayout(): PersistedLayout | null {
     // Validate required fields
     if (!Array.isArray(obj['openTabs'])) return null;
     if (typeof obj['activeTabId'] !== 'string' && obj['activeTabId'] !== null) return null;
-    if (typeof obj['workspaceSplit'] !== 'boolean') return null;
     if (typeof obj['bottomPanelOpen'] !== 'boolean') return null;
     if (typeof obj['activePanelTab'] !== 'string' || !VALID_PANEL_TABS.has(obj['activePanelTab'] as PanelTab)) return null;
     if (typeof obj['activeView'] !== 'string' || !VALID_VIEWS.has(obj['activeView'] as IDEView)) return null;
@@ -65,6 +70,7 @@ function loadLayout(): PersistedLayout | null {
       .map((doc) => ({
         ...doc,
         title: getWorkspaceTabTitle(doc.path ?? doc.route ?? doc.id, doc.view),
+        dirty: false,
       }));
     const storedActive = obj['activeTabId'] as string | null;
     const activeTabId = openTabs.some((doc) => doc.id === storedActive)
@@ -74,7 +80,6 @@ function loadLayout(): PersistedLayout | null {
     return {
       openTabs,
       activeTabId,
-      workspaceSplit: obj['workspaceSplit'] as boolean,
       bottomPanelOpen: obj['bottomPanelOpen'] as boolean,
       activePanelTab: obj['activePanelTab'] as PanelTab,
       activeView: obj['activeView'] as IDEView,
@@ -88,9 +93,8 @@ function saveLayout(state: IDEState): void {
   if (typeof window === 'undefined') return;
   try {
     const layout: PersistedLayout = {
-      openTabs: state.openTabs,
+      openTabs: state.openTabs.map((doc) => ({ ...doc, dirty: false })),
       activeTabId: state.activeTabId,
-      workspaceSplit: state.workspaceSplit,
       bottomPanelOpen: state.bottomPanelOpen,
       activePanelTab: state.activePanelTab,
       activeView: state.activeView,
@@ -224,8 +228,8 @@ interface InternalIDEState {
   activeView: IDEView;
   documents: WorkspaceDocument[];
   activeDocumentId: string | null;
-  secondaryDocumentId: string | null;
-  workspaceSplit: boolean;
+  /** Tab ids with unsaved changes (see markDirty). */
+  dirtyIds: string[];
   bottomPanelOpen: boolean;
   bottomPanelHeight: number;
   activePanelTab: PanelTab;
@@ -238,8 +242,7 @@ function createInitialState(): InternalIDEState {
     activeView: 'hl7',
     documents: [],
     activeDocumentId: null,
-    secondaryDocumentId: null,
-    workspaceSplit: false,
+    dirtyIds: [],
     bottomPanelOpen: false,
     bottomPanelHeight: loadNumber(BOTTOM_PANEL_HEIGHT_KEY, 200),
     activePanelTab: 'output',
@@ -252,11 +255,19 @@ const _store = writable<InternalIDEState>(createInitialState());
  * Public ideState derived store that exposes the full IDEState interface
  * including backward-compat aliases (openTabs, activeTabId).
  */
-export const ideState = derived(_store, ($s): IDEState => ({
-  ...$s,
-  openTabs: $s.documents,
-  activeTabId: $s.activeDocumentId,
-}));
+export const ideState = derived(_store, ($s): IDEState => {
+  const { dirtyIds, ...rest } = $s;
+  const documents = $s.documents.map((doc) => {
+    const dirty = dirtyIds.includes(doc.id);
+    return doc.dirty === dirty ? doc : { ...doc, dirty };
+  });
+  return {
+    ...rest,
+    documents,
+    openTabs: documents,
+    activeTabId: $s.activeDocumentId,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Sidebar / layout actions
@@ -278,25 +289,6 @@ export function setSidebarWidth(width: number): void {
 
 export function setActiveView(view: IDEView): void {
   _store.update((s) => ({ ...s, activeView: view }));
-}
-
-export function toggleWorkspaceSplit(): void {
-  _store.update((s) => {
-    const next = !s.workspaceSplit;
-    return {
-      ...s,
-      workspaceSplit: next,
-      secondaryDocumentId: next ? s.activeDocumentId : null,
-    };
-  });
-}
-
-export function setWorkspaceSplit(enabled: boolean): void {
-  _store.update((s) => ({
-    ...s,
-    workspaceSplit: enabled,
-    secondaryDocumentId: enabled ? s.activeDocumentId : null,
-  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -342,16 +334,10 @@ export function closeDocument(id: string): void {
       }
     }
 
-    let nextSecondary = s.secondaryDocumentId;
-    if (nextSecondary === id) {
-      nextSecondary = nextActive;
-    }
-
     return {
       ...s,
       documents: next,
       activeDocumentId: nextActive,
-      secondaryDocumentId: nextSecondary,
     };
   });
 }
@@ -361,32 +347,32 @@ export function closeTab(tabId: string): void {
   closeDocument(tabId);
 }
 
-/** Move a document into the secondary split pane. */
-export function splitDocument(id: string): void {
-  _store.update((s) => ({
-    ...s,
-    workspaceSplit: true,
-    secondaryDocumentId: id,
-  }));
+/**
+ * Marks a tab (by id, i.e. its route: '/profiles') as holding changes that are
+ * not saved on the server; `markDirty(id, false)` is `clearDirty(id)`.
+ */
+export function markDirty(id: string, dirty = true): void {
+  if (!dirty) {
+    clearDirty(id);
+    return;
+  }
+  _store.update((s) => (s.dirtyIds.includes(id) ? s : { ...s, dirtyIds: [...s.dirtyIds, id] }));
 }
 
-/** Toggle dirty flag on a document. */
-export function markDirty(id: string, dirty: boolean): void {
-  _store.update((s) => ({
-    ...s,
-    documents: s.documents.map((d) =>
-      d.id === id ? { ...d, dirty } : d
-    ),
-  }));
+/** The tab's changes were saved or discarded. */
+export function clearDirty(id: string): void {
+  _store.update((s) =>
+    s.dirtyIds.includes(id) ? { ...s, dirtyIds: s.dirtyIds.filter((entry) => entry !== id) } : s
+  );
+}
+
+/** Whether a tab id currently holds unsaved changes. */
+export function isDirty(id: string): boolean {
+  return get(_store).dirtyIds.includes(id);
 }
 
 export function setActiveTab(tabId: string): void {
   _store.update((s) => ({ ...s, activeDocumentId: tabId }));
-}
-
-/** Set the document shown in the secondary pane. */
-export function setSecondaryDocument(id: string | null): void {
-  _store.update((s) => ({ ...s, secondaryDocumentId: id }));
 }
 
 // ---------------------------------------------------------------------------
@@ -444,7 +430,6 @@ export function restoreLayout(): boolean {
     ...s,
     documents: saved.openTabs,
     activeDocumentId: saved.activeTabId,
-    workspaceSplit: saved.workspaceSplit,
     bottomPanelOpen: saved.bottomPanelOpen,
     activePanelTab: saved.activePanelTab,
     activeView: saved.activeView,

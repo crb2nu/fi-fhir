@@ -1,10 +1,14 @@
 import type { IDEAppRoute } from './types';
 
 /**
- * The five integration stages as navigation: which route each stage lives on,
- * which stage a pathname belongs to, and which stage comes next. The header's
- * stage control and the status bar's `Next:` item read this model; it holds
- * labels and routes only — no copy.
+ * The five integration stages as navigation, and their state from evidence:
+ * which route each stage lives on, which stage a pathname belongs to, whether
+ * each stage's evidence exists (journeyState.ts reads it), and which stage to
+ * offer as `Next:`. The header's stage control, the status bar's `Next:` item
+ * and the sidebar's stage badge read this model.
+ *
+ * A stage is complete only when its evidence exists — never because its route
+ * comes before the current one (.loom/42 decision 6).
  */
 
 export type JourneyStageId =
@@ -14,7 +18,22 @@ export type JourneyStageId =
   | 'delivery'
   | 'verification';
 
-export type JourneyStageState = 'complete' | 'current' | 'upcoming';
+/**
+ * - `complete`: the stage's evidence exists.
+ * - `incomplete`: the evidence query answered, and there is none yet.
+ * - `unknown`: the query is not allowed for this identity, the capability is
+ *   not configured, or the query failed; rendered as not complete.
+ * - `pending`: not checked yet.
+ */
+export type JourneyStageState = 'complete' | 'incomplete' | 'unknown' | 'pending';
+
+/** One stage's evidence: its state and one sentence saying why. */
+export interface StageEvidence {
+  state: Exclude<JourneyStageState, 'pending'>;
+  reason: string;
+}
+
+export type JourneyEvidence = Record<JourneyStageId, StageEvidence>;
 
 export interface JourneyStage {
   id: JourneyStageId;
@@ -25,6 +44,10 @@ export interface JourneyStage {
 
 export interface JourneyStepState extends JourneyStage {
   state: JourneyStageState;
+  /** The route belongs to this stage. */
+  current: boolean;
+  /** Why the stage is in its state; "" while pending. */
+  reason: string;
 }
 
 export interface JourneyState {
@@ -32,10 +55,12 @@ export interface JourneyState {
   /** The stage the pathname belongs to; null on routes outside the stages. */
   stage: JourneyStage | null;
   /**
-   * The stage to offer as `Next:`. The following stage on a stage route (none
-   * after the last), Source Intake from the dashboard, nothing elsewhere.
+   * The stage to offer as `Next:` — the earliest stage, other than the
+   * current one, whose evidence query answered with nothing yet. Null until
+   * the evidence is known, when no stage is incomplete, and off the stage
+   * routes and Home (Connections, Operator).
    */
-  nextStage: JourneyStage | null;
+  nextStage: JourneyStepState | null;
   stageIndex: number;
   totalStages: number;
   steps: JourneyStepState[];
@@ -70,26 +95,25 @@ export function getJourneyStage(pathname: string): JourneyStage | null {
   return journeyStages.find((stage) => matchesStageRoute(normalized, stage.route)) ?? null;
 }
 
-export function getJourneyState(pathname: string): JourneyState {
+export function getJourneyState(pathname: string, evidence: JourneyEvidence | null = null): JourneyState {
   const normalized = normalizePathname(pathname);
   const stage = getJourneyStage(normalized);
   const stageIndex = stage ? stage.order - 1 : -1;
 
-  let nextStage: JourneyStage | null = null;
-  if (stage) {
-    nextStage = journeyStages[stage.order] ?? null;
-  } else if (normalized === '/') {
-    nextStage = journeyStages[0] ?? null;
-  }
-
   const steps: JourneyStepState[] = journeyStages.map((step) => {
-    let state: JourneyStageState = 'upcoming';
-    if (stage) {
-      if (step.order < stage.order) state = 'complete';
-      else if (step.order === stage.order) state = 'current';
-    }
-    return { ...step, state };
+    const known = evidence?.[step.id];
+    return {
+      ...step,
+      current: stage?.id === step.id,
+      state: known?.state ?? 'pending',
+      reason: known?.reason ?? '',
+    };
   });
+
+  let nextStage: JourneyStepState | null = null;
+  if (evidence && (stage || normalized === '/')) {
+    nextStage = steps.find((step) => !step.current && step.state === 'incomplete') ?? null;
+  }
 
   return {
     currentRoute: normalized,
@@ -99,4 +123,24 @@ export function getJourneyState(pathname: string): JourneyState {
     totalStages: journeyStages.length,
     steps,
   };
+}
+
+/** "complete" / "not complete" / "unknown" / "not checked yet", for labels. */
+export function stageStateWord(state: JourneyStageState): string {
+  switch (state) {
+    case 'complete':
+      return 'complete';
+    case 'incomplete':
+      return 'not complete';
+    case 'unknown':
+      return 'unknown';
+    default:
+      return 'not checked yet';
+  }
+}
+
+/** A stage's tooltip: "Stage 2 of 5: Normalization — complete. 1 published profile." */
+export function stageTitle(step: JourneyStepState, total: number): string {
+  const head = `Stage ${step.order} of ${total}: ${step.label} — ${stageStateWord(step.state)}.`;
+  return step.reason ? `${head} ${step.reason}` : head;
 }

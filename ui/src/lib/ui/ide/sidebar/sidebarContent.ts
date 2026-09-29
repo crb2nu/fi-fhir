@@ -1,5 +1,5 @@
 import type { IDEAppRoute } from '../types';
-import { getJourneyState } from '../journey';
+import { getJourneyState, type JourneyEvidence } from '../journey';
 
 export type SidebarView =
   | 'home'
@@ -147,11 +147,14 @@ export function getSidebarView(pathname: string): SidebarView {
   return 'home';
 }
 
-export function getSidebarContext(pathname: string): SidebarContext & { journey: ReturnType<typeof getJourneyState> } {
+export function getSidebarContext(
+  pathname: string,
+  evidence: JourneyEvidence | null = null
+): SidebarContext & { journey: ReturnType<typeof getJourneyState> } {
   const view = getSidebarView(pathname);
   return {
     ...contexts[view],
-    journey: getJourneyState(pathname),
+    journey: getJourneyState(pathname, evidence),
   };
 }
 
