@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### End-to-end demo guide (2026-09-28)
+
+- **Documentation** — `docs/user-guide/demo-end-to-end.md`: the operator's script for the LAN demo environment (`platform/gitops/k3s/fi-fhir/demo/`: SFTP drop, S3 bucket, single-node Kafka, HAPI "St. Elsewhere" hospital), with a synthetic ADT^A01 batch, the drop recipes, the Connections-page values that reproduce the mounted source digests, and the honest state of ingestion: the deployed API polls as definition `sftp-test-demo`, which nothing outside tests can create yet. Records the two ways to close that (a `lifecycle seed` command mirroring `deployBatchRevision` in the batch proof, or the definition editor).
+
 ### IDE design uplift — a calm, dense, precise Mapping Studio (2026-09-26)
 
 - **Evidence and direction (spec `.loom/37`, MR !232)** — 1440×900 screenshots of every production route showed four navigation layers above the content (the credential strip, a five-stage journey band with a "NEXT UP" card, an H1 hero with subtitle, and numbered stepper pills), marketing copy ("Build the interface from source to destination", "Mission control", "Recommended move"), simulated alerts labelled "Demo data" on the home page, and gradients, glows, pill badges and large cards where records belonged. The direction: neutral dark greys and one accent, 13 px UI type, 28 px controls, 36 px toolbars, tables for records, a page is a toolbar and its content, no simulated data.
