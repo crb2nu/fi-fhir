@@ -387,3 +387,170 @@ test('10. intake: a capture armed on the compiled MLLP source of check 7 shows i
   expect(watch.graphql.filter((request) => selects(request, 'connectionCaptures'))).toHaveLength(polls);
   expect(watch.errorToasts).toEqual([]);
 });
+
+// --- .loom/42 E-1: definition authoring ---------------------------------------
+
+/** The destination the golden registry's adt-east workflow delivers to. */
+const E1_DESTINATION = {
+  id: 'fhir-primary',
+  spec: {
+    destination_id: 'fhir-primary',
+    class: 'sandbox',
+    fhir: { base_url: 'https://fhir.example.test/r4', token_binding: 'fhir-token', interaction: 'transaction' }
+  },
+  // A reference, never a value: the key names where the token would live.
+  secretBindings: [{ name: 'fhir-token', provider: 'env', key: 'FI_FHIR_CONNECTION_SECRET_E2E_FHIR_TOKEN' }]
+} as const;
+
+type E1Connection = { id: string; kind: string; version: number; latestRevision: { revisionId: string } | null };
+
+/**
+ * Setup through the API, not the surface under test: a compiled fhir-primary
+ * destination and a compiled MLLP source (check 7's, or one of its own when
+ * run alone). Both are reused on a kept stack.
+ */
+async function e1CompiledConnections(request: import('@playwright/test').APIRequestContext): Promise<string> {
+  const fields = '{ id kind version latestRevision { revisionId } }';
+  const compile = async (connection: E1Connection) => {
+    if (connection.latestRevision) return;
+    await graphqlData(request, `mutation Op($input: ConnectionCommandInput!) { compileConnection(input: $input) { revision { revisionId } } }`, {
+      input: { id: connection.id, expectedVersion: connection.version, reason: 'E1 setup: compile' }
+    });
+  };
+  const { connection: existing } = await graphqlData<{ connection: E1Connection | null }>(
+    request,
+    `query Op { connection(id: "${E1_DESTINATION.id}") ${fields} }`
+  );
+  const destination =
+    existing ??
+    (
+      await graphqlData<{ createConnection: E1Connection }>(
+        request,
+        `mutation Op($input: CreateConnectionInput!) { createConnection(input: $input) ${fields} }`,
+        {
+          input: {
+            id: E1_DESTINATION.id, direction: 'DESTINATION', kind: 'FHIR', name: 'E1 hospital FHIR (sandbox)',
+            spec: E1_DESTINATION.spec, secretBindings: E1_DESTINATION.secretBindings, reason: 'E1 setup: declare the destination'
+          }
+        }
+      )
+    ).createConnection;
+  await compile(destination);
+
+  const { connections } = await graphqlData<{ connections: E1Connection[] }>(
+    request,
+    `query Op { connections(direction: SOURCE) ${fields} }`
+  );
+  let source = connections.find((candidate) => candidate.kind === 'MLLP' && candidate.latestRevision) ?? null;
+  if (!source) {
+    const spec = {
+      source_id: 'e1-adt-east', listen_address: '0.0.0.0:22576', encoding: 'utf-8',
+      framing: { start_byte: 11, end_byte: 28, trailer_byte: 13 },
+      timeouts: { read_seconds: 5, write_seconds: 5, idle_seconds: 60, process_seconds: 30 },
+      tls: { mode: 'disabled' }, clients: { allowed_cidrs: ['192.0.2.0/24'] },
+      acknowledgements: { mode: 'application', include_error_segment: false },
+      max_message_bytes: 1048576, max_connections: 16
+    };
+    source = (
+      await graphqlData<{ createConnection: E1Connection }>(
+        request,
+        `mutation Op($input: CreateConnectionInput!) { createConnection(input: $input) ${fields} }`,
+        {
+          input: {
+            id: `e1-mllp-${Date.now().toString(36)}`, direction: 'SOURCE', kind: 'MLLP', name: 'E1 MLLP east',
+            spec, reason: 'E1 setup: declare the source'
+          }
+        }
+      )
+    ).createConnection;
+    await compile(source);
+  }
+  return source.id;
+}
+
+/** Confirms the reason dialog the Definitions tab opened. */
+async function e1Confirm(page: Page, confirm: string, field: string, reason: string) {
+  const answered = page.waitForResponse((response) => selects(response.request(), field), { timeout: 15_000 });
+  const dialog = page.getByTestId('connection-reason-dialog');
+  await dialog.getByRole('textbox', { name: /Reason/ }).fill(reason);
+  await dialog.getByRole('button', { name: confirm, exact: true }).click();
+  const response = await answered;
+  const body = (await response.json()) as { errors?: unknown[] };
+  expect(body.errors ?? [], `${field} answered without GraphQL errors`).toEqual([]);
+  await expect(dialog).toHaveCount(0);
+}
+
+test('E1-1. definitions: an MLLP source becomes a published definition through the Definitions tab, and Operator offers Deploy', async ({
+  page,
+  request
+}, testInfo) => {
+  const status = await fetchAuthStatus(request, testInfo);
+  expect(status.capabilities).toMatchObject({ definitionAuthoring: true });
+  const sourceId = await e1CompiledConnections(request);
+  const definitionId = `e1-adt-east-${Date.now().toString(36)}`;
+  const watch = await watchPage(page);
+
+  await openIDE(page, '/connections');
+  await page.getByTestId('connections-tab-definitions').click();
+  await expect(page.getByTestId('definitions-preflight')).toHaveCount(0);
+  await page.getByTestId('definitions-new').click();
+  const form = page.getByTestId('definition-new');
+  await form.getByTestId('definition-new-id').fill(definitionId);
+  await form.getByTestId('definition-new-source').selectOption(sourceId);
+  await form.getByTestId('definition-new-artifacts').selectOption('adt-east');
+  await form.locator(`[data-destination="${E1_DESTINATION.id}"]`).check();
+  // The destination's binding is derived as its own reference.
+  await expect(form.getByLabel('fhir-token key')).toHaveValue(E1_DESTINATION.secretBindings[0].key);
+  await expect(form.getByTestId('definition-create')).toBeDisabled();
+
+  // Check: every pre-flight the seed runs, and no write.
+  await form.getByTestId('definition-check').click();
+  await expect(form.getByTestId('definition-problems')).toHaveAttribute('data-blocking', 'false');
+  await form.getByTestId('definition-create').click();
+  await e1Confirm(page, 'Create draft', 'createIntegrationDefinitionDraft', 'E1: author the east MLLP definition');
+
+  const details = page.getByTestId('definition-details');
+  await expect(details).toHaveAttribute('data-state', 'draft');
+
+  // STATIC contacts nothing and says so: this stack mounts no MLLP listener
+  // (check 9), so the evidence is recorded as failed, SOURCE_NOT_MOUNTED.
+  await details.getByTestId('definition-mode-static').check();
+  await details.getByTestId('definition-validate').click();
+  await e1Confirm(page, 'Record validation', 'validateIntegrationDefinition', 'E1: static check of the east source');
+  await expect(details.getByTestId('definition-validation')).toContainText('VALIDATION_STATIC');
+  await expect(details.getByTestId('definition-validation')).toContainText('SOURCE_NOT_MOUNTED');
+  await expect(details).toHaveAttribute('data-state', 'draft');
+  // REAL is not offered: this replica mounts no batch source.
+  await expect(details.getByTestId('definition-mode-real')).toBeDisabled();
+
+  await details.getByTestId('definition-mode-skip').check();
+  await details.getByTestId('definition-validate').click();
+  await e1Confirm(page, 'Record validation', 'validateIntegrationDefinition', 'E1: smoke stack has no listener, skipping the check');
+  await expect(details).toHaveAttribute('data-state', 'validated');
+  await expect(details.getByTestId('definition-validation')).toContainText('VALIDATION_SKIPPED');
+
+  await details.getByTestId('definition-approve').click();
+  await e1Confirm(page, 'Approve', 'approveIntegrationDefinition', 'E1: approve the east definition');
+  await expect(details).toHaveAttribute('data-state', 'approved');
+  await details.getByTestId('definition-publish').click();
+  await e1Confirm(page, 'Publish release', 'publishIntegrationDefinition', 'E1: publish the east definition');
+  await expect(details).toHaveAttribute('data-state', 'published');
+  await details.getByTestId('definition-tab-release').click();
+  await expect(details.getByTestId('definition-release')).toContainText('sha256:');
+  await details.getByTestId('definition-tab-history').click();
+  await expect(details.getByTestId('definition-history')).toContainText('publish');
+
+  const deployLink = details.getByTestId('definition-deploy-link');
+  await expect(deployLink).toHaveAttribute('href', `/operator?definition=${definitionId}&revision=v1`);
+  await deployLink.click();
+  await expect(page).toHaveURL(/\/operator\?definition=/);
+  await page.getByRole('tab', { name: 'Deployments' }).click();
+  const row = page.getByRole('row').filter({ hasText: definitionId });
+  await expect(row).toHaveCount(1);
+  await expect(row.getByRole('button', { name: 'Deploy', exact: true })).toBeEnabled();
+  expect(watch.errorToasts).toEqual([]);
+
+  // The deep link opens the same definition on a fresh load.
+  await openIDE(page, `/connections?definition=${definitionId}&revision=v1`);
+  await expect(page.getByTestId('definition-details')).toHaveAttribute('data-state', 'published');
+});

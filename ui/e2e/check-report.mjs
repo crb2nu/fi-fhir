@@ -18,6 +18,9 @@ const required = {
   ]
 };
 
+// .loom/42 E-1: definition authoring.
+required['operator-bundle'].push('E1-1.'); required['preview-only'].push('E1-2.');
+
 const [reportPath] = process.argv.slice(2);
 if (!reportPath) {
   console.error('usage: check-report.mjs <report.json>');

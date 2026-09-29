@@ -323,6 +323,93 @@ Every capture and peek, including a listing, is one audited row: who, why,
 which session, which source or connection and digest, which object, the limits,
 the count, and how it finished.
 
+## Definitions
+
+A connection alone runs nothing. An **integration definition** binds one
+compiled source revision, a profile and workflow, and one or more compiled
+destination revisions into the unit the lifecycle catalog deploys. The
+**Definitions** tab (Sources · Destinations · Definitions · Engine) authors
+them with the same code `fi-fhir lifecycle seed` uses, so a definition written
+here and one seeded from the CLI with the same inputs have the same digest.
+
+The tab says what it cannot do before it tries:
+
+| You see | Meaning | Fix |
+|---|---|---|
+| "Definition authoring is not configured on this deployment." | `capabilities.definitionAuthoring` is false and no role is missing: `serve` has no lifecycle catalog, connection catalog, or static registry. | As for the catalog above; `serve` always loads `FI_FHIR_INTEGRATION_REGISTRY_PATH`. |
+| "Definitions need `integration.operator` …" | The identity cannot read. Nothing is queried. | Grant `integration.operator`. |
+| A read-only status line | The identity reads but lacks `integration.deployment.operator`. | Grant it as well. |
+
+### The table
+
+One row per definition revision: its state (`draft`, `validated`, `approved`,
+`published`, `deployed`, `paused`, `retired`), health, whether its
+connection-validation evidence is **Current**, **Expired**, **Failed**, or
+absent, its release, and the source and destinations it binds. Retired
+revisions are hidden until **Show retired**. `/connections?definition=<id>&revision=<id>`
+opens one directly.
+
+The details pane has four views: **Overview** (every ref with its digest, the
+secret binding references, data handling and deployment policy, the
+definition's own digest), **Validation** (the current record's codes, when it
+was checked and when it expires, and which exact source revision it was
+recorded against), **Release** (the approval and the immutable release record
+with its digest), and **History** (every lifecycle transition, with actor and
+reason).
+
+### New definition
+
+1. **Definition ID and revision ID.** Revisions are append-only: a changed
+   definition is a new revision ID, never an edit.
+2. **Source.** A source connection's latest compiled revision. Compile first on
+   the Sources tab.
+3. **Profile and workflow.** A pair from the static integration registry,
+   shown with digests. These are the only refs the runtime can resolve at
+   admission today: the processor loads profile and workflow bytes from that
+   registry, not from the Studio's stores, and the editor proves each pair with
+   the same resolver before offering it.
+4. **Destinations.** Compiled destination revisions, with their class
+   (`production` or `sandbox`). Every non-log action of the workflow must
+   deliver to one of them; **Check** refuses the draft otherwise, because the
+   runtime planner would refuse every matching message.
+5. **Secret bindings.** One row per name the chosen revisions require,
+   pre-filled with the reference each connection declares under that name. A
+   reference says where a secret lives (`env`, `file`, `vault`, `aws-ssm`,
+   `k8s` plus a key); no value is ever accepted.
+6. **Data handling.** Classification is always `phi`. Raw retention is
+   `ephemeral` (source bytes are not kept) or `encrypted` (a TTL, a purpose, a
+   storage revision, and an encryption key reference; you are recorded as the
+   authorizer and access is audited).
+7. **Deployment policy.** The default is the seed's: validation timeout 5 s,
+   max age `FI_FHIR_LIFECYCLE_VALIDATION_MAX_AGE` (300 s unless the operator
+   changed it), continuous, 2 in flight, 10 queued, 100 messages per second.
+8. **Check** runs every pre-flight without writing: the revisions exist and
+   point the right way, the pair resolves, the planner rule, every binding
+   bound, the revision builds and passes deployment validation, the revision ID
+   is free. **Create draft** is enabled once Check passes on exactly these
+   inputs, and asks for a reason.
+
+### Validate, approve, publish
+
+Every step asks for a reason and carries the version you are looking at. If
+someone else moved the definition first you are told to reload, then
+re-decide; nothing is retried for you.
+
+**Validate** records connection-validation evidence in one of three modes, and
+the codes say which one ran:
+
+| Mode | What it does | Codes |
+|---|---|---|
+| STATIC | Contacts nothing. Passes when a replica reported this exact source revision mounted in its recent heartbeats (or this replica mounts it) and every binding the source names is bound. It does not prove the endpoint is reachable. | `VALIDATION_STATIC`, `SOURCE_MOUNTED` or `SOURCE_NOT_MOUNTED`, `BINDINGS_NOT_CHECKED` or `BINDING_UNRESOLVABLE` |
+| REAL | Lists one object of the batch input location with the provider and credentials the batch runner uses. Offered only for the batch source this replica mounts; anything else is refused before a record is written. | `SOURCE_REACHABLE`, `HOST_KEY_VERIFIED`, `AUTH_OK`, `BUCKET_VERSIONING_ENABLED`, `INPUT_LISTED`, or a failure code |
+| SKIP | Checks nothing. Needs a reason of at least 16 characters. | `VALIDATION_SKIPPED` |
+
+A failed check is evidence too: the definition stays where it was and the
+Validation view shows the codes. **Approve** and **Publish** need current
+passing evidence; when it has expired the button says so. A published revision
+links to **Operator › Deployments**, where deploying is an operator act, before
+the evidence expires.
+
 ## What is and is not live-reloaded
 
 **Nothing in the catalog is.** Saving, compiling, or archiving a connection
