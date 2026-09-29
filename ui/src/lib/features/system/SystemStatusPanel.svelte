@@ -1,8 +1,10 @@
 <!--
   SystemStatusPanel — the home Health panel. Only real sources: the backend's
   `/health`, the GraphQL `health` query, and the shell's `/health` poll
-  (connectionStore). Each check is a row with its own status and the time it
-  was checked; nothing here is inferred or simulated.
+  (connectionStore), and the fleet's heartbeats (`engineRuntime.observations`,
+  E-0). Each check is a row with its own status and the time it was checked;
+  nothing here is inferred or simulated. The fleet row pre-flights: it says
+  "not configured" or names the missing role instead of querying.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -22,6 +24,8 @@
   import { connectionState } from '$lib/stores/connectionStore';
   import { graphqlFetch } from '$lib/graphql/client';
   import { HealthDocument } from '$lib/gen/graphql';
+  import { accessCapabilities, missingRolesFor } from '$lib/graphql/accessCapabilities';
+  import { fetchFleet, fleetSentence, summarizeFleet, type FleetSummary } from '$lib/features/operator/fleet';
 
   type HttpHealth = {
     status?: string;
@@ -46,6 +50,37 @@
 
   let http = $state<CheckState<HttpHealth>>({ state: 'idle' });
   let gql = $state<CheckState<GraphQLHealth>>({ state: 'idle' });
+  let fleet = $state<CheckState<FleetSummary>>({ state: 'idle' });
+
+  /** Why the fleet is not read here, or null when it may be. */
+  const fleetBlocked = $derived.by((): string | null => {
+    const access = $accessCapabilities;
+    if (access.state !== 'known') return null;
+    if (access.capabilities.controlPlane === false) return 'The control plane is not configured on this deployment.';
+    if (access.capabilities.connectionsRead === false) {
+      const roles = missingRolesFor(access, 'connectionsRead');
+      return `Needs ${(roles.length > 0 ? roles : ['integration.operator']).join(', ')}; not queried.`;
+    }
+    return null;
+  });
+
+  async function checkFleet(): Promise<void> {
+    if (fleetBlocked) {
+      fleet = { state: 'idle' };
+      return;
+    }
+    fleet = { state: 'loading' };
+    try {
+      const summary = summarizeFleet(await fetchFleet());
+      fleet = { state: 'ok', checkedAt: new Date().toISOString(), data: summary };
+    } catch (e) {
+      fleet = {
+        state: 'error',
+        checkedAt: new Date().toISOString(),
+        message: e instanceof Error ? e.message : String(e)
+      };
+    }
+  }
 
   async function checkHttpHealth(): Promise<void> {
     http = { state: 'loading' };
@@ -86,9 +121,10 @@
   function refresh(): void {
     void checkHttpHealth();
     void checkGraphQLHealth();
+    void checkFleet();
   }
 
-  const refreshing = $derived(http.state === 'loading' || gql.state === 'loading');
+  const refreshing = $derived(http.state === 'loading' || gql.state === 'loading' || fleet.state === 'loading');
   const pending = (check: CheckState<unknown>) =>
     check.state === 'idle' || check.state === 'loading';
 
@@ -130,6 +166,20 @@
     }
   });
 
+  const fleetStatus = $derived.by((): { label: string; tone: BadgeTone; detail: string | undefined } => {
+    if (fleetBlocked) return { label: 'not read', tone: 'neutral', detail: fleetBlocked };
+    if (fleet.state === 'ok') {
+      const { fresh, total } = fleet.data;
+      return {
+        label: total === 0 ? 'none' : `${fresh} / ${total}`,
+        tone: total > 0 && fresh === total ? 'success' : total === 0 ? 'neutral' : 'warning',
+        detail: fleetSentence(fleet.data)
+      };
+    }
+    if (fleet.state === 'error') return { label: 'error', tone: 'danger', detail: fleet.message };
+    return { label: 'checking', tone: 'neutral', detail: undefined };
+  });
+
   const httpStatus = $derived(statusOf(http));
   const gqlStatus = $derived(statusOf(gql));
 
@@ -167,6 +217,12 @@
       <Td><Badge tone={gqlStatus.tone} dot>{gqlStatus.label}</Badge></Td>
       <Td mono truncate muted value={detailOf(gql)} />
       <Td numeric muted value={checkedOf(gql)} />
+    </Tr>
+    <Tr data-testid="health-fleet" data-fresh={fleet.state === 'ok' ? fleet.data.fresh : undefined} data-total={fleet.state === 'ok' ? fleet.data.total : undefined}>
+      <Td>Engine fleet</Td>
+      <Td><Badge tone={fleetStatus.tone} dot>{fleetStatus.label}</Badge></Td>
+      <Td truncate muted value={fleetStatus.detail} />
+      <Td numeric muted value={checkedOf(fleet)} />
     </Tr>
     <Tr>
       <Td>Shell poll</Td>

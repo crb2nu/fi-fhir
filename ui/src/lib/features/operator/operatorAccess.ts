@@ -49,12 +49,33 @@ const DEFAULT_MISSING: Record<'operatorRead' | 'operatorDelivery' | 'operatorDep
 
 type OperatorCapability = keyof typeof DEFAULT_MISSING;
 
+/**
+ * What turns the operator control plane on: the PostgreSQL submission store,
+ * or the explicit flag (with the database it needs).
+ */
+export const CONTROL_PLANE_PREREQUISITE_KEYS = [
+  'FI_FHIR_DATABASE_*',
+  'FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED=true'
+] as const;
+
 export interface OperatorPreflight {
+  /**
+   * Why nothing is queried, in the Connections precedence (.loom/42 "Shared
+   * contracts"): the control plane is not configured on this deployment, or
+   * this identity cannot read it.
+   */
+  reason: 'not-configured' | 'missing-role';
   principal: string;
   /** True when the identity holds the transport grant but not the service role. */
   holdsTransportGrant: boolean;
-  /** Roles the identity lacks to read the operator plane. */
+  /**
+   * Roles the identity lacks to read the operator plane. Always non-empty for
+   * `missing-role`; for `not-configured`, the roles it would also need (often
+   * none).
+   */
   missingRoles: string[];
+  /** For `not-configured`: the settings that turn the control plane on. */
+  keys: readonly string[];
 }
 
 function missingFor(state: AccessCapabilityState, key: OperatorCapability): string[] {
@@ -64,15 +85,27 @@ function missingFor(state: AccessCapabilityState, key: OperatorCapability): stri
 
 /**
  * Returns the pre-flight to render instead of the operator surfaces, or null
- * when the page may query (operatorRead true, or capabilities unknown).
+ * when the page may query. "Not configured" (the server reported
+ * `controlPlane: false`) outranks a missing role; an unreported capability is
+ * unknown and never blocks.
  */
 export function operatorPreflight(state: AccessCapabilityState): OperatorPreflight | null {
-  if (state.state !== 'known' || state.capabilities.operatorRead) return null;
-  return {
+  if (state.state !== 'known') return null;
+  const readable = state.capabilities.operatorRead;
+  const base = {
     principal: state.principal,
-    holdsTransportGrant: state.roles.includes(TRANSPORT_OPERATOR_ROLE),
-    missingRoles: missingFor(state, 'operatorRead')
+    holdsTransportGrant: state.roles.includes(TRANSPORT_OPERATOR_ROLE)
   };
+  if (state.capabilities.controlPlane === false) {
+    return {
+      ...base,
+      reason: 'not-configured',
+      missingRoles: readable ? [] : missingFor(state, 'operatorRead'),
+      keys: CONTROL_PLANE_PREREQUISITE_KEYS
+    };
+  }
+  if (readable) return null;
+  return { ...base, reason: 'missing-role', missingRoles: missingFor(state, 'operatorRead'), keys: [] };
 }
 
 function controlBlockedReason(

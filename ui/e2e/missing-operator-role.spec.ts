@@ -59,3 +59,31 @@ test('6c. without integration.operator the connections page pre-flights, names t
   await expect(page.locator('body')).not.toContainText(/forbidden/i);
   expect(watch.errorToasts).toEqual([]);
 });
+
+test('E0-7. controlPlane pre-flight: configured here, so /operator and Home name the missing role, never "not configured"', async ({
+  page,
+  request
+}, testInfo) => {
+  const status = await fetchAuthStatus(request, testInfo);
+  expect(status.capabilities.controlPlane).toBe(true);
+  expect(status.capabilities.operatorRead).toBe(false);
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/operator');
+  const preflight = page.getByTestId('operator-preflight');
+  await expect(preflight).toHaveAttribute('data-reason', 'missing-role');
+  await expect(preflight).toHaveAttribute('data-missing-roles', 'integration.operator');
+  await expect(preflight).not.toContainText('not configured');
+
+  await openIDE(page, '/');
+  const integrations = page.getByTestId('integrations-preflight');
+  await expect(integrations).toHaveAttribute('data-reason', 'missing-role');
+  await expect(integrations).toHaveAttribute('data-missing-roles', 'integration.operator');
+  // Home's fleet row is gated on the same role: it says so and reads nothing.
+  await expect(page.getByTestId('health-fleet')).toContainText('integration.operator');
+
+  for (const field of ['operatorReceipts', 'operatorDeployments', 'engineRuntime']) {
+    expect(watch.graphql.filter((request) => selects(request, field)), `${field} was not issued`).toHaveLength(0);
+  }
+  expect(watch.errorToasts).toEqual([]);
+});

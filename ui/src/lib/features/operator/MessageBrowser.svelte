@@ -6,7 +6,8 @@
    * selected row opens its receipt-to-delivery trace in the pane beside it.
    * Filters and the cursor are server-owned: the backend clamps every page and
    * returns an opaque forward cursor, so this component never invents its own
-   * paging.
+   * paging. The recorded-at window is the store's own from/to filter, and
+   * auto-refresh (off by default) re-reads the current page every 15 s.
    */
 
   import { createEventDispatcher, onMount } from 'svelte';
@@ -27,7 +28,9 @@
     Th,
     Tr
   } from '$lib/ui/primitives';
+  import AutoRefreshToggle from './AutoRefreshToggle.svelte';
   import { fetchReceipts, type OperatorReceipt } from './operatorApi';
+  import { readTimeWindow } from './timeWindow';
   import { describeOperatorFailure } from './operatorErrors';
   import { formatTimestamp, shortDigest } from './attemptPresentation';
 
@@ -46,6 +49,10 @@
   let correlationId = '';
   let sourceMessageId = '';
   let integrationArtifactId = '';
+  let from = '';
+  let to = '';
+  let filterError: string | null = null;
+  let seq = 0;
 
   const statusOptions = [
     { value: '', label: 'Any status' },
@@ -54,6 +61,13 @@
   ];
 
   async function load(nextCursor: string | null = null) {
+    const window = readTimeWindow(from, to);
+    if (!window.ok) {
+      filterError = window.message;
+      return;
+    }
+    filterError = null;
+    const current = ++seq;
     loading = true;
     error = null;
     try {
@@ -63,23 +77,30 @@
           correlationId: correlationId.trim() || null,
           sourceMessageId: sourceMessageId.trim() || null,
           integrationArtifactId: integrationArtifactId.trim() || null,
-          from: null,
-          to: null
+          from: window.window.from,
+          to: window.window.to
         },
         { first: 25, after: nextCursor }
       );
+      if (current !== seq) return;
       receipts = page.nodes;
       hasNextPage = page.pageInfo.hasNextPage;
       cursor = page.pageInfo.endCursor ?? null;
     } catch (err) {
+      if (current !== seq) return;
       // Operator reads opt out of the global toast; the inline home below is
       // the only surface for this failure (toast-budget B4).
       error = describeOperatorFailure(err).message;
       receipts = [];
       hasNextPage = false;
     } finally {
-      loading = false;
+      if (current === seq) loading = false;
     }
+  }
+
+  /** Re-reads the current page with the applied filters (auto-refresh). */
+  export function reload() {
+    void load(cursors.at(-1) ?? null);
   }
 
   function applyFilters() {
@@ -96,7 +117,7 @@
   function previousPage() {
     const previous = cursors.slice(0, -1);
     cursors = previous;
-    void load(previous.length > 0 ? previous[previous.length - 1] : null);
+    void load(previous.at(-1) ?? null);
   }
 
   function select(receiptId: string) {
@@ -131,12 +152,22 @@
         mono
       />
     </div>
+    <div class="filter filter-time">
+      <Input aria-label="Received from" type="datetime-local" bind:value={from} />
+    </div>
+    <div class="filter filter-time">
+      <Input aria-label="Received to" type="datetime-local" bind:value={to} />
+    </div>
     <Button type="submit" disabled={loading}>Apply</Button>
     <span class="spacer"></span>
+    <AutoRefreshToggle subject="messages" onrefresh={reload} />
     <IconButton icon={RefreshCw} label="Refresh messages" {loading} onclick={applyFilters} />
   </form>
+  {#if filterError}
+    <p class="filter-error" role="alert">{filterError}</p>
+  {/if}
 
-  {#if loading}
+  {#if loading && receipts.length === 0}
     <EmptyState message="Loading messages" aria-busy="true" aria-live="polite" />
   {:else if error}
     <EmptyState
@@ -167,6 +198,8 @@
           selectable
           selected={receipt.receiptId === selectedReceiptId}
           onselect={() => select(receipt.receiptId)}
+          data-testid="receipt-row"
+          data-receipt-id={receipt.receiptId}
         >
           <Td mono muted value={formatTimestamp(receipt.recordedAt)} />
           <Td mono truncate value={receipt.receiptId} />
@@ -248,6 +281,17 @@
 
   .filter-status {
     width: 128px;
+  }
+
+  .filter-time {
+    width: 188px;
+  }
+
+  .filter-error {
+    margin: 0;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-danger-text);
   }
 
   .spacer {

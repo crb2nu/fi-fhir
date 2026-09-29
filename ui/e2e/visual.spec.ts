@@ -145,6 +145,35 @@ const CAPTURES: Capture[] = [
       );
     }
   },
+  // E-0: the Delivery view with the fixture's dead letter open in the
+  // inspector, and a deployment's lifecycle history, both by deep link.
+  {
+    id: 'V22',
+    name: 'operator-delivery-inspector',
+    reach: async (page) => {
+      await openIDE(page, '/operator');
+      await page.getByRole('tab', { name: 'Delivery' }).click();
+      await page.getByRole('combobox', { name: 'Attempt status' }).selectOption('failed');
+      await page.getByTestId('attempt-search').getByRole('button', { name: 'Apply' }).click();
+      const row = page.getByTestId('attempt-row').first();
+      await expectOneOf(row, page.getByText(/^No delivery attempts match/));
+      if (await row.isVisible()) {
+        await row.click();
+        await expect(page.getByTestId('attempt-audit').getByTestId('audit-row').first()).toBeVisible();
+      }
+    }
+  },
+  {
+    id: 'V23',
+    name: 'operator-deployments-history',
+    reach: async (page) => {
+      await openIDE(page, '/operator?definition=e2e-batch-adt&revision=v1');
+      await expectOneOf(
+        page.getByTestId('deployment-history').getByTestId('history-row').first(),
+        page.getByTestId('deployment-focus-missing')
+      );
+    }
+  },
   {
     id: 'V10',
     name: 'home-panel-problems',

@@ -28,6 +28,16 @@ const CATALOG: Record<string, OperatorFailure> = {
       'That transition is not allowed from the deployment’s current state. Reload to see where it is now.',
     staleView: true
   },
+  'current connection validation required': {
+    message:
+      'Validation evidence for this revision is missing or has expired. Validate the definition again from Connections › Definitions, then retry.',
+    staleView: true
+  },
+  'integration definition already has an active deployment': {
+    message:
+      'Another revision of this definition is already deployed or paused. Pause or retire that revision first, then deploy this one.',
+    staleView: true
+  },
   'delivery attempt is not dead-lettered': {
     message:
       'This attempt is no longer an open dead letter — it may have been replayed or discarded already. Reload to see its current state.',

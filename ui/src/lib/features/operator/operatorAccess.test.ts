@@ -35,10 +35,28 @@ describe('operatorAccess', () => {
 
   it('pre-flights a transport-only identity and says it holds graphql:operator', () => {
     expect(operatorPreflight(known({}))).toEqual({
+      reason: 'missing-role',
       principal: 'lan',
       holdsTransportGrant: true,
-      missingRoles: ['integration.operator']
+      missingRoles: ['integration.operator'],
+      keys: []
     });
+  });
+
+  it('says "not configured" before a missing role when the control plane is off', () => {
+    const demo = known({ controlPlane: false }, ['integration:preview']);
+    expect(operatorPreflight(demo)).toEqual({
+      reason: 'not-configured',
+      principal: 'lan',
+      holdsTransportGrant: false,
+      missingRoles: ['integration.operator'],
+      keys: ['FI_FHIR_DATABASE_*', 'FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED=true']
+    });
+    // Even a fully granted identity cannot use a control plane that is not there.
+    const granted = known({ operatorRead: true, controlPlane: false });
+    expect(operatorPreflight(granted)).toMatchObject({ reason: 'not-configured', missingRoles: [] });
+    // Configured and readable: nothing to pre-flight.
+    expect(operatorPreflight(known({ operatorRead: true, controlPlane: true }))).toBeNull();
   });
 
   it('does not pre-flight once operatorRead is granted, but still gates each control plane', () => {

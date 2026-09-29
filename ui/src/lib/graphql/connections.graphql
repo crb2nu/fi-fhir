@@ -158,6 +158,18 @@ fragment EngineRuntimeFields on EngineRuntime {
   }
 }
 
+# One replica's heartbeat for one adapter (E-0 fleet observations): which
+# document it mounted and when it last said so.
+fragment EngineObservationFields on EngineObservation {
+  replicaId
+  adapter
+  artifactId
+  revisionId
+  digest
+  heartbeatAt
+  stale
+}
+
 query Connections($direction: ConnectionDirection, $includeArchived: Boolean) {
   connections(direction: $direction, includeArchived: $includeArchived) {
     ...ConnectionFields
@@ -185,6 +197,18 @@ query ConnectionRevision($artifactId: ID!, $revisionId: ID!) {
 query EngineRuntime {
   engineRuntime {
     ...EngineRuntimeFields
+  }
+}
+
+# The fleet as every replica reports it (Connections › Engine and Home ›
+# Health), read on its own so the composition fragment and its fixtures stay
+# as they are.
+query EngineObservations {
+  engineRuntime {
+    replicaId
+    observations {
+      ...EngineObservationFields
+    }
   }
 }
 

@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "artifact_id": "fhir-primary",
+  "revision_id": "e2e-r1",
+  "destination_id": "fhir-primary",
+  "class": "production",
+  "transport": "fhir",
+  "fhir": {
+    "base_url": "https://hospital.example.test/fhir",
+    "token_binding": "fhir-primary-token",
+    "interaction": "transaction"
+  },
+  "digest": "sha256:8328b85d937fa66494611f33fba2607347e93ed6a88869ca9fe9a4a000c24888"
+}

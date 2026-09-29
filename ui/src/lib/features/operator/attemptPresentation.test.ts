@@ -10,9 +10,12 @@ import {
   deploymentStateVariant,
   deliveryOutcomeVariant,
   describeDestinationDelivery,
+  describeOutboxLease,
+  describeValidation,
   formatTimestamp,
   outboxStatusVariant,
-  shortDigest
+  shortDigest,
+  VALIDATION_REQUIRED_REASON
 } from './attemptPresentation';
 
 describe('status variants', () => {
@@ -108,6 +111,58 @@ describe('deploymentActionBlockedReason', () => {
   it('explains the empty selection', () => {
     expect(deploymentActionBlockedReason(null, 'pause')).toMatch(/select a deployment/i);
   });
+
+  it('blocks deploy and resume on stale validation, and only those', () => {
+    expect(deploymentActionBlockedReason('published', 'deploy', false)).toBe(VALIDATION_REQUIRED_REASON);
+    expect(deploymentActionBlockedReason('paused', 'resume', false)).toBe(VALIDATION_REQUIRED_REASON);
+    expect(deploymentActionBlockedReason('deployed', 'pause', false)).toBeNull();
+    expect(deploymentActionBlockedReason('paused', 'retire', false)).toBeNull();
+    expect(deploymentActionBlockedReason('published', 'deploy', true)).toBeNull();
+    // Unknown never blocks.
+    expect(deploymentActionBlockedReason('published', 'deploy')).toBeNull();
+    // The state machine is explained first.
+    expect(deploymentActionBlockedReason('deployed', 'resume', false)).toMatch(/Allowed from: paused/);
+  });
+});
+
+describe('describeValidation', () => {
+  it('distinguishes current, expired, failed and absent evidence', () => {
+    expect(
+      describeValidation({ validationPassed: true, validationCurrent: true, validationExpiresAt: '2026-09-29T12:00:00Z' })
+    ).toEqual({ label: 'current', tone: 'success', detail: 'Validation evidence expires 2026-09-29 12:00:00Z.' });
+    const expired = describeValidation({
+      validationPassed: true,
+      validationCurrent: false,
+      validationExpiresAt: '2026-09-29T12:00:00Z'
+    });
+    expect(expired.label).toBe('expired');
+    expect(expired.detail).toMatch(/expired 2026-09-29 12:00:00Z\. Validate the definition again/);
+    expect(
+      describeValidation({ validationPassed: false, validationCurrent: false, validationExpiresAt: '2026-09-29T12:00:00Z' }).label
+    ).toBe('failed');
+    expect(describeValidation({ validationPassed: false, validationCurrent: false }).label).toBe('not validated');
+  });
+});
+
+describe('describeOutboxLease', () => {
+  const now = new Date('2026-09-29T12:00:00Z');
+  it('says who holds the lease and whether it has run out', () => {
+    expect(describeOutboxLease({ outboxStatus: 'pending', topic: 'fi-fhir.delivery', leaseOwner: '' }, now)).toBe(
+      'topic fi-fhir.delivery · not leased'
+    );
+    expect(
+      describeOutboxLease(
+        { outboxStatus: 'leased', topic: 't', leaseOwner: 'worker-1', leaseExpiresAt: '2026-09-29T12:01:00Z' },
+        now
+      )
+    ).toBe('topic t · leased by worker-1 until 2026-09-29 12:01:00Z');
+    expect(
+      describeOutboxLease(
+        { outboxStatus: 'leased', topic: '', leaseOwner: 'worker-1', leaseExpiresAt: '2026-09-29T11:59:00Z' },
+        now
+      )
+    ).toBe('no topic · lease by worker-1 expired 2026-09-29 11:59:00Z');
+  });
 });
 
 describe('formatting helpers', () => {
@@ -142,7 +197,33 @@ describe('describeDestinationDelivery', () => {
       resourceTypes: ['Patient', 'Encounter'],
       entryCountText: '2 bundle entries',
       outcomeCodes: [],
-      endpointText: 'https://fhir.example.test/r4'
+      endpointText: 'https://fhir.example.test/r4',
+      revisionText: null,
+      digestText: null,
+      failureCode: null,
+      statusClassText: null,
+      certificateText: null,
+      completedText: null
+    });
+  });
+
+  it('renders the full ledger row when it is selected', () => {
+    const display = describeDestinationDelivery({
+      ...fhirDelivered,
+      destination: { artifactId: 'fhir-primary', revisionId: 'r1' },
+      digestVerified: 'sha256:' + 'b'.repeat(64),
+      failureCode: 'DESTINATION_REJECTED',
+      httpStatusClass: '4xx',
+      servedCertificateSubjectAdvisory: 'CN=hospital.example.test',
+      completedAt: '2026-09-29T04:11:00Z'
+    });
+    expect(display).toMatchObject({
+      revisionText: 'fhir-primary@r1',
+      digestText: 'bbbbbbbbbbbb…',
+      failureCode: 'DESTINATION_REJECTED',
+      statusClassText: 'HTTP 4xx',
+      certificateText: 'CN=hospital.example.test',
+      completedText: '2026-09-29 04:11:00Z'
     });
   });
 
