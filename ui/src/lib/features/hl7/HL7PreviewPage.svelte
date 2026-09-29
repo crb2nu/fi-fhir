@@ -72,7 +72,6 @@
   import { accessCapabilities, capabilityOf, missingRolesFor } from '$lib/graphql/accessCapabilities';
   import { replaceState } from '$app/navigation';
   import History from '@lucide/svelte/icons/history';
-  import CheckCheck from '@lucide/svelte/icons/check-check';
   import SessionSidebar from '$lib/features/integration-session/SessionSidebar.svelte';
   import { createSessionWorkspace } from '$lib/features/integration-session/sessionWorkspace';
   import { streamStatus } from '$lib/graphql/streamAvailability';
@@ -156,8 +155,6 @@
   let sessionRailChoice: boolean | null = null;
   $: sessionRailOpen = sessionRailChoice ?? $workspaceState.status.kind !== 'idle';
   let shownRunId: string | null = null;
-  let acceptingFixes = false;
-  let acceptFixesError: string | null = null;
   const sessionStream = streamStatus('integrationSessionEvents');
 
   // Raw payloads are offered only when the server said the grant is held;
@@ -276,64 +273,50 @@
     }
   }
 
-  /** Keeps the results pane's copy of the run's diagnostics in step with an accepted fix. */
-  function markDiagnosticAccepted(accepted: { id: string; runId: string | null; acceptedAt: string | null }): void {
-    state.update((s) =>
-      s.session && (!accepted.runId || s.session.runId === accepted.runId)
-        ? {
-            ...s,
-            session: {
-              ...s.session,
-              diagnostics: s.session.diagnostics.map((entry) =>
-                entry.id === accepted.id ? { ...entry, accepted: true, acceptedAt: accepted.acceptedAt } : entry
-              )
-            }
-          }
-        : s
-    );
-  }
-
   /**
-   * Accepts the fix suggestion of the session diagnostic behind `warning`
-   * (diagnostics are the run's warnings, one for one: same code, path and
-   * message), only when that diagnostic carries a suggestion. The Warnings
-   * header's "Accept fixes" calls it for every open suggestion. E-5's
-   * WarningList takes `onAcceptFix(diagnosticId)` instead, wired as
-   * `(id) => workspace.acceptFix(id, pageSessionId)` once the warnings the
-   * page projects carry their diagnosticId.
+   * Keeps the results pane in step with an accepted fix: the run's session
+   * diagnostics and the warning that carries the diagnostic's id.
    */
-  async function acceptFixForWarning(warning: WarningLike): Promise<boolean> {
-    const current = $state.session;
-    if (!current || current.mode !== 'session' || !current.id) return false;
-    const diagnostic = current.diagnostics.find(
-      (entry) =>
-        !entry.accepted &&
-        Boolean(entry.fixSuggestion) &&
-        entry.code === warning.code &&
-        (entry.path ?? null) === (warning.path ?? null) &&
-        entry.message === warning.message
-    );
-    if (!diagnostic) return false;
-    markDiagnosticAccepted(await workspace.acceptFix(diagnostic.id, current.id));
-    return true;
+  function markDiagnosticAccepted(accepted: { id: string; runId: string | null; acceptedAt: string | null }): void {
+    state.update((s) => {
+      if (!s.session || (accepted.runId && s.session.runId !== accepted.runId)) return s;
+      return {
+        ...s,
+        session: {
+          ...s.session,
+          diagnostics: s.session.diagnostics.map((entry) =>
+            entry.id === accepted.id ? { ...entry, accepted: true, acceptedAt: accepted.acceptedAt } : entry
+          )
+        },
+        result: s.result
+          ? {
+              ...s.result,
+              parsePreview: {
+                ...s.result.parsePreview,
+                warnings: s.result.parsePreview.warnings.map((warning) =>
+                  (warning as WarningLike).diagnosticId === accepted.id ? { ...warning, fixAccepted: true } : warning
+                )
+              }
+            }
+          : s.result
+      };
+    });
   }
 
-  async function acceptOpenFixes(): Promise<void> {
-    acceptingFixes = true;
-    acceptFixesError = null;
+  let acceptFixError: string | null = null;
+
+  /** WarningList's "Accept fix": `acceptDiagnosticFix` on the run's session, recorded with the caller. */
+  async function acceptFix(diagnosticId: string): Promise<void> {
+    const sessionId = pageSessionId ?? ($state.session?.mode === 'session' ? $state.session.id : null);
+    if (!sessionId) return;
+    acceptFixError = null;
     try {
-      for (const warning of $state.result?.parsePreview.warnings ?? []) {
-        await acceptFixForWarning(warning);
-      }
+      markDiagnosticAccepted(await workspace.acceptFix(diagnosticId, sessionId));
     } catch (error) {
-      acceptFixesError = error instanceof Error ? error.message : String(error);
-    } finally {
-      acceptingFixes = false;
+      acceptFixError = error instanceof Error ? error.message : String(error);
     }
   }
 
-  $: sessionFixes = $state.session?.mode === 'session' ? $state.session.diagnostics.filter((d) => d.fixSuggestion) : [];
-  $: openFixes = sessionFixes.filter((d) => !d.accepted).length;
   $: showSessionRail = sessionRailOpen && (sessionEngineEnabled || $workspaceState.status.kind !== 'idle');
 
   // Sample intake from connections (.loom/38 C-3). The controller lives here,
@@ -1666,30 +1649,8 @@
             {#if !$state.result}
               <EmptyState align="start" message="Preview the message to list parse warnings by phase." />
             {:else}
-              {#if sessionFixes.length > 0}
-                <div class="warnings-head" data-testid="hl7-session-fixes" data-open={openFixes}>
-                  <span class="warnings-head-text">
-                    {sessionFixes.length - openFixes} of {sessionFixes.length} session fix suggestion{sessionFixes.length === 1
-                      ? ''
-                      : 's'} accepted
-                  </span>
-                  <Button
-                    variant="ghost"
-                    icon={CheckCheck}
-                    loading={acceptingFixes}
-                    disabled={openFixes === 0 || acceptingFixes}
-                    title={openFixes === 0
-                      ? 'Every fix suggestion of this run is accepted.'
-                      : 'Record that you accept the fix suggestion of every open diagnostic of this run'}
-                    data-testid="hl7-accept-fixes"
-                    onclick={() => void acceptOpenFixes()}
-                  >
-                    Accept fixes
-                  </Button>
-                </div>
-                {#if acceptFixesError}
-                  <p class="run-error" role="alert">Accepting fixes failed: {acceptFixesError}</p>
-                {/if}
+              {#if acceptFixError}
+                <p class="run-error" role="alert">Accepting the fix failed: {acceptFixError}</p>
               {/if}
               <WarningList
                 groups={$warningsByPhase}
@@ -1700,6 +1661,7 @@
                 on:explain={onExplainWarning}
                 on:explainAll={onExplainAll}
                 on:resolve={(e) => handleResolveWarning(e.detail)}
+                onAcceptFix={sessionEngineEnabled ? (id) => void acceptFix(id) : undefined}
               />
             {/if}
           {:else if activeTab === 'events'}
@@ -1874,19 +1836,6 @@
     height: 100%;
   }
 
-  .warnings-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-3);
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  .warnings-head-text {
-    font-size: var(--text-xs);
-    color: var(--color-text-tertiary);
-  }
 
   /* ── Editor pane ───────────────────────────────────────────────────── */
   .editor-pane {

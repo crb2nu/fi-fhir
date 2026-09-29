@@ -1,3 +1,5 @@
+// Test fixtures only: synthetic debug sessions and spans for unit tests. No
+// production code imports this file (the mock scaffold was removed, .loom/42 E-5).
 import type {
   DebugSession,
   DebugStep,
@@ -5,7 +7,7 @@ import type {
   EventLineageNode,
   Breakpoint,
   ParseEvent
-} from './types';
+} from '../types';
 
 export const mockBreakpoints: Breakpoint[] = [
   { id: 'bp-1', type: 'route', name: 'lab-critical', enabled: true },

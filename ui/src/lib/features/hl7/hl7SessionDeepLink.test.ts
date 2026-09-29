@@ -52,7 +52,34 @@ function openStream(): Response {
   });
 }
 
-function fakeApi(options: { workspaceGate?: Promise<void> } = {}) {
+const WARNING = {
+  phase: 'semantic',
+  code: 'MISSING_PV1_3',
+  message: 'PV1-3 assigned location is empty',
+  path: 'PV1.3',
+  explanation: null,
+  fixSuggestion: null,
+  impact: null,
+  severity: 'warning',
+  fromCache: null
+};
+
+const DIAGNOSTIC = {
+  id: 'diag_001',
+  sessionId: 'session-1',
+  runId: 'run-7',
+  sampleId: 'sample-1',
+  severity: 'warning',
+  code: 'MISSING_PV1_3',
+  message: 'PV1-3 assigned location is empty',
+  path: 'PV1.3',
+  fixSuggestion: 'Review the source profile or sample payload for this warning.',
+  accepted: false,
+  acceptedAt: null,
+  lineage: []
+};
+
+function fakeApi(options: { workspaceGate?: Promise<void>; withWarning?: boolean } = {}) {
   const operations: string[] = [];
   const variables: Record<string, Record<string, unknown>[]> = {};
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -82,7 +109,19 @@ function fakeApi(options: { workspaceGate?: Promise<void> } = {}) {
         return json({ data: { sessionDiagnostics: [] } });
       case 'SessionRunDetail':
         return json({
-          data: { sessionRun: { ...RUN, diagnostics: [], lineage: [], events: [], warnings: [] } }
+          data: {
+            sessionRun: {
+              ...RUN,
+              diagnostics: options.withWarning ? [DIAGNOSTIC] : [],
+              lineage: [],
+              events: [],
+              warnings: options.withWarning ? [WARNING] : []
+            }
+          }
+        });
+      case 'AcceptSessionDiagnosticFix':
+        return json({
+          data: { acceptDiagnosticFix: { ...DIAGNOSTIC, accepted: true, acceptedAt: '2026-01-01T10:00:00Z' } }
         });
       default:
         return json({ data: null, errors: [{ message: `unexpected operation ${operation}` }] });
@@ -186,5 +225,26 @@ describe('HL7 intake deep link', { timeout: 30_000 }, () => {
     await vi.waitFor(() => expect(api.operations).toContain('RunStreamingSessionPreview'));
     expect(api.operations).not.toContain('CreateStreamingIntegrationSession');
     expect(api.variables['AddStreamingSessionSample']?.[0]).toMatchObject({ input: { sessionId: 'session-1' } });
+  });
+
+  it('accepts a warning\'s fix from the Warnings list and marks it accepted', async () => {
+    status(true);
+    const api = fakeApi({ withWarning: true });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+
+    const accept = await screen.findByRole('button', { name: /Accept fix/ }, { timeout: 5_000 });
+    // The sidebar lists the run's diagnostics too; take the one in the Warnings list.
+    const inWarnings = screen
+      .getAllByRole('button', { name: /Accept fix/ })
+      .find((button) => !button.closest('[data-testid="hl7-session-rail"]'));
+    expect(inWarnings ?? accept).toBeDefined();
+    await fireEvent.click(inWarnings ?? accept);
+
+    await vi.waitFor(() => expect(screen.getByTestId('warning-fix-accepted')).toBeInTheDocument());
+    expect(api.variables['AcceptSessionDiagnosticFix']?.[0]).toMatchObject({
+      input: { sessionId: 'session-1', diagnosticId: 'diag_001' }
+    });
   });
 });

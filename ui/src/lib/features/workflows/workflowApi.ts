@@ -10,6 +10,8 @@ import {
   GetWorkflowDocument,
   CreateWorkflowDefinitionDocument,
   SaveWorkflowVersionDocument,
+  UpdateWorkflowDefinitionDocument,
+  ArchiveWorkflowDefinitionDocument,
   PublishWorkflowVersionDocument,
   RollbackWorkflowVersionDocument,
   RequestWorkflowApprovalDocument,
@@ -43,6 +45,10 @@ import {
   type CreateWorkflowDefinitionMutation,
   type CreateWorkflowDefinitionMutationVariables,
   type SaveWorkflowVersionMutation,
+  type UpdateWorkflowDefinitionMutation,
+  type UpdateWorkflowDefinitionMutationVariables,
+  type ArchiveWorkflowDefinitionMutation,
+  type ArchiveWorkflowDefinitionMutationVariables,
   type SaveWorkflowVersionMutationVariables,
   type PublishWorkflowVersionMutation,
   type PublishWorkflowVersionMutationVariables,
@@ -159,6 +165,42 @@ export function createWorkflowDefinition(input: {
         createdBy: input.createdBy ?? null
       }
     }
+  );
+}
+
+/**
+ * Renames, re-describes or changes the status of a definition. Only the fields
+ * passed change; `status: 'draft'` restores an archived definition.
+ */
+export function updateWorkflowDefinition(input: {
+  id: string;
+  name?: string | null;
+  description?: string | null;
+  status?: string | null;
+}): Promise<UpdateWorkflowDefinitionMutation> {
+  return graphqlFetch<UpdateWorkflowDefinitionMutation, UpdateWorkflowDefinitionMutationVariables>(
+    UpdateWorkflowDefinitionDocument,
+    {
+      input: {
+        id: input.id,
+        name: input.name ?? null,
+        description: input.description ?? null,
+        status: input.status ?? null,
+        updatedBy: null
+      }
+    }
+  );
+}
+
+/**
+ * Archives a definition: its status becomes `archived`, and the API refuses
+ * new versions and publishes for it until it is restored to draft. The schema
+ * takes no reason; the audit trail records the archive and its actor.
+ */
+export function archiveWorkflowDefinition(workflowId: string): Promise<ArchiveWorkflowDefinitionMutation> {
+  return graphqlFetch<ArchiveWorkflowDefinitionMutation, ArchiveWorkflowDefinitionMutationVariables>(
+    ArchiveWorkflowDefinitionDocument,
+    { input: { workflowId, archivedBy: null } }
   );
 }
 

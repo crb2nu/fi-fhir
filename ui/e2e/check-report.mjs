@@ -9,6 +9,9 @@ import { readFileSync } from 'node:fs';
 
 const required = {
   'operator-bundle': ['1.', '2.', '3.', '4.', '5.', '7.', '8.', '9.', '10.'],
+  // A lane's checks in a shared project: '<project>:<lane>' (one line per lane).
+  'operator-bundle:e3': ['E3-1.', 'E3-2.', 'E3-3.', 'E3-4.'],
+  'operator-bundle:e5': ['E5-1.', 'E5-2.', 'E5-3.'],
   'missing-operator-role': ['6a.', '6c.'],
   'sessions-off': ['6b.', '6d.'],
   'preview-only': ['P1.', 'P2.', 'P3.', 'P4.', 'P5.', 'P6.', 'P7.', 'P8.', 'P9.'],
@@ -18,7 +21,6 @@ const required = {
   ]
 };
 
-required['operator-bundle'].push('E3-1.', 'E3-2.', 'E3-3.', 'E3-4.'); // .loom/42 E-3, e2e/operator-bundle.sessions.spec.ts
 required['operator-bundle'].push('E4-1.', 'E4-2.', 'E4-3.'); // .loom/42 E-4 shell honesty (shell.spec.ts)
 
 const [reportPath] = process.argv.slice(2);
@@ -47,7 +49,8 @@ function walk(suite) {
 for (const suite of report.suites ?? []) walk(suite);
 
 const missing = [];
-for (const [project, prefixes] of Object.entries(required)) {
+for (const [key, prefixes] of Object.entries(required)) {
+  const project = key.split(':')[0];
   const titles = passed.get(project) ?? [];
   for (const prefix of prefixes) {
     if (!titles.some((title) => title.startsWith(`${prefix} `))) {

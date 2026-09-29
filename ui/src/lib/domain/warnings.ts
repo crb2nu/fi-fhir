@@ -13,6 +13,14 @@ export type WarningLike = {
   impact?: string | null;
   severity?: WarningSeverity | string | null;
   fromCache?: boolean | null;
+  /**
+   * The server diagnostic this warning came from (an Integration Session run
+   * diagnostic). With a `fixSuggestion`, WarningList offers "Accept fix" when
+   * its `onAcceptFix` prop is set (`acceptDiagnosticFix`, `.loom/42` E-3/E-5).
+   */
+  diagnosticId?: string | null;
+  /** True once the diagnostic's fix has been accepted. */
+  fixAccepted?: boolean | null;
 };
 
 /**

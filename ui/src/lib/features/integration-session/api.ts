@@ -325,8 +325,35 @@ export function projectSessionInspectorView(
     success: run.status === 'completed',
     errors: run.diagnostics.filter((entry) => entry.severity === 'error').map((entry) => entry.message),
     events: run.events,
-    warnings: run.warnings
+    warnings: withSessionDiagnostics(run)
   };
+}
+
+/**
+ * Each warning with the session diagnostic it became (the runner derives
+ * diagnostics from warnings one for one: same code, path and message), so
+ * WarningList can offer "Accept fix" for it (`diagnosticId`, `fixAccepted`,
+ * and the diagnostic's suggestion when the warning has none). A warning with
+ * no matching diagnostic is left as it was.
+ */
+function withSessionDiagnostics(run: IntegrationSessionRunFieldsFragment) {
+  const unused = [...run.diagnostics];
+  return run.warnings.map((warning) => {
+    const index = unused.findIndex(
+      (diagnostic) =>
+        diagnostic.code === warning.code &&
+        (diagnostic.path ?? null) === (warning.path ?? null) &&
+        diagnostic.message === warning.message
+    );
+    if (index < 0) return warning;
+    const [diagnostic] = unused.splice(index, 1);
+    return {
+      ...warning,
+      fixSuggestion: warning.fixSuggestion ?? diagnostic!.fixSuggestion,
+      diagnosticId: diagnostic!.id,
+      fixAccepted: diagnostic!.accepted
+    };
+  });
 }
 
 export function projectSessionMeta(

@@ -9,6 +9,8 @@
   import type { ActionDraft } from '../workflowTypes';
 
   export let actions: ActionDraft[];
+  /** Field messages per item key, then per config key. */
+  export let errors: Record<string, Record<string, string>> = {};
 
   const dispatch = createEventDispatcher<{
     add: void;
@@ -46,6 +48,7 @@
       <div class="item-body">
         <ActionEditor
           {action}
+          errors={errors[action._key] ?? {}}
           on:change={(e) => dispatch('change', { actionKey: action._key, action: e.detail })}
         />
       </div>
