@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -80,8 +81,17 @@ func (s *integrationSessionService) listSessions(includeArchived bool) ([]model.
 	return out, nil
 }
 
+// getSession answers the nullable integrationSession(id) read. An id this
+// tenant's store does not hold is null, not an error, so the IDE can open a
+// deep link (/hl7?session=<id>) and say "not found" instead of reporting the
+// catalog-safe "GraphQL request failed" (.loom/42 E-3). It discloses nothing
+// integrationSessions does not already list to the same caller.
 func (s *integrationSessionService) getSession(id string) (*model.IntegrationSession, error) {
-	return s.cloneSession(id, true)
+	session, err := s.cloneSession(id, true)
+	if errors.Is(err, enginesession.ErrNotFound) {
+		return nil, nil
+	}
+	return session, err
 }
 
 func (s *integrationSessionService) archiveSession(id string) (*model.IntegrationSession, error) {

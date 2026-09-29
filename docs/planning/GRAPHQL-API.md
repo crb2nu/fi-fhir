@@ -265,7 +265,8 @@ trusted network:
     "subscriptions": [],
     "llm": {"configured": true},
     "controlPlane": false,
-    "connectionCatalog": false
+    "connectionCatalog": false,
+    "phiExport": false
   },
   "missingRoles": {
     "operatorRead": ["integration.operator"],
@@ -273,7 +274,8 @@ trusted network:
     "operatorDeployment": ["integration.operator", "integration.deployment.operator"],
     "clinicalRead": [],
     "connectionsRead": ["integration.operator"],
-    "connectionsWrite": ["integration.operator", "integration.deployment.operator"]
+    "connectionsWrite": ["integration.operator", "integration.deployment.operator"],
+    "phiExport": ["integration.phi.export"]
   }
 }
 ```
@@ -293,6 +295,7 @@ the handler serves.
 | `capabilities.streaming` | The deployment serves the session SSE transport (`FI_FHIR_INTEGRATION_SESSION_ENABLED`) |
 | `capabilities.subscriptions` | The subscription roots the stream will accept for this caller; `[]` when streaming is off |
 | `capabilities.llm.configured` | `serve` built an LLM client at startup; whether it answers is `llmCapability`'s question |
+| `capabilities.phiExport` | The caller may export a session bundle with raw sample payloads (`exportIntegrationBundle(includeRawPayload: true)`): it clears the export field's transport gate and holds `integration.phi.export`, which the session store re-checks. An export without raw payloads needs neither the grant nor this capability |
 
 The stream accepts only `integrationSessionEvents` and `sessionRunEvents`, so
 `eventStream`, `workflowEvents`, `patientEvents`, `liveParseStream`, and
