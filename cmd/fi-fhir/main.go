@@ -5590,6 +5590,16 @@ Optional operator control-plane environment:
     Available only with serve; applies submission, lifecycle, and destination migrations.
     Operator reads still require integration.operator; mutations require additional roles.
 
+Optional integration session environment:
+  FI_FHIR_INTEGRATION_SESSION_ENABLED  true enables the PostgreSQL-backed session
+    workspace and connection sample intake (default: false). Available only with serve.
+  FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE
+                                       Optional 32-byte AES-GCM key for retained payloads
+  FI_FHIR_CONNECTION_SECRET_*          Env secrets a connection peek may resolve;
+    any other env key a draft binds is refused. Files come from connections/ under
+    FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR.
+  FI_FHIR_DATABASE_*                   Shared PostgreSQL session store
+
 Optional durable HL7v2 ingress environment:
   FI_FHIR_HTTP_INGRESS_AUTH_MODE       bearer, hmac-sha256, or oauth2; unset disables
   FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID    Bound service principal (bearer/HMAC)
@@ -5628,6 +5638,8 @@ Optional deployed S3/SFTP batch environment:
   FI_FHIR_BATCH_SFTP_KNOWN_HOSTS_FILE  Required pinned SSH host keys
   FI_FHIR_BATCH_SFTP_PASSWORD[_FILE]   Password auth source, or
   FI_FHIR_BATCH_SFTP_PRIVATE_KEY_FILE  Private-key auth source
+  FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE[_FILE]
+                                       Passphrase source for an encrypted private key
   FI_FHIR_DATABASE_*                   Shared lifecycle/submission/checkpoint store
 
 Optional durable Kafka delivery environment:
@@ -5644,6 +5656,13 @@ Optional durable Kafka delivery environment:
   FI_FHIR_DELIVERY_MAX_ATTEMPTS        Bounded attempts including first publish
   FI_FHIR_DELIVERY_RETRY_BASE_DELAY    Initial retry delay
   FI_FHIR_DELIVERY_RETRY_MAX_DELAY     Maximum retry delay
+  FI_FHIR_DELIVERY_IDENTITY_MODE       strict or compatibility; unset disables the
+    destination identity decision, and any other identity setting is then refused
+  FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH
+                                       Destination registry JSON (required with a mode)
+  FI_FHIR_DELIVERY_IDENTITY_COMPATIBILITY_SUBJECT
+                                       Grant subject; required by compatibility, refused by strict
+  FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR Directory of destination credential files
   FI_FHIR_DATABASE_*                   Shared PostgreSQL submission store
 
 Examples:

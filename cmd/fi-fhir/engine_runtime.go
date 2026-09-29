@@ -3,7 +3,9 @@ package main
 import (
 	"net"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/resolvers"
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
@@ -82,9 +84,16 @@ type engineRuntimeFacts struct {
 // serveProperty is one allowlisted process property: its environment key,
 // whether its value is secret, and the default the code applies when it is
 // unset ("" when there is none). A secret property renders only as set/unset.
+//
+// A family property's key is an environment prefix rather than a key: it
+// renders one row per set variable carrying that prefix. Exactly one family
+// is allowlisted — connectionSecretEnvPrefix, whose members are named by
+// connection drafts rather than by the code — and it is secret
+// (TestServePropertiesAllowlistExactlyOneFamily).
 type serveProperty struct {
 	key          string
 	secret       bool
+	family       bool
 	defaultValue string
 }
 
@@ -125,6 +134,8 @@ func serveProperties() []serveProperty {
 		{key: resolvers.EnvFHIRSubscriptionMaxClients, defaultValue: strconv.Itoa(resolvers.DefaultFHIRSubscriptionMaxClients)},
 
 		{key: "FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED", defaultValue: "false"},
+		{key: "FI_FHIR_INTEGRATION_SESSION_ENABLED", defaultValue: "false"},
+		{key: "FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE", secret: true},
 
 		{key: "FI_FHIR_HTTP_INGRESS_AUTH_MODE"},
 		{key: "FI_FHIR_HTTP_INGRESS_PRINCIPAL_ID"},
@@ -173,6 +184,8 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_BATCH_SFTP_PASSWORD", secret: true},
 		{key: "FI_FHIR_BATCH_SFTP_PASSWORD_FILE", secret: true},
 		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_FILE", secret: true},
+		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE", secret: true},
+		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE", secret: true},
 
 		{key: "FI_FHIR_DELIVERY_WORKER_ENABLED", defaultValue: "false"},
 		{key: "FI_FHIR_DELIVERY_WORKER_ID"},
@@ -188,21 +201,55 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_DELIVERY_RETRY_BASE_DELAY", defaultValue: deliveryDefaults.RetryBaseDelay.String()},
 		{key: "FI_FHIR_DELIVERY_RETRY_MAX_DELAY", defaultValue: deliveryDefaults.RetryMaxDelay.String()},
 
+		{key: "FI_FHIR_DELIVERY_IDENTITY_MODE"},
+		{key: "FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH"},
+		{key: "FI_FHIR_DELIVERY_IDENTITY_COMPATIBILITY_SUBJECT"},
+		{key: "FI_FHIR_DELIVERY_IDENTITY_SECRET_DIR", secret: true},
+		{key: connectionSecretEnvPrefix, secret: true, family: true},
+
 		{key: "TEMPORAL_ADDRESS"},
 		{key: "TEMPORAL_NAMESPACE", defaultValue: "terminology-mapping"},
 	}
 }
 
 // describeServeProperties renders the allowlist against the environment. It
-// reads exactly the allowlisted keys, one by one.
+// reads exactly the allowlisted keys, one by one, and the members of the one
+// allowlisted family.
 func describeServeProperties() []connection.RuntimeProperty {
 	allowlist := serveProperties()
 	properties := make([]connection.RuntimeProperty, 0, len(allowlist))
 	for _, property := range allowlist {
+		if property.family {
+			properties = append(properties, describeServePropertyFamily(property)...)
+			continue
+		}
 		value := os.Getenv(property.key)
 		properties = append(properties, connection.NewRuntimeProperty(
 			property.key, property.secret, value, value != "", property.defaultValue,
 		))
+	}
+	return properties
+}
+
+// describeServePropertyFamily renders one secret row per set variable named
+// by the family's prefix, sorted by key, or a single unset row for the family
+// when none is set. The environment is filtered on that prefix and nothing
+// else; a member's value is never read beyond whether it is non-empty.
+func describeServePropertyFamily(family serveProperty) []connection.RuntimeProperty {
+	var keys []string
+	for _, entry := range os.Environ() {
+		key, value, _ := strings.Cut(entry, "=")
+		if len(key) > len(family.key) && strings.HasPrefix(key, family.key) && value != "" {
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) == 0 {
+		return []connection.RuntimeProperty{connection.NewRuntimeProperty(family.key+"*", family.secret, "", false, "")}
+	}
+	sort.Strings(keys)
+	properties := make([]connection.RuntimeProperty, 0, len(keys))
+	for _, key := range keys {
+		properties = append(properties, connection.NewRuntimeProperty(key, family.secret, "", true, ""))
 	}
 	return properties
 }
