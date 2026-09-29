@@ -391,14 +391,17 @@
   }
 
   .cell {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: var(--space-1);
+    min-width: 0;
     max-width: 100%;
   }
 
   .link {
+    display: inline-block;
     max-width: 100%;
+    vertical-align: bottom;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

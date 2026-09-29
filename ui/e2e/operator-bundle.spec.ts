@@ -640,7 +640,8 @@ test("E2-1. admissions: Verification lists the fixture's admissions from the dur
   await expect(page.getByTestId('verification-no-timeline')).toContainText('payload values are never read back');
 
   // A row shows its payload's structure — paths and kinds, never a value.
-  await table.locator(`[data-event-id="${fixture[0]!.eventId}"]`).click();
+  // Click the event-type cell: the row's centre is a link out to Operator.
+  await table.locator(`[data-event-id="${fixture[0]!.eventId}"] td`).nth(1).click();
   const fields = page.getByTestId('admission-fields');
   await expect(fields).toBeVisible();
   await expect(fields).not.toContainText('SYNTHETIC');
