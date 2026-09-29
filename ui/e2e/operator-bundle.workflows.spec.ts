@@ -63,7 +63,9 @@ test('E5-1. a version with nested action config is saved and reloaded intact', a
   const yamlOnly = page.getByTestId('workflow-yaml-only');
   await expect(yamlOnly).toContainText('labels');
   await expect(yamlOnly).toContainText('Route "admits", action 1 (log)');
-  await expect(page.getByTestId('action-yaml-only').first()).toContainText('labels');
+  // The action itself says so too, once its route is expanded.
+  await page.getByRole('button', { name: /^admits/, expanded: false }).click();
+  await expect(page.getByTestId('action-yaml-only')).toContainText('labels');
   await expect(page.locator('body')).not.toContainText('[object Object]');
 
   // Save: enabled, with no reason line, and the API answers.
