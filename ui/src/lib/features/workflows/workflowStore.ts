@@ -281,9 +281,10 @@ function createWorkflowDraftStore() {
 export const workflowDraft = createWorkflowDraftStore();
 
 /**
- * True once the workflow builder has been opened in this page session. Until
- * then (and while the draft is still the empty default) the draft is not
- * "live", so its validation errors do not reach the global Problems badge.
+ * An explicit request to treat the draft as live even while it is still the
+ * empty default. The builder does not set it on mount (`.loom/42` E-5): the
+ * untouched default is nobody's work, so it stays out of the Problems badge
+ * until it differs from the default.
  */
 const builderOpenedStore = writable<boolean>(false);
 export const workflowBuilderOpened = { subscribe: builderOpenedStore.subscribe };

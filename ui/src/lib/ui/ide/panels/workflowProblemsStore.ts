@@ -81,11 +81,13 @@ export const workflowDiagnostics = derived(workflowDraft, ($draft): WorkflowDiag
 });
 
 /**
- * The workflow draft is "live" once the builder has been opened in this
- * session, or when the draft differs from the empty default (e.g. restored
- * from a previous session). Only a live draft's validation reaches the
- * Problems badge and panel — the never-opened builder's empty draft used to
- * put three errors on every page of a fresh session.
+ * The workflow draft is "live" once it differs from the empty default (edited
+ * in the builder, loaded from a version or restored from storage), or when
+ * something explicitly asked for its validation (`markWorkflowBuilderOpened`,
+ * which the builder no longer calls on mount: `/workflows` opens on Design, so
+ * merely visiting it put the untouched draft's three errors in the Problems
+ * badge, `.loom/42` E-5). Only a live draft's validation reaches the Problems
+ * badge and panel.
  */
 export const workflowDraftLive = derived(
   [workflowDraft, workflowBuilderOpened],
