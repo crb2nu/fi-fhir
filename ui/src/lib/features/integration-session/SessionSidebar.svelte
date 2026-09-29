@@ -458,8 +458,8 @@
   .rail {
     display: flex;
     flex-direction: column;
-    width: 300px;
-    min-width: 300px;
+    width: 280px;
+    min-width: 280px;
     height: 100%;
     min-height: 0;
     border-left: 1px solid var(--color-border-subtle);
@@ -505,6 +505,11 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-tertiary);
+  }
+
+  .block-title .mono {
+    text-transform: none;
+    letter-spacing: normal;
   }
 
   .count {

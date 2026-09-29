@@ -148,7 +148,10 @@
   const workspace = createSessionWorkspace();
   const workspaceState = workspace.state;
   onDestroy(() => workspace.dispose());
-  let sessionRailOpen = true;
+  // null follows the session: the rail opens once the page has (or links to)
+  // one. The toolbar's Session button makes it an explicit choice.
+  let sessionRailChoice: boolean | null = null;
+  $: sessionRailOpen = sessionRailChoice ?? $workspaceState.status.kind !== 'idle';
   let shownRunId: string | null = null;
   let acceptingFixes = false;
   let acceptFixesError: string | null = null;
@@ -291,8 +294,7 @@
 
   $: sessionFixes = $state.session?.mode === 'session' ? $state.session.diagnostics.filter((d) => d.fixSuggestion) : [];
   $: openFixes = sessionFixes.filter((d) => !d.accepted).length;
-  $: showSessionRail =
-    sessionRailOpen && (sessionEngineEnabled || $workspaceState.status.kind !== 'idle');
+  $: showSessionRail = sessionRailOpen && (sessionEngineEnabled || $workspaceState.status.kind !== 'idle');
 
   // Sample intake from connections (.loom/38 C-3). The controller lives here,
   // not in the Samples tab, so a capture keeps arriving while another tab is open.
@@ -1272,7 +1274,7 @@
           aria-pressed={sessionRailOpen}
           title={sessionRailOpen ? 'Hide the session sidebar' : 'Show the session sidebar: runs, diagnostics, export'}
           data-testid="hl7-session-toggle"
-          onclick={() => (sessionRailOpen = !sessionRailOpen)}
+          onclick={() => (sessionRailChoice = !sessionRailOpen)}
         >
           Session
         </Button>
@@ -1766,7 +1768,7 @@
         {shownRunId}
         onshowrun={(runId) => void showRun(runId)}
         oninspectpath={inspectPath}
-        onclose={() => (sessionRailOpen = false)}
+        onclose={() => (sessionRailChoice = false)}
       />
     {/if}
   </div>
