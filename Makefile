@@ -1224,8 +1224,10 @@ ui-e2e:
 # binding reference is refused and writes nothing; a cross-tenant read is not
 # found; a write or validate without integration.deployment.operator is
 # forbidden; racing compiles claim one revision, and a compile racing an
-# archive reports archived. Requires POSTGRES_TEST_URL; every proof skips
-# without it, which is why the CI job asserts the names exist first.
+# archive reports archived; a runtime observation (.loom/39 step 1) upserts in
+# place per replica and moves observed_at only when the digest changes.
+# Requires POSTGRES_TEST_URL; every proof skips without it, which is why the CI
+# job asserts the names exist first.
 connection-catalog:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run 'TestConnectionCatalog_' ./internal/integration/connection/...

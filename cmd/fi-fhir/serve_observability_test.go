@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	integrationsession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
@@ -216,3 +220,90 @@ func (stubStreamLog) ListStreamEventsAfter(context.Context, int64, int) ([]integ
 }
 
 func (stubStreamLog) LatestStreamSeq(context.Context) (int64, error) { return 0, nil }
+
+type recordingObservationStore struct {
+	rows []connection.Observation
+	err  error
+}
+
+func (s *recordingObservationStore) UpsertObservation(_ context.Context, observation connection.Observation) error {
+	s.rows = append(s.rows, observation)
+	return s.err
+}
+
+func observedReplicaDescription() *connection.RuntimeDescription {
+	description := &connection.RuntimeDescription{TenantID: "tenant-a", ReplicaID: "host-1-42"}
+	for index, kind := range connection.AdapterOrder {
+		description.Adapters[index] = connection.RuntimeAdapter{Kind: kind}
+	}
+	description.Adapters[1] = connection.RuntimeAdapter{Kind: connection.AdapterMLLP, Enabled: true,
+		DefinitionID: "adt-mllp", SourceID: "adt-east", SourceRevisionID: "r1", SourceDigest: "sha256:mllp"}
+	description.Adapters[2] = connection.RuntimeAdapter{Kind: connection.AdapterBatch, Enabled: true,
+		DefinitionID: "claims-batch", SourceID: "claims", SourceRevisionID: "r3", SourceDigest: "sha256:batch"}
+	description.DestinationIdentity = &connection.RuntimeDestinationIdentity{Mode: "strict", Destinations: []connection.RuntimeDestination{
+		{ArtifactID: "dest-fhir", RevisionID: "1", Digest: "sha256:fhir"},
+		{ArtifactID: "dest-kafka", RevisionID: "2", Digest: "sha256:kafka"},
+	}}
+	return description
+}
+
+func TestRuntimeObservationReporterWritesOneRowPerAdapterAndDestination(t *testing.T) {
+	store := &recordingObservationStore{}
+	reporter := newRuntimeObservationReporter(store, observedReplicaDescription(), 0, nil)
+	if reporter == nil {
+		t.Fatal("reporter is nil with a store and a description")
+	}
+	if reporter.interval != time.Minute {
+		t.Fatalf("default interval = %s, want 1m", reporter.interval)
+	}
+	reporter.reportOnce(t.Context())
+	wantAdapters := []string{"http", "mllp", "batch", "delivery", "destination:dest-fhir", "destination:dest-kafka"}
+	if len(store.rows) != len(wantAdapters) {
+		t.Fatalf("wrote %d rows, want %d: %+v", len(store.rows), len(wantAdapters), store.rows)
+	}
+	for index, row := range store.rows {
+		if row.Adapter != wantAdapters[index] || row.ReplicaID != "host-1-42" || row.TenantID != "tenant-a" {
+			t.Errorf("row %d = %+v", index, row)
+		}
+	}
+	if store.rows[1].Digest != "sha256:mllp" || store.rows[5].Digest != "sha256:kafka" {
+		t.Fatalf("digests not reported: %+v", store.rows)
+	}
+}
+
+func TestRuntimeObservationReporterFailureIsLoggedNotFatal(t *testing.T) {
+	store := &recordingObservationStore{err: errors.New("connection refused")}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	reporter := newRuntimeObservationReporter(store, observedReplicaDescription(), time.Minute, logger)
+	reporter.reportOnce(t.Context())
+	if len(store.rows) != 6 {
+		t.Fatalf("a failed row stopped the tick after %d rows, want all 6 attempted", len(store.rows))
+	}
+	if got := strings.Count(logs.String(), "runtime observation heartbeat failed"); got != 1 {
+		t.Fatalf("logged %d warnings for one failed tick, want 1:\n%s", got, logs.String())
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := reporter.Run(ctx); err != nil {
+		t.Fatalf("Run after cancellation: %v", err)
+	}
+}
+
+func TestNewRuntimeObservationReporterIsNilWithoutAStoreOrReplica(t *testing.T) {
+	if reporter := newRuntimeObservationReporter(nil, observedReplicaDescription(), time.Minute, nil); reporter != nil {
+		t.Fatal("reporter without a store")
+	}
+	if reporter := newRuntimeObservationReporter(&recordingObservationStore{}, nil, time.Minute, nil); reporter != nil {
+		t.Fatal("reporter without a description")
+	}
+	anonymous := observedReplicaDescription()
+	anonymous.ReplicaID = ""
+	if reporter := newRuntimeObservationReporter(&recordingObservationStore{}, anonymous, time.Minute, nil); reporter != nil {
+		t.Fatal("reporter without a replica id")
+	}
+	var reporter *runtimeObservationReporter
+	if err := reporter.Run(t.Context()); err != nil {
+		t.Fatalf("nil reporter Run: %v", err)
+	}
+}

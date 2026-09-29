@@ -961,3 +961,69 @@ func TestConnectionCatalog_ConcurrentCompilesClaimOneRevision(t *testing.T) {
 		}
 	})
 }
+
+// TestConnectionCatalog_RuntimeObservations: a replica's heartbeat upserts one
+// row per adapter in place (no immutability trigger), observed_at moves only
+// when the mounted digest changes while heartbeat_at moves every tick, two
+// replicas keep separate rows, and another tenant's rows are never listed.
+func TestConnectionCatalog_RuntimeObservations(t *testing.T) {
+	catalog := newCatalogUnderTest(t)
+	ctx := t.Context()
+	digestA := "sha256:" + strings.Repeat("a", 64)
+	digestB := "sha256:" + strings.Repeat("b", 64)
+	upsert := func(observation Observation) {
+		t.Helper()
+		if err := catalog.store.UpsertObservation(ctx, observation); err != nil {
+			t.Fatalf("UpsertObservation(%+v): %v", observation, err)
+		}
+	}
+	upsert(Observation{TenantID: "tenant-a", ReplicaID: "host-1-10", Adapter: AdapterMLLP,
+		DefinitionID: "adt-mllp", ArtifactID: "adt-east", RevisionID: "r1", Digest: digestA})
+	upsert(Observation{TenantID: "tenant-a", ReplicaID: "host-1-10", Adapter: AdapterBatch})
+	upsert(Observation{TenantID: "tenant-a", ReplicaID: "host-2-20", Adapter: AdapterMLLP,
+		DefinitionID: "adt-mllp", ArtifactID: "adt-east", RevisionID: "r1", Digest: digestA})
+	upsert(Observation{TenantID: "tenant-b", ReplicaID: "host-9-90", Adapter: AdapterMLLP, Digest: digestA})
+
+	first, err := catalog.store.ListObservations(ctx, "tenant-a")
+	if err != nil {
+		t.Fatalf("ListObservations: %v", err)
+	}
+	if len(first) != 3 {
+		t.Fatalf("tenant-a has %d observations, want 3: %+v", len(first), first)
+	}
+	if first[0].Adapter != AdapterBatch || first[0].Digest != "" || first[0].ArtifactID != "" {
+		t.Fatalf("disabled adapter row = %+v, want no document", first[0])
+	}
+
+	// Same digest again: heartbeat moves, observed_at does not.
+	upsert(Observation{TenantID: "tenant-a", ReplicaID: "host-1-10", Adapter: AdapterMLLP,
+		DefinitionID: "adt-mllp", ArtifactID: "adt-east", RevisionID: "r1", Digest: digestA})
+	second, err := catalog.store.ListObservations(ctx, "tenant-a")
+	if err != nil {
+		t.Fatalf("ListObservations: %v", err)
+	}
+	before, after := first[1], second[1]
+	if after.ReplicaID != "host-1-10" || after.Adapter != AdapterMLLP {
+		t.Fatalf("unexpected row order: %+v", second)
+	}
+	if !after.HeartbeatAt.After(before.HeartbeatAt) || !after.ObservedAt.Equal(before.ObservedAt) {
+		t.Fatalf("same-digest heartbeat: before %+v after %+v", before, after)
+	}
+
+	// A new digest moves observed_at too.
+	upsert(Observation{TenantID: "tenant-a", ReplicaID: "host-1-10", Adapter: AdapterMLLP,
+		DefinitionID: "adt-mllp", ArtifactID: "adt-east", RevisionID: "r2", Digest: digestB})
+	third, err := catalog.store.ListObservations(ctx, "tenant-a")
+	if err != nil {
+		t.Fatalf("ListObservations: %v", err)
+	}
+	if third[1].Digest != digestB || third[1].RevisionID != "r2" || !third[1].ObservedAt.Equal(third[1].HeartbeatAt) {
+		t.Fatalf("changed digest row = %+v", third[1])
+	}
+	if got := countRows(t, catalog.db, "integration_runtime_observations"); got != 4 {
+		t.Fatalf("table holds %d rows, want 4 (upserts must not append)", got)
+	}
+	if err := catalog.store.UpsertObservation(ctx, Observation{TenantID: "tenant-a", Adapter: AdapterMLLP}); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("observation without replica id: %v, want ErrInvalidRequest", err)
+	}
+}

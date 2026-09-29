@@ -426,12 +426,20 @@ export type ConnectionRuntimeState = {
   /** True when this replica runs a revision of this connection. */
   mounted: Scalars['Boolean']['output'];
   /**
+   * Replicas with a fresh heartbeat (engineRuntime.observations, stale false)
+   * that report a revision of this connection mounted. Unlike mounted, this is
+   * every replica's report, not only the one that answered.
+   */
+  observedReplicas: Scalars['Int']['output'];
+  /**
    * The mounted revision's id; null when not mounted and for http-ingress,
    * which is bound by definition id rather than a mounted document.
    */
   revisionId: Maybe<Scalars['ID']['output']>;
   /** mllp-listener, batch-runner, http-ingress, or delivery-registry; null when not mounted. */
   role: Maybe<Scalars['String']['output']>;
+  /** Replicas with any fresh heartbeat; observedReplicas of totalReplicas. */
+  totalReplicas: Scalars['Int']['output'];
 };
 
 /** A reference to a secret: never its value. */
@@ -629,6 +637,24 @@ export type EngineLedger = {
   version: Scalars['Int']['output'];
 };
 
+/**
+ * One replica's report of one adapter: which document it mounted, and when it
+ * last said so. adapter is http, mllp, batch, delivery, or
+ * destination:<artifact id>. artifactId, revisionId, and digest are null when the
+ * adapter is disabled or mounts no document of its own.
+ */
+export type EngineObservation = {
+  __typename?: 'EngineObservation';
+  adapter: Scalars['String']['output'];
+  artifactId: Maybe<Scalars['ID']['output']>;
+  digest: Maybe<Scalars['String']['output']>;
+  heartbeatAt: Scalars['DateTime']['output'];
+  replicaId: Scalars['String']['output'];
+  revisionId: Maybe<Scalars['ID']['output']>;
+  /** True when heartbeatAt is older than three report intervals. */
+  stale: Scalars['Boolean']['output'];
+};
+
 export type EngineProperty = {
   __typename?: 'EngineProperty';
   /** The environment variable that sets it; change it in GitOps. */
@@ -675,6 +701,12 @@ export type EngineRuntime = {
   /** Every forward-only migration ledger and the version this binary expects. */
   ledgers: Array<EngineLedger>;
   llmConfigured: Scalars['Boolean']['output'];
+  /**
+   * Every replica's heartbeat rows from the connection ledger, this one's
+   * included, ordered by replica and adapter. Empty when the connection catalog
+   * is not configured.
+   */
+  observations: Array<EngineObservation>;
   properties: Array<EngineProperty>;
   registry: EngineRegistry;
   /** hostname-pid, as the MLLP rate quota derives it. */

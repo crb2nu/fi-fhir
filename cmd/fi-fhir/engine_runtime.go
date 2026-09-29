@@ -256,12 +256,16 @@ func describeServePropertyFamily(family serveProperty) []connection.RuntimePrope
 	return properties
 }
 
+// engineRuntimeReplicaUnavailable is the replica id when hostname-pid cannot
+// be derived. Every such replica would share it, so it reports no observations.
+const engineRuntimeReplicaUnavailable = "unavailable"
+
 // buildEngineRuntimeDescription describes what this replica composed. It is
 // called once, after every adapter is decided.
 func buildEngineRuntimeDescription(runtime *previewRuntime, facts engineRuntimeFacts) (*connection.RuntimeDescription, error) {
 	replicaID, err := replicaHolderID()
 	if err != nil {
-		replicaID = "unavailable"
+		replicaID = engineRuntimeReplicaUnavailable
 	}
 	composition := runtime.composition
 	description := &connection.RuntimeDescription{

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
@@ -336,7 +337,7 @@ func TestReferencesByDigestIsOneCatalogQuery(t *testing.T) {
 
 	projected := project(Draft{ID: "dest"}, nil, []RevisionDigest{
 		{RevisionID: "2", Digest: destination}, {RevisionID: "1", Digest: "sha256:" + strings.Repeat("f", 64)},
-	}, references, nil)
+	}, references, nil, nil)
 	if len(projected.References) != 250 || projected.Runtime.Mounted {
 		t.Fatalf("projection = %d references, mounted %v", len(projected.References), projected.Runtime.Mounted)
 	}
@@ -371,5 +372,68 @@ func TestNewServiceFailsClosed(t *testing.T) {
 	var missing *Service
 	if _, err := missing.List(callerContext("tenant-a", ReadRole), ListFilter{}); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("nil service: %v", err)
+	}
+}
+
+func TestObservedFleetCountsFreshReplicasThatMountAConnection(t *testing.T) {
+	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	interval := time.Minute
+	source := "sha256:" + strings.Repeat("a", 64)
+	older := "sha256:" + strings.Repeat("b", 64)
+	other := "sha256:" + strings.Repeat("c", 64)
+	observations := []Observation{
+		// Fresh, mounts the newest revision.
+		{ReplicaID: "host-1-1", Adapter: AdapterMLLP, Digest: source, HeartbeatAt: now.Add(-30 * time.Second)},
+		{ReplicaID: "host-1-1", Adapter: AdapterBatch, HeartbeatAt: now.Add(-30 * time.Second)},
+		// Fresh at exactly 3x the interval, mounts an older revision of it.
+		{ReplicaID: "host-2-2", Adapter: AdapterMLLP, Digest: older, HeartbeatAt: now.Add(-3 * interval)},
+		// Fresh, mounts something else.
+		{ReplicaID: "host-3-3", Adapter: AdapterMLLP, Digest: other, HeartbeatAt: now},
+		// Stale: mounted it once, stopped reporting. Counts nowhere.
+		{ReplicaID: "host-4-4", Adapter: AdapterMLLP, Digest: source, HeartbeatAt: now.Add(-3*interval - time.Second)},
+	}
+	fleet := newObservedFleet(observations, now, interval)
+	revisions := []RevisionDigest{{RevisionID: "2", Digest: source}, {RevisionID: "1", Digest: older}}
+	if observed, total := fleet.replicas(revisions); observed != 2 || total != 3 {
+		t.Fatalf("replicas = %d/%d, want 2/3", observed, total)
+	}
+	if observed, total := fleet.replicas(nil); observed != 0 || total != 3 {
+		t.Fatalf("never-compiled connection = %d/%d, want 0/3", observed, total)
+	}
+	var none observedFleet
+	if observed, total := none.replicas(revisions); observed != 0 || total != 0 {
+		t.Fatalf("no observations = %d/%d, want 0/0", observed, total)
+	}
+
+	views := observationViews(observations, now, interval)
+	var stale []string
+	for _, view := range views {
+		if view.Stale {
+			stale = append(stale, view.ReplicaID)
+		}
+	}
+	if len(views) != len(observations) || len(stale) != 1 || stale[0] != "host-4-4" {
+		t.Fatalf("stale rows = %v of %d, want only host-4-4", stale, len(views))
+	}
+}
+
+func TestServiceObservationsRequiresReadRole(t *testing.T) {
+	service := unitService(t)
+	if _, err := service.Observations(context.Background()); !errors.Is(err, ErrUnauthenticated) {
+		t.Fatalf("anonymous: %v", err)
+	}
+	if _, err := service.Observations(callerContext("tenant-b", ReadRole)); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("other tenant: %v", err)
+	}
+	if _, err := service.Observations(callerContext("tenant-a", ReadRole)); !errors.Is(err, errUnreachableStore) {
+		t.Fatalf("authorized caller must reach the store: %v", err)
+	}
+	service.SetObservationInterval(0)
+	if service.observationInterval != DefaultObservationInterval {
+		t.Fatalf("a zero interval replaced the default: %s", service.observationInterval)
+	}
+	service.SetObservationInterval(30 * time.Second)
+	if service.observationInterval != 30*time.Second {
+		t.Fatalf("interval = %s", service.observationInterval)
 	}
 }

@@ -14,7 +14,9 @@
 # code and path and nothing is written; another tenant's connection reads as
 # not found; a write or validate without integration.deployment.operator is
 # forbidden; racing compiles claim exactly one revision, and a compile racing
-# an archive waits for it and reports archived.
+# an archive waits for it and reports archived; a replica's runtime
+# observation (.loom/39 step 1) upserts in place and moves observed_at only
+# when the mounted digest changes.
 #
 # The field-level checker's mirror of the constructors
 # (TestConnectionChecker_MirrorsConstructorBounds) needs no database and runs
@@ -31,12 +33,12 @@ test:connection-catalog:
     - !reference [.integration-proof-toolchain, script]
     # Existence guard. Every proof t.Skips without POSTGRES_TEST_URL, so a
     # renamed or deleted proof would make this job greener rather than redder
-    # without this step (AGENTS.md). Nine names, and the count is asserted so a
+    # without this step (AGENTS.md). Ten names, and the count is asserted so a
     # rename cannot silently shrink the set.
     - >-
       go test -tags=integration
-      -list '^TestConnectionCatalog_(TwoReplicasMigrateConcurrently|CreateUpdateCompileDecodesToTheSameDigest|LifecycleReferenceAndRuntimeState|RestartPreservesEveryRow|StoredRecordsAreGuardedBySchemaTriggers|SecretValueIsRefusedAndNotPersisted|CrossTenantReadIsNotFound|WriteWithoutDeploymentRoleIsForbidden|ConcurrentCompilesClaimOneRevision)$'
+      -list '^TestConnectionCatalog_(TwoReplicasMigrateConcurrently|CreateUpdateCompileDecodesToTheSameDigest|LifecycleReferenceAndRuntimeState|RestartPreservesEveryRow|StoredRecordsAreGuardedBySchemaTriggers|SecretValueIsRefusedAndNotPersisted|CrossTenantReadIsNotFound|WriteWithoutDeploymentRoleIsForbidden|ConcurrentCompilesClaimOneRevision|RuntimeObservations)$'
       ./internal/integration/connection
-      | rg -x 'TestConnectionCatalog_(TwoReplicasMigrateConcurrently|CreateUpdateCompileDecodesToTheSameDigest|LifecycleReferenceAndRuntimeState|RestartPreservesEveryRow|StoredRecordsAreGuardedBySchemaTriggers|SecretValueIsRefusedAndNotPersisted|CrossTenantReadIsNotFound|WriteWithoutDeploymentRoleIsForbidden|ConcurrentCompilesClaimOneRevision)'
-      | awk 'END { if (NR != 9) exit 1 }'
+      | rg -x 'TestConnectionCatalog_(TwoReplicasMigrateConcurrently|CreateUpdateCompileDecodesToTheSameDigest|LifecycleReferenceAndRuntimeState|RestartPreservesEveryRow|StoredRecordsAreGuardedBySchemaTriggers|SecretValueIsRefusedAndNotPersisted|CrossTenantReadIsNotFound|WriteWithoutDeploymentRoleIsForbidden|ConcurrentCompilesClaimOneRevision|RuntimeObservations)'
+      | awk 'END { if (NR != 10) exit 1 }'
     - make connection-catalog

@@ -268,6 +268,29 @@ type RuntimeState struct {
 	Detail     string
 	RevisionID string
 	Digest     string
+	// ObservedReplicas counts replicas with a fresh heartbeat that report a
+	// revision of this connection mounted; TotalReplicas counts replicas
+	// with any fresh heartbeat. Both come from integration_runtime_observations,
+	// not from this replica's description.
+	ObservedReplicas int
+	TotalReplicas    int
+}
+
+// Observation is one replica's heartbeat for one adapter: the row
+// integration_runtime_observations holds (.loom/39, "Convergence" step 1).
+// Adapter is an adapter kind (AdapterHTTP, AdapterMLLP, ...) or
+// ObservationDestinationPrefix + a destination artifact ID. The identity
+// fields are empty when the adapter is disabled or mounts no document.
+type Observation struct {
+	TenantID     string
+	ReplicaID    string
+	Adapter      string
+	DefinitionID string
+	ArtifactID   string
+	RevisionID   string
+	Digest       string
+	ObservedAt   time.Time
+	HeartbeatAt  time.Time
 }
 
 // Connection is the read projection of one draft: the draft itself, its

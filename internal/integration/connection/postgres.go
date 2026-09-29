@@ -23,14 +23,18 @@ const connectionMigrationLockKey = int64(5064657639792058909)
 // SchemaVersion is the connection ledger version this binary expects. It is
 // the seventh ledger `fi-fhir version` and fi_fhir_schema_ledger_version
 // report; the migrationcompat proof asserts it equals the highest version
-// actually applied. Version 2 is Lane C-2's capture intake columns.
-const SchemaVersion = 2
+// actually applied. Version 2 is Lane C-2's capture intake columns; version 3
+// is .loom/39's per-replica runtime observations.
+const SchemaVersion = 3
 
 //go:embed migrations/0001_connection_catalog.sql
 var connectionCatalogMigration string
 
 //go:embed migrations/0002_connection_capture_intake.sql
 var connectionCaptureIntakeMigration string
+
+//go:embed migrations/0003_runtime_observations.sql
+var connectionRuntimeObservationsMigration string
 
 // connectionMigration is one numbered step in this package's own forward-only
 // ledger, integration_connection_schema_migrations.
@@ -46,6 +50,7 @@ func connectionMigrations() []connectionMigration {
 	return []connectionMigration{
 		{version: 1, name: "0001_connection_catalog", statements: connectionCatalogMigration},
 		{version: 2, name: "0002_connection_capture_intake", statements: connectionCaptureIntakeMigration},
+		{version: 3, name: "0003_runtime_observations", statements: connectionRuntimeObservationsMigration},
 	}
 }
 
@@ -531,6 +536,80 @@ func (s *PostgresStore) RevisionDigests(ctx context.Context, tenantID, artifactI
 		return nil, fmt.Errorf("iterate connection revision digests: %w", err)
 	}
 	return digests, nil
+}
+
+// UpsertObservation records one replica's heartbeat for one adapter. The row
+// is created on first report and updated in place after that: heartbeat_at
+// always moves to the store's clock, observed_at only when the mounted digest
+// or revision changed.
+func (s *PostgresStore) UpsertObservation(ctx context.Context, observation Observation) error {
+	if s == nil || s.db == nil || ctx == nil {
+		return ErrUnavailable
+	}
+	if !validIdentity(observation.TenantID) || !validIdentity(observation.ReplicaID) || !validIdentity(observation.Adapter) {
+		return ErrInvalidRequest
+	}
+	now := s.Now()
+	if _, err := s.db.ExecContext(ctx, `
+		INSERT INTO integration_runtime_observations (
+			tenant_id, replica_id, adapter, definition_id, artifact_id, revision_id, digest,
+			observed_at, heartbeat_at
+		) VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $8)
+		ON CONFLICT (tenant_id, replica_id, adapter) DO UPDATE SET
+			observed_at = CASE
+				WHEN integration_runtime_observations.digest IS NOT DISTINCT FROM EXCLUDED.digest
+				 AND integration_runtime_observations.revision_id IS NOT DISTINCT FROM EXCLUDED.revision_id
+				THEN integration_runtime_observations.observed_at
+				ELSE EXCLUDED.observed_at
+			END,
+			definition_id = EXCLUDED.definition_id,
+			artifact_id = EXCLUDED.artifact_id,
+			revision_id = EXCLUDED.revision_id,
+			digest = EXCLUDED.digest,
+			heartbeat_at = EXCLUDED.heartbeat_at
+	`, observation.TenantID, observation.ReplicaID, observation.Adapter, observation.DefinitionID,
+		observation.ArtifactID, observation.RevisionID, observation.Digest, now); err != nil {
+		return fmt.Errorf("upsert runtime observation: %w", err)
+	}
+	return nil
+}
+
+// ListObservations returns every replica's observation rows of one tenant,
+// stale ones included, ordered by replica and adapter. Deciding staleness is
+// the reader's business: it knows the report interval.
+func (s *PostgresStore) ListObservations(ctx context.Context, tenantID string) ([]Observation, error) {
+	if s == nil || s.db == nil || ctx == nil {
+		return nil, ErrUnavailable
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT tenant_id, replica_id, adapter, coalesce(definition_id, ''), coalesce(artifact_id, ''),
+			coalesce(revision_id, ''), coalesce(digest, ''), observed_at, heartbeat_at
+		FROM integration_runtime_observations
+		WHERE tenant_id = $1
+		ORDER BY replica_id, adapter
+	`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list runtime observations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	observations := make([]Observation, 0)
+	for rows.Next() {
+		var observation Observation
+		if err := rows.Scan(
+			&observation.TenantID, &observation.ReplicaID, &observation.Adapter, &observation.DefinitionID,
+			&observation.ArtifactID, &observation.RevisionID, &observation.Digest,
+			&observation.ObservedAt, &observation.HeartbeatAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan runtime observation: %w", err)
+		}
+		observation.ObservedAt = observation.ObservedAt.UTC()
+		observation.HeartbeatAt = observation.HeartbeatAt.UTC()
+		observations = append(observations, observation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate runtime observations: %w", err)
+	}
+	return observations, nil
 }
 
 func uniqueViolation(err error) bool {

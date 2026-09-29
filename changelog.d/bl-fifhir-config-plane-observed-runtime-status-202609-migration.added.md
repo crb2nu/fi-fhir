@@ -1,0 +1,1 @@
+- Add the per-replica runtime heartbeat table in `internal/integration/connection/migrations/0003_runtime_observations.sql`, storing mounted document digests and heartbeat times for connection catalog observations.

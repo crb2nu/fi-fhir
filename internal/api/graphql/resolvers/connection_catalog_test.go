@@ -141,3 +141,49 @@ func TestWithEngineRuntimeKeepsItsOwnCopy(t *testing.T) {
 		t.Fatal("a nil description became a non-nil one")
 	}
 }
+
+func TestEngineRuntimeObservationsAreEmptyWithoutACatalog(t *testing.T) {
+	description := &connection.RuntimeDescription{Version: "v1", TenantID: "tenant-a", ReplicaID: "host-1-1"}
+	for index, kind := range connection.AdapterOrder {
+		description.Adapters[index] = connection.RuntimeAdapter{Kind: kind}
+	}
+	projected := projectEngineRuntime(*description)
+	if projected.Observations == nil || len(projected.Observations) != 0 {
+		t.Fatalf("observations without a catalog = %#v, want an empty non-null list", projected.Observations)
+	}
+}
+
+func TestProjectEngineObservationsRendersAbsentIdentityAsNull(t *testing.T) {
+	heartbeat := time.Date(2026, 9, 29, 12, 0, 0, 0, time.FixedZone("EDT", -4*3600))
+	projected := projectEngineObservations([]connection.ObservationView{
+		{Observation: connection.Observation{ReplicaID: "host-1-1", Adapter: connection.AdapterBatch, HeartbeatAt: heartbeat}},
+		{Observation: connection.Observation{
+			ReplicaID: "host-2-2", Adapter: connection.ObservationDestinationPrefix + "dest-fhir",
+			ArtifactID: "dest-fhir", RevisionID: "1", Digest: "sha256:fhir", HeartbeatAt: heartbeat,
+		}, Stale: true},
+	})
+	if len(projected) != 2 {
+		t.Fatalf("projected %d observations, want 2", len(projected))
+	}
+	disabled, destination := projected[0], projected[1]
+	if disabled.ArtifactID != nil || disabled.RevisionID != nil || disabled.Digest != nil || disabled.Stale {
+		t.Fatalf("disabled adapter = %+v, want null identity and fresh", disabled)
+	}
+	if destination.ArtifactID == nil || *destination.ArtifactID != "dest-fhir" || destination.Digest == nil ||
+		*destination.Digest != "sha256:fhir" || !destination.Stale || destination.Adapter != "destination:dest-fhir" {
+		t.Fatalf("destination = %+v", destination)
+	}
+	if destination.HeartbeatAt.Location() != time.UTC || !destination.HeartbeatAt.Equal(heartbeat) {
+		t.Fatalf("heartbeatAt = %v, want the same instant in UTC", destination.HeartbeatAt)
+	}
+}
+
+func TestProjectConnectionCarriesReplicaCounts(t *testing.T) {
+	projected := projectConnection(connection.Connection{
+		Draft:   connection.Draft{ID: "adt-mllp", Direction: connection.DirectionSource, Kind: connection.KindMLLP},
+		Runtime: connection.RuntimeState{ObservedReplicas: 2, TotalReplicas: 3},
+	})
+	if projected.Runtime.ObservedReplicas != 2 || projected.Runtime.TotalReplicas != 3 {
+		t.Fatalf("runtime = %+v, want 2 of 3 replicas", projected.Runtime)
+	}
+}

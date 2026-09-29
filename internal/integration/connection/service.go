@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 	"unicode"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
@@ -34,6 +35,9 @@ type Service struct {
 	catalog  DefinitionCatalog
 	runtime  *RuntimeDescription
 	tenantID string
+	// observationInterval is the replicas' heartbeat cadence; an observation
+	// older than ObservationStaleFactor of it is stale.
+	observationInterval time.Duration
 	// intake is Lane C-2's sample intake (capture.go, peek.go); nil until
 	// EnableSampleIntake, and every intake method refuses until then.
 	intake atomic.Pointer[sampleIntake]
@@ -50,7 +54,27 @@ func NewService(store *PostgresStore, catalog DefinitionCatalog, runtime *Runtim
 		clone := runtime.Clone()
 		described = &clone
 	}
-	return &Service{store: store, catalog: catalog, runtime: described, tenantID: tenantID}, nil
+	return &Service{
+		store: store, catalog: catalog, runtime: described, tenantID: tenantID,
+		observationInterval: DefaultObservationInterval,
+	}, nil
+}
+
+// DefaultObservationInterval is the heartbeat cadence a Service assumes until
+// SetObservationInterval says otherwise; serve reports once a minute.
+const DefaultObservationInterval = time.Minute
+
+// ObservationStaleFactor is how many report intervals a heartbeat may age
+// before its replica stops counting as observed.
+const ObservationStaleFactor = 3
+
+// SetObservationInterval tells the service the cadence replicas report at.
+// Call it during composition, before the service answers a request.
+func (s *Service) SetObservationInterval(interval time.Duration) {
+	if s == nil || interval <= 0 {
+		return
+	}
+	s.observationInterval = interval
 }
 
 // authorize resolves verified caller identity and requires every listed role.
@@ -183,13 +207,17 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Connection, er
 	if err != nil {
 		return nil, err
 	}
+	fleet, err := s.fleet(ctx, security.TenantID)
+	if err != nil {
+		return nil, err
+	}
 	mounted := s.runtime.MountedDigests()
 	for _, draft := range drafts {
 		var latestRevision *Revision
 		if revision, ok := latest[draft.ID]; ok {
 			latestRevision = &revision
 		}
-		connections = append(connections, project(draft, latestRevision, digests[draft.ID], references, mounted))
+		connections = append(connections, project(draft, latestRevision, digests[draft.ID], references, mounted, fleet))
 	}
 	return connections, nil
 }
@@ -229,7 +257,11 @@ func (s *Service) connection(ctx context.Context, draft Draft) (Connection, erro
 	if err != nil {
 		return Connection{}, err
 	}
-	return project(draft, latest, digests[draft.ID], references, s.runtime.MountedDigests()), nil
+	fleet, err := s.fleet(ctx, draft.TenantID)
+	if err != nil {
+		return Connection{}, err
+	}
+	return project(draft, latest, digests[draft.ID], references, s.runtime.MountedDigests(), fleet), nil
 }
 
 // ListRevisions returns one connection's revisions, newest first. A connection
@@ -488,15 +520,93 @@ func (s *Service) referencesByDigest(ctx context.Context, tenantID string, diges
 	return references, nil
 }
 
+// ObservationView is one observation row as a reader sees it: Stale when its
+// heartbeat is older than ObservationStaleFactor report intervals.
+type ObservationView struct {
+	Observation
+	Stale bool
+}
+
+// Observations returns every replica's observation rows of the service's
+// tenant, stale ones included and marked, ordered by replica and adapter.
+func (s *Service) Observations(ctx context.Context) ([]ObservationView, error) {
+	security, err := s.authorize(ctx, ReadRole)
+	if err != nil {
+		return nil, err
+	}
+	observations, err := s.store.ListObservations(ctx, security.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	return observationViews(observations, s.store.Now(), s.observationInterval), nil
+}
+
+func observationViews(observations []Observation, now time.Time, interval time.Duration) []ObservationView {
+	views := make([]ObservationView, 0, len(observations))
+	for _, observation := range observations {
+		views = append(views, ObservationView{Observation: observation, Stale: observationStale(observation, now, interval)})
+	}
+	return views
+}
+
+func observationStale(observation Observation, now time.Time, interval time.Duration) bool {
+	return now.Sub(observation.HeartbeatAt) > ObservationStaleFactor*interval
+}
+
+// observedFleet is, for every replica with a fresh heartbeat, the set of
+// digests it reported mounted.
+type observedFleet map[string]map[string]struct{}
+
+func (s *Service) fleet(ctx context.Context, tenantID string) (observedFleet, error) {
+	observations, err := s.store.ListObservations(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return newObservedFleet(observations, s.store.Now(), s.observationInterval), nil
+}
+
+func newObservedFleet(observations []Observation, now time.Time, interval time.Duration) observedFleet {
+	fleet := make(observedFleet)
+	for _, observation := range observations {
+		if observationStale(observation, now, interval) {
+			continue
+		}
+		digests, ok := fleet[observation.ReplicaID]
+		if !ok {
+			digests = make(map[string]struct{})
+			fleet[observation.ReplicaID] = digests
+		}
+		if observation.Digest != "" {
+			digests[observation.Digest] = struct{}{}
+		}
+	}
+	return fleet
+}
+
+// replicas counts the fresh replicas that mount any of revisions' digests,
+// and the fresh replicas overall.
+func (f observedFleet) replicas(revisions []RevisionDigest) (observed, total int) {
+	for _, digests := range f {
+		for _, revision := range revisions {
+			if _, ok := digests[revision.Digest]; ok {
+				observed++
+				break
+			}
+		}
+	}
+	return observed, len(f)
+}
+
 // project assembles the read view of one draft. revisions must be ordered
 // newest first.
-func project(draft Draft, latest *Revision, revisions []RevisionDigest, references map[string][]Reference, mounted map[string]MountedDigest) Connection {
+func project(draft Draft, latest *Revision, revisions []RevisionDigest, references map[string][]Reference, mounted map[string]MountedDigest, fleet observedFleet) Connection {
 	connection := Connection{
 		Draft:          draft,
 		LatestRevision: latest,
 		References:     []Reference{},
 		Runtime:        runtimeStateFor(revisions, mounted),
 	}
+	connection.Runtime.ObservedReplicas, connection.Runtime.TotalReplicas = fleet.replicas(revisions)
 	for _, revision := range revisions {
 		connection.References = append(connection.References, references[revision.Digest]...)
 	}
