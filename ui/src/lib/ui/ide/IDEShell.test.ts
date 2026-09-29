@@ -108,6 +108,14 @@ describe('IDEShell workspace', () => {
     pageStore.set({ url: new URL('http://localhost/profiles?tab=yaml') });
     await tick();
     expect(refreshJourneyEvidence).toHaveBeenCalledTimes(2);
+
+    // Leaving the journey reads again; moving between routes outside it does not.
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    await tick();
+    expect(refreshJourneyEvidence).toHaveBeenCalledTimes(3);
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    await tick();
+    expect(refreshJourneyEvidence).toHaveBeenCalledTimes(3);
   });
 
   it('asks before closing a tab with unsaved changes', async () => {
@@ -121,12 +129,13 @@ describe('IDEShell workspace', () => {
     expect(screen.getByRole('img', { name: 'Unsaved changes' })).toBeInTheDocument();
     await fireEvent.click(screen.getByLabelText('Close Workflows'));
 
-    const dialog = await screen.findByRole('alertdialog', { name: 'Close Workflows?' });
-    expect(dialog).toHaveTextContent('Workflows has changes that are not saved on the server.');
+    const dialog = await screen.findByRole('dialog', { name: 'Close Workflows?' });
+    expect(dialog).toHaveTextContent('Workflows has changes that are not published yet.');
+    expect(screen.getByRole('button', { name: 'Close tab' })).toHaveAttribute('data-variant', 'secondary');
     expect(gotoMock).not.toHaveBeenCalled();
 
     await fireEvent.click(screen.getByRole('button', { name: 'Keep open' }));
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Close Workflows?' })).not.toBeInTheDocument();
     expect(get(ideState).documents.map((doc) => doc.id)).toContain('/workflows');
 
     await fireEvent.click(screen.getByLabelText('Close Workflows'));

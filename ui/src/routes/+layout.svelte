@@ -15,11 +15,11 @@
   import '$lib/styles/base.css';
 
   /**
-   * Document titles for the routes whose page sets none (the others own a
-   * `<svelte:head>`); same words as the editor tab. Drop a route from this
+   * Document titles for the routes whose page sets none (the others, and
+   * OperatorPage, own a `<svelte:head>`); same words as the editor tab. Drop a route from this
    * list when its page gains its own title.
    */
-  const LAYOUT_TITLED_ROUTES = ['/hl7', '/profiles', '/workflows', '/operator'];
+  const LAYOUT_TITLED_ROUTES = ['/hl7', '/profiles', '/workflows'];
 
   function layoutTitle(pathname: string): string | null {
     const route = LAYOUT_TITLED_ROUTES.find((entry) => pathname === entry || pathname.startsWith(`${entry}/`));

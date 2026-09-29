@@ -136,19 +136,16 @@ function missingRoleSentence(what: string, roles: readonly string[]): string {
   return `Reading ${what} needs ${roles.join(', ')}, which this identity does not hold.`;
 }
 
-/** One sentence for a failed read. Never echoes a raw server message. */
+/**
+ * One sentence for a failed read. Never echoes a raw server message, and
+ * trusts only the error-extension code the API emits: `FORBIDDEN` (the
+ * transport gate's refusal) names the identity; anything else — a 503, a
+ * proxy error page, a timeout — only says the read failed. "Not configured"
+ * is never inferred from error text; it comes from the capability pre-flight.
+ */
 function failureSentence(what: string, err: unknown): string {
-  const entries = graphQLErrorEntries(err);
-  const codes = entries.map((entry) => String(entry.extensions?.['code'] ?? ''));
-  const text = [err instanceof Error ? err.message : String(err), ...entries.map((entry) => entry.message)]
-    .join(' ')
-    .toLowerCase();
-  if (codes.includes('FORBIDDEN') || text.includes('forbidden')) {
-    return `This identity may not read ${what}.`;
-  }
-  if (/not configured|not enabled|unavailable|disabled/.test(text)) {
-    return `${capitalize(what)} ${what.endsWith('s') ? 'are' : 'is'} not available on this deployment.`;
-  }
+  const codes = graphQLErrorEntries(err).map((entry) => entry.extensions?.['code']);
+  if (codes.includes('FORBIDDEN')) return `This identity may not read ${what}.`;
   return `${capitalize(what)} could not be read.`;
 }
 

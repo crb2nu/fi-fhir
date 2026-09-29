@@ -108,10 +108,25 @@ describe('loadJourneyEvidence', () => {
   it('is unknown, never incomplete, when a read fails and nothing proves the stage', async () => {
     const evidence = await loadJourneyEvidence(
       bundle,
-      api({ approvedAutoroutes: vi.fn(async () => Promise.reject(new Error('stats unavailable'))) })
+      api({ approvedAutoroutes: vi.fn(async () => Promise.reject(new Error('boom'))) })
     );
-    expect(evidence.translation.state).toBe('unknown');
-    expect(evidence.translation.reason).toBe('Autoroute statistics are not available on this deployment.');
+    expect(evidence.translation).toEqual({ state: 'unknown', reason: 'Autoroute statistics could not be read.' });
+  });
+
+  it('does not read a 503 or a proxy error page as a missing capability', async () => {
+    const serviceUnavailable = new Error('HTTP 503: Service Unavailable');
+    const disabledText = new GraphQLResponseError('feature disabled: upstream unavailable', [
+      { message: 'feature disabled: upstream unavailable' }
+    ]);
+    const evidence = await loadJourneyEvidence(
+      bundle,
+      api({
+        hasAcceptedReceipt: vi.fn(async () => Promise.reject(serviceUnavailable)),
+        publishedWorkflows: vi.fn(async () => Promise.reject(disabledText))
+      })
+    );
+    expect(evidence.verification).toEqual({ state: 'unknown', reason: 'Receipts could not be read.' });
+    expect(evidence.delivery).toEqual({ state: 'unknown', reason: 'The workflow catalog could not be read.' });
   });
 
   it('names a refused read without echoing the server message', async () => {

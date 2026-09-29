@@ -176,11 +176,18 @@
   $: setActiveView(currentView);
   $: openTabAction(currentWorkspaceTab);
 
-  // Journey evidence: read once per mount and again on every route change.
+  // Journey evidence: read once per mount and again on every route change
+  // that enters or leaves Home or a stage route. Moving between routes
+  // outside the journey (Operator ↔ Connections) keeps the last answer.
   let evidencePath: string | null = null;
   $: if (currentPath !== evidencePath) {
+    const previous = evidencePath;
     evidencePath = currentPath;
-    void refreshJourneyEvidence();
+    if (previous === null || onJourney(previous) || onJourney(currentPath)) void refreshJourneyEvidence();
+  }
+
+  function onJourney(pathname: string): boolean {
+    return pathname === '/' || getJourneyStage(pathname) !== null;
   }
 
   // Unsaved drafts the shell can see without the feature's help: the source
@@ -319,16 +326,15 @@
   open={pendingClose !== null}
   title={pendingClose ? `Close ${pendingClose.title}?` : 'Close tab?'}
   description={pendingClose
-    ? `${pendingClose.title} has changes that are not saved on the server.`
+    ? `${pendingClose.title} has changes that are not published yet.`
     : undefined}
   size="sm"
-  role="alertdialog"
   onclose={() => (pendingClose = null)}
   data-testid="close-dirty-tab-dialog"
 >
   {#snippet footer()}
     <Button variant="ghost" size="md" onclick={() => (pendingClose = null)}>Keep open</Button>
-    <Button variant="danger" size="md" onclick={confirmPendingClose}>Close tab</Button>
+    <Button size="md" onclick={confirmPendingClose}>Close tab</Button>
   {/snippet}
 </Dialog>
 
