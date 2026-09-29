@@ -170,7 +170,6 @@
   $: saveReason = saveBlocker(builderState);
   $: createReason = createBlocker(builderState);
   $: compareReason = compareBlocker(builderState);
-  $: promoteReason = promoteBlocker(builderState, $workflowDraft.name);
   $: readiness = {
     publishBlockers: publishBlockers(builderState),
     approvalBlockers: approvalBlockers(builderState),
