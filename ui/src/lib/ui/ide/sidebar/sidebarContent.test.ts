@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getSidebarContext, getSidebarView, getSidebarViewLinks } from './sidebarContent';
+import { evidenceOf } from '../__fixtures__/journeyEvidence';
 
 describe('sidebarContent', () => {
   it('maps nested routes to the correct sidebar view', () => {
@@ -9,13 +10,13 @@ describe('sidebarContent', () => {
   });
 
   it('returns contextual content for the workflows view', () => {
-    const context = getSidebarContext('/workflows/monitor');
+    const context = getSidebarContext('/workflows/monitor', evidenceOf({ 'source-intake': 'complete' }));
 
     expect(context.view).toBe('workflows');
     expect(context.title).toBe('Delivery');
     expect(context.actions).toHaveLength(3);
     expect(context.journey.stage?.label).toBe('Delivery');
-    expect(context.journey.nextStage?.label).toBe('Verification');
+    expect(context.journey.nextStage?.label).toBe('Normalization');
   });
 
   it('keeps the copy register: no journey or marketing phrases', () => {

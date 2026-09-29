@@ -7,7 +7,7 @@ import type { ShortcutCallbacks } from './keyboardShortcuts';
 
 describe('keyboardShortcuts', () => {
   let callbacks: ShortcutCallbacks;
-  let callCounts: Record<'toggleSidebar' | 'toggleBottomPanel' | 'closeTab' | 'splitEditor', number>;
+  let callCounts: Record<'toggleSidebar' | 'toggleBottomPanel' | 'closeTab', number>;
 
   let cleanup: () => void;
 
@@ -16,7 +16,6 @@ describe('keyboardShortcuts', () => {
       toggleSidebar: 0,
       toggleBottomPanel: 0,
       closeTab: 0,
-      splitEditor: 0,
     };
     callbacks = {
       toggleSidebar: () => {
@@ -27,9 +26,6 @@ describe('keyboardShortcuts', () => {
       },
       closeTab: () => {
         callCounts.closeTab += 1;
-      },
-      splitEditor: () => {
-        callCounts.splitEditor += 1;
       },
     };
     cleanup = initKeyboardShortcuts(callbacks);
@@ -87,10 +83,11 @@ describe('keyboardShortcuts', () => {
     });
   });
 
-  describe('Cmd+\\ splits editor', () => {
-    it('should call splitEditor on Cmd+\\', () => {
-      fireKey('\\', { metaKey: true });
-      expect(callCounts.splitEditor).toBe(1);
+  describe('Cmd+\\ is no longer bound (the split workspace was removed)', () => {
+    it('leaves Cmd+\\ to the browser', () => {
+      const event = fireKey('\\', { metaKey: true });
+      expect(event.defaultPrevented).toBe(false);
+      expect(callCounts).toEqual({ toggleSidebar: 0, toggleBottomPanel: 0, closeTab: 0 });
     });
   });
 

@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import ToastContainer from '$lib/ui/ToastContainer.svelte';
   import { initTheme } from '$lib/theme/theme';
-  import { IDEShell } from '$lib/ui/ide';
+  import { IDEShell, getWorkspaceTabTitle } from '$lib/ui/ide';
   import { connectionState, start, stop } from '$lib/stores/connectionStore';
   import GraphQLCredentialGate, {
     type AccessSession
@@ -13,6 +13,20 @@
   // Import global design tokens and base styles
   import '$lib/styles/tokens.css';
   import '$lib/styles/base.css';
+
+  /**
+   * Document titles for the routes whose page sets none (the others own a
+   * `<svelte:head>`); same words as the editor tab. Drop a route from this
+   * list when its page gains its own title.
+   */
+  const LAYOUT_TITLED_ROUTES = ['/hl7', '/profiles', '/workflows', '/operator'];
+
+  function layoutTitle(pathname: string): string | null {
+    const route = LAYOUT_TITLED_ROUTES.find((entry) => pathname === entry || pathname.startsWith(`${entry}/`));
+    return route ? `${getWorkspaceTabTitle(route)} | fi-fhir` : null;
+  }
+
+  $: headTitle = layoutTitle($page.url.pathname);
 
   let credentialReady = false;
   let access: AccessSession | null = null;
@@ -48,6 +62,12 @@
     stop();
   });
 </script>
+
+<svelte:head>
+  {#if headTitle}
+    <title>{headTitle}</title>
+  {/if}
+</svelte:head>
 
 <ToastContainer />
 {#if bareDesignRoute}

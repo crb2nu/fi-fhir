@@ -7,7 +7,6 @@ export interface ShortcutCallbacks {
   toggleSidebar: () => void;
   toggleBottomPanel: () => void;
   closeTab: () => void;
-  splitEditor: () => void;
   openDebugPanel?: () => void;
 }
 
@@ -58,12 +57,6 @@ export function initKeyboardShortcuts(callbacks: ShortcutCallbacks): () => void 
     if (key === 'w') {
       e.preventDefault();
       callbacks.closeTab();
-      return;
-    }
-
-    if (key === '\\') {
-      e.preventDefault();
-      callbacks.splitEditor();
     }
   }
 

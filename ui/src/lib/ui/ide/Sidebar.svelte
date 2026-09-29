@@ -2,19 +2,24 @@
   import { resolve } from '$app/paths';
   import { Badge, Icon, Panel } from '$lib/ui/primitives';
   import { getSidebarContext, getSidebarViewLinks, type SidebarView } from './sidebar/sidebarContent';
+  import { stageTitle, type JourneyEvidence } from './journey';
+  import { journeyEvidenceValue } from './journeyState';
   import type { IDEView } from './types';
   import { VIEW_ICONS } from './viewIcons';
 
   /**
-   * Contextual right sidebar (Cmd/Ctrl+B): what the current view is for, the
+   * Contextual right sidebar (Cmd/Ctrl+B): what the current view is for (on
+   * a stage route, its "n/5" badge and the stage's evidence sentence), the
    * view list, and related views. Flat `Panel` sections with 11 px labels.
    */
 
   export let open: boolean = false;
   export let width: number = 280;
   export let pathname: string = '/';
+  /** Evidence to read; defaults to the shell's journey evidence store. */
+  export let evidence: JourneyEvidence | null | undefined = undefined;
 
-  let context = getSidebarContext(pathname);
+  let context = getSidebarContext(pathname, null);
   const viewLinks = getSidebarViewLinks();
 
   const sidebarToIDEView: Record<SidebarView, IDEView> = {
@@ -28,7 +33,10 @@
     operator: 'operator',
   };
 
-  $: context = getSidebarContext(pathname);
+  $: context = getSidebarContext(pathname, evidence === undefined ? $journeyEvidenceValue : evidence);
+  $: stageStep = context.journey.stage
+    ? (context.journey.steps.find((step) => step.id === context.journey.stage?.id) ?? null)
+    : null;
 </script>
 
 <aside
@@ -42,14 +50,23 @@
     <div class="sidebar-content">
       <Panel title={context.journey.stage ? 'Stage' : 'View'} titleTag="h2">
         {#snippet actions()}
-          {#if context.journey.stage}
-            <Badge mono title="Stage {context.journey.stage.order} of {context.journey.totalStages}">
-              {context.journey.stage.order}/{context.journey.totalStages}
+          {#if stageStep}
+            <Badge
+              mono
+              tone={stageStep.state === 'complete' ? 'success' : 'neutral'}
+              title={stageTitle(stageStep, context.journey.totalStages)}
+              data-testid="sidebar-stage-badge"
+              data-state={stageStep.state}
+            >
+              {stageStep.order}/{context.journey.totalStages}
             </Badge>
           {/if}
         {/snippet}
         <p class="context-title">{context.title}</p>
         <p class="context-description">{context.description}</p>
+        {#if stageStep?.reason}
+          <p class="context-evidence" data-testid="sidebar-stage-evidence">{stageStep.reason}</p>
+        {/if}
       </Panel>
 
       <Panel title="Views" titleTag="h2" flush>
@@ -123,6 +140,13 @@
   .context-description {
     margin: var(--space-1) 0 0;
     color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+  }
+
+  .context-evidence {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-tertiary);
     font-size: var(--text-xs);
     line-height: var(--leading-snug);
   }

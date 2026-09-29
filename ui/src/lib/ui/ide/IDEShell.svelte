@@ -12,14 +12,21 @@
   import StatusBar from './StatusBar.svelte';
   import StageControl from './StageControl.svelte';
   import ThemeToggle from '$lib/theme/ThemeToggle.svelte';
-  import CommandPalette from '$lib/ui/CommandPalette.svelte';
-  import type { PaletteCommand } from '$lib/ui/CommandPalette.svelte';
+  import CommandPalette from './CommandPalette.svelte';
+  import {
+    openPalette,
+    paletteOpen,
+    registerCommands,
+    type Command
+  } from './commandRegistry';
+  import { refreshJourneyEvidence } from './journeyState';
   import type { AccessSession } from '$lib/graphql/GraphQLCredentialGate.svelte';
+  import { isDirty as profileDraftDirty } from '$lib/features/hl7/profile/profileStore';
   import {
     requestConnectionsView,
     type ConnectionsIntent
   } from '$lib/features/connections/connectionsIntent';
-  import { Button, Icon, Panel } from '$lib/ui/primitives';
+  import { Button, Dialog, Icon } from '$lib/ui/primitives';
   import {
     ideState,
     toggleSidebar,
@@ -28,8 +35,8 @@
     closeTab as closeTabAction,
     setActiveTab,
     toggleBottomPanel,
-    toggleWorkspaceSplit,
     openPanelTab,
+    markDirty,
     createWorkspaceTab,
     resolveNextWorkspaceTabId,
   } from './ideStore';
@@ -40,7 +47,6 @@
   import DebugPanel from '$lib/features/debug/DebugPanel.svelte';
   import TraceTimeline from '$lib/features/debug/TraceTimeline.svelte';
   import { traceSpans } from '$lib/features/debug/debugStore';
-  import SplitPane from './SplitPane.svelte';
   import RuntimeOutputPanel from './panels/RuntimeOutputPanel.svelte';
   import ProblemsPanel from './panels/ProblemsPanel.svelte';
   import {
@@ -56,18 +62,23 @@
    * document region, the bottom panel, the contextual sidebar and a 24 px
    * status bar — the one place for connection and access state (plus
    * Next: stage and the build).
+   *
+   * It owns the one command palette (commandRegistry.ts: the shell's commands
+   * plus whatever the current route registers), reads the journey evidence on
+   * mount and on every route change (journeyState.ts), and asks before closing
+   * a tab that holds unsaved changes (ideStore.markDirty).
    */
 
   export let connectionState: ConnectionState = 'disconnected';
-  export let activeProfile: string = '';
-  export let parserStatus: string = '';
   /** Credential state from GraphQLCredentialGate; rendered as the status-bar chip. */
   export let access: AccessSession | null = null;
   /** Ends a bearer session (GraphQLCredentialGate.clearCredential). */
   export let onClearAccess: (() => void) | undefined = undefined;
 
-  let paletteOpen = false;
   let cleanupShortcuts: (() => void) | null = null;
+  let cleanupCommands: (() => void) | null = null;
+  /** The dirty tab a close is waiting on (the confirmation dialog's subject). */
+  let pendingClose: { id: string; title: string } | null = null;
   type WorkspaceTab = ReturnType<typeof createWorkspaceTab>;
   let currentPath = '/';
   let currentView: IDEView = 'hl7';
@@ -115,26 +126,26 @@
     void (goto as any)((resolve as any)(path));
   }
 
-  // ── Command palette commands ──
+  // ── Shell commands (the palette also lists the current route's) ──
 
-  const navCommands: PaletteCommand[] = [
-    { id: 'nav:system', label: 'Go to Home', hint: '/', category: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => goto(resolve('/')) },
-    { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', category: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
-    { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', category: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
-    { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', category: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
-    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', category: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
-    { id: 'nav:events', label: 'Go to Events', hint: '/events', category: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
-    { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', category: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => goto(resolve('/connections')) },
-    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', category: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
-    { id: 'cmd:new-source-connection', label: 'New source connection', hint: '/connections', category: 'Connections', keywords: ['connection', 'source', 'mllp', 'http', 'batch', 's3', 'sftp', 'create'], run: () => openConnections({ view: 'sources', openNew: true }) },
-    { id: 'cmd:new-destination-connection', label: 'New destination connection', hint: '/connections', category: 'Connections', keywords: ['connection', 'destination', 'https', 'fhir', 'kafka', 'create'], run: () => openConnections({ view: 'destinations', openNew: true }) },
-    { id: 'cmd:engine-properties', label: 'Engine properties', hint: '/connections', category: 'Connections', keywords: ['engine', 'runtime', 'adapters', 'properties', 'environment', 'ledgers'], run: () => openConnections({ view: 'engine' }) },
-    { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), category: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
-    { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), category: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
-    { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), category: 'Workspace', keywords: ['close', 'tab'], run: () => closeActiveTab() },
-    { id: 'cmd:debug-panel', label: 'Open debug panel', shortcut: shortcut('D', true), category: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
-    { id: 'cmd:trace-panel', label: 'Open trace timeline', category: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => openPanelTab('trace') },
-    { id: 'cmd:copilot', label: 'Open Copilot', category: 'Workspace', keywords: ['copilot', 'llm', 'assistant'], run: () => openPanelTab('copilot') },
+  const shellCommands: Command[] = [
+    { id: 'nav:system', label: 'Go to Home', hint: '/', group: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => goto(resolve('/')) },
+    { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', group: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
+    { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', group: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
+    { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', group: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
+    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', group: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
+    { id: 'nav:events', label: 'Go to Events', hint: '/events', group: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
+    { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', group: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => goto(resolve('/connections')) },
+    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', group: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
+    { id: 'cmd:new-source-connection', label: 'New source connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'source', 'mllp', 'http', 'batch', 's3', 'sftp', 'create'], run: () => openConnections({ view: 'sources', openNew: true }) },
+    { id: 'cmd:new-destination-connection', label: 'New destination connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'destination', 'https', 'fhir', 'kafka', 'create'], run: () => openConnections({ view: 'destinations', openNew: true }) },
+    { id: 'cmd:engine-properties', label: 'Engine properties', hint: '/connections', group: 'Connections', keywords: ['engine', 'runtime', 'adapters', 'properties', 'environment', 'ledgers'], run: () => openConnections({ view: 'engine' }) },
+    { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), group: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
+    { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), group: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
+    { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), group: 'Workspace', keywords: ['close', 'tab'], when: () => $ideState.activeDocumentId !== null, run: () => closeActiveTab() },
+    { id: 'cmd:debug-panel', label: 'Open debug panel', shortcut: shortcut('D', true), group: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
+    { id: 'cmd:trace-panel', label: 'Open trace timeline', group: 'Workspace', keywords: ['trace', 'timeline', 'spans'], run: () => openPanelTab('trace') },
+    { id: 'cmd:copilot', label: 'Open Copilot', group: 'Workspace', keywords: ['copilot', 'llm', 'assistant'], run: () => openPanelTab('copilot') },
   ];
 
   function detectViewFromPath(pathname: string): IDEView {
@@ -165,6 +176,18 @@
   $: setActiveView(currentView);
   $: openTabAction(currentWorkspaceTab);
 
+  // Journey evidence: read once per mount and again on every route change.
+  let evidencePath: string | null = null;
+  $: if (currentPath !== evidencePath) {
+    evidencePath = currentPath;
+    void refreshJourneyEvidence();
+  }
+
+  // Unsaved drafts the shell can see without the feature's help: the source
+  // profile draft (shared by Profiles and HL7 intake's Profile draft tab) is
+  // published from Profiles, so that tab carries the mark.
+  $: markDirty('/profiles', $profileDraftDirty);
+
   function onViewChange(e: CustomEvent<IDEView>): void {
     const view = e.detail;
     const route = getWorkspaceTabRoute(view);
@@ -176,6 +199,22 @@
     if (!doc) return;
     setActiveTab(doc.id);
     navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
+  }
+
+  /** Closes a tab, asking first when it holds unsaved changes. */
+  function requestCloseTab(closingTabId: string): void {
+    const doc = $ideState.documents.find((entry) => entry.id === closingTabId);
+    if (doc?.dirty) {
+      pendingClose = { id: doc.id, title: doc.title };
+      return;
+    }
+    closeTabById(closingTabId);
+  }
+
+  function confirmPendingClose(): void {
+    const target = pendingClose;
+    pendingClose = null;
+    if (target) closeTabById(target.id);
   }
 
   function closeTabById(closingTabId: string): void {
@@ -196,7 +235,7 @@
   }
 
   function onTabClose(e: CustomEvent<string>): void {
-    closeTabById(e.detail);
+    requestCloseTab(e.detail);
   }
 
   function onPanelTabChange(e: CustomEvent<PanelTab>): void {
@@ -215,23 +254,8 @@
   function closeActiveTab(): void {
     const state = $ideState;
     if (state.activeDocumentId) {
-      closeTabById(state.activeDocumentId);
+      requestCloseTab(state.activeDocumentId);
     }
-  }
-
-  function isHL7Route(pathname: string): boolean {
-    return pathname.startsWith('/hl7');
-  }
-
-  function openPalette(): void {
-    if (isHL7Route($page.url.pathname)) {
-      // HL7 intake binds Cmd/Ctrl+K to its own, richer palette (its editor
-      // commands). The header trigger hands the gesture to it instead of
-      // opening a second palette.
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: isMac, ctrlKey: !isMac }));
-      return;
-    }
-    paletteOpen = true;
   }
 
   /** The active editor tab (a route document). */
@@ -246,19 +270,18 @@
       toggleSidebar,
       toggleBottomPanel,
       closeTab: closeActiveTab,
-      splitEditor: () => {
-        toggleWorkspaceSplit();
-      },
       openDebugPanel: () => {
         openPanelTab('debug');
       },
     });
+    cleanupCommands = registerCommands('shell', shellCommands);
 
-    // Cmd/Ctrl+K opens the shell palette (HL7 intake opens its own).
+    // Cmd/Ctrl+K opens the one palette, on every route. A route that still
+    // binds the key itself (HL7 intake) hands it to the same palette through
+    // the registry.
     const onCmdK = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (paletteOpen) return;
-      if (isHL7Route($page.url.pathname)) return;
+      if ($paletteOpen) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
       const mod = e.metaKey || e.ctrlKey;
@@ -283,17 +306,31 @@
 
   onDestroy(() => {
     if (cleanupShortcuts) cleanupShortcuts();
+    if (cleanupCommands) cleanupCommands();
     if (PLATFORM_CONFIG.enabled) {
       void teardownPlatform();
     }
   });
 </script>
 
-<CommandPalette
-  bind:open={paletteOpen}
-  title="Commands"
-  commands={navCommands}
-/>
+<CommandPalette />
+
+<Dialog
+  open={pendingClose !== null}
+  title={pendingClose ? `Close ${pendingClose.title}?` : 'Close tab?'}
+  description={pendingClose
+    ? `${pendingClose.title} has changes that are not saved on the server.`
+    : undefined}
+  size="sm"
+  role="alertdialog"
+  onclose={() => (pendingClose = null)}
+  data-testid="close-dirty-tab-dialog"
+>
+  {#snippet footer()}
+    <Button variant="ghost" size="md" onclick={() => (pendingClose = null)}>Keep open</Button>
+    <Button variant="danger" size="md" onclick={confirmPendingClose}>Close tab</Button>
+  {/snippet}
+</Dialog>
 
 <div class="ide-shell">
   <header class="ide-header">
@@ -344,34 +381,9 @@
         />
       {/if}
 
-      {#if $ideState.workspaceSplit}
-        <SplitPane
-          orientation="horizontal"
-          initialSize={780}
-          minSize={520}
-          maxSize={1080}
-          storageKey="fi-fhir-ide-workspace-split-width"
-        >
-          <!-- Primary pane -->
-          <div class="workspace-pane ide-document">
-            <slot />
-          </div>
-
-          <!-- Secondary pane -->
-          <div slot="secondary" class="workspace-secondary">
-            <Panel title="Split workspace" titleTag="h2">
-              {#snippet actions()}
-                <Button variant="ghost" onclick={toggleWorkspaceSplit}>Close split workspace</Button>
-              {/snippet}
-              <p class="split-copy">The second pane cannot show another route yet.</p>
-            </Panel>
-          </div>
-        </SplitPane>
-      {:else}
-        <div class="ide-content ide-document">
-          <slot />
-        </div>
-      {/if}
+      <div class="ide-content ide-document">
+        <slot />
+      </div>
 
       <BottomPanel
         open={$ideState.bottomPanelOpen}
@@ -402,8 +414,6 @@
 
   <StatusBar
     {connectionState}
-    {activeProfile}
-    {parserStatus}
     {access}
     {onClearAccess}
     pathname={currentPath}
@@ -553,32 +563,6 @@
 
   .ide-document:has(:global(.ui-toolbar)) {
     padding: 0;
-  }
-
-  .workspace-pane {
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
-    overflow: auto;
-  }
-
-  .workspace-secondary {
-    display: grid;
-    align-content: start;
-    gap: var(--space-3);
-    height: 100%;
-    min-width: 0;
-    min-height: 0;
-    padding: var(--space-3);
-    overflow: auto;
-    background: var(--color-bg-base);
-    border-left: 1px solid var(--color-border-subtle);
-  }
-
-  .split-copy {
-    margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--text-xs);
   }
 
   /* ── Narrow windows: collapse the header's secondary text ── */

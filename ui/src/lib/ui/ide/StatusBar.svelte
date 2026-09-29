@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
    * 24 px status bar: a neutral strip where colour appears only as state dots.
-   * Left: API connection, access chip (credential state + popover), optional
-   * profile/parser, and the loom platform indicator. Right: `Next:` stage and
-   * the build.
+   * Left: API connection, access chip (credential state + popover), and the
+   * loom platform indicator. Right: `Next:` — the earliest stage whose
+   * evidence is missing (journey.ts), once the evidence is known — and the
+   * build.
    *
    * The loom-platform indicator and its AlertBadge are optional chrome: they
    * render only when the build configured a platform endpoint
@@ -17,23 +18,25 @@
   import type { AccessSession } from '$lib/graphql/GraphQLCredentialGate.svelte';
   import { Icon } from '$lib/ui/primitives';
   import AccessChip from './AccessChip.svelte';
-  import { getJourneyState } from './journey';
+  import { getJourneyState, stageTitle, type JourneyEvidence } from './journey';
+  import { journeyEvidenceValue } from './journeyState';
   import { connectionLabel, type ConnectionState } from './connection';
 
   export let connectionState: ConnectionState = 'disconnected';
-  export let activeProfile: string = '';
-  export let parserStatus: string = '';
   export let platformEnabled: boolean = false;
   export let platformConnected: boolean = false;
   export let access: AccessSession | null = null;
   export let onClearAccess: (() => void) | undefined = undefined;
   export let pathname: string = '/';
+  /** Evidence to read; defaults to the shell's journey evidence store. */
+  export let evidence: JourneyEvidence | null | undefined = undefined;
 
   const buildTag = (import.meta.env.VITE_BUILD_TAG as string | undefined) || '';
   const buildSha = ((import.meta.env.VITE_BUILD_SHA as string | undefined) || '').slice(0, 8);
   const buildLabel = buildTag || buildSha;
 
-  $: nextStage = getJourneyState(pathname).nextStage;
+  $: journey = getJourneyState(pathname, evidence === undefined ? $journeyEvidenceValue : evidence);
+  $: nextStage = journey.nextStage;
 </script>
 
 <footer class="status-bar" role="status">
@@ -49,14 +52,6 @@
 
     {#if access}
       <AccessChip {access} onclear={onClearAccess} />
-    {/if}
-
-    {#if activeProfile}
-      <span class="status-item profile" title="Active profile">{activeProfile}</span>
-    {/if}
-
-    {#if parserStatus}
-      <span class="status-item parser" title="Parser status">{parserStatus}</span>
     {/if}
 
     {#if platformEnabled}
@@ -82,7 +77,8 @@
         class="status-item status-next"
         href={resolve(nextStage.route)}
         data-testid="status-next"
-        title="Stage {nextStage.order} of 5: {nextStage.label}"
+        data-stage={nextStage.id}
+        title={stageTitle(nextStage, journey.totalStages)}
       >
         <span class="next-key">Next:</span>
         <span>{nextStage.label}</span>
@@ -153,13 +149,6 @@
 
   .connection[data-state='disconnected'] .dot {
     background: var(--color-danger);
-  }
-
-  .profile,
-  .parser {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 240px;
   }
 
   .platform {

@@ -1,24 +1,32 @@
 <!--
   StageControl — the five integration stages as a compact segmented control
-  in the header (replaces the journey band). The current stage is filled with
-  the accent, earlier stages carry a 12 px check, and every segment is a link.
+  in the header. The current stage (the route's) is filled with the accent;
+  a stage whose evidence exists carries a 12 px check; a stage whose evidence
+  cannot be read here (a missing role, a capability not configured) carries a
+  dashed circle and says why in its title. Completion comes from evidence
+  (journeyState.ts), never from the stage's position. Every segment is a link.
   One tab stop: ArrowLeft/ArrowRight, Home and End move between segments;
-  Enter follows the focused one. Off the stage routes (Home, Operator)
-  no segment is current.
+  Enter follows the focused one. Off the stage routes (Home, Operator) no
+  segment is current.
 -->
 <script lang="ts">
   import { resolve } from '$app/paths';
   import Check from '@lucide/svelte/icons/check';
+  import CircleDashed from '@lucide/svelte/icons/circle-dashed';
   import { Icon } from '$lib/ui/primitives';
-  import { getJourneyState } from './journey';
+  import { getJourneyState, stageStateWord, stageTitle, type JourneyEvidence } from './journey';
+  import { journeyEvidenceValue } from './journeyState';
 
   interface Props {
     pathname?: string;
+    /** Evidence to render; defaults to the shell's journey evidence store. */
+    evidence?: JourneyEvidence | null | undefined;
   }
 
-  let { pathname = '/' }: Props = $props();
+  let { pathname = '/', evidence }: Props = $props();
 
-  const journey = $derived(getJourneyState(pathname));
+  const resolved = $derived(evidence === undefined ? $journeyEvidenceValue : evidence);
+  const journey = $derived(getJourneyState(pathname, resolved));
   const tabStop = $derived(journey.stage?.id ?? journey.steps[0]?.id);
 
   function onKeydown(event: KeyboardEvent, index: number): void {
@@ -53,16 +61,21 @@
         <a
           href={resolve(step.route)}
           class="stage"
-          class:is-current={step.state === 'current'}
+          class:is-current={step.current}
           class:is-complete={step.state === 'complete'}
+          class:is-unknown={step.state === 'unknown'}
           data-state={step.state}
-          aria-current={step.state === 'current' ? 'step' : undefined}
+          data-stage={step.id}
+          aria-current={step.current ? 'step' : undefined}
+          aria-label="{step.label}, stage {step.order} of {journey.totalStages}, {stageStateWord(step.state)}"
           tabindex={step.id === tabStop ? 0 : -1}
-          title="Stage {step.order} of {journey.totalStages}: {step.label}"
+          title={stageTitle(step, journey.totalStages)}
           onkeydown={(event) => onKeydown(event, index)}
         >
           {#if step.state === 'complete'}
             <Icon icon={Check} size={12} strokeWidth={2.25} class="stage-check" />
+          {:else if step.state === 'unknown'}
+            <Icon icon={CircleDashed} size={12} class="stage-unknown" />
           {/if}
           <span class="stage-order" aria-hidden="true">{step.order}</span>
           <span class="stage-label">{step.label}</span>
@@ -114,6 +127,10 @@
 
   .stage.is-complete {
     color: var(--color-text-secondary);
+  }
+
+  .stage.is-unknown :global(.stage-unknown) {
+    color: var(--color-text-muted);
   }
 
   .stage.is-current,
