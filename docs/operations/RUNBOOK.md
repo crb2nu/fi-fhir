@@ -474,7 +474,7 @@ subscription is refused on the stream, even for `graphql:operator`:
 | Panel | Subscription | On this deployment |
 |---|---|---|
 | HL7 intake: Integration Session run progress | `integrationSessionEvents` | Streams when the session workspace is on |
-| Events → Live Stream | `eventStream` | Never streams |
+| HL7 intake → Live events | `eventStream` | Never streams |
 | Workflows → Monitor | `workflowEvents` | Never streams |
 | Debug | `debugStepEvent` | Never streams |
 | Runtime Output (bottom panel) | `workflowEvents` or `eventStream` | Never streams |
@@ -526,7 +526,7 @@ curl -sS -N --max-time 5 -o /dev/null -w 'http=%{http_code}\n' \
   transport gate. Grant it where that identity's roles come from (see
   [Operator page says the role is missing](#operator-page-says-the-role-is-missing)
   for the three places).
-- Any reason on Live Stream, Workflow Monitor, Debug or Runtime Output: no
+- Any reason on Live events, Workflow Monitor, Debug or Runtime Output: no
   action. The state is correct for this deployment.
 
 **Verify**: `/api/auth/status` lists both session roots in `subscriptions`,

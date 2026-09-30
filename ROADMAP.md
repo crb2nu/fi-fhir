@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-09-27
+> Last Updated: 2026-09-30
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -49,7 +49,20 @@ the replica's composition and sample intake from a live source into an
 Integration Session. Activation stays a GitOps rollout; whether the catalog
 should ever activate configuration is the open question in `.loom/39`.
 
-This update records repository state through merge `b365f9511` on 2026-09-27.
+Since 2026-09-30 (`.loom/42`, IDE unlock) the Studio drives the lifecycle
+catalog from draft to published: a Definitions tab on `/connections` authors
+integration definitions through the same service the `lifecycle seed` CLI
+uses (byte parity proved by a kill-test) and validates them in `serve`;
+Operator shows deployment history, cross-receipt attempt search, paged audit
+and the full trace; `/events` is Verification over the durable admissions;
+Integration Sessions reopen, export and archive; and the shell's journey
+reads evidence instead of route position.
+
+This update records repository state through merge `d996cd610` on 2026-09-30.
+Production answered `v0.1.30316` (merge `aeb009781`, lanes E-4, E-5, E-0 and
+E-3) from the LAN on 2026-09-30; the main pipelines for E-2 and E-1
+(30372/30373 on `d996cd610`) were still running, so their deployment is not
+asserted here. The previous record was merge `b365f9511` on 2026-09-27.
 [Pipeline 29328](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29328)
 built and deployed the redesigned UI (`v0.1.29328`, merge `4480af9ab`);
 [Pipeline 29194](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29194)
@@ -302,6 +315,49 @@ against what the running replica mounted; it does not hot-load anything
   deliberately; see Then. Merged in
   [MR !244](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/244).
 
+## Delivered — IDE unlock (2026-09-29 → 2026-09-30)
+
+Spec: `.loom/42-ide-unlock-execution-specs.md`
+([MR !263](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/263)). The brief was to keep improving the Studio "to unlock the power
+of our backend": production had a real definition, receipts and deliveries
+from the demo hospital flow, and 44 of 145 GraphQL root fields never reached
+the IDE. Every surface says what it knows, what it cannot know on this
+deployment, and why; new reads ride existing roles, new writes ride
+`integration.deployment.operator`. The E-1 kill-test (seed and editor author
+the same bytes; `serve` hosts validation in-process) passed before any
+authoring UI shipped. Decision entry 2026-09-30, "IDE unlock: definitions on
+connections, refs from the runtime resolver, verification over durable
+admissions".
+
+- [x] **E-4 shell honesty** — journey stages complete on evidence (a run, a
+  published profile, a mapping, a published workflow, an accepted receipt),
+  "unknown" when not readable; one command registry and palette on a new
+  `Dialog` primitive; `TabItem.badge`, dirty tabs, split pane removed, legacy
+  components deleted. Merged in [MR !265](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/265).
+- [x] **E-5 workflow authoring** — inline validation instead of toasts, a
+  faithful YAML round trip with a YAML-only fields panel, rename/archive/
+  restore of workflow definitions, run traces in the Trace panel, `WarningList`
+  on primitives with Accept fix, `PID-3[0].1`. Merged in [MR !266](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/266).
+- [x] **E-0 operator depth** — deployment history and `validationCurrent`,
+  attempt search with an inspector and paged audit, the full trace (resubmit
+  chain, lease, ledger row, tombstones), fleet observations, pre-flight, deep
+  links, and an e2e fixture written by the real admission path. Merged in
+  [MR !267](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/267).
+- [x] **E-3 sessions** — `/hl7?session=` reopens a session; a rail with runs,
+  diagnostics, the live run stream and publications; Accept fix; archive; a
+  PHI-minimal export behind `capabilities.phiExport`. Merged in [MR !264](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/264).
+- [x] **E-2 verification** — `/events` reads `integration_canonical_events`
+  and receipts (`operatorCanonicalEvents`, `operatorAdmissionStatistics`,
+  migration `0006_verification_reads`): Admissions, Statistics, Retention;
+  the legacy Events views are deleted. Merged in [MR !269](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/269).
+- [x] **E-1 definition editor** — `internal/integration/lifecycle/authoring`
+  shared by the seed CLI and seven GraphQL operations; `serve` validates
+  (REAL for its mounted batch source, STATIC, SKIP with a reason);
+  `capabilities.definitionAuthoring`; the Definitions tab from New definition
+  to Publish, linked to Operator to deploy. Merged in [MR !268](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/268).
+- [x] **E-6 close-out (`docs/unlock-6-close-out`)** — this roadmap, the
+  decision and worklog entries, the spec's status, `docs/STATUS.md` rows.
+
 ## Now
 
 - [ ] **Stale capabilities in an open tab** — a tab reads `/api/auth/status`
@@ -310,17 +366,15 @@ against what the running replica mounted; it does not hot-load anything
   a session mutation is refused with "legacy integration execution is
   unavailable" and after credential entry; until then, reload the tab
   (documented in `INTEGRATION-SESSIONS.md`).
-- [ ] **Copilot: enable the backend LLM in production** — the IDE says "No
-  LLM is configured for this deployment" because the runtime enables LLM
-  features only with `FI_FHIR_LLM_ENABLED=true`, and the in-cluster LiteLLM
-  refuses keyless calls (401) while `fi-fhir-api` carries no `LLM_API_KEY`.
-  The chosen route is scoped LiteLLM virtual keys declared in GitOps
-  (platform/gitops `.loom/30-implementation-plan-litellm-scoped-keys.md`,
-  MR 815): a dedicated LiteLLM database, keys declared once as labelled SOPS
-  secrets in each consumer namespace and reconciled by the LiteLLM manager,
-  fi-fhir first. Implementation waits on an owner decision (it writes shared
-  platform resources and secrets). Then verify
-  `capabilities.llm.configured: true` and `copilot-llm-state` = ready.
+- [x] **Copilot: enable the backend LLM in production** — closed outside the
+  IDE unlock program: `/api/auth/status` reports `llm.configured: true` in
+  production (`.loom/42`'s 2026-09-29 read, repeated from the LAN on
+  2026-09-30). The item as written: the IDE said "No LLM is configured for
+  this deployment" because the runtime enables LLM features only with
+  `FI_FHIR_LLM_ENABLED=true` and the in-cluster LiteLLM refused keyless
+  calls; `fi-fhir-api` now carries `FI_FHIR_LLM_ENABLED=true` and an
+  `LLM_API_KEY` from a secret, so the remaining check is `copilot-llm-state`
+  = ready in the Copilot panel.
 - [ ] **Terminology-store availability as a capability** — terminology without
   a mapping store shows only "GraphQL request failed" and an error toast,
   because the API's reason ("terminology mapping store not configured") does
@@ -345,23 +399,73 @@ against what the running replica mounted; it does not hot-load anything
   `waitForResponse` starts before `page.goto`, so a slow first load on a
   saturated runner consumes it (one retry on MR !242's pipeline; 15/15 locally).
   Start the wait after navigation or give navigation its own budget.
-- [ ] **Events browser reads the legacy store** — `/events` Browse, Patient
-  Timeline and Statistics query `graphql_events`, which `serve` never writes
-  (only the test-only legacy `submitMessage` path does); durable admissions
-  land in `integration_canonical_events`. The views show honest empty states
-  on every real deployment until durable admissions feed them.
-- [ ] **IDE polish follow-ups from the design uplift** — `TabItem.badge` on
-  the `Tabs` primitive so the bottom panel drops its own tablist; one palette
-  registry so HL7 intake's palette also lists the workspace commands; finish
-  or remove the split workspace (its second pane cannot show a route);
-  restyle `ConfirmModal` and `WarningList.svelte`; count the workflow draft in
-  Problems only once it differs from the default (opening Workflows shows
-  "Problems 3" for an untouched draft); the workflow builder's baseline hides
-  divergence when `yamlToDraft` drops nested action config; `PID-3[0].1`
-  resolves empty for the built-in sample. (The Health panel's build-tag
+- [x] **Events browser reads the legacy store** — replaced by Verification
+  over durable admissions ([MR !269](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/269)): `/events` reads
+  `integration_canonical_events` joined to receipts, with Statistics and
+  Retention from columns; the legacy Browse, Patient Timeline, Statistics and
+  Live views are deleted.
+- [x] **IDE polish follow-ups from the design uplift** — all seven closed by
+  the IDE unlock: `TabItem.badge` (the bottom panel and editor tabs are
+  `Tabs`), one palette registry, the split workspace removed, and
+  `ConfirmModal` on the `Dialog` primitive ([MR !265](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/265)); HL7 intake registers
+  into that registry and its shim is deleted ([MR !264](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/264)); `WarningList` on the
+  primitives, Problems counting the workflow draft only once it differs from
+  the default, `yamlToDraft` keeping nested action config, and `PID-3[0].1`
+  resolving ([MR !266](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/266)). (The Health panel's build-tag
   mismatch closed in
   [MR !238](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/238):
   UI and API builds now carry the Harbor tag Flux deploys.)
+- [ ] **Connection rows: per-connection replica counts** — the connection
+  catalog's rows do not select `ConnectionRuntimeState.observedReplicas` /
+  `totalReplicas` (shipped in MR !261); only Operator's fleet views count
+  replicas, client-side from `engineRuntime.observations` (`fleet.ts`).
+  Select them on `ConnectionUsage` and say "mounted on n of m".
+- [ ] **`?connection=` deep links are read by no page** — Operator's trace and
+  Verification's Admissions emit `/connections?connection=<id>`, but
+  `/connections` reads only `?definition=&revision=`
+  (`definitionFromQuery`). Read it on mount and select the connection, with
+  the honest absent state.
+- [ ] **Connection edit buffer is never marked dirty** — New definition marks
+  the Connections tab (`markDirty('/connections')`), and the workflow builder
+  and profile draft mark theirs, but an edited source or destination draft
+  does not, so closing the tab does not ask.
+- [ ] **Definition authoring follow-ups** — `integrationRegistryArtifacts`
+  silently omits registry entries that do not resolve (needs a schema field
+  for the count and reasons); `lifecycle.ListDefinitions` refuses a limit
+  above 500 and has no paging; the planner refusal
+  (`authoring.WorkflowDestinationError`) still says "--destination artifacts"
+  when it reaches the IDE; `serve` builds the batch validator's credentials
+  before it knows whether definition authoring is composed.
+- [ ] **E1-1 cannot assert STATIC → validated** — the operator-bundle stack
+  mounts no compiled catalog revision (its HTTP ingress side processes bind
+  the golden registry's `adt-east`, whose digest is no catalog revision, and
+  checks 8 and 9 pin "no adapter" on the bundle replica), so E1-1 records
+  STATIC as `SOURCE_NOT_MOUNTED` and carries the draft on with SKIP. Proving
+  the positive path needs a stack that mounts a compiled connection revision
+  without breaking checks 8 and 9.
+- [ ] **Workflows: Run event calls a refused mutation** — Inventory's **Run
+  event** still calls `triggerWorkflow`, which shipped builds refuse
+  (`legacyUnsafeExecution`), so `workflowRuns` (and Open trace) is normally
+  empty on `serve`. Remove it or route it through a session simulation.
+  `markWorkflowBuilderOpened` now has only test callers; retire or rename it.
+  `EventLineagePanel` has no component test, and E5-1 does not assert the
+  "Unsaved changes" state after an edit.
+- [ ] **Shell accessibility nits (E-4 review 7–11)** — the `Dialog` focus
+  fallback when nothing inside is focusable; Escape handled before focus
+  enters the dialog; tab close buttons sit inside the `tablist`; the Copilot
+  control dims without saying why; Cmd/Ctrl+K is ignored while focus is in
+  an input or editor.
+- [ ] **Journey evidence reads every session** — `journeyState.ts` calls
+  `fetchRecentSessions(Number.MAX_SAFE_INTEGER)` on shell mount and on route
+  changes between journey routes; Source Intake needs only "one session with
+  a run". Add a bounded read (existence query or limit 1 with a run filter).
+- [ ] **Operator deep-link polish (E-0 review N1, N6)** — a deep link is read
+  once on mount, before the capability pre-flight has necessarily settled;
+  the attempt inspector links the resubmit parent but not its children.
+- [ ] **`TestExecAction_RunsAllowedCommand` flakes under load** —
+  `internal/workflow` failed once under full-suite `go test ./...` in four
+  IDE-unlock lanes' local runs and passed on rerun each time (package
+  untouched). Make its timing independent of host load.
 - [ ] **Budgets 2 and 3** — budget 2 needs a one-hour, two-replica run at the
   declared 250 msg/s (the single-process harness cannot certify it); budget 3
   needs a 1-GiB batch-import workload reading cgroup RSS on runner 8. The
@@ -482,18 +586,28 @@ against what the running replica mounted; it does not hot-load anything
   `.loom/worklog/`.
 
 ## Then — the 1.0 remainder
-- [ ] **Integration definition editor** (`.loom/38` Decision 5) — bind a
-  source connection revision, a Source Profile, a workflow and destination
-  revisions into a definition draft in the lifecycle catalog, from the IDE.
-  Nothing in production writes definition drafts today, so a connection's
-  Referenced and Deployed states are honestly absent on every deployment
-  nobody seeded. Doing it honestly also moves profile and workflow resolution
-  off the static registry (they load only from it today), which removes the
-  two-truths hazard between the static registry and the lifecycle catalog.
+- [x] **Integration definition editor** (`.loom/38` Decision 5) — delivered
+  by the IDE unlock ([MR !268](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/268)): the Definitions tab binds a compiled source
+  revision, a registry profile/workflow pair and compiled destination
+  revisions into a draft, then validates, approves and publishes it; deploy
+  is on Operator. Caveat (`.loom/42` Decision 2): profile and workflow refs
+  come from the static registry, proven by the runtime's own resolver,
+  because that is what admission resolves today. Moving resolution onto the
+  lifecycle catalog, which removes the two-truths hazard, stays with the
+  configuration-plane spec below.
+- [ ] **Retire the legacy event GraphQL fields** — `events`,
+  `patientTimeline` and `eventStatistics` have no IDE caller since
+  [MR !269](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/269); `eventStream` is referenced only by HL7 intake's **Live events**
+  panel, which renders the honest unavailable state on `serve` and never
+  subscribes. Their only writer is the test-only legacy `submitMessage`
+  path. Decide deprecation (schema `@deprecated`, then removal with the
+  projection service) rather than keeping four dead read paths.
 - [ ] **Configuration-plane execution spec** — turn
   `.loom/39-brainstorm-config-plane-2026-09-27.md`
   ([MR !244](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/244))
-  into a `.loom/` execution spec if chosen: the recommendation is a provisioned GitOps baseline plus a
+  into a `.loom/` execution spec (reserved `.loom/41`) if chosen; it now also
+  owns moving profile and workflow resolution onto the lifecycle catalog. The
+  recommendation is a provisioned GitOps baseline plus a
   catalog overlay for the hot-reloadable class, observed per replica, with
   operational verbs always in the database and listeners/TLS kept in GitOps
   (lanes: observed status, baseline import, catalog activation, promotion MR
