@@ -514,7 +514,10 @@ test('E1-1. definitions: an MLLP source becomes a published definition through t
   await expect(details).toHaveAttribute('data-state', 'draft');
 
   // STATIC contacts nothing and says so: this stack mounts no MLLP listener
-  // (check 9), so the evidence is recorded as failed, SOURCE_NOT_MOUNTED.
+  // (check 9), and E-0's fixture mounts none either (its ingress runs in side
+  // processes bound to the registry's adt-east definition, whose source digest
+  // is no compiled catalog revision), so the evidence is recorded as failed,
+  // SOURCE_NOT_MOUNTED, and SKIP carries the draft forward.
   await details.getByTestId('definition-mode-static').check();
   await details.getByTestId('definition-validate').click();
   await e1Confirm(page, 'Record validation', 'validateIntegrationDefinition', 'E1: static check of the east source');
@@ -546,8 +549,10 @@ test('E1-1. definitions: an MLLP source becomes a published definition through t
   await deployLink.click();
   await expect(page).toHaveURL(/\/operator\?definition=/);
   await page.getByRole('tab', { name: 'Deployments' }).click();
-  const row = page.getByRole('row').filter({ hasText: definitionId });
+  // The deep link selects the Deployments row (E-0); its history opens beside it.
+  const row = page.locator(`[data-testid="deployment-row"][data-definition-id="${definitionId}"]`);
   await expect(row).toHaveCount(1);
+  await expect(row.getByTestId('validation-badge')).toHaveAttribute('data-validation', 'current');
   await expect(row.getByRole('button', { name: 'Deploy', exact: true })).toBeEnabled();
   expect(watch.errorToasts).toEqual([]);
 
