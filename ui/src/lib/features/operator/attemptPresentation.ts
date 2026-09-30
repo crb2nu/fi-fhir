@@ -134,14 +134,25 @@ function pastTense(action: DeliveryAction): string {
 export type DeploymentAction = 'pause' | 'resume' | 'retire' | 'deploy';
 
 /**
+ * Why Deploy and Resume are disabled when the server reports the revision's
+ * validation evidence is not current. The lifecycle refuses both without it
+ * (lifecycle/transitions.go), so the control says so before it is pressed.
+ */
+export const VALIDATION_REQUIRED_REASON =
+  'Validation evidence is missing or has expired; validate the definition again from Connections › Definitions before you deploy or resume.';
+
+/**
  * Returns null when a lifecycle command is available for the current state,
  * otherwise why it is not. This encodes the closed Slice 2.1 state machine:
  * published -> deployed | retired; deployed -> paused | retired;
- * paused -> deployed | retired.
+ * paused -> deployed | retired. Deploy and Resume also need current
+ * validation evidence: pass the server's `validationCurrent` (null or omitted
+ * when unknown, which never blocks).
  */
 export function deploymentActionBlockedReason(
   state: string | null,
-  action: DeploymentAction
+  action: DeploymentAction,
+  validationCurrent: boolean | null = null
 ): string | null {
   if (!state) {
     return 'Select a deployment first.';
@@ -152,10 +163,69 @@ export function deploymentActionBlockedReason(
     resume: ['paused'],
     retire: ['published', 'deployed', 'paused']
   };
-  if (allowed[action].includes(state)) {
-    return null;
+  if (!allowed[action].includes(state)) {
+    return `Cannot ${action} an integration in the "${state}" state. Allowed from: ${allowed[action].join(', ')}.`;
   }
-  return `Cannot ${action} an integration in the "${state}" state. Allowed from: ${allowed[action].join(', ')}.`;
+  if ((action === 'deploy' || action === 'resume') && validationCurrent === false) {
+    return VALIDATION_REQUIRED_REASON;
+  }
+  return null;
+}
+
+export interface ValidationLike {
+  validationPassed: boolean;
+  validationExpiresAt?: string | null | undefined;
+  /** Server-evaluated at read time: passed, recorded, and not yet expired. */
+  validationCurrent: boolean;
+}
+
+export interface ValidationDisplay {
+  label: 'current' | 'expired' | 'failed' | 'not validated';
+  tone: 'success' | 'warning' | 'danger' | 'neutral';
+  /** One sentence for the badge's title and the history header. */
+  detail: string;
+}
+
+/**
+ * The Validation badge. `validationCurrent` is the server's verdict (the same
+ * rule the lifecycle applies to Deploy and Resume); the expiry is shown so the
+ * operator can see how long the evidence has left, or when it ran out.
+ */
+export function describeValidation(deployment: ValidationLike): ValidationDisplay {
+  const expires = deployment.validationExpiresAt ?? null;
+  if (deployment.validationCurrent) {
+    return { label: 'current', tone: 'success', detail: `Validation evidence expires ${formatTimestamp(expires)}.` };
+  }
+  if (deployment.validationPassed) {
+    return {
+      label: 'expired',
+      tone: 'warning',
+      detail: `Validation evidence expired ${formatTimestamp(expires)}. Validate the definition again from Connections › Definitions.`
+    };
+  }
+  if (expires) {
+    return { label: 'failed', tone: 'danger', detail: 'The last connection validation of this revision failed.' };
+  }
+  return { label: 'not validated', tone: 'neutral', detail: 'No connection validation is recorded for this revision.' };
+}
+
+export interface LeaseLike {
+  outboxStatus: string;
+  topic: string;
+  leaseOwner: string;
+  leaseExpiresAt?: string | null | undefined;
+}
+
+/** The outbox row in one line: topic, and who holds the lease until when. */
+export function describeOutboxLease(attempt: LeaseLike, now: Date = new Date()): string {
+  const topic = attempt.topic ? `topic ${attempt.topic}` : 'no topic';
+  if (!attempt.leaseOwner) return `${topic} · not leased`;
+  const expires = attempt.leaseExpiresAt ? new Date(attempt.leaseExpiresAt) : null;
+  if (!expires || Number.isNaN(expires.getTime())) return `${topic} · leased by ${attempt.leaseOwner}`;
+  const when = formatTimestamp(attempt.leaseExpiresAt);
+  return expires.getTime() > now.getTime()
+    ? `${topic} · leased by ${attempt.leaseOwner} until ${when}`
+    : `${topic} · lease by ${attempt.leaseOwner} expired ${when}`;
 }
 
 /** Maps a lifecycle state onto the shared Badge variants. */
@@ -204,6 +274,13 @@ export interface DestinationDeliveryLike {
   fhirResourceTypes: readonly string[];
   fhirEntryCount: number;
   fhirOutcomeCodesAdvisory: readonly string[];
+  /** The rest of the ledger row (E-0); optional so older fixtures still describe. */
+  destination?: { artifactId: string; revisionId: string } | null | undefined;
+  digestVerified?: string | undefined;
+  failureCode?: string | undefined;
+  httpStatusClass?: string | undefined;
+  servedCertificateSubjectAdvisory?: string | undefined;
+  completedAt?: string | null | undefined;
 }
 
 export interface DestinationDeliveryDisplay {
@@ -218,6 +295,17 @@ export interface DestinationDeliveryDisplay {
   outcomeCodes: string[];
   /** The endpoint the destination revision declares; advisory, never trusted. */
   endpointText: string;
+  /** The verified destination revision, `artifact@revision`; null when not recorded. */
+  revisionText: string | null;
+  /** The digest this process verified before sending, shortened. */
+  digestText: string | null;
+  /** The ledger's closed-vocabulary failure code; null when none. */
+  failureCode: string | null;
+  /** This process's reduction of the response status (1xx..5xx); null when none. */
+  statusClassText: string | null;
+  /** The certificate subject the destination served; advisory, never trusted. */
+  certificateText: string | null;
+  completedText: string | null;
 }
 
 /** Turns one provenance-ledger row into what the Delivery block displays. */
@@ -232,7 +320,15 @@ export function describeDestinationDelivery(
     resourceTypes: [...delivery.fhirResourceTypes],
     entryCountText: isFHIR ? entryCountText(delivery.fhirEntryCount) : null,
     outcomeCodes: [...delivery.fhirOutcomeCodesAdvisory],
-    endpointText: delivery.endpointAdvisory || 'No endpoint declared'
+    endpointText: delivery.endpointAdvisory || 'No endpoint declared',
+    revisionText: delivery.destination
+      ? `${delivery.destination.artifactId}@${delivery.destination.revisionId}`
+      : null,
+    digestText: delivery.digestVerified ? shortDigest(delivery.digestVerified) : null,
+    failureCode: delivery.failureCode || null,
+    statusClassText: delivery.httpStatusClass ? `HTTP ${delivery.httpStatusClass}` : null,
+    certificateText: delivery.servedCertificateSubjectAdvisory || null,
+    completedText: delivery.completedAt ? formatTimestamp(delivery.completedAt) : null
   };
 }
 

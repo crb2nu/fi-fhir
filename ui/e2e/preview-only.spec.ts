@@ -157,7 +157,9 @@ interface HonestRoute {
 }
 
 const ROUTES: HonestRoute[] = [
-  { id: 'P3', path: '/', testid: 'integrations-preflight', reason: 'missing-role', missingRoles: 'integration.operator' },
+  // No database, so no control plane: "not configured" outranks the missing
+  // role (.loom/42 E-0, the Connections precedence); the role is still named.
+  { id: 'P3', path: '/', testid: 'integrations-preflight', reason: 'not-configured' },
   { id: 'P4', path: '/workflows', testid: 'workflows-preflight', reason: 'missing-role', missingRoles: 'graphql:operator' },
   { id: 'P5', path: '/events', testid: 'events-preflight', reason: 'missing-role', missingRoles: 'clinical:read' },
   { id: 'P6', path: '/profiles', testid: 'profiles-preflight', reason: 'missing-role', missingRoles: 'graphql:operator' },
@@ -171,7 +173,7 @@ const ROUTES: HonestRoute[] = [
   // The catalog needs a database this deployment does not have: "not configured"
   // outranks the missing role (.loom/38 C-1 precedence).
   { id: 'P8', path: '/connections', testid: 'connections-preflight', reason: 'not-configured' },
-  { id: 'P9', path: '/operator', testid: 'operator-preflight', missingRoles: 'integration.operator' }
+  { id: 'P9', path: '/operator', testid: 'operator-preflight', reason: 'not-configured' }
 ];
 
 for (const route of ROUTES) {
@@ -202,3 +204,26 @@ for (const route of ROUTES) {
     expect(consoleErrors).toEqual([]);
   });
 }
+
+test('E0-8. controlPlane pre-flight: /operator and Home say the control plane is not configured, and query nothing', async ({
+  page,
+  request
+}, testInfo) => {
+  const status = await fetchAuthStatus(request, testInfo);
+  expect(status.capabilities.controlPlane).toBe(false);
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/operator?receipt=e2e-any-receipt');
+  const preflight = page.getByTestId('operator-preflight');
+  await expect(preflight).toHaveAttribute('data-reason', 'not-configured');
+  await expect(preflight).toContainText('The operator control plane is not configured on this deployment');
+  await expect(preflight).toContainText('FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED=true');
+  await expect(preflight).toHaveAttribute('data-missing-roles', 'integration.operator');
+
+  await openIDE(page, '/');
+  await expect(page.getByTestId('integrations-preflight')).toHaveAttribute('data-reason', 'not-configured');
+  await expect(page.getByTestId('health-fleet')).toContainText('not configured');
+
+  expect(nonHealthRequests(watch).map((request) => request.postData()?.slice(0, 80))).toEqual([]);
+  expect(watch.errorToasts).toEqual([]);
+});

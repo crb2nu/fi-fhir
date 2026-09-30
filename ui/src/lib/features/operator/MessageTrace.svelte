@@ -9,12 +9,18 @@
    * here to redact — this view shows the shape of the message, not its content.
    * Each attempt's Delivery block renders the destination provenance ledger,
    * which is clinical-content-free by construction (Slice 4.2c).
+   *
+   * Since E-0 the trace also shows what it always fetched: the resubmit chain,
+   * schedule and completion, the outbox lease, the full ledger row, audit
+   * detail documents, and retention tombstones. Source and destination refs
+   * link to their connection; the receipt links to Verification.
    */
 
   import { createEventDispatcher } from 'svelte';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import FileQuestion from '@lucide/svelte/icons/file-question';
   import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
+  import ScanSearch from '@lucide/svelte/icons/scan-search';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import Send from '@lucide/svelte/icons/send';
   import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -30,12 +36,14 @@
     Tr,
     type IconComponent
   } from '$lib/ui/primitives';
+  import AuditDetail from './AuditDetail.svelte';
   import DestinationDeliveries from './DestinationDeliveries.svelte';
   import {
     attemptStatusVariant,
     badgeTone,
     deadLetterStateLabel,
     deliveryActionBlockedReason,
+    describeOutboxLease,
     formatTimestamp,
     outboxStatusVariant,
     shortDigest,
@@ -43,6 +51,8 @@
   } from './attemptPresentation';
   import type { OperatorMessageTrace } from './operatorApi';
   import { deliveryControlBlock } from './operatorAccess';
+  import { connectionHref, eventsReceiptHref } from './operatorLinks';
+  import { childAttempts, resubmitChains } from './resubmitChain';
 
   export let trace: OperatorMessageTrace | null = null;
   export let loading = false;
@@ -51,8 +61,11 @@
 
   const dispatch = createEventDispatcher<{
     control: { action: DeliveryAction; attemptId: string };
+    inspect: { attemptId: string };
     retry: void;
   }>();
+
+  $: chains = trace ? resubmitChains(trace.attempts) : [];
 
   const recoveryActions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
   const actionIcons: Record<DeliveryAction, IconComponent> = {
@@ -120,6 +133,12 @@
           }
         ]}
       />
+      <p class="links">
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- operatorLinks.ts builds this href from resolve() plus a query string -->
+        <a href={eventsReceiptHref(trace.receipt.receiptId)} class="link" data-testid="trace-events-link">
+          This receipt's admissions on Verification
+        </a>
+      </p>
     </section>
 
     <section class="section" aria-labelledby="trace-events">
@@ -133,7 +152,20 @@
               <span class="mono strong">{event.eventType}</span>
               <Badge tone="warning">{event.classification}</Badge>
               <span class="mono muted">{formatTimestamp(event.recordedAt)}</span>
+              {#if event.purgedAt}
+                <Badge tone="neutral" data-testid="event-tombstone">purged</Badge>
+              {/if}
             </header>
+            {#if event.purgedAt}
+              <p class="caption" data-testid="event-purged">
+                Retention replaced this payload with a tombstone at {formatTimestamp(event.purgedAt)}; the fields
+                below describe the tombstone, not the admitted message.
+              </p>
+            {:else if event.purgeAfter}
+              <p class="caption" data-testid="event-purge-after">
+                Retention purges this payload after {formatTimestamp(event.purgeAfter)}.
+              </p>
+            {/if}
             <KeyValue
               items={[
                 { key: 'MSH-10', value: event.sourceMessageId, mono: true },
@@ -181,6 +213,12 @@
                 { key: 'Workflow', value: revision(link.artifactRevisions.workflow), mono: true, truncate: true }
               ]}
             />
+            <p class="links">
+              <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- operatorLinks.ts builds this href from resolve() plus a query string -->
+              <a href={connectionHref(link.artifactRevisions.source.artifactId)} class="link" data-testid="trace-source-link" title="Open the source connection this revision came from">
+                Source connection {link.artifactRevisions.source.artifactId}
+              </a>
+            </p>
             {#if link.routes.length > 0}
               <Table label={`Routes for trace ${link.traceId}`} class="inner-table">
                 {#snippet head()}
@@ -246,7 +284,23 @@
       {#if trace.attempts.length === 0}
         <p class="muted">No delivery attempt was created for this receipt.</p>
       {:else}
+        {#if chains.length > 0}
+          <div class="chains">
+            <h4 class="block-title">Resubmit chain</h4>
+            {#each chains as chain (chain.join('>'))}
+              <ol class="chain" data-testid="resubmit-chain" aria-label="Resubmit chain, original first">
+                {#each chain as id, position (id)}
+                  <li>
+                    <span class="mono">{id}</span>
+                    <span class="muted">{position === 0 ? 'original' : `resubmit ${position}`}</span>
+                  </li>
+                {/each}
+              </ol>
+            {/each}
+          </div>
+        {/if}
         {#each trace.attempts as attempt (attempt.attemptId)}
+          {@const children = childAttempts(trace.attempts, attempt.attemptId)}
           <article class="block">
             <header class="block-head">
               <span class="mono strong" title={attempt.attemptId}>{attempt.attemptId}</span>
@@ -254,6 +308,15 @@
               <Badge tone={badgeTone(outboxStatusVariant(attempt.outboxStatus))}>
                 outbox {attempt.outboxStatus}
               </Badge>
+              <span class="spacer"></span>
+              <Button
+                variant="ghost"
+                icon={ScanSearch}
+                title="Open this attempt with its full ledger and paged audit trail"
+                onclick={() => dispatch('inspect', { attemptId: attempt.attemptId })}
+              >
+                Inspect
+              </Button>
             </header>
             <KeyValue
               items={[
@@ -261,9 +324,20 @@
                 { key: 'Destination', value: revision(attempt.destination), mono: true, truncate: true },
                 { key: 'Attempts', value: attempt.attemptCount, mono: true },
                 { key: 'Dead letter', value: deadLetterStateLabel(attempt.deadLetter) },
-                { key: 'Recorded', value: formatTimestamp(attempt.recordedAt), mono: true }
+                { key: 'Resubmitted from', value: attempt.parentAttemptId ?? 'Original attempt', mono: true, truncate: true },
+                { key: 'Resubmitted as', value: children.length > 0 ? children.join(', ') : 'Not resubmitted', mono: true, truncate: true },
+                { key: 'Recorded', value: formatTimestamp(attempt.recordedAt), mono: true },
+                { key: 'Scheduled', value: formatTimestamp(attempt.scheduledAt), mono: true },
+                { key: 'Completed', value: attempt.completedAt ? formatTimestamp(attempt.completedAt) : 'Not completed', mono: true },
+                { key: 'Outbox', value: describeOutboxLease(attempt), mono: true, truncate: true }
               ]}
             />
+            <p class="links">
+              <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- operatorLinks.ts builds this href from resolve() plus a query string -->
+              <a href={connectionHref(attempt.destination.artifactId)} class="link" data-testid="trace-destination-link">
+                Destination connection {attempt.destination.artifactId}
+              </a>
+            </p>
             {#if attempt.lastErrorCode}
               <p class="failure">
                 <code>{attempt.lastErrorCode}</code>
@@ -305,10 +379,11 @@
         <Table label="Append-only delivery audit records" class="inner-table">
           {#snippet head()}
             <tr>
-              <Th width="104px">Event</Th>
+              <Th width="120px">Event</Th>
               <Th>Attempt</Th>
               <Th>Actor</Th>
               <Th>Reason</Th>
+              <Th>Detail</Th>
               <Th width="164px">Recorded</Th>
             </tr>
           {/snippet}
@@ -318,6 +393,7 @@
               <Td mono truncate value={record.attemptId} />
               <Td mono truncate value={record.principal.id || '—'} />
               <Td truncate value={record.reason || '—'} />
+              <Td><AuditDetail detail={record.detail} /></Td>
               <Td mono muted value={formatTimestamp(record.recordedAt)} />
             </Tr>
           {/each}
@@ -452,6 +528,44 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  .spacer {
+    flex: 1 1 auto;
+  }
+
+  .links {
+    margin: 0;
+    font-size: var(--text-xs);
+  }
+
+  .link {
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+    text-decoration-color: var(--color-border-strong);
+    text-underline-offset: 2px;
+  }
+
+  .link:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .chains {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .chain {
+    margin: 0;
+    padding-left: var(--space-4);
+    font-size: var(--text-xs);
+  }
+
+  .chain li {
+    display: flex;
+    gap: var(--space-2);
+    align-items: baseline;
   }
 
   .attempt-actions {

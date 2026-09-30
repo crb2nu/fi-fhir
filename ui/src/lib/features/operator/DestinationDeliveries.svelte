@@ -3,8 +3,11 @@
    * The Delivery block: what this process's destination provenance ledger
    * recorded for one delivery attempt, newest first (Slice 4.2c).
    *
-   * It renders exactly the transport, the outcome, the FHIR resource types and
-   * entry count, the OperationOutcome issue codes, and the declared endpoint.
+   * It renders exactly the ledger row: transport, outcome, the verified
+   * destination revision and digest, completion time, status class, failure
+   * code, the FHIR resource types and entry count, the OperationOutcome issue
+   * codes, and the two advisory values (declared endpoint, served certificate
+   * subject).
    * The ledger is clinical-content-free by construction and this view keeps it
    * that way: it has no access to the payload, a response body, or diagnostics
    * text, because none of them was ever recorded.
@@ -37,7 +40,20 @@
           {#if display.entryCountText}
             <span class="muted">{display.entryCountText}</span>
           {/if}
+          {#if display.statusClassText}
+            <Badge mono>{display.statusClassText}</Badge>
+          {/if}
+          {#if display.failureCode}
+            <code class="failure">{display.failureCode}</code>
+          {/if}
         </div>
+        {#if display.revisionText || display.digestText || display.completedText}
+          <p class="facts" data-testid="delivery-ledger-facts">
+            {#if display.revisionText}<span>revision <code>{display.revisionText}</code></span>{/if}
+            {#if display.digestText}<span title={delivery.digestVerified}>digest verified <code>{display.digestText}</code></span>{/if}
+            {#if display.completedText}<span>completed <code>{display.completedText}</code></span>{/if}
+          </p>
+        {/if}
         {#if display.resourceTypes.length > 0}
           <ul class="chips" aria-label="FHIR resource types">
             {#each display.resourceTypes as resourceType (resourceType)}
@@ -56,6 +72,12 @@
           <span class="sr-only">Declared endpoint:</span>
           {display.endpointText}
         </p>
+        {#if display.certificateText}
+          <p class="endpoint" title="The certificate subject the destination served; advisory, never a trust input">
+            <span class="sr-only">Served certificate subject:</span>
+            {display.certificateText}
+          </p>
+        {/if}
       </li>
     {/each}
   </ol>
@@ -123,6 +145,27 @@
   .muted {
     font-size: var(--text-xs);
     color: var(--color-text-tertiary);
+  }
+
+  .failure {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-danger-text);
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .facts code {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
+    color: var(--color-text-secondary);
   }
 
   .sr-only {

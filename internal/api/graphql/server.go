@@ -714,6 +714,8 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"operator operation idempotency conflict",
 		"integration deployment version conflict",
 		"invalid integration deployment transition",
+		"current connection validation required",
+		"integration definition already has an active deployment",
 		"operator control-plane request failed",
 		// Connection catalog outcomes (.loom/38 C-0), catalog-safe in the same
 		// way: another tenant's connection is "not found", never "forbidden".

@@ -66,7 +66,11 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	// merely a claim check.
 	seedFailedDelivery(t, db, "tenant-b", "receipt-b", "attempt-b", "outbox-b", seededAt)
 
-	catalog, revision := seedDeployedIntegration(t, ctx, db, seededAt)
+	// The lifecycle catalog and the control plane's derived validationCurrent
+	// share one settable clock, so the journey can age validation evidence
+	// past its expiry and prove both the projection and the typed refusal.
+	lifecycleClock := &settableClock{now: seededAt}
+	catalog, revision := seedDeployedIntegration(t, ctx, db, seededAt, lifecycleClock.Now)
 
 	reads, err := operator.NewPostgresReadStore(db)
 	if err != nil {
@@ -83,7 +87,8 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	if err != nil {
 		t.Fatalf("delivery.NewPostgresStore: %v", err)
 	}
-	controlPlane, err := operator.NewService(reads, deliveryLedger, recovery, catalog, operatorTenant)
+	controlPlane, err := operator.NewService(reads, deliveryLedger, recovery, catalog, operatorTenant,
+		operator.WithClock(lifecycleClock.Now))
 	if err != nil {
 		t.Fatalf("operator.NewService: %v", err)
 	}
@@ -171,6 +176,7 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 					eventId eventType sourceMessageId correlationId classification
 					payloadFields { path kind repeated }
 					payloadTruncated
+					purgeAfter purgedAt
 				}
 				lineage {
 					lineageId traceId sourceMessageId
@@ -211,6 +217,9 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	}
 	if !containsString(payloadPaths, "patient.mrn") {
 		t.Fatalf("payload field coordinates = %v, want a patient.mrn coordinate", payloadPaths)
+	}
+	if event.path("purgeAfter").value != nil || event.path("purgedAt").value != nil {
+		t.Fatalf("unstamped event reported retention marks: %s", traceBody.raw)
 	}
 
 	traceLineage := trace.path("lineage").array()
@@ -393,7 +402,7 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 		query {
 			operatorDeployments {
 				definitionRevision { artifactId revisionId digest }
-				state version health validationPassed
+				state version health validationPassed validationExpiresAt validationCurrent
 				updatedBy { id } updatedReason
 			}
 		}`)
@@ -404,6 +413,9 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	deployed := jsonValue{deployments[0]}
 	if got := deployed.path("state").str(); got != "deployed" {
 		t.Fatalf("seeded deployment state = %q, want deployed", got)
+	}
+	if !deployed.path("validationCurrent").boolean() || deployed.path("validationExpiresAt").str() == "" {
+		t.Fatalf("fresh validation is not reported current: %s", deploymentsBody.raw)
 	}
 	deployedVersion := int(deployed.path("version").number())
 
@@ -623,6 +635,58 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	}
 
 	// ---------------------------------------------------------------------
+	// Validation evidence ages out: the projection says so before an operator
+	// tries, and the lifecycle refusal arrives as a named, actionable error.
+	// ---------------------------------------------------------------------
+	lifecycleClock.set(seededAt.Add(25 * time.Hour))
+	expiredBody := client.query(operatorRoles, `
+		query { operatorDeployments { state version validationPassed validationCurrent } }`)
+	expired := jsonValue{expiredBody.path("data", "operatorDeployments").array()[0]}
+	if !expired.path("validationPassed").boolean() || expired.path("validationCurrent").boolean() {
+		t.Fatalf("expired validation = %s, want passed but not current", expiredBody.raw)
+	}
+	expiredPause := client.query(operatorRoles, fmt.Sprintf(`
+		mutation {
+			pauseIntegrationDeployment(input: {
+				definitionId: %q, revisionId: %q,
+				expectedVersion: %d, reason: "Pausing before stale evidence resume"
+			}) { state version }
+		}`, revision.DefinitionID, revision.RevisionID, int(expired.path("version").number())))
+	if got := expiredPause.path("data", "pauseIntegrationDeployment", "state").str(); got != "paused" {
+		t.Fatalf("pause without validation = %s, want paused", expiredPause.raw)
+	}
+	staleResume := client.query(operatorRoles, fmt.Sprintf(`
+		mutation {
+			resumeIntegrationDeployment(input: {
+				definitionId: %q, revisionId: %q,
+				expectedVersion: %d, reason: "Resume on expired validation evidence"
+			}) { state }
+		}`, revision.DefinitionID, revision.RevisionID,
+		int(expiredPause.path("data", "pauseIntegrationDeployment", "version").number())))
+	if !staleResume.hasError("current connection validation required") {
+		t.Fatalf("resume on expired validation = %s, want the typed validation refusal", staleResume.raw)
+	}
+
+	// ---------------------------------------------------------------------
+	// Retention marks: a stamped deadline and a tombstone reach the trace.
+	// ---------------------------------------------------------------------
+	purgeAfter := seededAt.Add(30 * 24 * time.Hour)
+	if _, err := db.ExecContext(ctx, `
+		UPDATE integration_canonical_events SET purge_after = $1
+		WHERE tenant_id = $2 AND receipt_id = 'receipt-a'`, purgeAfter, operatorTenant); err != nil {
+		t.Fatalf("stamp purge_after: %v", err)
+	}
+	stampedBody := client.query(operatorRoles, `
+		query { operatorMessageTrace(receiptId: "receipt-a") { events { purgeAfter purgedAt } } }`)
+	stamped := jsonValue{stampedBody.path("data", "operatorMessageTrace", "events").array()[0]}
+	if got := stamped.path("purgeAfter").str(); got != purgeAfter.Format(time.RFC3339) {
+		t.Fatalf("trace purgeAfter = %q, want %q: %s", got, purgeAfter.Format(time.RFC3339), stampedBody.raw)
+	}
+	if stamped.path("purgedAt").value != nil {
+		t.Fatalf("stamped event reported a tombstone: %s", stampedBody.raw)
+	}
+
+	// ---------------------------------------------------------------------
 	// Raw-PHI sentinel: it is in the durable payload and in no response body.
 	// ---------------------------------------------------------------------
 	assertSentinelIsDurablyStored(t, db)
@@ -631,6 +695,35 @@ func TestOperatorControlPlane_FailureReplayAndAuditGoldenJourneys(t *testing.T) 
 	}
 	if bodies.count() < 15 {
 		t.Fatalf("sentinel scan covered only %d responses; the journey did not run", bodies.count())
+	}
+
+	// ---------------------------------------------------------------------
+	// Retention tombstone: once the payload is replaced (the purge worker's
+	// own UPDATE, retention/store.go purgeCanonicalEvents), the trace reports
+	// purgedAt beside purgeAfter and describes the tombstone, not the event.
+	// ---------------------------------------------------------------------
+	purgedAt := purgeAfter.Add(time.Hour)
+	if _, err := db.ExecContext(ctx, `
+		UPDATE integration_canonical_events
+		SET payload_json = integration_canonical_event_tombstone(), purged_at = $1
+		WHERE tenant_id = $2 AND receipt_id = 'receipt-a'`, purgedAt, operatorTenant); err != nil {
+		t.Fatalf("tombstone canonical event: %v", err)
+	}
+	purgedBody := client.query(operatorRoles, `
+		query { operatorMessageTrace(receiptId: "receipt-a") {
+			events { purgeAfter purgedAt payloadFields { path } }
+		} }`)
+	purged := jsonValue{purgedBody.path("data", "operatorMessageTrace", "events").array()[0]}
+	if got := purged.path("purgedAt").str(); got != purgedAt.Format(time.RFC3339) {
+		t.Fatalf("trace purgedAt = %q, want %q: %s", got, purgedAt.Format(time.RFC3339), purgedBody.raw)
+	}
+	if got := purged.path("purgeAfter").str(); got != purgeAfter.Format(time.RFC3339) {
+		t.Fatalf("trace purgeAfter after purge = %q, want %q", got, purgeAfter.Format(time.RFC3339))
+	}
+	for _, field := range purged.path("payloadFields").array() {
+		if (jsonValue{field}).path("path").str() == "patient.mrn" {
+			t.Fatalf("tombstoned event still describes the admitted payload: %s", purgedBody.raw)
+		}
 	}
 }
 
@@ -790,6 +883,24 @@ func (c *operatorClock) Now() time.Time {
 	defer c.mu.Unlock()
 	c.now = c.now.Add(time.Second)
 	return c.now
+}
+
+// settableClock stands still until the journey moves it.
+type settableClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *settableClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *settableClock) set(now time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = now
 }
 
 func openOperatorDatabase(t *testing.T, ctx context.Context) *sql.DB {
@@ -1013,10 +1124,11 @@ func seedDeployedIntegration(
 	ctx context.Context,
 	db *sql.DB,
 	now time.Time,
+	clock func() time.Time,
 ) (*lifecycle.PostgresCatalog, integration.IntegrationDefinitionRevision) {
 	t.Helper()
 	catalog, err := lifecycle.NewPostgresCatalog(db, lifecycle.Config{
-		Clock: func() time.Time { return now },
+		Clock: clock,
 		ValidateConnection: func(context.Context, integration.IntegrationDefinitionRevision) (lifecycle.ConnectionValidationOutcome, error) {
 			return lifecycle.ConnectionValidationOutcome{Passed: true, Codes: []string{"SOURCE_REACHABLE"}}, nil
 		},

@@ -3,9 +3,11 @@
   operator control plane's lifecycle query (`operatorDeployments`). Read-only:
   every lifecycle command lives on /operator behind the reason-required dialog.
 
-  The query needs `integration.operator`; when the status endpoint says the
-  identity lacks it, the panel names the role and issues nothing (the same
-  pre-flight the operator page uses).
+  The query needs the operator control plane and `integration.operator`; when
+  the status endpoint says the plane is not configured, or the identity lacks
+  the role (in that order), the panel says which and issues nothing — the same
+  pre-flight the operator page uses. Each row links to its lifecycle history on
+  /operator.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -14,6 +16,7 @@
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import Layers from '@lucide/svelte/icons/layers';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
+  import ServerOff from '@lucide/svelte/icons/server-off';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import {
     Badge,
@@ -30,10 +33,12 @@
   import { fetchDeployments, type OperatorDeployment } from '$lib/features/operator/operatorApi';
   import { describeOperatorFailure } from '$lib/features/operator/operatorErrors';
   import { operatorPreflight } from '$lib/features/operator/operatorAccess';
+  import { operatorDeploymentHref } from '$lib/features/operator/operatorLinks';
   import {
     badgeTone,
     deploymentHealthVariant,
     deploymentStateVariant,
+    describeValidation,
     formatTimestamp,
     shortDigest
   } from '$lib/features/operator/attemptPresentation';
@@ -78,7 +83,18 @@
     <Button variant="ghost" onclick={openOperator}>Open Operator</Button>
   {/snippet}
 
-  {#if preflight}
+  {#if preflight?.reason === 'not-configured'}
+    <EmptyState
+      icon={ServerOff}
+      align="start"
+      data-testid="integrations-preflight"
+      data-reason="not-configured"
+      data-missing-roles={preflight.missingRoles.length > 0 ? preflight.missingRoles.join(',') : undefined}
+    >
+      Integration deployments live in the operator control plane, which is not configured on this deployment
+      (<code>{preflight.keys[0]}</code> or <code>{preflight.keys[1]}</code>); nothing was queried.
+    </EmptyState>
+  {:else if preflight}
     <EmptyState
       icon={ShieldAlert}
       align="start"
@@ -108,12 +124,18 @@
           <Th width="56px" numeric>Ver</Th>
           <Th width="96px">State</Th>
           <Th width="96px">Health</Th>
+          <Th width="104px">Validation</Th>
           <Th width="164px">Updated</Th>
         </tr>
       {/snippet}
       {#each deployments as deployment (deployment.definitionRevision.artifactId + deployment.definitionRevision.revisionId)}
         <Tr>
-          <Td mono truncate value={deployment.definitionRevision.artifactId} />
+          <Td mono truncate title={`Lifecycle history of ${deployment.definitionRevision.artifactId}`}>
+            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- operatorLinks.ts builds this href from resolve() plus a query string -->
+            <a href={operatorDeploymentHref( deployment.definitionRevision.artifactId, deployment.definitionRevision.revisionId )} class="history-link">
+              {deployment.definitionRevision.artifactId}
+            </a>
+          </Td>
           <Td
             mono
             truncate
@@ -130,6 +152,9 @@
           <Td>
             <Badge tone={badgeTone(deploymentHealthVariant(deployment.health))}>{deployment.health}</Badge>
           </Td>
+          <Td title={describeValidation(deployment).detail}>
+            <Badge tone={describeValidation(deployment).tone}>{describeValidation(deployment).label}</Badge>
+          </Td>
           <Td mono muted value={formatTimestamp(deployment.updatedAt)} />
         </Tr>
       {/each}
@@ -138,6 +163,17 @@
 </Panel>
 
 <style>
+  .history-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--color-border-strong);
+    text-underline-offset: 2px;
+  }
+
+  .history-link:hover {
+    text-decoration-color: currentColor;
+  }
+
   code {
     font-family: var(--font-mono);
     font-size: var(--text-mono);

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -317,7 +318,7 @@ func TestSummarizeSnapshotProjectsActorAndReason(t *testing.T) {
 			Reason:     "destination outage",
 			OccurredAt: time.Unix(1700000000, 0),
 		},
-	})
+	}, time.Unix(1700000000, 0))
 	if summary.State != "paused" || summary.Version != 4 || summary.Health != "degraded" {
 		t.Fatalf("snapshot summary = %#v", summary)
 	}
@@ -326,6 +327,90 @@ func TestSummarizeSnapshotProjectsActorAndReason(t *testing.T) {
 	}
 	if summary.UpdatedAt.Location() != time.UTC {
 		t.Fatalf("snapshot summary time is not UTC: %v", summary.UpdatedAt)
+	}
+}
+
+// TestValidationCurrentMirrorsTheLifecycleGate pins the projected
+// validationCurrent to the catalog's own Deploy/Resume rule: passed, recorded,
+// and strictly unexpired at read time.
+func TestValidationCurrentMirrorsTheLifecycleGate(t *testing.T) {
+	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name     string
+		passed   bool
+		recordID string
+		expires  time.Time
+		want     bool
+	}{
+		{"passed and unexpired", true, "validation-a", now.Add(time.Minute), true},
+		{"passed but expired", true, "validation-a", now.Add(-time.Second), false},
+		{"expires exactly now", true, "validation-a", now, false},
+		{"failed validation", false, "validation-a", now.Add(time.Hour), false},
+		{"never validated", false, "", time.Time{}, false},
+		{"passed flag without a record", true, "", now.Add(time.Hour), false},
+	}
+	for _, tc := range cases {
+		summary := summarizeSnapshot(lifecycle.Snapshot{
+			TenantID:            testTenant,
+			State:               integration.DeploymentStatePaused,
+			ValidationPassed:    tc.passed,
+			LastValidationID:    tc.recordID,
+			ValidationExpiresAt: tc.expires,
+		}, now)
+		if summary.ValidationCurrent != tc.want {
+			t.Fatalf("%s: validationCurrent = %v, want %v", tc.name, summary.ValidationCurrent, tc.want)
+		}
+	}
+}
+
+func TestListDeploymentsEvaluatesValidationAgainstTheServiceClock(t *testing.T) {
+	service, _, catalog := newTestService(t)
+	expires := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	catalog.snapshot.ValidationPassed = true
+	catalog.snapshot.LastValidationID = "validation-a"
+	catalog.snapshot.ValidationExpiresAt = expires
+	ctx := requestsecurity.WithSecurityContext(context.Background(), securityContext(testTenant, ReadRole))
+
+	WithClock(func() time.Time { return expires.Add(-time.Minute) })(service)
+	before, err := service.ListDeployments(ctx)
+	if err != nil || len(before) != 1 || !before[0].ValidationCurrent {
+		t.Fatalf("before expiry = %#v, %v; want one current validation", before, err)
+	}
+	if before[0].ValidationExpiresAt == nil || !before[0].ValidationExpiresAt.Equal(expires) {
+		t.Fatalf("validation expiry = %v, want %v", before[0].ValidationExpiresAt, expires)
+	}
+
+	WithClock(func() time.Time { return expires.Add(time.Minute) })(service)
+	after, err := service.ListDeployments(ctx)
+	if err != nil || len(after) != 1 || after[0].ValidationCurrent {
+		t.Fatalf("after expiry = %#v, %v; want an expired validation", after, err)
+	}
+}
+
+// TestDeploymentCommandsSurfaceTypedLifecycleRefusals proves the two
+// refusals an operator can act on reach the resolver as typed errors rather
+// than the generic control-plane failure.
+func TestDeploymentCommandsSurfaceTypedLifecycleRefusals(t *testing.T) {
+	cases := []struct {
+		cause error
+		want  error
+	}{
+		{lifecycle.ErrConnectionValidationRequired, ErrValidationRequired},
+		{lifecycle.ErrActiveDeployment, ErrActiveDeployment},
+		{fmt.Errorf("wrapped: %w", lifecycle.ErrConnectionValidationRequired), ErrValidationRequired},
+	}
+	for _, tc := range cases {
+		service, _, catalog := newTestService(t)
+		catalog.err = tc.cause
+		ctx := requestsecurity.WithSecurityContext(context.Background(),
+			securityContext(testTenant, ReadRole, DeploymentOperatorRole))
+		_, err := service.ResumeDeployment(ctx, DeploymentCommand{
+			DefinitionID: "definition-a", RevisionID: "revision-a",
+			ExpectedVersion: 3, Reason: "destination restored",
+		})
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("lifecycle error %v mapped to %v, want %v", tc.cause, err, tc.want)
+		}
 	}
 }
 

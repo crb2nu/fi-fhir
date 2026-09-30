@@ -20,6 +20,11 @@ const required = {
   ]
 };
 
+// Lane checks (.loom/42): one line per lane, as [project, check prefix] pairs.
+const laneChecks = [
+  ...[['operator-bundle', 'E0-1.'], ['operator-bundle', 'E0-2.'], ['operator-bundle', 'E0-3.'], ['operator-bundle', 'E0-4.'], ['operator-bundle', 'E0-5.'], ['operator-bundle', 'E0-6.'], ['missing-operator-role', 'E0-7.'], ['preview-only', 'E0-8.'], ['visual', 'V22.'], ['visual', 'V23.']] // E-0
+];
+for (const [project, prefix] of laneChecks) (required[project] ??= []).push(prefix);
 required['operator-bundle'].push('E4-1.', 'E4-2.', 'E4-3.'); // .loom/42 E-4 shell honesty (shell.spec.ts)
 
 const [reportPath] = process.argv.slice(2);

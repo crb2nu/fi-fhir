@@ -21,6 +21,20 @@ describe('describeOperatorFailure', () => {
     expect(failure.message).toMatch(/already used for a different operation/i);
   });
 
+  it('tells the operator to validate again when evidence has expired', () => {
+    const failure = describeOperatorFailure(new Error('current connection validation required'));
+    expect(failure.staleView).toBe(true);
+    expect(failure.message).toMatch(/Validate the definition again from Connections › Definitions/);
+  });
+
+  it('names the other active revision as the blocker for a deploy', () => {
+    const failure = describeOperatorFailure(
+      new Error('integration definition already has an active deployment')
+    );
+    expect(failure.staleView).toBe(true);
+    expect(failure.message).toMatch(/Pause or retire that revision first/);
+  });
+
   it('flags a resolved dead letter as a stale view', () => {
     const failure = describeOperatorFailure(new Error('delivery attempt is not dead-lettered'));
     expect(failure.staleView).toBe(true);
