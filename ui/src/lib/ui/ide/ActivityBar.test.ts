@@ -23,7 +23,7 @@ describe('ActivityBar', () => {
         'Profiles',
         'Terminology',
         'Workflows',
-        'Events',
+        'Verification',
         'Connections',
         'Operator'
       ]);
@@ -36,7 +36,7 @@ describe('ActivityBar', () => {
 
       expect(screen.getByRole('button', { name: 'HL7 / Intake' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Workflows' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Events' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Verification' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Profiles' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Terminology' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Connections' })).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe('ActivityBar', () => {
     it('should apply active class to current view', () => {
       render(ActivityBar, { props: { activeView: 'events' } });
 
-      const eventsBtn = screen.getByRole('button', { name: 'Events' });
+      const eventsBtn = screen.getByRole('button', { name: 'Verification' });
       expect(eventsBtn).toHaveClass('active');
 
       const hl7Btn = screen.getByRole('button', { name: 'HL7 / Intake' });
@@ -97,7 +97,7 @@ describe('ActivityBar', () => {
       const views = [
         ['HL7 / Intake', 'hl7'],
         ['Workflows', 'workflows'],
-        ['Events', 'events'],
+        ['Verification', 'events'],
         ['Profiles', 'profiles'],
         ['Terminology', 'terminology'],
         ['Connections', 'connections'],

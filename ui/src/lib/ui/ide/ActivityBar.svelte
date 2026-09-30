@@ -30,7 +30,7 @@
     { view: 'profiles', label: 'Profiles', stage: 'Normalization' },
     { view: 'terminology', label: 'Terminology', stage: 'Translation' },
     { view: 'workflows', label: 'Workflows', stage: 'Delivery' },
-    { view: 'events', label: 'Events', stage: 'Verification' },
+    { view: 'events', label: 'Verification', stage: 'Verification' },
     { view: 'connections', label: 'Connections' },
     { view: 'operator', label: 'Operator' },
   ];

@@ -902,6 +902,25 @@ type ComplexityRoot struct {
 		SsnStripDashes    func(childComplexity int) int
 	}
 
+	OperatorAdmissionStatistics struct {
+		AcceptedReceipts      func(childComplexity int) int
+		AttemptsByDestination func(childComplexity int) int
+		Bucket                func(childComplexity int) int
+		CanonicalEvents       func(childComplexity int) int
+		EventsByType          func(childComplexity int) int
+		FailedAttempts        func(childComplexity int) int
+		From                  func(childComplexity int) int
+		GroupsTruncated       func(childComplexity int) int
+		PurgedEvents          func(childComplexity int) int
+		QueuedAttempts        func(childComplexity int) int
+		ReceiptsByDefinition  func(childComplexity int) int
+		RejectedReceipts      func(childComplexity int) int
+		ScheduledForPurge     func(childComplexity int) int
+		Series                func(childComplexity int) int
+		SucceededAttempts     func(childComplexity int) int
+		To                    func(childComplexity int) int
+	}
+
 	OperatorAuditConnection struct {
 		Nodes    func(childComplexity int) int
 		PageInfo func(childComplexity int) int
@@ -916,6 +935,28 @@ type ComplexityRoot struct {
 		Principal    func(childComplexity int) int
 		Reason       func(childComplexity int) int
 		RecordedAt   func(childComplexity int) int
+	}
+
+	OperatorCanonicalEvent struct {
+		Classification   func(childComplexity int) int
+		CorrelationID    func(childComplexity int) int
+		Definition       func(childComplexity int) int
+		EventID          func(childComplexity int) int
+		EventType        func(childComplexity int) int
+		PayloadFields    func(childComplexity int) int
+		PayloadTruncated func(childComplexity int) int
+		PurgeAfter       func(childComplexity int) int
+		PurgedAt         func(childComplexity int) int
+		ReceiptID        func(childComplexity int) int
+		ReceiptStatus    func(childComplexity int) int
+		RecordedAt       func(childComplexity int) int
+		Source           func(childComplexity int) int
+		SourceMessageID  func(childComplexity int) int
+	}
+
+	OperatorCanonicalEventConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
 	}
 
 	OperatorCircuit struct {
@@ -951,6 +992,13 @@ type ComplexityRoot struct {
 	OperatorDeadLetterConnection struct {
 		Nodes    func(childComplexity int) int
 		PageInfo func(childComplexity int) int
+	}
+
+	OperatorDefinitionAdmissions struct {
+		Accepted     func(childComplexity int) int
+		DefinitionID func(childComplexity int) int
+		Rejected     func(childComplexity int) int
+		RevisionID   func(childComplexity int) int
 	}
 
 	OperatorDeliveryAttempt struct {
@@ -1010,6 +1058,13 @@ type ComplexityRoot struct {
 		Version    func(childComplexity int) int
 	}
 
+	OperatorDestinationAttempts struct {
+		DestinationArtifactID func(childComplexity int) int
+		Failed                func(childComplexity int) int
+		Queued                func(childComplexity int) int
+		Succeeded             func(childComplexity int) int
+	}
+
 	OperatorDestinationDelivery struct {
 		CompletedAt                      func(childComplexity int) int
 		Destination                      func(childComplexity int) int
@@ -1045,6 +1100,11 @@ type ComplexityRoot struct {
 		ReceiptID        func(childComplexity int) int
 		RecordedAt       func(childComplexity int) int
 		SourceMessageID  func(childComplexity int) int
+	}
+
+	OperatorKeyCount struct {
+		Count func(childComplexity int) int
+		Key   func(childComplexity int) int
 	}
 
 	OperatorLineage struct {
@@ -1115,6 +1175,15 @@ type ComplexityRoot struct {
 		SkipReason      func(childComplexity int) int
 		Skipped         func(childComplexity int) int
 		TransformCount  func(childComplexity int) int
+	}
+
+	OperatorStatisticsBucketCounts struct {
+		Accepted  func(childComplexity int) int
+		Failed    func(childComplexity int) int
+		Queued    func(childComplexity int) int
+		Rejected  func(childComplexity int) int
+		Start     func(childComplexity int) int
+		Succeeded func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -1300,76 +1369,78 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		ActiveEncounter            func(childComplexity int, id string) int
-		ActiveEncounterByPatient   func(childComplexity int, mrn string) int
-		ActiveEncounters           func(childComplexity int, location *string, unit *string, class *string) int
-		AnalyzeQuality             func(childComplexity int, input model.AnalyzeQualityInput) int
-		ClassifyMessage            func(childComplexity int, input model.ClassifyMessageInput) int
-		Connection                 func(childComplexity int, id string) int
-		ConnectionCaptures         func(childComplexity int, sessionID string) int
-		ConnectionRevision         func(childComplexity int, artifactID string, revisionID string) int
-		ConnectionRevisions        func(childComplexity int, id string) int
-		Connections                func(childComplexity int, direction *model.ConnectionDirection, includeArchived *bool) int
-		DebugSession               func(childComplexity int, id string) int
-		EngineRuntime              func(childComplexity int) int
-		Event                      func(childComplexity int, id string) int
-		EventStatistics            func(childComplexity int) int
-		Events                     func(childComplexity int, filter *model.EventFilter, first *int, after *string, orderBy *model.EventOrderBy) int
-		ExplainWarnings            func(childComplexity int, warnings []model.ParseWarningInput, format model.SourceFormat) int
-		ExplainWorkflow            func(childComplexity int, input model.ExplainWorkflowInput) int
-		ExportMappingsCSV          func(childComplexity int, input *model.ListMappingsInput) int
-		ExtractEntities            func(childComplexity int, input model.ExtractEntitiesInput) int
-		GetMapping                 func(childComplexity int, id string) int
-		GetPendingAutoroute        func(childComplexity int, id string) int
-		GetUploadBatch             func(childComplexity int, id string) int
-		Health                     func(childComplexity int) int
-		IntegrationSession         func(childComplexity int, id string) int
-		IntegrationSessions        func(childComplexity int, includeArchived *bool) int
-		ListMappings               func(childComplexity int, input *model.ListMappingsInput) int
-		ListPendingAutoroutes      func(childComplexity int, input *model.ListPendingAutoroutesInput) int
-		LlmCapability              func(childComplexity int) int
-		LookupMapping              func(childComplexity int, sourceSystem string, sourceCode string, targetSystem string, profileID *string) int
-		OperatorAttemptAudit       func(childComplexity int, attemptID string, page *model.OperatorPageInput) int
-		OperatorCircuits           func(childComplexity int) int
-		OperatorDeadLetters        func(childComplexity int, activeOnly *bool, page *model.OperatorPageInput) int
-		OperatorDeliveryAttempt    func(childComplexity int, attemptID string) int
-		OperatorDeliveryAttempts   func(childComplexity int, filter *model.OperatorAttemptFilter, page *model.OperatorPageInput) int
-		OperatorDeploymentEvents   func(childComplexity int, definitionID string, revisionID string) int
-		OperatorDeployments        func(childComplexity int) int
-		OperatorMessageTrace       func(childComplexity int, receiptID string) int
-		OperatorReceipts           func(childComplexity int, filter *model.OperatorReceiptFilter, page *model.OperatorPageInput) int
-		ParsePreview               func(childComplexity int, format model.SourceFormat, data string, source *string) int
-		ParsePreviewWithProfile    func(childComplexity int, format model.SourceFormat, data string, source *string, profileID *string) int
-		Patient                    func(childComplexity int, mrn string) int
-		PatientTimeline            func(childComplexity int, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) int
-		Patients                   func(childComplexity int, filter *model.PatientFilter, first *int, after *string) int
-		PendingAutorouteStats      func(childComplexity int) int
-		Profile                    func(childComplexity int, id string) int
-		ProfileRevisions           func(childComplexity int, id string) int
-		Profiles                   func(childComplexity int, activeOnly *bool) int
-		ProjectionStatus           func(childComplexity int) int
-		QuickQualityScore          func(childComplexity int, event map[string]any) int
-		ResolveMapping             func(childComplexity int, input model.ResolveMappingInput) int
-		SessionArtifacts           func(childComplexity int, sessionID string) int
-		SessionDiagnostics         func(childComplexity int, sessionID string, runID *string) int
-		SessionPublications        func(childComplexity int, sessionID string) int
-		SessionRun                 func(childComplexity int, id string) int
-		SessionRuns                func(childComplexity int, sessionID string) int
-		SessionSamples             func(childComplexity int, sessionID string) int
-		SessionWorkflowSimulations func(childComplexity int, sessionID string) int
-		SuggestMappings            func(childComplexity int, input model.SuggestMappingsInput) int
-		TemporalWorkflow           func(childComplexity int, workflowID string, runID *string) int
-		TemporalWorkflows          func(childComplexity int, filter *model.TemporalWorkflowFilter, first *int, after *string) int
-		Workflow                   func(childComplexity int, name string) int
-		WorkflowApprovalRequests   func(childComplexity int, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) int
-		WorkflowDefinition         func(childComplexity int, nameOrID string) int
-		WorkflowDefinitions        func(childComplexity int, filter *model.WorkflowDefinitionFilter, paging *model.PagingInput) int
-		WorkflowRun                func(childComplexity int, id string) int
-		WorkflowRunTrace           func(childComplexity int, runID string) int
-		WorkflowRuns               func(childComplexity int, filter *model.WorkflowRunFilter, paging *model.PagingInput) int
-		WorkflowVersion            func(childComplexity int, id string) int
-		WorkflowVersions           func(childComplexity int, workflowID string, paging *model.PagingInput) int
-		Workflows                  func(childComplexity int) int
+		ActiveEncounter             func(childComplexity int, id string) int
+		ActiveEncounterByPatient    func(childComplexity int, mrn string) int
+		ActiveEncounters            func(childComplexity int, location *string, unit *string, class *string) int
+		AnalyzeQuality              func(childComplexity int, input model.AnalyzeQualityInput) int
+		ClassifyMessage             func(childComplexity int, input model.ClassifyMessageInput) int
+		Connection                  func(childComplexity int, id string) int
+		ConnectionCaptures          func(childComplexity int, sessionID string) int
+		ConnectionRevision          func(childComplexity int, artifactID string, revisionID string) int
+		ConnectionRevisions         func(childComplexity int, id string) int
+		Connections                 func(childComplexity int, direction *model.ConnectionDirection, includeArchived *bool) int
+		DebugSession                func(childComplexity int, id string) int
+		EngineRuntime               func(childComplexity int) int
+		Event                       func(childComplexity int, id string) int
+		EventStatistics             func(childComplexity int) int
+		Events                      func(childComplexity int, filter *model.EventFilter, first *int, after *string, orderBy *model.EventOrderBy) int
+		ExplainWarnings             func(childComplexity int, warnings []model.ParseWarningInput, format model.SourceFormat) int
+		ExplainWorkflow             func(childComplexity int, input model.ExplainWorkflowInput) int
+		ExportMappingsCSV           func(childComplexity int, input *model.ListMappingsInput) int
+		ExtractEntities             func(childComplexity int, input model.ExtractEntitiesInput) int
+		GetMapping                  func(childComplexity int, id string) int
+		GetPendingAutoroute         func(childComplexity int, id string) int
+		GetUploadBatch              func(childComplexity int, id string) int
+		Health                      func(childComplexity int) int
+		IntegrationSession          func(childComplexity int, id string) int
+		IntegrationSessions         func(childComplexity int, includeArchived *bool) int
+		ListMappings                func(childComplexity int, input *model.ListMappingsInput) int
+		ListPendingAutoroutes       func(childComplexity int, input *model.ListPendingAutoroutesInput) int
+		LlmCapability               func(childComplexity int) int
+		LookupMapping               func(childComplexity int, sourceSystem string, sourceCode string, targetSystem string, profileID *string) int
+		OperatorAdmissionStatistics func(childComplexity int, window model.OperatorStatisticsWindow, bucket model.OperatorStatisticsBucket) int
+		OperatorAttemptAudit        func(childComplexity int, attemptID string, page *model.OperatorPageInput) int
+		OperatorCanonicalEvents     func(childComplexity int, filter *model.OperatorCanonicalEventFilter, page *model.OperatorPageInput) int
+		OperatorCircuits            func(childComplexity int) int
+		OperatorDeadLetters         func(childComplexity int, activeOnly *bool, page *model.OperatorPageInput) int
+		OperatorDeliveryAttempt     func(childComplexity int, attemptID string) int
+		OperatorDeliveryAttempts    func(childComplexity int, filter *model.OperatorAttemptFilter, page *model.OperatorPageInput) int
+		OperatorDeploymentEvents    func(childComplexity int, definitionID string, revisionID string) int
+		OperatorDeployments         func(childComplexity int) int
+		OperatorMessageTrace        func(childComplexity int, receiptID string) int
+		OperatorReceipts            func(childComplexity int, filter *model.OperatorReceiptFilter, page *model.OperatorPageInput) int
+		ParsePreview                func(childComplexity int, format model.SourceFormat, data string, source *string) int
+		ParsePreviewWithProfile     func(childComplexity int, format model.SourceFormat, data string, source *string, profileID *string) int
+		Patient                     func(childComplexity int, mrn string) int
+		PatientTimeline             func(childComplexity int, mrn string, fromTimestamp *time.Time, toTimestamp *time.Time, limit *int) int
+		Patients                    func(childComplexity int, filter *model.PatientFilter, first *int, after *string) int
+		PendingAutorouteStats       func(childComplexity int) int
+		Profile                     func(childComplexity int, id string) int
+		ProfileRevisions            func(childComplexity int, id string) int
+		Profiles                    func(childComplexity int, activeOnly *bool) int
+		ProjectionStatus            func(childComplexity int) int
+		QuickQualityScore           func(childComplexity int, event map[string]any) int
+		ResolveMapping              func(childComplexity int, input model.ResolveMappingInput) int
+		SessionArtifacts            func(childComplexity int, sessionID string) int
+		SessionDiagnostics          func(childComplexity int, sessionID string, runID *string) int
+		SessionPublications         func(childComplexity int, sessionID string) int
+		SessionRun                  func(childComplexity int, id string) int
+		SessionRuns                 func(childComplexity int, sessionID string) int
+		SessionSamples              func(childComplexity int, sessionID string) int
+		SessionWorkflowSimulations  func(childComplexity int, sessionID string) int
+		SuggestMappings             func(childComplexity int, input model.SuggestMappingsInput) int
+		TemporalWorkflow            func(childComplexity int, workflowID string, runID *string) int
+		TemporalWorkflows           func(childComplexity int, filter *model.TemporalWorkflowFilter, first *int, after *string) int
+		Workflow                    func(childComplexity int, name string) int
+		WorkflowApprovalRequests    func(childComplexity int, filter *model.WorkflowApprovalRequestFilter, paging *model.PagingInput) int
+		WorkflowDefinition          func(childComplexity int, nameOrID string) int
+		WorkflowDefinitions         func(childComplexity int, filter *model.WorkflowDefinitionFilter, paging *model.PagingInput) int
+		WorkflowRun                 func(childComplexity int, id string) int
+		WorkflowRunTrace            func(childComplexity int, runID string) int
+		WorkflowRuns                func(childComplexity int, filter *model.WorkflowRunFilter, paging *model.PagingInput) int
+		WorkflowVersion             func(childComplexity int, id string) int
+		WorkflowVersions            func(childComplexity int, workflowID string, paging *model.PagingInput) int
+		Workflows                   func(childComplexity int) int
 	}
 
 	ResolveMappingResult struct {
@@ -1955,6 +2026,8 @@ type QueryResolver interface {
 	OperatorAttemptAudit(ctx context.Context, attemptID string, page *model.OperatorPageInput) (*model.OperatorAuditConnection, error)
 	OperatorDeployments(ctx context.Context) ([]model.OperatorDeployment, error)
 	OperatorDeploymentEvents(ctx context.Context, definitionID string, revisionID string) ([]model.OperatorDeploymentEvent, error)
+	OperatorCanonicalEvents(ctx context.Context, filter *model.OperatorCanonicalEventFilter, page *model.OperatorPageInput) (*model.OperatorCanonicalEventConnection, error)
+	OperatorAdmissionStatistics(ctx context.Context, window model.OperatorStatisticsWindow, bucket model.OperatorStatisticsBucket) (*model.OperatorAdmissionStatistics, error)
 	Connections(ctx context.Context, direction *model.ConnectionDirection, includeArchived *bool) ([]model.Connection, error)
 	Connection(ctx context.Context, id string) (*model.Connection, error)
 	ConnectionRevisions(ctx context.Context, id string) ([]model.ConnectionRevision, error)
@@ -5984,6 +6057,103 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.NormalizationSettingsConfig.SsnStripDashes(childComplexity), true
 
+	case "OperatorAdmissionStatistics.acceptedReceipts":
+		if e.complexity.OperatorAdmissionStatistics.AcceptedReceipts == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.AcceptedReceipts(childComplexity), true
+	case "OperatorAdmissionStatistics.attemptsByDestination":
+		if e.complexity.OperatorAdmissionStatistics.AttemptsByDestination == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.AttemptsByDestination(childComplexity), true
+	case "OperatorAdmissionStatistics.bucket":
+		if e.complexity.OperatorAdmissionStatistics.Bucket == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.Bucket(childComplexity), true
+	case "OperatorAdmissionStatistics.canonicalEvents":
+		if e.complexity.OperatorAdmissionStatistics.CanonicalEvents == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.CanonicalEvents(childComplexity), true
+	case "OperatorAdmissionStatistics.eventsByType":
+		if e.complexity.OperatorAdmissionStatistics.EventsByType == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.EventsByType(childComplexity), true
+	case "OperatorAdmissionStatistics.failedAttempts":
+		if e.complexity.OperatorAdmissionStatistics.FailedAttempts == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.FailedAttempts(childComplexity), true
+	case "OperatorAdmissionStatistics.from":
+		if e.complexity.OperatorAdmissionStatistics.From == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.From(childComplexity), true
+	case "OperatorAdmissionStatistics.groupsTruncated":
+		if e.complexity.OperatorAdmissionStatistics.GroupsTruncated == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.GroupsTruncated(childComplexity), true
+	case "OperatorAdmissionStatistics.purgedEvents":
+		if e.complexity.OperatorAdmissionStatistics.PurgedEvents == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.PurgedEvents(childComplexity), true
+	case "OperatorAdmissionStatistics.queuedAttempts":
+		if e.complexity.OperatorAdmissionStatistics.QueuedAttempts == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.QueuedAttempts(childComplexity), true
+	case "OperatorAdmissionStatistics.receiptsByDefinition":
+		if e.complexity.OperatorAdmissionStatistics.ReceiptsByDefinition == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.ReceiptsByDefinition(childComplexity), true
+	case "OperatorAdmissionStatistics.rejectedReceipts":
+		if e.complexity.OperatorAdmissionStatistics.RejectedReceipts == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.RejectedReceipts(childComplexity), true
+	case "OperatorAdmissionStatistics.scheduledForPurge":
+		if e.complexity.OperatorAdmissionStatistics.ScheduledForPurge == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.ScheduledForPurge(childComplexity), true
+	case "OperatorAdmissionStatistics.series":
+		if e.complexity.OperatorAdmissionStatistics.Series == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.Series(childComplexity), true
+	case "OperatorAdmissionStatistics.succeededAttempts":
+		if e.complexity.OperatorAdmissionStatistics.SucceededAttempts == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.SucceededAttempts(childComplexity), true
+	case "OperatorAdmissionStatistics.to":
+		if e.complexity.OperatorAdmissionStatistics.To == nil {
+			break
+		}
+
+		return e.complexity.OperatorAdmissionStatistics.To(childComplexity), true
+
 	case "OperatorAuditConnection.nodes":
 		if e.complexity.OperatorAuditConnection.Nodes == nil {
 			break
@@ -6045,6 +6215,104 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorAuditRecord.RecordedAt(childComplexity), true
+
+	case "OperatorCanonicalEvent.classification":
+		if e.complexity.OperatorCanonicalEvent.Classification == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.Classification(childComplexity), true
+	case "OperatorCanonicalEvent.correlationId":
+		if e.complexity.OperatorCanonicalEvent.CorrelationID == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.CorrelationID(childComplexity), true
+	case "OperatorCanonicalEvent.definition":
+		if e.complexity.OperatorCanonicalEvent.Definition == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.Definition(childComplexity), true
+	case "OperatorCanonicalEvent.eventId":
+		if e.complexity.OperatorCanonicalEvent.EventID == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.EventID(childComplexity), true
+	case "OperatorCanonicalEvent.eventType":
+		if e.complexity.OperatorCanonicalEvent.EventType == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.EventType(childComplexity), true
+	case "OperatorCanonicalEvent.payloadFields":
+		if e.complexity.OperatorCanonicalEvent.PayloadFields == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.PayloadFields(childComplexity), true
+	case "OperatorCanonicalEvent.payloadTruncated":
+		if e.complexity.OperatorCanonicalEvent.PayloadTruncated == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.PayloadTruncated(childComplexity), true
+	case "OperatorCanonicalEvent.purgeAfter":
+		if e.complexity.OperatorCanonicalEvent.PurgeAfter == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.PurgeAfter(childComplexity), true
+	case "OperatorCanonicalEvent.purgedAt":
+		if e.complexity.OperatorCanonicalEvent.PurgedAt == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.PurgedAt(childComplexity), true
+	case "OperatorCanonicalEvent.receiptId":
+		if e.complexity.OperatorCanonicalEvent.ReceiptID == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.ReceiptID(childComplexity), true
+	case "OperatorCanonicalEvent.receiptStatus":
+		if e.complexity.OperatorCanonicalEvent.ReceiptStatus == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.ReceiptStatus(childComplexity), true
+	case "OperatorCanonicalEvent.recordedAt":
+		if e.complexity.OperatorCanonicalEvent.RecordedAt == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.RecordedAt(childComplexity), true
+	case "OperatorCanonicalEvent.source":
+		if e.complexity.OperatorCanonicalEvent.Source == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.Source(childComplexity), true
+	case "OperatorCanonicalEvent.sourceMessageId":
+		if e.complexity.OperatorCanonicalEvent.SourceMessageID == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEvent.SourceMessageID(childComplexity), true
+
+	case "OperatorCanonicalEventConnection.nodes":
+		if e.complexity.OperatorCanonicalEventConnection.Nodes == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEventConnection.Nodes(childComplexity), true
+	case "OperatorCanonicalEventConnection.pageInfo":
+		if e.complexity.OperatorCanonicalEventConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.OperatorCanonicalEventConnection.PageInfo(childComplexity), true
 
 	case "OperatorCircuit.consecutiveFailures":
 		if e.complexity.OperatorCircuit.ConsecutiveFailures == nil {
@@ -6187,6 +6455,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorDeadLetterConnection.PageInfo(childComplexity), true
+
+	case "OperatorDefinitionAdmissions.accepted":
+		if e.complexity.OperatorDefinitionAdmissions.Accepted == nil {
+			break
+		}
+
+		return e.complexity.OperatorDefinitionAdmissions.Accepted(childComplexity), true
+	case "OperatorDefinitionAdmissions.definitionId":
+		if e.complexity.OperatorDefinitionAdmissions.DefinitionID == nil {
+			break
+		}
+
+		return e.complexity.OperatorDefinitionAdmissions.DefinitionID(childComplexity), true
+	case "OperatorDefinitionAdmissions.rejected":
+		if e.complexity.OperatorDefinitionAdmissions.Rejected == nil {
+			break
+		}
+
+		return e.complexity.OperatorDefinitionAdmissions.Rejected(childComplexity), true
+	case "OperatorDefinitionAdmissions.revisionId":
+		if e.complexity.OperatorDefinitionAdmissions.RevisionID == nil {
+			break
+		}
+
+		return e.complexity.OperatorDefinitionAdmissions.RevisionID(childComplexity), true
 
 	case "OperatorDeliveryAttempt.action":
 		if e.complexity.OperatorDeliveryAttempt.Action == nil {
@@ -6462,6 +6755,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.OperatorDeploymentEvent.Version(childComplexity), true
 
+	case "OperatorDestinationAttempts.destinationArtifactId":
+		if e.complexity.OperatorDestinationAttempts.DestinationArtifactID == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationAttempts.DestinationArtifactID(childComplexity), true
+	case "OperatorDestinationAttempts.failed":
+		if e.complexity.OperatorDestinationAttempts.Failed == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationAttempts.Failed(childComplexity), true
+	case "OperatorDestinationAttempts.queued":
+		if e.complexity.OperatorDestinationAttempts.Queued == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationAttempts.Queued(childComplexity), true
+	case "OperatorDestinationAttempts.succeeded":
+		if e.complexity.OperatorDestinationAttempts.Succeeded == nil {
+			break
+		}
+
+		return e.complexity.OperatorDestinationAttempts.Succeeded(childComplexity), true
+
 	case "OperatorDestinationDelivery.completedAt":
 		if e.complexity.OperatorDestinationDelivery.CompletedAt == nil {
 			break
@@ -6632,6 +6950,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorEvent.SourceMessageID(childComplexity), true
+
+	case "OperatorKeyCount.count":
+		if e.complexity.OperatorKeyCount.Count == nil {
+			break
+		}
+
+		return e.complexity.OperatorKeyCount.Count(childComplexity), true
+	case "OperatorKeyCount.key":
+		if e.complexity.OperatorKeyCount.Key == nil {
+			break
+		}
+
+		return e.complexity.OperatorKeyCount.Key(childComplexity), true
 
 	case "OperatorLineage.artifactRevisions":
 		if e.complexity.OperatorLineage.ArtifactRevisions == nil {
@@ -6916,6 +7247,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OperatorRoute.TransformCount(childComplexity), true
+
+	case "OperatorStatisticsBucketCounts.accepted":
+		if e.complexity.OperatorStatisticsBucketCounts.Accepted == nil {
+			break
+		}
+
+		return e.complexity.OperatorStatisticsBucketCounts.Accepted(childComplexity), true
+	case "OperatorStatisticsBucketCounts.failed":
+		if e.complexity.OperatorStatisticsBucketCounts.Failed == nil {
+			break
+		}
+
+		return e.complexity.OperatorStatisticsBucketCounts.Failed(childComplexity), true
+	case "OperatorStatisticsBucketCounts.queued":
+		if e.complexity.OperatorStatisticsBucketCounts.Queued == nil {
+			break
+		}
+
+		return e.complexity.OperatorStatisticsBucketCounts.Queued(childComplexity), true
+	case "OperatorStatisticsBucketCounts.rejected":
+		if e.complexity.OperatorStatisticsBucketCounts.Rejected == nil {
+			break
+		}
+
+		return e.complexity.OperatorStatisticsBucketCounts.Rejected(childComplexity), true
+	case "OperatorStatisticsBucketCounts.start":
+		if e.complexity.OperatorStatisticsBucketCounts.Start == nil {
+			break
+		}
+
+		return e.complexity.OperatorStatisticsBucketCounts.Start(childComplexity), true
+	case "OperatorStatisticsBucketCounts.succeeded":
+		if e.complexity.OperatorStatisticsBucketCounts.Succeeded == nil {
+			break
+		}
+
+		return e.complexity.OperatorStatisticsBucketCounts.Succeeded(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.complexity.PageInfo.EndCursor == nil {
@@ -7968,6 +8336,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.LookupMapping(childComplexity, args["sourceSystem"].(string), args["sourceCode"].(string), args["targetSystem"].(string), args["profileId"].(*string)), true
+	case "Query.operatorAdmissionStatistics":
+		if e.complexity.Query.OperatorAdmissionStatistics == nil {
+			break
+		}
+
+		args, err := ec.field_Query_operatorAdmissionStatistics_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.OperatorAdmissionStatistics(childComplexity, args["window"].(model.OperatorStatisticsWindow), args["bucket"].(model.OperatorStatisticsBucket)), true
 	case "Query.operatorAttemptAudit":
 		if e.complexity.Query.OperatorAttemptAudit == nil {
 			break
@@ -7979,6 +8358,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.OperatorAttemptAudit(childComplexity, args["attemptId"].(string), args["page"].(*model.OperatorPageInput)), true
+	case "Query.operatorCanonicalEvents":
+		if e.complexity.Query.OperatorCanonicalEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Query_operatorCanonicalEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.OperatorCanonicalEvents(childComplexity, args["filter"].(*model.OperatorCanonicalEventFilter), args["page"].(*model.OperatorPageInput)), true
 	case "Query.operatorCircuits":
 		if e.complexity.Query.OperatorCircuits == nil {
 			break
@@ -10356,10 +10746,12 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputLiveParseInput,
 		ec.unmarshalInputNormalizationSettingsInput,
 		ec.unmarshalInputOperatorAttemptFilter,
+		ec.unmarshalInputOperatorCanonicalEventFilter,
 		ec.unmarshalInputOperatorDeliveryControlInput,
 		ec.unmarshalInputOperatorDeploymentCommandInput,
 		ec.unmarshalInputOperatorPageInput,
 		ec.unmarshalInputOperatorReceiptFilter,
+		ec.unmarshalInputOperatorStatisticsWindow,
 		ec.unmarshalInputPagingInput,
 		ec.unmarshalInputParseWarningInput,
 		ec.unmarshalInputPatientFilter,
@@ -11669,6 +12061,22 @@ func (ec *executionContext) field_Query_lookupMapping_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_operatorAdmissionStatistics_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "window", ec.unmarshalNOperatorStatisticsWindow2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsWindow)
+	if err != nil {
+		return nil, err
+	}
+	args["window"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "bucket", ec.unmarshalNOperatorStatisticsBucket2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucket)
+	if err != nil {
+		return nil, err
+	}
+	args["bucket"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_operatorAttemptAudit_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11677,6 +12085,22 @@ func (ec *executionContext) field_Query_operatorAttemptAudit_args(ctx context.Co
 		return nil, err
 	}
 	args["attemptId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "page", ec.unmarshalOOperatorPageInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPageInput)
+	if err != nil {
+		return nil, err
+	}
+	args["page"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_operatorCanonicalEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOOperatorCanonicalEventFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEventFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "page", ec.unmarshalOOperatorPageInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPageInput)
 	if err != nil {
 		return nil, err
@@ -33096,6 +33520,510 @@ func (ec *executionContext) fieldContext_NormalizationSettingsConfig_phoneFormat
 	return fc, nil
 }
 
+func (ec *executionContext) _OperatorAdmissionStatistics_from(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_from,
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_to(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_to,
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_bucket(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_bucket,
+		func(ctx context.Context) (any, error) {
+			return obj.Bucket, nil
+		},
+		nil,
+		ec.marshalNOperatorStatisticsBucket2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucket,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_bucket(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type OperatorStatisticsBucket does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_acceptedReceipts(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_acceptedReceipts,
+		func(ctx context.Context) (any, error) {
+			return obj.AcceptedReceipts, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_acceptedReceipts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_rejectedReceipts(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_rejectedReceipts,
+		func(ctx context.Context) (any, error) {
+			return obj.RejectedReceipts, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_rejectedReceipts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_canonicalEvents(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_canonicalEvents,
+		func(ctx context.Context) (any, error) {
+			return obj.CanonicalEvents, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_canonicalEvents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_purgedEvents(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_purgedEvents,
+		func(ctx context.Context) (any, error) {
+			return obj.PurgedEvents, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_purgedEvents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_scheduledForPurge(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_scheduledForPurge,
+		func(ctx context.Context) (any, error) {
+			return obj.ScheduledForPurge, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_scheduledForPurge(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_queuedAttempts(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_queuedAttempts,
+		func(ctx context.Context) (any, error) {
+			return obj.QueuedAttempts, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_queuedAttempts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_succeededAttempts(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_succeededAttempts,
+		func(ctx context.Context) (any, error) {
+			return obj.SucceededAttempts, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_succeededAttempts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_failedAttempts(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_failedAttempts,
+		func(ctx context.Context) (any, error) {
+			return obj.FailedAttempts, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_failedAttempts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_eventsByType(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_eventsByType,
+		func(ctx context.Context) (any, error) {
+			return obj.EventsByType, nil
+		},
+		nil,
+		ec.marshalNOperatorKeyCount2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorKeyCountᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_eventsByType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "key":
+				return ec.fieldContext_OperatorKeyCount_key(ctx, field)
+			case "count":
+				return ec.fieldContext_OperatorKeyCount_count(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorKeyCount", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_receiptsByDefinition(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_receiptsByDefinition,
+		func(ctx context.Context) (any, error) {
+			return obj.ReceiptsByDefinition, nil
+		},
+		nil,
+		ec.marshalNOperatorDefinitionAdmissions2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDefinitionAdmissionsᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_receiptsByDefinition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "definitionId":
+				return ec.fieldContext_OperatorDefinitionAdmissions_definitionId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_OperatorDefinitionAdmissions_revisionId(ctx, field)
+			case "accepted":
+				return ec.fieldContext_OperatorDefinitionAdmissions_accepted(ctx, field)
+			case "rejected":
+				return ec.fieldContext_OperatorDefinitionAdmissions_rejected(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorDefinitionAdmissions", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_attemptsByDestination(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_attemptsByDestination,
+		func(ctx context.Context) (any, error) {
+			return obj.AttemptsByDestination, nil
+		},
+		nil,
+		ec.marshalNOperatorDestinationAttempts2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationAttemptsᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_attemptsByDestination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "destinationArtifactId":
+				return ec.fieldContext_OperatorDestinationAttempts_destinationArtifactId(ctx, field)
+			case "queued":
+				return ec.fieldContext_OperatorDestinationAttempts_queued(ctx, field)
+			case "succeeded":
+				return ec.fieldContext_OperatorDestinationAttempts_succeeded(ctx, field)
+			case "failed":
+				return ec.fieldContext_OperatorDestinationAttempts_failed(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorDestinationAttempts", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_groupsTruncated(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_groupsTruncated,
+		func(ctx context.Context) (any, error) {
+			return obj.GroupsTruncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_groupsTruncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorAdmissionStatistics_series(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAdmissionStatistics) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorAdmissionStatistics_series,
+		func(ctx context.Context) (any, error) {
+			return obj.Series, nil
+		},
+		nil,
+		ec.marshalNOperatorStatisticsBucketCounts2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucketCountsᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorAdmissionStatistics_series(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorAdmissionStatistics",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "start":
+				return ec.fieldContext_OperatorStatisticsBucketCounts_start(ctx, field)
+			case "accepted":
+				return ec.fieldContext_OperatorStatisticsBucketCounts_accepted(ctx, field)
+			case "rejected":
+				return ec.fieldContext_OperatorStatisticsBucketCounts_rejected(ctx, field)
+			case "queued":
+				return ec.fieldContext_OperatorStatisticsBucketCounts_queued(ctx, field)
+			case "succeeded":
+				return ec.fieldContext_OperatorStatisticsBucketCounts_succeeded(ctx, field)
+			case "failed":
+				return ec.fieldContext_OperatorStatisticsBucketCounts_failed(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorStatisticsBucketCounts", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OperatorAuditConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.OperatorAuditConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -33415,6 +34343,530 @@ func (ec *executionContext) fieldContext_OperatorAuditRecord_recordedAt(_ contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_eventId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_eventId,
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_eventType(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_eventType,
+		func(ctx context.Context) (any, error) {
+			return obj.EventType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_eventType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_sourceMessageId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_sourceMessageId,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceMessageID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_sourceMessageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_correlationId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_correlationId,
+		func(ctx context.Context) (any, error) {
+			return obj.CorrelationID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_correlationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_classification(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_classification,
+		func(ctx context.Context) (any, error) {
+			return obj.Classification, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_classification(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_recordedAt(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_recordedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.RecordedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_recordedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_receiptId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_receiptId,
+		func(ctx context.Context) (any, error) {
+			return obj.ReceiptID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_receiptId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_receiptStatus(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_receiptStatus,
+		func(ctx context.Context) (any, error) {
+			return obj.ReceiptStatus, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_receiptStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_definition(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_definition,
+		func(ctx context.Context) (any, error) {
+			return obj.Definition, nil
+		},
+		nil,
+		ec.marshalNIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_definition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_source(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_source,
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		ec.marshalOIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "artifactId":
+				return ec.fieldContext_IntegrationArtifactRevision_artifactId(ctx, field)
+			case "revisionId":
+				return ec.fieldContext_IntegrationArtifactRevision_revisionId(ctx, field)
+			case "digest":
+				return ec.fieldContext_IntegrationArtifactRevision_digest(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationArtifactRevision", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_payloadFields(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_payloadFields,
+		func(ctx context.Context) (any, error) {
+			return obj.PayloadFields, nil
+		},
+		nil,
+		ec.marshalNOperatorPayloadField2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPayloadFieldᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_payloadFields(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "path":
+				return ec.fieldContext_OperatorPayloadField_path(ctx, field)
+			case "kind":
+				return ec.fieldContext_OperatorPayloadField_kind(ctx, field)
+			case "repeated":
+				return ec.fieldContext_OperatorPayloadField_repeated(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPayloadField", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_payloadTruncated(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_payloadTruncated,
+		func(ctx context.Context) (any, error) {
+			return obj.PayloadTruncated, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_payloadTruncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_purgeAfter(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_purgeAfter,
+		func(ctx context.Context) (any, error) {
+			return obj.PurgeAfter, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_purgeAfter(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEvent_purgedAt(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEvent_purgedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.PurgedAt, nil
+		},
+		nil,
+		ec.marshalODateTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEvent_purgedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEventConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEventConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEventConnection_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNOperatorCanonicalEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEventᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEventConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEventConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "eventId":
+				return ec.fieldContext_OperatorCanonicalEvent_eventId(ctx, field)
+			case "eventType":
+				return ec.fieldContext_OperatorCanonicalEvent_eventType(ctx, field)
+			case "sourceMessageId":
+				return ec.fieldContext_OperatorCanonicalEvent_sourceMessageId(ctx, field)
+			case "correlationId":
+				return ec.fieldContext_OperatorCanonicalEvent_correlationId(ctx, field)
+			case "classification":
+				return ec.fieldContext_OperatorCanonicalEvent_classification(ctx, field)
+			case "recordedAt":
+				return ec.fieldContext_OperatorCanonicalEvent_recordedAt(ctx, field)
+			case "receiptId":
+				return ec.fieldContext_OperatorCanonicalEvent_receiptId(ctx, field)
+			case "receiptStatus":
+				return ec.fieldContext_OperatorCanonicalEvent_receiptStatus(ctx, field)
+			case "definition":
+				return ec.fieldContext_OperatorCanonicalEvent_definition(ctx, field)
+			case "source":
+				return ec.fieldContext_OperatorCanonicalEvent_source(ctx, field)
+			case "payloadFields":
+				return ec.fieldContext_OperatorCanonicalEvent_payloadFields(ctx, field)
+			case "payloadTruncated":
+				return ec.fieldContext_OperatorCanonicalEvent_payloadTruncated(ctx, field)
+			case "purgeAfter":
+				return ec.fieldContext_OperatorCanonicalEvent_purgeAfter(ctx, field)
+			case "purgedAt":
+				return ec.fieldContext_OperatorCanonicalEvent_purgedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorCanonicalEvent", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorCanonicalEventConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.OperatorCanonicalEventConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorCanonicalEventConnection_pageInfo,
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		ec.marshalNOperatorPageInfo2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorPageInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorCanonicalEventConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorCanonicalEventConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hasNextPage":
+				return ec.fieldContext_OperatorPageInfo_hasNextPage(ctx, field)
+			case "endCursor":
+				return ec.fieldContext_OperatorPageInfo_endCursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorPageInfo", field.Name)
 		},
 	}
 	return fc, nil
@@ -34172,6 +35624,122 @@ func (ec *executionContext) fieldContext_OperatorDeadLetterConnection_pageInfo(_
 				return ec.fieldContext_OperatorPageInfo_endCursor(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OperatorPageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDefinitionAdmissions_definitionId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDefinitionAdmissions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDefinitionAdmissions_definitionId,
+		func(ctx context.Context) (any, error) {
+			return obj.DefinitionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDefinitionAdmissions_definitionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDefinitionAdmissions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDefinitionAdmissions_revisionId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDefinitionAdmissions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDefinitionAdmissions_revisionId,
+		func(ctx context.Context) (any, error) {
+			return obj.RevisionID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDefinitionAdmissions_revisionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDefinitionAdmissions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDefinitionAdmissions_accepted(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDefinitionAdmissions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDefinitionAdmissions_accepted,
+		func(ctx context.Context) (any, error) {
+			return obj.Accepted, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDefinitionAdmissions_accepted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDefinitionAdmissions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDefinitionAdmissions_rejected(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDefinitionAdmissions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDefinitionAdmissions_rejected,
+		func(ctx context.Context) (any, error) {
+			return obj.Rejected, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDefinitionAdmissions_rejected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDefinitionAdmissions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -35618,6 +37186,122 @@ func (ec *executionContext) fieldContext_OperatorDeploymentEvent_occurredAt(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _OperatorDestinationAttempts_destinationArtifactId(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationAttempts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationAttempts_destinationArtifactId,
+		func(ctx context.Context) (any, error) {
+			return obj.DestinationArtifactID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationAttempts_destinationArtifactId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationAttempts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationAttempts_queued(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationAttempts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationAttempts_queued,
+		func(ctx context.Context) (any, error) {
+			return obj.Queued, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationAttempts_queued(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationAttempts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationAttempts_succeeded(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationAttempts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationAttempts_succeeded,
+		func(ctx context.Context) (any, error) {
+			return obj.Succeeded, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationAttempts_succeeded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationAttempts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorDestinationAttempts_failed(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationAttempts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorDestinationAttempts_failed,
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorDestinationAttempts_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorDestinationAttempts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OperatorDestinationDelivery_transport(ctx context.Context, field graphql.CollectedField, obj *model.OperatorDestinationDelivery) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -36443,6 +38127,64 @@ func (ec *executionContext) fieldContext_OperatorEvent_purgedAt(_ context.Contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorKeyCount_key(ctx context.Context, field graphql.CollectedField, obj *model.OperatorKeyCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorKeyCount_key,
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorKeyCount_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorKeyCount",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorKeyCount_count(ctx context.Context, field graphql.CollectedField, obj *model.OperatorKeyCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorKeyCount_count,
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorKeyCount_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorKeyCount",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -38003,6 +39745,180 @@ func (ec *executionContext) fieldContext_OperatorRoute_diagnosticCodes(_ context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorStatisticsBucketCounts_start(ctx context.Context, field graphql.CollectedField, obj *model.OperatorStatisticsBucketCounts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorStatisticsBucketCounts_start,
+		func(ctx context.Context) (any, error) {
+			return obj.Start, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorStatisticsBucketCounts_start(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorStatisticsBucketCounts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorStatisticsBucketCounts_accepted(ctx context.Context, field graphql.CollectedField, obj *model.OperatorStatisticsBucketCounts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorStatisticsBucketCounts_accepted,
+		func(ctx context.Context) (any, error) {
+			return obj.Accepted, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorStatisticsBucketCounts_accepted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorStatisticsBucketCounts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorStatisticsBucketCounts_rejected(ctx context.Context, field graphql.CollectedField, obj *model.OperatorStatisticsBucketCounts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorStatisticsBucketCounts_rejected,
+		func(ctx context.Context) (any, error) {
+			return obj.Rejected, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorStatisticsBucketCounts_rejected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorStatisticsBucketCounts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorStatisticsBucketCounts_queued(ctx context.Context, field graphql.CollectedField, obj *model.OperatorStatisticsBucketCounts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorStatisticsBucketCounts_queued,
+		func(ctx context.Context) (any, error) {
+			return obj.Queued, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorStatisticsBucketCounts_queued(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorStatisticsBucketCounts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorStatisticsBucketCounts_succeeded(ctx context.Context, field graphql.CollectedField, obj *model.OperatorStatisticsBucketCounts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorStatisticsBucketCounts_succeeded,
+		func(ctx context.Context) (any, error) {
+			return obj.Succeeded, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorStatisticsBucketCounts_succeeded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorStatisticsBucketCounts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OperatorStatisticsBucketCounts_failed(ctx context.Context, field graphql.CollectedField, obj *model.OperatorStatisticsBucketCounts) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OperatorStatisticsBucketCounts_failed,
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_OperatorStatisticsBucketCounts_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OperatorStatisticsBucketCounts",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -45482,6 +47398,128 @@ func (ec *executionContext) fieldContext_Query_operatorDeploymentEvents(ctx cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_operatorDeploymentEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_operatorCanonicalEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_operatorCanonicalEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().OperatorCanonicalEvents(ctx, fc.Args["filter"].(*model.OperatorCanonicalEventFilter), fc.Args["page"].(*model.OperatorPageInput))
+		},
+		nil,
+		ec.marshalNOperatorCanonicalEventConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEventConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_operatorCanonicalEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "nodes":
+				return ec.fieldContext_OperatorCanonicalEventConnection_nodes(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_OperatorCanonicalEventConnection_pageInfo(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorCanonicalEventConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_operatorCanonicalEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_operatorAdmissionStatistics(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_operatorAdmissionStatistics,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().OperatorAdmissionStatistics(ctx, fc.Args["window"].(model.OperatorStatisticsWindow), fc.Args["bucket"].(model.OperatorStatisticsBucket))
+		},
+		nil,
+		ec.marshalNOperatorAdmissionStatistics2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorAdmissionStatistics,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_operatorAdmissionStatistics(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "from":
+				return ec.fieldContext_OperatorAdmissionStatistics_from(ctx, field)
+			case "to":
+				return ec.fieldContext_OperatorAdmissionStatistics_to(ctx, field)
+			case "bucket":
+				return ec.fieldContext_OperatorAdmissionStatistics_bucket(ctx, field)
+			case "acceptedReceipts":
+				return ec.fieldContext_OperatorAdmissionStatistics_acceptedReceipts(ctx, field)
+			case "rejectedReceipts":
+				return ec.fieldContext_OperatorAdmissionStatistics_rejectedReceipts(ctx, field)
+			case "canonicalEvents":
+				return ec.fieldContext_OperatorAdmissionStatistics_canonicalEvents(ctx, field)
+			case "purgedEvents":
+				return ec.fieldContext_OperatorAdmissionStatistics_purgedEvents(ctx, field)
+			case "scheduledForPurge":
+				return ec.fieldContext_OperatorAdmissionStatistics_scheduledForPurge(ctx, field)
+			case "queuedAttempts":
+				return ec.fieldContext_OperatorAdmissionStatistics_queuedAttempts(ctx, field)
+			case "succeededAttempts":
+				return ec.fieldContext_OperatorAdmissionStatistics_succeededAttempts(ctx, field)
+			case "failedAttempts":
+				return ec.fieldContext_OperatorAdmissionStatistics_failedAttempts(ctx, field)
+			case "eventsByType":
+				return ec.fieldContext_OperatorAdmissionStatistics_eventsByType(ctx, field)
+			case "receiptsByDefinition":
+				return ec.fieldContext_OperatorAdmissionStatistics_receiptsByDefinition(ctx, field)
+			case "attemptsByDestination":
+				return ec.fieldContext_OperatorAdmissionStatistics_attemptsByDestination(ctx, field)
+			case "groupsTruncated":
+				return ec.fieldContext_OperatorAdmissionStatistics_groupsTruncated(ctx, field)
+			case "series":
+				return ec.fieldContext_OperatorAdmissionStatistics_series(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OperatorAdmissionStatistics", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_operatorAdmissionStatistics_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -58743,6 +60781,82 @@ func (ec *executionContext) unmarshalInputOperatorAttemptFilter(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputOperatorCanonicalEventFilter(ctx context.Context, obj any) (model.OperatorCanonicalEventFilter, error) {
+	var it model.OperatorCanonicalEventFilter
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"eventType", "definitionId", "receiptId", "sourceMessageId", "correlationId", "from", "to", "includePurged"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "eventType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("eventType"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EventType = data
+		case "definitionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("definitionId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DefinitionID = data
+		case "receiptId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("receiptId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ReceiptID = data
+		case "sourceMessageId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceMessageId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceMessageID = data
+		case "correlationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("correlationId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CorrelationID = data
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		case "includePurged":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includePurged"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludePurged = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputOperatorDeliveryControlInput(ctx context.Context, obj any) (model.OperatorDeliveryControlInput, error) {
 	var it model.OperatorDeliveryControlInput
 	asMap := map[string]any{}
@@ -58918,6 +61032,40 @@ func (ec *executionContext) unmarshalInputOperatorReceiptFilter(ctx context.Cont
 		case "to":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
 			data, err := ec.unmarshalODateTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputOperatorStatisticsWindow(ctx context.Context, obj any) (model.OperatorStatisticsWindow, error) {
+	var it model.OperatorStatisticsWindow
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"from", "to"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalNDateTime2timeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalNDateTime2timeᚐTime(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -66634,6 +68782,120 @@ func (ec *executionContext) _NormalizationSettingsConfig(ctx context.Context, se
 	return out
 }
 
+var operatorAdmissionStatisticsImplementors = []string{"OperatorAdmissionStatistics"}
+
+func (ec *executionContext) _OperatorAdmissionStatistics(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorAdmissionStatistics) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorAdmissionStatisticsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorAdmissionStatistics")
+		case "from":
+			out.Values[i] = ec._OperatorAdmissionStatistics_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._OperatorAdmissionStatistics_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bucket":
+			out.Values[i] = ec._OperatorAdmissionStatistics_bucket(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "acceptedReceipts":
+			out.Values[i] = ec._OperatorAdmissionStatistics_acceptedReceipts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rejectedReceipts":
+			out.Values[i] = ec._OperatorAdmissionStatistics_rejectedReceipts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "canonicalEvents":
+			out.Values[i] = ec._OperatorAdmissionStatistics_canonicalEvents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "purgedEvents":
+			out.Values[i] = ec._OperatorAdmissionStatistics_purgedEvents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scheduledForPurge":
+			out.Values[i] = ec._OperatorAdmissionStatistics_scheduledForPurge(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queuedAttempts":
+			out.Values[i] = ec._OperatorAdmissionStatistics_queuedAttempts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "succeededAttempts":
+			out.Values[i] = ec._OperatorAdmissionStatistics_succeededAttempts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failedAttempts":
+			out.Values[i] = ec._OperatorAdmissionStatistics_failedAttempts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventsByType":
+			out.Values[i] = ec._OperatorAdmissionStatistics_eventsByType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "receiptsByDefinition":
+			out.Values[i] = ec._OperatorAdmissionStatistics_receiptsByDefinition(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attemptsByDestination":
+			out.Values[i] = ec._OperatorAdmissionStatistics_attemptsByDestination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "groupsTruncated":
+			out.Values[i] = ec._OperatorAdmissionStatistics_groupsTruncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "series":
+			out.Values[i] = ec._OperatorAdmissionStatistics_series(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var operatorAuditConnectionImplementors = []string{"OperatorAuditConnection"}
 
 func (ec *executionContext) _OperatorAuditConnection(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorAuditConnection) graphql.Marshaler {
@@ -66726,6 +68988,145 @@ func (ec *executionContext) _OperatorAuditRecord(ctx context.Context, sel ast.Se
 			}
 		case "recordedAt":
 			out.Values[i] = ec._OperatorAuditRecord_recordedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var operatorCanonicalEventImplementors = []string{"OperatorCanonicalEvent"}
+
+func (ec *executionContext) _OperatorCanonicalEvent(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorCanonicalEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorCanonicalEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorCanonicalEvent")
+		case "eventId":
+			out.Values[i] = ec._OperatorCanonicalEvent_eventId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eventType":
+			out.Values[i] = ec._OperatorCanonicalEvent_eventType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sourceMessageId":
+			out.Values[i] = ec._OperatorCanonicalEvent_sourceMessageId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "correlationId":
+			out.Values[i] = ec._OperatorCanonicalEvent_correlationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "classification":
+			out.Values[i] = ec._OperatorCanonicalEvent_classification(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recordedAt":
+			out.Values[i] = ec._OperatorCanonicalEvent_recordedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "receiptId":
+			out.Values[i] = ec._OperatorCanonicalEvent_receiptId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "receiptStatus":
+			out.Values[i] = ec._OperatorCanonicalEvent_receiptStatus(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "definition":
+			out.Values[i] = ec._OperatorCanonicalEvent_definition(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._OperatorCanonicalEvent_source(ctx, field, obj)
+		case "payloadFields":
+			out.Values[i] = ec._OperatorCanonicalEvent_payloadFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "payloadTruncated":
+			out.Values[i] = ec._OperatorCanonicalEvent_payloadTruncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "purgeAfter":
+			out.Values[i] = ec._OperatorCanonicalEvent_purgeAfter(ctx, field, obj)
+		case "purgedAt":
+			out.Values[i] = ec._OperatorCanonicalEvent_purgedAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var operatorCanonicalEventConnectionImplementors = []string{"OperatorCanonicalEventConnection"}
+
+func (ec *executionContext) _OperatorCanonicalEventConnection(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorCanonicalEventConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorCanonicalEventConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorCanonicalEventConnection")
+		case "nodes":
+			out.Values[i] = ec._OperatorCanonicalEventConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._OperatorCanonicalEventConnection_pageInfo(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -66968,6 +69369,60 @@ func (ec *executionContext) _OperatorDeadLetterConnection(ctx context.Context, s
 			}
 		case "pageInfo":
 			out.Values[i] = ec._OperatorDeadLetterConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var operatorDefinitionAdmissionsImplementors = []string{"OperatorDefinitionAdmissions"}
+
+func (ec *executionContext) _OperatorDefinitionAdmissions(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorDefinitionAdmissions) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorDefinitionAdmissionsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorDefinitionAdmissions")
+		case "definitionId":
+			out.Values[i] = ec._OperatorDefinitionAdmissions_definitionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revisionId":
+			out.Values[i] = ec._OperatorDefinitionAdmissions_revisionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "accepted":
+			out.Values[i] = ec._OperatorDefinitionAdmissions_accepted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rejected":
+			out.Values[i] = ec._OperatorDefinitionAdmissions_rejected(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -67334,6 +69789,60 @@ func (ec *executionContext) _OperatorDeploymentEvent(ctx context.Context, sel as
 	return out
 }
 
+var operatorDestinationAttemptsImplementors = []string{"OperatorDestinationAttempts"}
+
+func (ec *executionContext) _OperatorDestinationAttempts(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorDestinationAttempts) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorDestinationAttemptsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorDestinationAttempts")
+		case "destinationArtifactId":
+			out.Values[i] = ec._OperatorDestinationAttempts_destinationArtifactId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queued":
+			out.Values[i] = ec._OperatorDestinationAttempts_queued(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "succeeded":
+			out.Values[i] = ec._OperatorDestinationAttempts_succeeded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._OperatorDestinationAttempts_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var operatorDestinationDeliveryImplementors = []string{"OperatorDestinationDelivery"}
 
 func (ec *executionContext) _OperatorDestinationDelivery(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorDestinationDelivery) graphql.Marshaler {
@@ -67544,6 +70053,50 @@ func (ec *executionContext) _OperatorEvent(ctx context.Context, sel ast.Selectio
 			out.Values[i] = ec._OperatorEvent_purgeAfter(ctx, field, obj)
 		case "purgedAt":
 			out.Values[i] = ec._OperatorEvent_purgedAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var operatorKeyCountImplementors = []string{"OperatorKeyCount"}
+
+func (ec *executionContext) _OperatorKeyCount(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorKeyCount) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorKeyCountImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorKeyCount")
+		case "key":
+			out.Values[i] = ec._OperatorKeyCount_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._OperatorKeyCount_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -68037,6 +70590,70 @@ func (ec *executionContext) _OperatorRoute(ctx context.Context, sel ast.Selectio
 			}
 		case "diagnosticCodes":
 			out.Values[i] = ec._OperatorRoute_diagnosticCodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var operatorStatisticsBucketCountsImplementors = []string{"OperatorStatisticsBucketCounts"}
+
+func (ec *executionContext) _OperatorStatisticsBucketCounts(ctx context.Context, sel ast.SelectionSet, obj *model.OperatorStatisticsBucketCounts) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, operatorStatisticsBucketCountsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OperatorStatisticsBucketCounts")
+		case "start":
+			out.Values[i] = ec._OperatorStatisticsBucketCounts_start(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "accepted":
+			out.Values[i] = ec._OperatorStatisticsBucketCounts_accepted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rejected":
+			out.Values[i] = ec._OperatorStatisticsBucketCounts_rejected(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queued":
+			out.Values[i] = ec._OperatorStatisticsBucketCounts_queued(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "succeeded":
+			out.Values[i] = ec._OperatorStatisticsBucketCounts_succeeded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._OperatorStatisticsBucketCounts_failed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -70579,6 +73196,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_operatorDeploymentEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "operatorCanonicalEvents":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_operatorCanonicalEvents(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "operatorAdmissionStatistics":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_operatorAdmissionStatistics(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -76828,6 +79489,20 @@ func (ec *executionContext) marshalNMessageClassification2ᚖgitlabᚗflexinfer�
 	return ec._MessageClassification(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNOperatorAdmissionStatistics2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorAdmissionStatistics(ctx context.Context, sel ast.SelectionSet, v model.OperatorAdmissionStatistics) graphql.Marshaler {
+	return ec._OperatorAdmissionStatistics(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorAdmissionStatistics2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorAdmissionStatistics(ctx context.Context, sel ast.SelectionSet, v *model.OperatorAdmissionStatistics) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OperatorAdmissionStatistics(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNOperatorAuditConnection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorAuditConnection(ctx context.Context, sel ast.SelectionSet, v model.OperatorAuditConnection) graphql.Marshaler {
 	return ec._OperatorAuditConnection(ctx, sel, &v)
 }
@@ -76888,6 +79563,68 @@ func (ec *executionContext) marshalNOperatorAuditRecord2ᚕgitlabᚗflexinferᚗ
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNOperatorCanonicalEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEvent(ctx context.Context, sel ast.SelectionSet, v model.OperatorCanonicalEvent) graphql.Marshaler {
+	return ec._OperatorCanonicalEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorCanonicalEvent2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEventᚄ(ctx context.Context, sel ast.SelectionSet, v []model.OperatorCanonicalEvent) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNOperatorCanonicalEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEvent(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOperatorCanonicalEventConnection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEventConnection(ctx context.Context, sel ast.SelectionSet, v model.OperatorCanonicalEventConnection) graphql.Marshaler {
+	return ec._OperatorCanonicalEventConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorCanonicalEventConnection2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEventConnection(ctx context.Context, sel ast.SelectionSet, v *model.OperatorCanonicalEventConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OperatorCanonicalEventConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOperatorCircuit2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCircuit(ctx context.Context, sel ast.SelectionSet, v model.OperatorCircuit) graphql.Marshaler {
@@ -77012,6 +79749,54 @@ func (ec *executionContext) marshalNOperatorDeadLetterConnection2ᚖgitlabᚗfle
 		return graphql.Null
 	}
 	return ec._OperatorDeadLetterConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOperatorDefinitionAdmissions2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDefinitionAdmissions(ctx context.Context, sel ast.SelectionSet, v model.OperatorDefinitionAdmissions) graphql.Marshaler {
+	return ec._OperatorDefinitionAdmissions(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorDefinitionAdmissions2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDefinitionAdmissionsᚄ(ctx context.Context, sel ast.SelectionSet, v []model.OperatorDefinitionAdmissions) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNOperatorDefinitionAdmissions2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDefinitionAdmissions(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNOperatorDeliveryAttempt2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDeliveryAttempt(ctx context.Context, sel ast.SelectionSet, v model.OperatorDeliveryAttempt) graphql.Marshaler {
@@ -77202,6 +79987,54 @@ func (ec *executionContext) marshalNOperatorDeploymentEvent2ᚕgitlabᚗflexinfe
 	return ret
 }
 
+func (ec *executionContext) marshalNOperatorDestinationAttempts2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationAttempts(ctx context.Context, sel ast.SelectionSet, v model.OperatorDestinationAttempts) graphql.Marshaler {
+	return ec._OperatorDestinationAttempts(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorDestinationAttempts2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationAttemptsᚄ(ctx context.Context, sel ast.SelectionSet, v []model.OperatorDestinationAttempts) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNOperatorDestinationAttempts2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationAttempts(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNOperatorDestinationDelivery2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorDestinationDelivery(ctx context.Context, sel ast.SelectionSet, v model.OperatorDestinationDelivery) graphql.Marshaler {
 	return ec._OperatorDestinationDelivery(ctx, sel, &v)
 }
@@ -77327,6 +80160,54 @@ func (ec *executionContext) marshalNOperatorEvent2ᚕgitlabᚗflexinferᚗaiᚋl
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNOperatorEvent2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorEvent(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOperatorKeyCount2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorKeyCount(ctx context.Context, sel ast.SelectionSet, v model.OperatorKeyCount) graphql.Marshaler {
+	return ec._OperatorKeyCount(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorKeyCount2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorKeyCountᚄ(ctx context.Context, sel ast.SelectionSet, v []model.OperatorKeyCount) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNOperatorKeyCount2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorKeyCount(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -77580,6 +80461,69 @@ func (ec *executionContext) marshalNOperatorRoute2ᚕgitlabᚗflexinferᚗaiᚋl
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNOperatorStatisticsBucket2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucket(ctx context.Context, v any) (model.OperatorStatisticsBucket, error) {
+	var res model.OperatorStatisticsBucket
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOperatorStatisticsBucket2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucket(ctx context.Context, sel ast.SelectionSet, v model.OperatorStatisticsBucket) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNOperatorStatisticsBucketCounts2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucketCounts(ctx context.Context, sel ast.SelectionSet, v model.OperatorStatisticsBucketCounts) graphql.Marshaler {
+	return ec._OperatorStatisticsBucketCounts(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOperatorStatisticsBucketCounts2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucketCountsᚄ(ctx context.Context, sel ast.SelectionSet, v []model.OperatorStatisticsBucketCounts) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNOperatorStatisticsBucketCounts2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsBucketCounts(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNOperatorStatisticsWindow2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorStatisticsWindow(ctx context.Context, v any) (model.OperatorStatisticsWindow, error) {
+	res, err := ec.unmarshalInputOperatorStatisticsWindow(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNOrderDirection2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOrderDirection(ctx context.Context, v any) (model.OrderDirection, error) {
@@ -80529,6 +83473,13 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
+func (ec *executionContext) marshalOIntegrationArtifactRevision2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationArtifactRevision(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationArtifactRevision) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationArtifactRevision(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOIntegrationSession2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSession(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSession) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -80629,6 +83580,14 @@ func (ec *executionContext) unmarshalOOperatorAttemptFilter2ᚖgitlabᚗflexinfe
 		return nil, nil
 	}
 	res, err := ec.unmarshalInputOperatorAttemptFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOOperatorCanonicalEventFilter2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐOperatorCanonicalEventFilter(ctx context.Context, v any) (*model.OperatorCanonicalEventFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputOperatorCanonicalEventFilter(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 

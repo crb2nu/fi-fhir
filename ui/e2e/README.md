@@ -65,6 +65,8 @@ resubmit and one child attempt is `queued` (3 queued, 1 open dead letter). The
 later check (or lane) that needs an untouched dead letter uses that
 correlation id. Later lanes may rely on the counts above, adjusted for E0-4
 when they run after it.
+`E2-1`…`E2-4` (lane E-2, Verification) read the fixture's admissions
+(every `E2E-FIXTURE-00n`) and count the accepted receipts.
 
 ## Lane checks
 

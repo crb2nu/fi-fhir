@@ -161,7 +161,9 @@ const ROUTES: HonestRoute[] = [
   // role (.loom/42 E-0, the Connections precedence); the role is still named.
   { id: 'P3', path: '/', testid: 'integrations-preflight', reason: 'not-configured' },
   { id: 'P4', path: '/workflows', testid: 'workflows-preflight', reason: 'missing-role', missingRoles: 'graphql:operator' },
-  { id: 'P5', path: '/events', testid: 'events-preflight', reason: 'missing-role', missingRoles: 'clinical:read' },
+  // Verification reads the operator control plane since .loom/42 E-2: no
+  // database here, so "not configured" (the Connections precedence).
+  { id: 'P5', path: '/events', testid: 'verification-preflight', reason: 'not-configured' },
   { id: 'P6', path: '/profiles', testid: 'profiles-preflight', reason: 'missing-role', missingRoles: 'graphql:operator' },
   {
     id: 'P7',
@@ -223,6 +225,26 @@ test('E0-8. controlPlane pre-flight: /operator and Home say the control plane is
   await openIDE(page, '/');
   await expect(page.getByTestId('integrations-preflight')).toHaveAttribute('data-reason', 'not-configured');
   await expect(page.getByTestId('health-fleet')).toContainText('not configured');
+
+  expect(nonHealthRequests(watch).map((request) => request.postData()?.slice(0, 80))).toEqual([]);
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('E2-5. Verification pre-flight: /events says the control plane is not configured, names the role, and queries nothing', async ({
+  page,
+  request
+}, testInfo) => {
+  const status = await fetchAuthStatus(request, testInfo);
+  expect(status.capabilities.controlPlane).toBe(false);
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/events?receipt=e2e-any-receipt');
+  const preflight = page.getByTestId('verification-preflight');
+  await expect(preflight).toHaveAttribute('data-reason', 'not-configured');
+  await expect(preflight).toContainText('the operator control plane, which is not configured on this deployment');
+  await expect(preflight).toContainText('FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED=true');
+  await expect(preflight).toHaveAttribute('data-missing-roles', 'integration.operator');
+  await expect(page.getByRole('tab', { name: 'Admissions' })).toHaveCount(0);
 
   expect(nonHealthRequests(watch).map((request) => request.postData()?.slice(0, 80))).toEqual([]);
   expect(watch.errorToasts).toEqual([]);

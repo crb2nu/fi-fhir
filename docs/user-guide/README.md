@@ -17,6 +17,7 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 11. [Mapping Studio (IDE)](ide.md)
 12. [Connections](connections.md)
 13. [End-to-end demo](demo-end-to-end.md)
+14. [Verification](verification.md)
 
 ## Quick Links
 
@@ -41,6 +42,7 @@ Welcome to fi-fhir, a format-agnostic healthcare integration platform that trans
 | See what this replica is actually running | [Connections](connections.md#6-see-it-mounted) |
 | Pull real messages from a source into a session | [Connections](connections.md#sampling-from-a-connection) |
 | Run the batch-to-hospital demo on the LAN environment | [End-to-end demo](demo-end-to-end.md) |
+| Check what the engine admitted and delivered | [Verification](verification.md) |
 
 ## What is fi-fhir?
 
