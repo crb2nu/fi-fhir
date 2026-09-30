@@ -4,6 +4,9 @@
   environment variable that sets it — where the runtime lists that variable —
   and the change is made in GitOps. Four adapter panels always render, enabled
   or not; a secret property reads only "set" or "unset".
+  The Fleet panel is every replica's own report (`engineRuntime.observations`,
+  read separately): per replica, the documents it mounted and whether its
+  heartbeat is fresh.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -11,6 +14,8 @@
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import { Badge, EmptyState, IconButton, KeyValue, Panel, Table, Td, Th, Tr } from '$lib/ui/primitives';
   import { fetchEngineRuntime, type EngineAdapterRow, type EngineRuntimeView } from './connectionsApi';
+  import { fetchFleet, fleetSentence, summarizeFleet, type FleetSummary } from '$lib/features/operator/fleet';
+  import { formatTimestamp, shortDigest } from '$lib/features/operator/attemptPresentation';
   import { describeConnectionFailure } from './connectionsErrors';
   import {
     DESTINATION_IDENTITY_KEYS,
@@ -44,8 +49,26 @@
     }
   }
 
-  onMount(() => {
+  let fleet = $state<FleetSummary | null>(null);
+  let fleetError = $state<string | null>(null);
+
+  async function loadFleet(): Promise<void> {
+    fleetError = null;
+    try {
+      fleet = summarizeFleet(await fetchFleet());
+    } catch (err) {
+      fleet = null;
+      fleetError = describeConnectionFailure(err).message;
+    }
+  }
+
+  function refresh(): void {
     void load();
+    void loadFleet();
+  }
+
+  onMount(() => {
+    refresh();
   });
 
   const listed = $derived(runtime ? listedKeys(runtime) : new Set<string>());
@@ -75,7 +98,7 @@
         Read at startup by replica <code>{runtime.replicaId}</code>. Change a property in the deployment's
         environment (GitOps); a running process does not reload it.
       </p>
-      <IconButton icon={RefreshCw} label="Refresh engine runtime" loading={loading} onclick={load} />
+      <IconButton icon={RefreshCw} label="Refresh engine runtime" loading={loading} onclick={refresh} />
     </div>
     {#if error}
       <p class="engine-error" role="alert">{error}</p>
@@ -131,6 +154,62 @@
           </Table>
         {/if}
       </Panel>
+    </div>
+
+    <div class="row">
+    <Panel title="Fleet" titleTag="h2" flush data-testid="engine-fleet">
+      {#snippet actions()}
+        {#if fleet}
+          <span class="fleet-count" data-testid="engine-fleet-count" data-fresh={fleet.fresh} data-stale={fleet.stale}>
+            {fleetSentence(fleet)}
+          </span>
+        {/if}
+      {/snippet}
+      {#if fleetError}
+        <p class="engine-error fleet-note" role="alert">{fleetError}</p>
+      {:else if !fleet}
+        <p class="fleet-note" aria-busy="true">Loading the fleet</p>
+      {:else if fleet.replicas.length === 0}
+        <p class="fleet-note">
+          No replica has reported a heartbeat. Replicas report only when the connection catalog is configured.
+        </p>
+      {:else}
+        <Table label="Replicas and their mounted documents" layout="fixed">
+          {#snippet head()}
+            <tr>
+              <Th width="30%">Replica</Th>
+              <Th width="88px">Heartbeat</Th>
+              <Th width="152px">Last seen</Th>
+              <Th>Mounted</Th>
+            </tr>
+          {/snippet}
+          {#each fleet.replicas as replica (replica.replicaId)}
+            <Tr data-testid="fleet-replica" data-replica-id={replica.replicaId} data-stale={replica.stale ? 'true' : 'false'}>
+              <Td mono truncate value={replica.self ? `${replica.replicaId} (this replica)` : replica.replicaId} />
+              <Td>
+                <Badge tone={replica.stale ? 'warning' : 'success'} dot>{replica.stale ? 'stale' : 'fresh'}</Badge>
+              </Td>
+              <Td mono muted value={formatTimestamp(replica.heartbeatAt)} />
+              <Td>
+                <span class="mounted">
+                  {#each replica.mounted as doc (doc.adapter)}
+                    <span class="mount" title={doc.digest ?? 'Mounts no document'}>
+                      <span class="mount-adapter">{doc.adapter}</span>
+                      {#if doc.document}
+                        <code>{doc.document}</code>
+                        {#if doc.digest}<span class="mount-digest">{shortDigest(doc.digest)}</span>{/if}
+                      {:else}
+                        <span class="mount-none">none</span>
+                      {/if}
+                    </span>
+                  {/each}
+                </span>
+              </Td>
+            </Tr>
+          {/each}
+        </Table>
+      {/if}
+    </Panel>
     </div>
 
     <div class="row adapters">
@@ -288,6 +367,44 @@
 
   .engine-error {
     color: var(--color-danger-text);
+  }
+
+  .fleet-count,
+  .fleet-note {
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  .fleet-note {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .mounted {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-3);
+    min-width: 0;
+    font-size: var(--text-xs);
+  }
+
+  .mount {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: baseline;
+    min-width: 0;
+  }
+
+  .mount-adapter,
+  .mount-none,
+  .mount-digest {
+    color: var(--color-text-tertiary);
+  }
+
+  .mount code,
+  .mount-digest {
+    font-family: var(--font-mono);
+    font-size: var(--text-mono);
   }
 
   .row {

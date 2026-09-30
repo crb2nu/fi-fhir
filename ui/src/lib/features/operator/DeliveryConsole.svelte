@@ -230,7 +230,7 @@
               <button
                 type="button"
                 class="link"
-                title={`Open the trace for ${entry.attemptId}`}
+                title={`Inspect ${entry.attemptId}: its full ledger and paged audit trail`}
                 on:click={() => dispatch('inspect', { attemptId: entry.attemptId })}
               >
                 {entry.attemptId}

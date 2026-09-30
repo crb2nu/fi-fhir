@@ -3,6 +3,7 @@ package graphql
 import (
 	"github.com/vektah/gqlparser/v2/ast"
 
+	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -56,9 +57,10 @@ type accessCapabilities struct {
 	LLM                 llmState `json:"llm"`
 	ControlPlane        bool     `json:"controlPlane"`
 	ConnectionCatalog   bool     `json:"connectionCatalog"`
-	// DefinitionAuthoring (.loom/42 E-1) is true when this deployment composed
-	// the definition editor AND the caller clears its write gates. False with
-	// an empty missingRoles.definitionAuthoring means "not configured here".
+	PhiExport           bool     `json:"phiExport"`
+	// DefinitionAuthoring (.loom/42 E-1) is a deployment fact: serve composed
+	// the definition editor (lifecycle catalog, connection catalog, static
+	// registry). missingRoles.definitionAuthoring names the roles its writes need.
 	DefinitionAuthoring bool `json:"definitionAuthoring"`
 }
 
@@ -76,6 +78,7 @@ type missingRoles struct {
 	ClinicalRead       []string `json:"clinicalRead"`
 	ConnectionsRead    []string `json:"connectionsRead"`
 	ConnectionsWrite   []string `json:"connectionsWrite"`
+	PhiExport          []string `json:"phiExport"`
 	// DefinitionAuthoring lists the roles the definition editor's writes need.
 	DefinitionAuthoring []string `json:"definitionAuthoring"`
 }
@@ -112,6 +115,11 @@ var (
 	// transport half, as it does for the operator plane.
 	connectionsReadCapability  = roleCapability{operation: ast.Query, field: "connections", serviceRoles: operatorRead}
 	connectionsWriteCapability = roleCapability{operation: ast.Mutation, field: "createConnection", serviceRoles: operatorDeployment}
+	// Raw sample payloads in a session export (.loom/42 E-3): the export field's
+	// transport requirement plus the grant the session store re-checks
+	// (ExportRequest.Validate), so the IDE offers includeRawPayload only when
+	// the export would not be refused for it.
+	phiExportCapability = roleCapability{operation: ast.Mutation, field: "exportIntegrationBundle", serviceRoles: []string{enginesession.PHIExportRole}}
 	// .loom/42 E-1: authoring.Service re-checks the connection catalog's
 	// write roles.
 	definitionAuthoringCapability = roleCapability{operation: ast.Mutation, field: "createIntegrationDefinitionDraft", serviceRoles: operatorDeployment}
@@ -162,6 +170,7 @@ func deriveAuthStatus(security integration.SecurityContext, config *ServerConfig
 	status.Capabilities.ClinicalRead, status.MissingRoles.ClinicalRead = clinicalReadCapability.evaluate(roles)
 	status.Capabilities.ConnectionsRead, status.MissingRoles.ConnectionsRead = connectionsReadCapability.evaluate(roles)
 	status.Capabilities.ConnectionsWrite, status.MissingRoles.ConnectionsWrite = connectionsWriteCapability.evaluate(roles)
+	status.Capabilities.PhiExport, status.MissingRoles.PhiExport = phiExportCapability.evaluate(roles)
 
 	status.Capabilities.IntegrationSessions = config.IntegrationSessionsConfigured
 	status.Capabilities.Streaming = config.IntegrationSessionStreaming

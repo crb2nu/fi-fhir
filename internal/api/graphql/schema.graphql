@@ -2561,6 +2561,13 @@ type OperatorEvent {
   recordedAt: DateTime!
   payloadFields: [OperatorPayloadField!]!
   payloadTruncated: Boolean!
+  """Retention deadline stamped by the purge worker; null until stamped."""
+  purgeAfter: DateTime
+  """
+  When retention replaced this event's payload with a tombstone. When set,
+  payloadFields describe the tombstone, not the admitted document.
+  """
+  purgedAt: DateTime
 }
 
 type OperatorRoute {
@@ -2727,6 +2734,12 @@ type OperatorDeployment {
   health: String!
   validationPassed: Boolean!
   validationExpiresAt: DateTime
+  """
+  Whether Deploy and Resume would pass the lifecycle's validation gate now:
+  a passed validation record whose expiry is still in the future, evaluated
+  server-side at read time.
+  """
+  validationCurrent: Boolean!
   updatedBy: OperatorPrincipal!
   updatedReason: String!
   updatedAt: DateTime!

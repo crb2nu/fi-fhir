@@ -92,10 +92,27 @@ describe('parseAuthStatus', () => {
       connectionsWrite: null,
       controlPlane: null,
       connectionCatalog: null,
+      // Nor does it know phiExport (.loom/42 E-3) or definitionAuthoring (E-1).
+      phiExport: null,
       definitionAuthoring: null
     });
     expect(missingRolesFor(state, 'operatorRead')).toEqual(['integration.operator']);
     expect(missingRolesFor(state, 'clinicalRead')).toEqual([]);
+  });
+
+  it('reads phiExport and its missing roles (.loom/42 E-3)', () => {
+    const state = parseAuthStatus(
+      contractStatus({
+        capabilities: { ...contractStatus().capabilities, phiExport: false },
+        missingRoles: { ...contractStatus().missingRoles, phiExport: ['integration.phi.export'] }
+      })
+    );
+    expect(capabilityOf(state, 'phiExport')).toBe(false);
+    expect(missingRolesFor(state, 'phiExport')).toEqual(['integration.phi.export']);
+    const granted = parseAuthStatus(
+      contractStatus({ capabilities: { ...contractStatus().capabilities, phiExport: true } })
+    );
+    expect(capabilityOf(granted, 'phiExport')).toBe(true);
   });
 
   it('reads the connection catalog capabilities and their missing roles (.loom/38 C-0)', () => {

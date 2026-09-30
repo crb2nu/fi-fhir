@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/requestsecurity"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
@@ -22,6 +23,12 @@ var (
 	ErrNotDeadLettered = errors.New("delivery attempt is not dead-lettered")
 	// ErrOperationConflict means an idempotency key was reused for other work.
 	ErrOperationConflict = errors.New("operator operation idempotency conflict")
+	// ErrValidationRequired means the lifecycle refused a deploy or resume
+	// because the revision's connection validation is missing or has expired.
+	ErrValidationRequired = errors.New("current connection validation required")
+	// ErrActiveDeployment means another revision of the same definition is
+	// already deployed or paused.
+	ErrActiveDeployment = errors.New("integration definition already has an active deployment")
 )
 
 // DeliveryRecoveryStore is the Slice 2.3 durable recovery machinery. The
@@ -61,6 +68,20 @@ type Service struct {
 	recovery   DeliveryRecoveryStore
 	catalog    DeploymentCatalog
 	tenantID   string
+	clock      func() time.Time
+}
+
+// ServiceOption adjusts an optional Service dependency.
+type ServiceOption func(*Service)
+
+// WithClock supplies the time source for derived, time-relative projections
+// (DeploymentSummary.ValidationCurrent). It defaults to time.Now.
+func WithClock(clock func() time.Time) ServiceOption {
+	return func(s *Service) {
+		if clock != nil {
+			s.clock = clock
+		}
+	}
 }
 
 // NewService binds the control plane to one deployment tenant.
@@ -70,17 +91,30 @@ func NewService(
 	recovery DeliveryRecoveryStore,
 	catalog DeploymentCatalog,
 	tenantID string,
+	options ...ServiceOption,
 ) (*Service, error) {
 	if reads == nil || deliveries == nil || recovery == nil || catalog == nil || !validToken(tenantID, 256) {
 		return nil, ErrUnavailable
 	}
-	return &Service{
+	service := &Service{
 		reads:      reads,
 		deliveries: deliveries,
 		recovery:   recovery,
 		catalog:    catalog,
 		tenantID:   tenantID,
-	}, nil
+		clock:      time.Now,
+	}
+	for _, option := range options {
+		option(service)
+	}
+	return service, nil
+}
+
+func (s *Service) now() time.Time {
+	if s == nil || s.clock == nil {
+		return time.Now().UTC()
+	}
+	return s.clock().UTC()
 }
 
 // authorize resolves verified caller identity and requires every listed role.
@@ -271,9 +305,10 @@ func (s *Service) ListDeployments(ctx context.Context) ([]DeploymentSummary, err
 	if err != nil {
 		return nil, mapLifecycleError(err)
 	}
+	now := s.now()
 	summaries := make([]DeploymentSummary, 0, len(snapshots))
 	for _, snapshot := range snapshots {
-		summaries = append(summaries, summarizeSnapshot(snapshot))
+		summaries = append(summaries, summarizeSnapshot(snapshot, now))
 	}
 	return summaries, nil
 }
@@ -424,10 +459,18 @@ func (s *Service) changeState(ctx context.Context, command DeploymentCommand, ac
 	if err != nil {
 		return DeploymentSummary{}, mapLifecycleError(err)
 	}
-	return summarizeSnapshot(snapshot), nil
+	return summarizeSnapshot(snapshot, s.now()), nil
 }
 
-func summarizeSnapshot(snapshot lifecycle.Snapshot) DeploymentSummary {
+// validationCurrentAt mirrors the lifecycle catalog's own gate
+// (lifecycle/transitions.go currentValidation): Deploy and Resume succeed only
+// while a passed validation record exists and has not expired. Projecting the
+// same rule lets the IDE say "validate again" before an operator tries.
+func validationCurrentAt(snapshot lifecycle.Snapshot, now time.Time) bool {
+	return snapshot.ValidationPassed && snapshot.LastValidationID != "" && snapshot.ValidationExpiresAt.After(now)
+}
+
+func summarizeSnapshot(snapshot lifecycle.Snapshot, now time.Time) DeploymentSummary {
 	summary := DeploymentSummary{
 		DefinitionRevision: snapshot.DefinitionRevision,
 		State:              string(snapshot.State),
@@ -435,6 +478,7 @@ func summarizeSnapshot(snapshot lifecycle.Snapshot) DeploymentSummary {
 		ReleaseID:          snapshot.ReleaseID,
 		Health:             string(snapshot.Health),
 		ValidationPassed:   snapshot.ValidationPassed,
+		ValidationCurrent:  validationCurrentAt(snapshot, now),
 		UpdatedBy:          summarizePrincipal(snapshot.Updated.Principal),
 		UpdatedReason:      snapshot.Updated.Reason,
 		UpdatedAt:          snapshot.Updated.OccurredAt.UTC(),
@@ -477,6 +521,10 @@ func mapLifecycleError(err error) error {
 		return ErrVersionConflict
 	case errors.Is(err, lifecycle.ErrInvalidTransition):
 		return ErrInvalidTransition
+	case errors.Is(err, lifecycle.ErrConnectionValidationRequired):
+		return ErrValidationRequired
+	case errors.Is(err, lifecycle.ErrActiveDeployment):
+		return ErrActiveDeployment
 	case errors.Is(err, lifecycle.ErrInvalidCommand):
 		return ErrInvalidRequest
 	case errors.Is(err, lifecycle.ErrUnavailable):

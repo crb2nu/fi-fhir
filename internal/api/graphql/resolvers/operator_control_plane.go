@@ -46,6 +46,10 @@ func catalogOperatorError(err error) error {
 		return errors.New("integration deployment version conflict")
 	case errors.Is(err, operator.ErrInvalidTransition):
 		return errors.New("invalid integration deployment transition")
+	case errors.Is(err, operator.ErrValidationRequired):
+		return errors.New("current connection validation required")
+	case errors.Is(err, operator.ErrActiveDeployment):
+		return errors.New("integration definition already has an active deployment")
 	case errors.Is(err, operator.ErrUnavailable), errors.Is(err, ErrOperatorControlPlaneUnavailable):
 		return ErrOperatorControlPlaneUnavailable
 	default:
@@ -162,6 +166,8 @@ func projectOperatorEvent(event operator.EventSummary) model.OperatorEvent {
 		RecordedAt:       event.RecordedAt,
 		PayloadFields:    fields,
 		PayloadTruncated: event.PayloadTruncated,
+		PurgeAfter:       event.PurgeAfter,
+		PurgedAt:         event.PurgedAt,
 	}
 }
 
@@ -312,6 +318,7 @@ func projectOperatorDeployment(deployment operator.DeploymentSummary) model.Oper
 		Health:              deployment.Health,
 		ValidationPassed:    deployment.ValidationPassed,
 		ValidationExpiresAt: deployment.ValidationExpiresAt,
+		ValidationCurrent:   deployment.ValidationCurrent,
 		UpdatedBy:           projectOperatorPrincipal(deployment.UpdatedBy),
 		UpdatedReason:       deployment.UpdatedReason,
 		UpdatedAt:           deployment.UpdatedAt,

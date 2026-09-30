@@ -28,7 +28,7 @@
   import EventStreamPanel from '$lib/features/events/EventStreamPanel.svelte';
   import ExtractionPanel from '$lib/ui/ExtractionPanel.svelte';
   import QualityBadge from '$lib/ui/QualityBadge.svelte';
-  import CommandPalette, { type PaletteCommand } from '$lib/ui/CommandPalette.svelte';
+  import { registerCommands, unregisterCommands, type Command } from '$lib/ui/ide/commandRegistry';
   import {
     Badge,
     Button,
@@ -62,8 +62,19 @@
   import { resolveMapping } from '$lib/features/terminology/terminologyApi';
   import { toasts } from '$lib/ui/toastStore';
   import { SvelteSet } from 'svelte/reactivity';
-  import { createSession, integrationSessionEngineEnabled } from '$lib/features/integration-session';
-  import { accessCapabilities } from '$lib/graphql/accessCapabilities';
+  import {
+    createSession,
+    integrationSessionEngineEnabled,
+    isIntegrationSessionBuildEnabled,
+    projectSessionInspectorView,
+    projectSessionMeta
+  } from '$lib/features/integration-session';
+  import { accessCapabilities, capabilityOf, missingRolesFor } from '$lib/graphql/accessCapabilities';
+  import { replaceState } from '$app/navigation';
+  import History from '@lucide/svelte/icons/history';
+  import SessionSidebar from '$lib/features/integration-session/SessionSidebar.svelte';
+  import { createSessionWorkspace } from '$lib/features/integration-session/sessionWorkspace';
+  import { streamStatus } from '$lib/graphql/streamAvailability';
   import { createIntakeController } from '$lib/features/hl7/intake/intakeController';
   import { intakeEntry } from '$lib/features/hl7/intake/intakeState';
   import { compatibilityGrantPreflight, roleBlockedReason } from '$lib/features/access/rolePreflight';
@@ -118,14 +129,195 @@
   let creatingSession: Promise<string> | null = null;
 
   async function ensurePageSession(): Promise<string> {
+    // A `?session=` link still opening is the page's session once it opens:
+    // never create a second one in that window.
+    await awaitLinkedSession();
     if (pageSessionId) return pageSessionId;
     creatingSession ??= createSession({ inlineErrors: true }).finally(() => {
       creatingSession = null;
     });
     const id = await creatingSession;
     pageSessionId ??= id;
+    void adoptSession(pageSessionId);
     return pageSessionId;
   }
+
+  // ── The session as a piece of work (.loom/42 E-3) ──────────────────────
+  // The sidebar reads the page's session back from the server (runs,
+  // diagnostics, publications, simulations), and `/hl7?session=<id>` reopens
+  // one: Home › Recent links here, and the page writes the parameter as soon
+  // as it has a session, so a reload comes back to the same work.
+  const workspace = createSessionWorkspace();
+  const workspaceState = workspace.state;
+  onDestroy(() => workspace.dispose());
+  // null follows the session: the rail opens once the page has (or links to)
+  // one. The toolbar's Session button makes it an explicit choice.
+  let sessionRailChoice: boolean | null = null;
+  $: sessionRailOpen = sessionRailChoice ?? $workspaceState.status.kind !== 'idle';
+  let shownRunId: string | null = null;
+  const sessionStream = streamStatus('integrationSessionEvents');
+
+  // Raw payloads are offered only when the server said the grant is held;
+  // an unreported capability is not a guess to disclose on.
+  $: phiExport = {
+    allowed: capabilityOf($accessCapabilities, 'phiExport') === true,
+    reported: capabilityOf($accessCapabilities, 'phiExport') !== null,
+    missing: missingRolesFor($accessCapabilities, 'phiExport')
+  };
+  $: sessionUnavailable = !isIntegrationSessionBuildEnabled()
+    ? {
+        reason: 'build-off',
+        text: 'This UI was built without the Integration Session engine (VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+      }
+    : capabilityOf($accessCapabilities, 'integrationSessions') === false
+      ? {
+          reason: 'sessions-off',
+          text: 'The API has no Integration Session workspace on this deployment (FI_FHIR_INTEGRATION_SESSION_ENABLED).'
+        }
+      : $sessionStream.availability === 'unavailable'
+        ? {
+            reason: 'stream-unavailable',
+            text: 'The API cannot stream Integration Session runs here, so HL7 intake previews on the stateless path.'
+          }
+        : {
+            reason: 'not-reported',
+            text: 'This deployment did not report an Integration Session workspace for this identity.'
+          };
+
+  /** Writes `?session=<id>` without a navigation, so a reload reopens this session. */
+  function setSessionUrl(id: string): void {
+    if (!browser) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('session') === id) return;
+    url.searchParams.set('session', id);
+    try {
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- the current page's own URL, with one query parameter set
+      replaceState(url, {});
+    } catch {
+      history.replaceState(history.state, '', url);
+    }
+  }
+
+  /** Opens `id` in the sidebar, or refreshes it (newest run selected) when it is already open. */
+  async function adoptSession(id: string): Promise<void> {
+    setSessionUrl(id);
+    const status = $workspaceState.status;
+    if (status.kind === 'ready' && status.sessionId === id) {
+      await workspace.refresh(true);
+      return;
+    }
+    if (status.kind === 'loading' && status.sessionId === id) return;
+    await workspace.open(id);
+  }
+
+  // The `?session=` link while it opens: resolves to its id when it opened
+  // ready, or null. Preview and intake wait on it before creating a session.
+  let linkedSession: Promise<string | null> | null = null;
+
+  async function awaitLinkedSession(): Promise<void> {
+    if (pageSessionId || !linkedSession) return;
+    const linked = await linkedSession;
+    if (linked) pageSessionId ??= linked;
+  }
+
+  /** `/hl7?session=<id>`: reopen a session and show its newest run. */
+  async function openLinkedSession(id: string): Promise<void> {
+    if (!sessionEngineEnabled) {
+      workspace.markUnavailable(id);
+      return;
+    }
+    linkedSession = workspace.open(id).then((opened) => (opened.status.kind === 'ready' ? id : null));
+    const linked = await linkedSession;
+    linkedSession = null;
+    if (!linked) return;
+    // Later Previews and intake continue this session.
+    pageSessionId ??= linked;
+    if (pageSessionId !== linked) return;
+    if (intakeEntryState.visible && !intakeEntryState.disabledReason) void intake.refresh();
+    const newest = $workspaceState.runs[0];
+    // A Preview that started meanwhile owns the results pane.
+    if (newest && !$state.loading && !$state.result) await showRun(newest.id);
+  }
+
+  /** Loads a run of the page's session into the results pane. */
+  async function showRun(runId: string): Promise<void> {
+    const sessionId = pageSessionId ?? ($workspaceState.status.kind === 'ready' ? $workspaceState.status.sessionId : null);
+    if (!sessionId) return;
+    try {
+      const run = await workspace.runDetail(runId);
+      if (!run) {
+        state.update((s) => ({ ...s, error: `Run ${runId} is no longer in this session.` }));
+        return;
+      }
+      const streamState = run.status === 'completed' ? 'complete' : run.status === 'failed' ? 'error' : 'running';
+      const session = projectSessionMeta(sessionId, run.sampleId ?? '', run, streamState, null);
+      state.update((s) => ({
+        ...s,
+        loading: false,
+        error: null,
+        result: { parsePreview: projectSessionInspectorView(run), preview: null, session },
+        session
+      }));
+      setSessionDiagnostics(session);
+      shownRunId = run.id;
+      // A captured or peeked sample of this run is in Samples with its text:
+      // put it in the editor. A pasted sample's text stays on the server.
+      const captured = $samples.find((sample) => sample.session?.sampleId === run.sampleId);
+      if (captured) {
+        samplesStore.setActive(captured.id);
+        loadSample(captured);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      state.update((s) => ({ ...s, error: `Run ${runId} could not be read: ${message}` }));
+    }
+  }
+
+  /**
+   * Keeps the results pane in step with an accepted fix: the run's session
+   * diagnostics and the warning that carries the diagnostic's id.
+   */
+  function markDiagnosticAccepted(accepted: { id: string; runId: string | null; acceptedAt: string | null }): void {
+    state.update((s) => {
+      if (!s.session || (accepted.runId && s.session.runId !== accepted.runId)) return s;
+      return {
+        ...s,
+        session: {
+          ...s.session,
+          diagnostics: s.session.diagnostics.map((entry) =>
+            entry.id === accepted.id ? { ...entry, accepted: true, acceptedAt: accepted.acceptedAt } : entry
+          )
+        },
+        result: s.result
+          ? {
+              ...s.result,
+              parsePreview: {
+                ...s.result.parsePreview,
+                warnings: s.result.parsePreview.warnings.map((warning) =>
+                  (warning as WarningLike).diagnosticId === accepted.id ? { ...warning, fixAccepted: true } : warning
+                )
+              }
+            }
+          : s.result
+      };
+    });
+  }
+
+  let acceptFixError: string | null = null;
+
+  /** WarningList's "Accept fix": `acceptDiagnosticFix` on the run's session, recorded with the caller. */
+  async function acceptFix(diagnosticId: string): Promise<void> {
+    const sessionId = pageSessionId ?? ($state.session?.mode === 'session' ? $state.session.id : null);
+    if (!sessionId) return;
+    acceptFixError = null;
+    try {
+      markDiagnosticAccepted(await workspace.acceptFix(diagnosticId, sessionId));
+    } catch (error) {
+      acceptFixError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  $: showSessionRail = sessionRailOpen && (sessionEngineEnabled || $workspaceState.status.kind !== 'idle');
 
   // Sample intake from connections (.loom/38 C-3). The controller lives here,
   // not in the Samples tab, so a capture keeps arriving while another tab is open.
@@ -248,7 +440,6 @@
   $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $state.data);
   $: selectedValue = selectedLocation ? getHL7Value($hl7, selectedLocation) : null;
 
-  let paletteOpen = false;
 
   function isEditableTarget(t: EventTarget | null): boolean {
     const el = t as HTMLElement | null;
@@ -385,6 +576,8 @@
   }
 
   async function run() {
+    // A `?session=` link still opening is this run's session.
+    await awaitLinkedSession();
     // A new run starts from no session state, so a run that fails before its
     // first session update never leaves the previous run's "Preview complete"
     // (or its diagnostics) on screen. The server session itself is reused.
@@ -422,10 +615,13 @@
       lastRunRedactionMode =
         useRedactionForPreview && editorRedactionMode !== 'none' ? editorRedactionMode : 'none';
       state.update((s) => ({ ...s, loading: false, result, session: result.session ?? null }));
+      shownRunId = result.session?.runId ?? null;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       state.update((s) => ({ ...s, loading: false, error: msg }));
     }
+    // The run (or its failure) is now part of the session's history.
+    if (pageSessionId) void adoptSession(pageSessionId);
   }
 
   /**
@@ -777,9 +973,10 @@
   }
 
   $: paletteCommands = (() => {
-    const cmds: PaletteCommand[] = [
+    const cmds: Command[] = [
       {
         id: 'preview',
+        group: 'HL7',
         label: 'Preview (parse)',
         hint: 'Cmd/Ctrl+Enter',
         keywords: ['run', 'parse', 'preview'],
@@ -787,6 +984,7 @@
       },
       {
         id: 'process',
+        group: 'HL7',
         label: 'Process message',
         hint: grantPreflight ? `Needs ${grantPreflight.missingRoles.join(', ')}` : 'Submit to pipeline',
         keywords: ['submit', 'process', 'workflow'],
@@ -794,6 +992,7 @@
       },
       {
         id: 'load-file',
+        group: 'HL7',
         label: 'Load HL7 file…',
         hint: 'Cmd/Ctrl+O',
         keywords: ['open', 'file', 'upload'],
@@ -801,6 +1000,7 @@
       },
       {
         id: 'open-samples',
+        group: 'HL7',
         label: 'Open samples',
         hint: 'Browse inbox',
         keywords: ['samples', 'inbox'],
@@ -810,6 +1010,7 @@
       },
       {
         id: 'go-warnings',
+        group: 'HL7',
         label: 'Go to warnings',
         hint: 'Tab',
         keywords: ['warnings', 'phase'],
@@ -819,6 +1020,7 @@
       },
       {
         id: 'go-events',
+        group: 'HL7',
         label: 'Go to events',
         hint: 'Tab',
         keywords: ['events', 'canonical'],
@@ -828,6 +1030,7 @@
       },
       {
         id: 'go-extraction',
+        group: 'HL7',
         label: 'Go to extraction',
         hint: 'Tab',
         keywords: ['extraction', 'fields'],
@@ -837,6 +1040,7 @@
       },
       {
         id: 'go-inspector',
+        group: 'HL7',
         label: 'Go to inspector',
         hint: 'Tab',
         keywords: ['inspector', 'hl7', 'segments'],
@@ -846,6 +1050,7 @@
       },
       {
         id: 'go-profile',
+        group: 'HL7',
         label: 'Go to profile draft',
         hint: 'Tab',
         keywords: ['profile', 'draft', 'fix'],
@@ -855,6 +1060,7 @@
       },
       {
         id: 'go-process',
+        group: 'HL7',
         label: 'Go to process',
         hint: 'Tab',
         keywords: ['process', 'submit'],
@@ -864,6 +1070,7 @@
       },
       {
         id: 'focus-warnings-filter',
+        group: 'HL7',
         label: 'Focus warnings filter',
         hint: 'Jump to warnings search',
         keywords: ['warnings', 'search', 'filter'],
@@ -874,6 +1081,7 @@
       },
       {
         id: 'focus-inspector-filter',
+        group: 'HL7',
         label: 'Focus inspector filter',
         hint: 'Jump to segment filter',
         keywords: ['inspector', 'segments', 'search'],
@@ -884,6 +1092,7 @@
       },
       {
         id: 'next-warning',
+        group: 'HL7',
         label: 'Next warning (with path)',
         hint: 'Alt+ArrowDown',
         keywords: ['warnings', 'next'],
@@ -891,6 +1100,7 @@
       },
       {
         id: 'prev-warning',
+        group: 'HL7',
         label: 'Previous warning (with path)',
         hint: 'Alt+ArrowUp',
         keywords: ['warnings', 'previous'],
@@ -898,6 +1108,7 @@
       },
       {
         id: 'clear-selection',
+        group: 'HL7',
         label: 'Clear selection',
         hint: 'Esc',
         keywords: ['clear', 'selection', 'reset'],
@@ -909,6 +1120,7 @@
     if (raw) {
       cmds.unshift({
         id: 'copy-raw',
+        group: 'HL7',
         label: 'Copy raw HL7',
         hint: 'Editor contents',
         keywords: ['copy', 'raw', 'message'],
@@ -919,6 +1131,7 @@
     if (msh9) {
       cmds.unshift({
         id: 'copy-msh-9',
+        group: 'HL7',
         label: 'Copy MSH-9 (message type)',
         hint: 'ADT^A01',
         keywords: ['copy', 'msh', 'type', 'event'],
@@ -928,6 +1141,7 @@
     if (msh10) {
       cmds.unshift({
         id: 'copy-msh-10',
+        group: 'HL7',
         label: 'Copy MSH-10 (control ID)',
         hint: 'Correlation ID',
         keywords: ['copy', 'msh', 'id', 'control'],
@@ -937,6 +1151,7 @@
     if (msh12) {
       cmds.unshift({
         id: 'copy-msh-12',
+        group: 'HL7',
         label: 'Copy MSH-12 (version)',
         hint: '2.5.1',
         keywords: ['copy', 'msh', 'version'],
@@ -948,6 +1163,7 @@
     if (path) {
       cmds.unshift({
         id: 'copy-path',
+        group: 'HL7',
         label: 'Copy selected path',
         hint: 'Cmd/Ctrl+Shift+C',
         keywords: ['copy', 'path'],
@@ -958,6 +1174,7 @@
     if (value) {
       cmds.unshift({
         id: 'copy-value',
+        group: 'HL7',
         label: 'Copy selected value',
         hint: 'Cmd/Ctrl+Shift+X',
         keywords: ['copy', 'value'],
@@ -968,7 +1185,15 @@
     return cmds;
   })();
 
+  // The shell's one palette (Cmd/Ctrl+K) lists these above its own while the
+  // page is mounted; re-registering the same source replaces the list, so it
+  // follows selection changes.
+  $: registerCommands('hl7', paletteCommands, { priority: 10 });
+
   onMount(() => {
+    const linkedSession = new URL(window.location.href).searchParams.get('session')?.trim();
+    if (linkedSession) void openLinkedSession(linkedSession);
+
     // Load a sample into the editor when the active sample *changes*. The
     // store re-emits on every samples update (a rename, tags, a removal of
     // another sample), and reloading then would overwrite the editor without
@@ -989,7 +1214,6 @@
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (paletteOpen) return;
       if (isEditableTarget(e.target)) return;
 
       const mod = e.metaKey || e.ctrlKey;
@@ -1006,12 +1230,6 @@
         if ($state.loading) return;
         e.preventDefault();
         fileInputEl?.click();
-        return;
-      }
-
-      if (mod && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        paletteOpen = true;
         return;
       }
 
@@ -1061,12 +1279,12 @@
       unsub();
       unsubProblemNavigation();
       setSessionDiagnostics(null);
+      unregisterCommands('hl7');
       window.removeEventListener('keydown', onKeyDown);
     };
   });
 </script>
 
-<CommandPalette bind:open={paletteOpen} title="HL7 commands" commands={paletteCommands} />
 
 <div class="intake">
   <Toolbar title="HL7 intake">
@@ -1092,6 +1310,18 @@
         on:change={loadFromFile}
         disabled={$state.loading}
       />
+      {#if sessionEngineEnabled || $workspaceState.status.kind !== 'idle'}
+        <Button
+          variant="ghost"
+          icon={History}
+          aria-pressed={sessionRailOpen}
+          title={sessionRailOpen ? 'Hide the session sidebar' : 'Show the session sidebar: runs, diagnostics, export'}
+          data-testid="hl7-session-toggle"
+          onclick={() => (sessionRailChoice = !sessionRailOpen)}
+        >
+          Session
+        </Button>
+      {/if}
       <Button
         variant="ghost"
         icon={FolderOpen}
@@ -1128,6 +1358,7 @@
   </div>
 
   <div class="workspace">
+    <div class="split-host">
     <SplitPane
       orientation="horizontal"
       initialSize={600}
@@ -1330,6 +1561,9 @@
               <div class="diagnostic">
                 <span class="mono">{diagnostic.code}</span>
                 <span class="diagnostic-message">{diagnostic.message}</span>
+                {#if diagnostic.accepted}
+                  <Badge tone="success">Fix accepted</Badge>
+                {/if}
                 {#if diagnostic.path}
                   <button
                     class="path-link mono"
@@ -1415,6 +1649,9 @@
             {#if !$state.result}
               <EmptyState align="start" message="Preview the message to list parse warnings by phase." />
             {:else}
+              {#if acceptFixError}
+                <p class="run-error" role="alert">Accepting the fix failed: {acceptFixError}</p>
+              {/if}
               <WarningList
                 groups={$warningsByPhase}
                 {selectedPath}
@@ -1424,6 +1661,7 @@
                 on:explain={onExplainWarning}
                 on:explainAll={onExplainAll}
                 on:resolve={(e) => handleResolveWarning(e.detail)}
+                onAcceptFix={sessionEngineEnabled ? (id) => void acceptFix(id) : undefined}
               />
             {/if}
           {:else if activeTab === 'events'}
@@ -1542,6 +1780,20 @@
         </div>
       </div>
     </SplitPane>
+    </div>
+    {#if showSessionRail}
+      <SessionSidebar
+        {workspace}
+        view={$workspaceState}
+        {phiExport}
+        unavailable={sessionUnavailable}
+        {shownRunId}
+        onshowrun={(runId) => void showRun(runId)}
+        oninspectpath={inspectPath}
+        onaccepted={markDiagnosticAccepted}
+        onclose={() => (sessionRailChoice = false)}
+      />
+    {/if}
   </div>
 </div>
 
@@ -1573,9 +1825,17 @@
   }
 
   .workspace {
+    display: flex;
     flex: 1 1 auto;
     min-height: 0;
   }
+
+  .split-host {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+  }
+
 
   /* ── Editor pane ───────────────────────────────────────────────────── */
   .editor-pane {

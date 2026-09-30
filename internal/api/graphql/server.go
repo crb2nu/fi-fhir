@@ -718,6 +718,8 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"operator operation idempotency conflict",
 		"integration deployment version conflict",
 		"invalid integration deployment transition",
+		"current connection validation required",
+		"integration definition already has an active deployment",
 		"operator control-plane request failed",
 		// Connection catalog outcomes (.loom/38 C-0), catalog-safe in the same
 		// way: another tenant's connection is "not found", never "forbidden".
@@ -752,7 +754,8 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"integration definition not found",
 		"integration definition version conflict",
 		"invalid integration definition transition",
-		"current connection validation required",
+		// "current connection validation required" is admitted above with the
+		// operator outcomes (E-0); the editor maps the same condition to it.
 		"another revision of this definition is deployed or paused",
 		"real validation is unavailable for this source on this replica",
 		"a real validation is already running on this replica",

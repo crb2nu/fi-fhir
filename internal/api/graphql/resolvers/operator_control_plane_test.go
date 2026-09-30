@@ -1,6 +1,8 @@
 package resolvers
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -63,5 +65,42 @@ func TestProjectOperatorAttemptProjectsLedgerRowsOneToOne(t *testing.T) {
 	empty := projectOperatorAttempt(operator.DeliveryAttemptSummary{AttemptID: "attempt-kafka"})
 	if empty.Deliveries == nil || len(empty.Deliveries) != 0 {
 		t.Fatalf("an attempt with no ledger rows projected %#v, want an empty non-nil list", empty.Deliveries)
+	}
+}
+
+// TestCatalogOperatorErrorNamesActionableLifecycleRefusals pins the two
+// lifecycle refusals an operator can act on to stable messages the IDE maps
+// (operatorErrors.ts), instead of the generic control-plane failure.
+func TestCatalogOperatorErrorNamesActionableLifecycleRefusals(t *testing.T) {
+	cases := map[error]string{
+		operator.ErrValidationRequired:                            "current connection validation required",
+		fmt.Errorf("wrapped: %w", operator.ErrValidationRequired): "current connection validation required",
+		operator.ErrActiveDeployment:                              "integration definition already has an active deployment",
+		errors.New("unmapped"):                                    "operator control-plane request failed",
+	}
+	for cause, want := range cases {
+		if got := catalogOperatorError(cause).Error(); got != want {
+			t.Fatalf("catalogOperatorError(%v) = %q, want %q", cause, got, want)
+		}
+	}
+}
+
+func TestProjectOperatorDeploymentAndEventCarryDerivedAndRetentionFields(t *testing.T) {
+	expires := time.Date(2026, 9, 29, 12, 5, 0, 0, time.UTC)
+	deployment := projectOperatorDeployment(operator.DeploymentSummary{
+		State: "deployed", ValidationPassed: true, ValidationExpiresAt: &expires, ValidationCurrent: true,
+	})
+	if !deployment.ValidationCurrent || deployment.ValidationExpiresAt == nil || !deployment.ValidationExpiresAt.Equal(expires) {
+		t.Fatalf("deployment projection = %#v", deployment)
+	}
+	purgeAfter := time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)
+	purgedAt := purgeAfter.Add(time.Hour)
+	event := projectOperatorEvent(operator.EventSummary{EventID: "event-a", PurgeAfter: &purgeAfter, PurgedAt: &purgedAt})
+	if event.PurgeAfter == nil || !event.PurgeAfter.Equal(purgeAfter) || event.PurgedAt == nil || !event.PurgedAt.Equal(purgedAt) {
+		t.Fatalf("event retention projection = %#v", event)
+	}
+	unstamped := projectOperatorEvent(operator.EventSummary{EventID: "event-b"})
+	if unstamped.PurgeAfter != nil || unstamped.PurgedAt != nil {
+		t.Fatalf("unstamped event projected retention marks: %#v", unstamped)
 	}
 }

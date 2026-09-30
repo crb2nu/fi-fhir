@@ -3,7 +3,8 @@
   - documents open in the workspace (ideStore, restored from the saved layout),
     excluding Home itself; selecting one reopens it;
   - the tenant's integration sessions (HL7 intake previews run on the session
-    engine), when this identity may read them.
+    engine), when this identity may read them; selecting one reopens it in HL7
+    intake (`/hl7?session=<id>`) with its runs in the session sidebar.
   With neither, it says so and offers HL7 intake.
 -->
 <script lang="ts">
@@ -43,6 +44,11 @@
     }
   }
 
+  function openSession(session: RecentSession): void {
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- the path is resolve()d; only the query is appended
+    void goto(`${resolve('/hl7')}?session=${encodeURIComponent(session.id)}`);
+  }
+
   function runStatus(session: RecentSession): Row['status'] {
     const last = session.runs[session.runs.length - 1];
     if (!last) return { label: 'no runs', tone: 'neutral' };
@@ -79,7 +85,7 @@
       reference: session.id,
       status: runStatus(session),
       updatedAt: session.updatedAt,
-      open: null
+      open: () => openSession(session)
     }))
   );
 

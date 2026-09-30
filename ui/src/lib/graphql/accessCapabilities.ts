@@ -39,6 +39,11 @@ export interface AccessCapabilities {
   controlPlane: boolean | null;
   connectionCatalog: boolean | null;
   /**
+   * The identity may export a session bundle with raw sample payloads (it
+   * holds `integration.phi.export`, .loom/42 E-3); `null` when not reported.
+   */
+  phiExport: boolean | null;
+  /**
    * Definition authoring (.loom/42 E-1): a deployment fact, like
    * `controlPlane`. The roles its writes need are in
    * `missingRoles.definitionAuthoring`.
@@ -115,6 +120,7 @@ export function parseAuthStatus(body: unknown): AccessCapabilityState {
       connectionsWrite: reportedBoolean(caps.connectionsWrite),
       controlPlane: reportedBoolean(caps.controlPlane),
       connectionCatalog: reportedBoolean(caps.connectionCatalog),
+      phiExport: reportedBoolean(caps.phiExport),
       definitionAuthoring: reportedBoolean(caps.definitionAuthoring)
     },
     missingRoles: missing
@@ -166,6 +172,7 @@ export const connectionsReadCapability = capabilityStore('connectionsRead');
 export const connectionsWriteCapability = capabilityStore('connectionsWrite');
 export const controlPlaneCapability = capabilityStore('controlPlane');
 export const connectionCatalogCapability = capabilityStore('connectionCatalog');
+export const phiExportCapability = capabilityStore('phiExport');
 
 /** Allowlisted subscription roots, or `null` when unknown / not reported. */
 export const subscriptionRoots: Readable<string[] | null> = derived(store, ($state) =>

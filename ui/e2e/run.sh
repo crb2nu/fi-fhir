@@ -19,8 +19,10 @@
 # preview-only stack for the demo's honest states) and writes its review PNGs
 # to $E2E_RESULTS_DIR/visual/.
 #
-# Each database-backed stack gets its own database, so the operator Messages
-# list is empty by construction and no stack sees another's migrations. The
+# Each database-backed stack gets its own database, so no stack sees another's
+# migrations. The operator-bundle database then gets the E-0 fixture
+# (e2e/fixture.sh): a deployed definition and three real admissions; the other
+# stacks' Messages lists stay empty by construction. The
 # preview-only stack sets no FI_FHIR_DATABASE_* at all, exactly as the demo
 # Deployment (platform/gitops k3s/fi-fhir-demo/) does.
 #
@@ -181,6 +183,15 @@ for stack in "${STACKS[@]}"; do
   log "api $name ready on :$api_port"
 done
 
+# --- Fixture: durable data on the operator-bundle stack (.loom/42 E-0) -------
+# One deployed definition (lifecycle seed) and three admissions through the
+# real HTTP ingress in side processes: one dead-lettered by the delivery
+# worker, two left queued. See e2e/fixture.sh and e2e/README.md.
+E2E_API_BIN=$E2E_API_BIN E2E_REGISTRY_PATH=$E2E_REGISTRY_PATH E2E_RESULTS_DIR=$E2E_RESULTS_DIR \
+E2E_PG_HOST=$E2E_PG_HOST E2E_PG_PORT=$E2E_PG_PORT E2E_PG_USER=$E2E_PG_USER E2E_PG_PASSWORD=$E2E_PG_PASSWORD \
+FIXTURE_DATABASE=fi_fhir_e2e_bundle \
+  bash "$UI_DIR/e2e/fixture.sh" || die "the operator-bundle fixture could not be written"
+
 # --- nginx: the production template, once per stack --------------------------
 # Rendered exactly as the nginx image's entrypoint renders it: envsubst limited
 # to the one variable the template declares, so $host, $scheme and friends
@@ -253,6 +264,7 @@ E2E_BUNDLE_URL=http://127.0.0.1:3000 \
 E2E_NO_OPERATOR_URL=http://127.0.0.1:3001 \
 E2E_SESSIONS_OFF_URL=http://127.0.0.1:3002 \
 E2E_PREVIEW_ONLY_URL=http://127.0.0.1:3003 \
+E2E_BUNDLE_DATABASE_URL="postgres://$E2E_PG_USER@$E2E_PG_HOST:$E2E_PG_PORT/fi_fhir_e2e_bundle?sslmode=disable" \
   npx --no-install playwright test "$@"
 playwright_status=$?
 set -e

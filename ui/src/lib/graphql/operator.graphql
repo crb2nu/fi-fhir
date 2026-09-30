@@ -23,12 +23,24 @@ fragment OperatorDeadLetterFields on OperatorDeadLetter {
 }
 
 # The operator UI renders exactly these ledger columns and nothing else. The
-# provenance ledger is clinical-content-free by construction; selecting only
-# what is displayed keeps the view that way (Slice 4.2c).
+# provenance ledger is clinical-content-free by construction (server-owned
+# provenance, a status class, and three advisory values); selecting only what
+# is displayed keeps the view that way (Slice 4.2c, full row since E-0).
 fragment OperatorDestinationDeliveryFields on OperatorDestinationDelivery {
   transport
+  destination {
+    artifactId
+    revisionId
+    digest
+    class
+  }
+  digestVerified
   outcome
+  failureCode
+  httpStatusClass
   endpointAdvisory
+  servedCertificateSubjectAdvisory
+  completedAt
   fhirResourceTypes
   fhirEntryCount
   fhirOutcomeCodesAdvisory
@@ -115,6 +127,7 @@ fragment OperatorDeploymentFields on OperatorDeployment {
   health
   validationPassed
   validationExpiresAt
+  validationCurrent
   updatedReason
   updatedAt
   updatedBy {
@@ -146,6 +159,8 @@ query OperatorMessageTrace($receiptId: ID!) {
       correlationId
       classification
       recordedAt
+      purgeAfter
+      purgedAt
       payloadTruncated
       payloadFields {
         path

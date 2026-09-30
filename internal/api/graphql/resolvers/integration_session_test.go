@@ -519,3 +519,26 @@ func TestIntegrationSessionExport_AttributionAndRawPayloadGrant(t *testing.T) {
 		t.Fatalf("granted raw export failed: %v", err)
 	}
 }
+
+// TestIntegrationSession_UnknownIDIsNull pins the deep-link read (.loom/42
+// E-3): integrationSession(id) is null for an id the store does not hold, and
+// the session itself for one it does.
+func TestIntegrationSession_UnknownIDIsNull(t *testing.T) {
+	resolver := NewResolver()
+	queryResolver := &queryResolver{resolver}
+	mutationResolver := &mutationResolver{resolver}
+
+	missing, err := queryResolver.IntegrationSession(context.Background(), "session-that-does-not-exist")
+	if err != nil || missing != nil {
+		t.Fatalf("unknown id = (%#v, %v), want (nil, nil)", missing, err)
+	}
+
+	created, err := mutationResolver.CreateIntegrationSession(context.Background(), model.CreateIntegrationSessionInput{Name: "deep link"})
+	if err != nil {
+		t.Fatalf("CreateIntegrationSession: %v", err)
+	}
+	found, err := queryResolver.IntegrationSession(context.Background(), created.ID)
+	if err != nil || found == nil || found.ID != created.ID {
+		t.Fatalf("known id = (%#v, %v), want session %q", found, err, created.ID)
+	}
+}

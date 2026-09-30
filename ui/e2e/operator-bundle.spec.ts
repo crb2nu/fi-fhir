@@ -5,7 +5,7 @@
  * 2026-09-26).
  */
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import {
   OPERATOR_BUNDLE,
   SYNTHETIC_ADT_A01,
@@ -40,7 +40,7 @@ test('1. auth status: trusted network, operator plane readable, integrationSessi
   expect(status.missingRoles['operatorRead']).toEqual([]);
 });
 
-test('2. operator page lists the (empty) Messages, with no pre-flight and no "forbidden" anywhere', async ({
+test("2. operator page lists the fixture's Messages, with no pre-flight and no \"forbidden\" anywhere", async ({
   page
 }) => {
   const watch = await watchPage(page);
@@ -52,9 +52,10 @@ test('2. operator page lists the (empty) Messages, with no pre-flight and no "fo
 
   // Whichever the page settles on — the list or the pre-flight — then fail
   // fast, naming the pre-flight, rather than waiting on a query it never sends.
-  const emptyList = page.getByText('No messages match these filters');
+  // The E-0 fixture (e2e/fixture.sh) admitted three messages before this ran.
+  const list = page.getByRole('table', { name: 'Durable admission receipts', exact: true });
   const preflight = page.getByTestId('operator-preflight');
-  await expect(emptyList.or(preflight)).toBeVisible();
+  await expect(list.or(preflight)).toBeVisible();
   await expect(preflight, 'the operator pre-flight rendered').toHaveCount(0);
 
   const response = await receipts;
@@ -64,7 +65,7 @@ test('2. operator page lists the (empty) Messages, with no pre-flight and no "fo
 
   await expect(page.getByRole('heading', { name: 'Operator', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Messages' })).toBeVisible();
-  await expect(emptyList).toBeVisible();
+  expect(await page.getByTestId('receipt-row').count()).toBeGreaterThanOrEqual(4);
   await expect(page.locator('body')).not.toContainText(/forbidden/i);
   expect(watch.errorToasts).toEqual([]);
 });
@@ -553,4 +554,238 @@ test('E1-1. definitions: an MLLP source becomes a published definition through t
   // The deep link opens the same definition on a fresh load.
   await openIDE(page, `/connections?definition=${definitionId}&revision=v1`);
   await expect(page.getByTestId('definition-details')).toHaveAttribute('data-state', 'published');
+});
+
+// ---------------------------------------------------------------------------
+// E-0 operator depth (.loom/42), over the fixture e2e/fixture.sh wrote: the
+// deployed definition e2e-batch-adt/v1, E2E-FIXTURE-001 and -004 dead-lettered
+// by the worker (six audit rows each), E2E-FIXTURE-002/003 queued. Only E0-4
+// writes, and only to -004's dead letter.
+// ---------------------------------------------------------------------------
+
+interface FixtureAttempt {
+  attemptId: string;
+  receiptId: string;
+  status: string;
+  parentAttemptId: string | null;
+}
+
+/** The fixture's dead-lettered attempt for one correlation id (see e2e/fixture.sh). */
+async function deadLetterFor(request: APIRequestContext, correlationId: string): Promise<FixtureAttempt> {
+  const { operatorReceipts } = await graphqlData<{ operatorReceipts: { nodes: Array<{ receiptId: string }> } }>(
+    request,
+    `query ($correlationId: String) {
+      operatorReceipts(filter: { correlationId: $correlationId }, page: { first: 5 }) { nodes { receiptId } }
+    }`,
+    { correlationId }
+  );
+  expect(operatorReceipts.nodes, `one fixture receipt for ${correlationId}`).toHaveLength(1);
+  const receiptId = operatorReceipts.nodes[0]!.receiptId;
+  const { operatorDeliveryAttempts } = await graphqlData<{ operatorDeliveryAttempts: { nodes: FixtureAttempt[] } }>(
+    request,
+    `query ($receiptId: ID) {
+      operatorDeliveryAttempts(filter: { receiptId: $receiptId, status: "failed" }, page: { first: 5 }) {
+        nodes { attemptId receiptId status parentAttemptId }
+      }
+    }`,
+    { receiptId }
+  );
+  expect(operatorDeliveryAttempts.nodes, `one dead-lettered attempt for ${correlationId}`).toHaveLength(1);
+  return operatorDeliveryAttempts.nodes[0]!;
+}
+
+async function fixtureAttempts(request: APIRequestContext, status: string): Promise<FixtureAttempt[]> {
+  const { operatorDeliveryAttempts } = await graphqlData<{ operatorDeliveryAttempts: { nodes: FixtureAttempt[] } }>(
+    request,
+    `query ($status: String) {
+      operatorDeliveryAttempts(filter: { status: $status }, page: { first: 50 }) {
+        nodes { attemptId receiptId status parentAttemptId }
+      }
+    }`,
+    { status }
+  );
+  return operatorDeliveryAttempts.nodes;
+}
+
+test("E0-1. deployments: a deep link opens the seeded revision's lifecycle history, validation and release", async ({
+  page
+}) => {
+  const watch = await watchPage(page);
+  await openIDE(page, '/operator?definition=e2e-batch-adt&revision=v1');
+  await expect(page.getByRole('tab', { name: 'Deployments' })).toHaveAttribute('aria-selected', 'true');
+  const history = page.getByTestId('deployment-history');
+  await expect(history).toHaveAttribute('data-definition-id', 'e2e-batch-adt');
+  const rows = history.getByTestId('history-row');
+  await expect(rows.first()).toBeVisible();
+  const actions = await rows.evaluateAll((elements) => elements.map((element) => element.getAttribute('data-action')));
+  for (const action of ['create_draft', 'validate_connection', 'approve', 'publish', 'deploy']) {
+    expect(actions, `history records ${action}`).toContain(action);
+  }
+  expect(actions[0], 'newest first').toBe('deploy');
+  const row = page.getByTestId('deployment-row').filter({ has: page.getByText('e2e-batch-adt', { exact: true }) });
+  await expect(row.getByTestId('validation-badge')).toHaveAttribute('data-validation', 'current');
+  await expect(row).toContainText(/release-[0-9a-f]+/);
+  expect(watch.graphql.filter((request) => selects(request, 'operatorDeploymentEvents'))).toHaveLength(1);
+
+  // An absent revision is said, not rendered as a blank.
+  await openIDE(page, '/operator?definition=e2e-no-such-definition&revision=v1');
+  await expect(page.getByTestId('deployment-focus-missing')).toContainText(
+    "e2e-no-such-definition@v1 is not in this tenant's lifecycle catalog"
+  );
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('E0-2. delivery: the attempts list filters by status across receipts and opens a row in the inspector', async ({
+  page,
+  request
+}) => {
+  const queued = await fixtureAttempts(request, 'queued');
+  expect(queued.length, 'the fixture left at least two queued attempts').toBeGreaterThanOrEqual(2);
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/operator');
+  await page.getByRole('tab', { name: 'Delivery' }).click();
+  const search = page.getByTestId('attempt-search');
+  await expect(search.getByTestId('attempt-row').first()).toBeVisible();
+
+  await search.getByRole('combobox', { name: 'Attempt status' }).selectOption('queued');
+  const filtered = page.waitForResponse((response) => selects(response.request(), 'operatorDeliveryAttempts'));
+  await search.getByRole('button', { name: 'Apply' }).click();
+  await filtered;
+  const rows = search.getByTestId('attempt-row');
+  await expect(rows).toHaveCount(queued.length);
+  expect(await rows.evaluateAll((elements) => elements.map((element) => element.getAttribute('data-status')))).toEqual(
+    queued.map(() => 'queued')
+  );
+
+  const first = queued[0]!;
+  await search.locator(`[data-attempt-id="${first.attemptId}"]`).getByRole('button', { name: first.attemptId }).click();
+  const inspector = page.getByTestId('attempt-inspector');
+  await expect(inspector).toHaveAttribute('data-attempt-id', first.attemptId);
+  await expect(inspector).toContainText('outbox pending');
+  await expect(inspector).toContainText('No destination delivery recorded');
+
+  // The receipt link leaves for the trace on Messages.
+  await inspector.getByRole('button', { name: first.receiptId }).click();
+  await expect(page.getByRole('tab', { name: 'Messages' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.receipt-id')).toHaveText(first.receiptId);
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test("E0-3. audit: the dead-lettered attempt's audit trail pages five at a time with its detail", async ({
+  page,
+  request
+}) => {
+  // Read-only for every check: its six audit rows never change.
+  const dead = await deadLetterFor(request, 'e2e-fixture-dead-letter');
+
+  const watch = await watchPage(page);
+  await openIDE(page, `/operator?attempt=${encodeURIComponent(dead.attemptId)}`);
+  const inspector = page.getByTestId('attempt-inspector');
+  await expect(inspector).toHaveAttribute('data-attempt-id', dead.attemptId);
+  const trail = inspector.getByTestId('attempt-audit');
+  const rows = trail.getByTestId('audit-row');
+  await expect(rows).toHaveCount(5);
+  await expect(rows.first()).toHaveAttribute('data-event-kind', 'dlq_entered');
+  await expect(rows.first().getByTestId('audit-detail')).toContainText('KAFKA_PUBLISH_FAILED');
+  await expect(trail.getByTestId('audit-page')).toHaveText('Audit page 1');
+
+  await trail.getByRole('button', { name: 'Next' }).click();
+  await expect(trail.getByTestId('audit-page')).toHaveText('Audit page 2');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toHaveAttribute('data-event-kind', 'claimed');
+  await expect(trail.getByRole('button', { name: 'Next' })).toBeDisabled();
+  expect(watch.graphql.filter((request) => selects(request, 'operatorAttemptAudit')).length).toBeGreaterThanOrEqual(2);
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('E0-4. resubmit: resubmitting the dead letter from the inspector renders the resubmit chain on the trace', async ({
+  page,
+  request
+}) => {
+  // The fixture's second dead letter exists for this check alone.
+  const dead = await deadLetterFor(request, 'e2e-fixture-resubmit');
+
+  const watch = await watchPage(page);
+  await openIDE(page, `/operator?attempt=${encodeURIComponent(dead.attemptId)}`);
+  const inspector = page.getByTestId('attempt-inspector');
+  await inspector.getByRole('button', { name: 'Resubmit', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox', { name: /Reason/ }).fill('e2e: resubmit the dead-lettered fixture message');
+  const resubmitted = page.waitForResponse((response) => selects(response.request(), 'resubmitMessage'));
+  await dialog.getByRole('button', { name: 'Resubmit', exact: true }).click();
+  const body = (await (await resubmitted).json()) as {
+    data?: { resubmitMessage: { resultAttemptId: string; attempt: { parentAttemptId: string } } };
+    errors?: unknown[];
+  };
+  expect(body.errors ?? []).toEqual([]);
+  const child = body.data!.resubmitMessage.resultAttemptId;
+  expect(body.data!.resubmitMessage.attempt.parentAttemptId).toBe(dead.attemptId);
+  await expect(dialog).toHaveCount(0);
+
+  await openIDE(page, `/operator?receipt=${encodeURIComponent(dead.receiptId)}`);
+  const chain = page.getByTestId('resubmit-chain');
+  await expect(chain).toBeVisible();
+  const items = chain.getByRole('listitem');
+  await expect(items).toHaveCount(2);
+  await expect(items.nth(0)).toContainText(dead.attemptId);
+  await expect(items.nth(0)).toContainText('original');
+  await expect(items.nth(1)).toContainText(child);
+  await expect(items.nth(1)).toContainText('resubmit 1');
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('E0-5. deep links: ?receipt= opens the trace and links out; absent targets render the honest states', async ({
+  page,
+  request
+}) => {
+  const [queued] = await fixtureAttempts(request, 'queued');
+  const watch = await watchPage(page);
+
+  await openIDE(page, `/operator?receipt=${encodeURIComponent(queued!.receiptId)}`);
+  await expect(page.locator('.receipt-id')).toHaveText(queued!.receiptId);
+  await expect(page.getByTestId('trace-events-link')).toHaveAttribute(
+    'href',
+    `/events?receipt=${encodeURIComponent(queued!.receiptId)}`
+  );
+  await expect(page.getByTestId('trace-source-link')).toHaveAttribute('href', '/connections?connection=source-adt');
+  await expect(page.getByTestId('trace-destination-link').first()).toHaveAttribute(
+    'href',
+    '/connections?connection=fhir-primary'
+  );
+
+  await openIDE(page, '/operator?receipt=e2e-no-such-receipt');
+  await expect(page.getByText('This receipt is not available in your tenant.')).toBeVisible();
+
+  await openIDE(page, '/operator?attempt=e2e-no-such-attempt');
+  await expect(page.getByTestId('attempt-inspector-missing')).toContainText(
+    'Delivery attempt e2e-no-such-attempt is not available in your tenant.'
+  );
+
+  // Home links each deployment to its history.
+  await openIDE(page, '/');
+  const link = page.getByTestId('integrations-panel').getByRole('link', { name: 'e2e-batch-adt' });
+  await expect(link).toHaveAttribute('href', '/operator?definition=e2e-batch-adt&revision=v1');
+  await expect(page.locator('body')).not.toContainText(/forbidden/i);
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test("E0-6. fleet: the Engine tab and Home report every replica's heartbeat, this one fresh", async ({ page }) => {
+  const watch = await watchPage(page);
+  await openIDE(page, '/connections');
+  await page.getByRole('tab', { name: 'Engine' }).click();
+  const fleet = page.getByTestId('engine-fleet');
+  const replicas = fleet.getByTestId('fleet-replica');
+  await expect(replicas.first()).toBeVisible();
+  // The bundle API plus the fixture's two admission processes, which have stopped.
+  expect(await replicas.count()).toBeGreaterThanOrEqual(3);
+  await expect(replicas.first()).toContainText('(this replica)');
+  await expect(replicas.first()).toHaveAttribute('data-stale', 'false');
+
+  await openIDE(page, '/');
+  const row = page.getByTestId('health-fleet');
+  // Counted as the server counts totalReplicas: fresh replicas only.
+  await expect(row).toHaveAttribute('data-fresh', /^[1-9]\d*$/);
+  await expect(row).toContainText(/\d+ replicas? with a fresh heartbeat/);
+  expect(watch.errorToasts).toEqual([]);
 });

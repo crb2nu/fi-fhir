@@ -230,3 +230,198 @@ mutation DeploySessionPublication($input: PromoteSessionPublicationInput!) {
     health
   }
 }
+
+# ── Sessions as first-class work (.loom/42 E-3) ─────────────────────────────
+# One root field per operation: the transport gate authorizes whole
+# operations, so a read never rides with a write it could be refused for.
+
+fragment SessionArtifactFields on SessionArtifact {
+  id
+  revisionId
+  kind
+  name
+  version
+  digest
+  updatedAt
+}
+
+# The reopened session: what the /hl7 sidebar lists beside its runs. Sample
+# text is not selected: a pasted sample's text stays server-side, and captured
+# text arrives through the intake reads (connectionIntake.graphql).
+query IntegrationSessionWorkspace($id: ID!) {
+  integrationSession(id: $id) {
+    id
+    name
+    description
+    archived
+    createdAt
+    updatedAt
+    samples {
+      id
+      name
+      format
+      source
+      payloadChecksum
+      createdAt
+    }
+    currentProfileDraft { ...SessionArtifactFields }
+    currentWorkflowDraft { ...SessionArtifactFields }
+    workflowSimulations {
+      id
+      workflowArtifactId
+      workflowRevisionId
+      workflowRevisionDigest
+      sourceRunIds
+      createdAt
+    }
+    publications { ...SessionPublicationFields }
+  }
+}
+
+fragment SessionRunSummaryFields on SessionRun {
+  id
+  sessionId
+  sampleId
+  status
+  profileRevisionId
+  profileRevisionDigest
+  createdAt
+  completedAt
+  stages {
+    id
+    name
+    status
+    durationMs
+  }
+}
+
+query SessionRunHistory($sessionId: ID!) {
+  sessionRuns(sessionId: $sessionId) { ...SessionRunSummaryFields }
+}
+
+query SessionRunDetail($id: ID!) {
+  sessionRun(id: $id) { ...IntegrationSessionRunFields }
+}
+
+fragment SessionDiagnosticFields on SessionDiagnostic {
+  id
+  sessionId
+  runId
+  sampleId
+  severity
+  code
+  message
+  path
+  fixSuggestion
+  accepted
+  acceptedAt
+  lineage {
+    sourcePath
+    targetPath
+    description
+  }
+}
+
+query SessionRunDiagnostics($sessionId: ID!, $runId: ID) {
+  sessionDiagnostics(sessionId: $sessionId, runId: $runId) { ...SessionDiagnosticFields }
+}
+
+mutation ArchiveIntegrationSession($id: ID!) {
+  archiveIntegrationSession(id: $id) {
+    id
+    archived
+    updatedAt
+  }
+}
+
+mutation AcceptSessionDiagnosticFix($input: AcceptDiagnosticFixInput!) {
+  acceptDiagnosticFix(input: $input) { ...SessionDiagnosticFields }
+}
+
+# A run as the export file carries it: identifiers, status, stages,
+# diagnostics, lineage and each event's envelope (id, type, time, source,
+# correlation). No event's patient, encounter, test or appointment fields are
+# selected, so the download holds no parsed patient identifiers.
+fragment SessionExportRunFields on SessionRun {
+  id
+  sessionId
+  sampleId
+  status
+  profileRevisionId
+  profileRevisionDigest
+  createdAt
+  completedAt
+  stages {
+    id
+    name
+    status
+    startedAt
+    completedAt
+    durationMs
+    summary
+  }
+  diagnostics { ...SessionDiagnosticFields }
+  lineage {
+    sourcePath
+    targetPath
+    description
+  }
+  events {
+    __typename
+    id
+    type
+    timestamp
+    source
+    sourceFormat
+    correlationId
+  }
+}
+
+# The audited PHI export. rawPayload is null unless includeRawPayload was
+# asked for and the caller holds integration.phi.export (capabilities.phiExport).
+mutation ExportIntegrationSessionBundle($input: ExportIntegrationBundleInput!) {
+  exportIntegrationBundle(input: $input) {
+    sessionId
+    exportedAt
+    session {
+      id
+      name
+      description
+      archived
+      createdAt
+      updatedAt
+    }
+    samples {
+      id
+      name
+      format
+      source
+      rawPayload
+      payloadChecksum
+      payloadRef
+      createdAt
+    }
+    artifacts {
+      ...SessionArtifactFields
+      content
+      createdAt
+    }
+    runs { ...SessionExportRunFields }
+    workflowSimulations { ...SessionWorkflowSimulationFields }
+    publications { ...SessionPublicationFields }
+    diagnostics { ...SessionDiagnosticFields }
+  }
+}
+
+# The per-run stream (SSE-allowlisted). Opened only while a run is live.
+subscription StreamSessionRunEvents($sessionId: ID!, $runId: ID) {
+  sessionRunEvents(sessionId: $sessionId, runId: $runId) {
+    id
+    type
+    sessionId
+    runId
+    message
+    timestamp
+    run { ...SessionRunSummaryFields }
+  }
+}

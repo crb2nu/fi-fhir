@@ -55,7 +55,8 @@ capabilities, pages try the request and report any failure inline.
 ### Home (`/`)
 
 Recent work (open documents, and your Integration Sessions when the session
-workspace is on), deployed Integrations, Health, and Alerts. Integrations
+workspace is on; selecting a session reopens it in HL7 intake, see
+[Sessions](#sessions)), deployed Integrations, Health, and Alerts. Integrations
 needs `integration.operator`. Without it the panel says so and queries
 nothing. Alerts reads "No alert source configured." unless one is.
 
@@ -90,6 +91,47 @@ Live events**.
 The IDE shows events and diagnostics but not the FHIR Bundle. To see the
 Bundle a message produces, use the [Browser Playground](playground.md) or a
 `fhir` destination.
+
+#### Sessions
+
+With the session engine on, the page's Integration Session is a piece of work
+you can come back to. The first Preview (or a capture) creates it, and the
+address becomes `/hl7?session=<id>`: reload the page, bookmark it, or pick
+the session in Home › Recent, and the page reopens it. The **Session** toolbar
+button shows or hides the session sidebar, which reads everything back from
+the API:
+
+- **Runs** (`sessionRuns`), newest first. Selecting one lists its diagnostics
+  (`sessionDiagnostics`); **Show in results** loads that run's warnings and
+  events into the tabs. On a deep link the newest run is shown. While a run is
+  pending or running, the sidebar follows it on `sessionRunEvents` and stops
+  when it finishes; where that stream is not allowed it says so instead.
+- **Accept fix** records, with your identity, that you accept a diagnostic's
+  fix suggestion (`acceptDiagnosticFix`). A warning in the Warnings tab that
+  came from a session diagnostic has the same **Accept fix**, and shows
+  "fix accepted" afterwards.
+- **Publications** and **Simulations** made from this session, its samples
+  and its saved profile and workflow drafts.
+- **Export…** downloads the session as `fi-fhir-session-<id>-<UTC time>.json`:
+  runs (status, stages, diagnostics, lineage, and each event's id, type, time
+  and correlation), drafts, simulations and publications. It carries no raw
+  sample text and no parsed patient fields; diagnostic messages are included
+  as the parser wrote them. An export is a PHI disclosure: it needs a reason,
+  and the API records the reason and your identity on an append-only export
+  record. Raw sample payloads are offered only when `/api/auth/status`
+  reports `capabilities.phiExport: true` (your identity holds
+  `integration.phi.export`); otherwise the dialog names the missing role, or
+  says the deployment did not report the grant.
+- **Archive…** takes the session off Home › Recent. Its runs, publications
+  and export records stay, and its link still opens it, marked Archived.
+  Previews on that page still record runs in it; open `/hl7` without a session
+  link to start a new one. The API records no reason for an archive, so the
+  dialog asks for none.
+
+Sample text is not read back: a pasted sample's text stays on the server.
+Captured and peeked samples reload into Samples, because intake reads them
+back (with `integration.operator`). Operations detail is in
+[Integration Sessions](../operations/INTEGRATION-SESSIONS.md).
 
 ### Profiles (`/profiles`), stage 2
 
@@ -160,6 +202,9 @@ warnings. See [LLM Features](llm-features.md).
 | "The connection catalog is not configured on this deployment." | `serve` opened no durable PostgreSQL database | configure `FI_FHIR_DATABASE_*` and a durable feature |
 | "Live streaming for … is not available on this deployment" | that subscription root is not allowed, or sessions are off | expected in production for the legacy streams |
 | "Preview runs on the stateless path instead." | the session engine is unavailable | enable Integration Sessions on the API |
+| "Session … is not in this deployment's session store." | a `/hl7?session=` link to an id this deployment and tenant do not hold | open the session on the deployment that created it |
+| "Session … cannot be opened here." | a `/hl7?session=` link on a deployment without the session engine | enable Integration Sessions on the API |
+| "Raw sample payloads are not offered: exporting them needs integration.phi.export…" | the identity lacks the PHI export grant | grant `integration.phi.export` only to identities approved for raw disclosure |
 | "No LLM is configured for this deployment" | no LLM endpoint on the API | configure the API's LLM settings |
 
 Running the IDE locally, its build and its tests are in

@@ -7,15 +7,23 @@
    * 4.2a GraphQL API. Every mutating action routes through one reason-required
    * dialog, and every failure has an inline home.
    *
-   * When the status endpoint reports that this identity cannot read the
-   * operator plane, the page renders a pre-flight naming the missing role and
-   * where it is granted, and mounts none of the views — so no query is issued
-   * that the control plane would refuse.
+   * When the status endpoint reports that the control plane is not configured
+   * on this deployment, or that this identity cannot read it (in that order,
+   * the Connections precedence), the page renders a pre-flight saying so and
+   * mounts none of the views — so no query is issued that would be refused.
+   *
+   * Deep links (.loom/42): `?receipt=` opens a trace, `?attempt=` an attempt
+   * inspector on Delivery, `?definition=&revision=` a deployment's history.
    */
 
+  import { onMount } from 'svelte';
+  import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
+  import ServerOff from '@lucide/svelte/icons/server-off';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import { accessCapabilities } from '$lib/graphql/accessCapabilities';
   import { EmptyState, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
+  import AttemptInspector from './AttemptInspector.svelte';
+  import AttemptSearch from './AttemptSearch.svelte';
   import ControlReasonDialog from './ControlReasonDialog.svelte';
   import DeliveryConsole from './DeliveryConsole.svelte';
   import DeploymentControls from './DeploymentControls.svelte';
@@ -25,7 +33,6 @@
   import {
     deployRelease,
     discardDeadLetter,
-    fetchAttempt,
     fetchMessageTrace,
     pauseDeployment,
     replayDelivery,
@@ -36,6 +43,7 @@
     type OperatorMessageTrace
   } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
+  import { parseOperatorDeepLink } from './operatorLinks';
   import {
     OPERATOR_ROLE_BUNDLE,
     ROLE_GRANT_LOCATIONS,
@@ -68,6 +76,37 @@
 
   let deliveryConsole: DeliveryConsole;
   let deploymentControls: DeploymentControls;
+  let attemptSearch: AttemptSearch | undefined;
+  let attemptInspector: AttemptInspector | undefined;
+
+  /** The attempt open in Delivery's inspector pane. */
+  let inspectedAttemptId: string | null = null;
+  /** A deep-linked deployment whose history opens on Deployments. */
+  let deploymentFocus: { definitionId: string; revisionId: string } | null = null;
+
+  function inspectAttempt(attemptId: string) {
+    activeTab = 'delivery';
+    inspectedAttemptId = attemptId;
+  }
+
+  function openTrace(receiptId: string) {
+    activeTab = 'messages';
+    void loadTrace(receiptId);
+  }
+
+  onMount(() => {
+    if (preflight) return;
+    const link = parseOperatorDeepLink(window.location.search);
+    if (!link) return;
+    if (link.tab === 'messages') {
+      openTrace(link.receiptId);
+    } else if (link.tab === 'delivery') {
+      inspectAttempt(link.attemptId);
+    } else {
+      activeTab = 'deployments';
+      deploymentFocus = { definitionId: link.definitionId, revisionId: link.revisionId };
+    }
+  });
 
   type PendingDelivery = { kind: 'delivery'; action: DeliveryAction; attemptId: string };
   type PendingDeployment = {
@@ -99,33 +138,6 @@
       trace = null;
     } finally {
       if (request === traceRequest) traceLoading = false;
-    }
-  }
-
-  /**
-   * Resolves an attempt to the receipt that produced it, then opens that
-   * message's trace. The attempt lookup is tenant-scoped server-side, so an
-   * unknown ID yields an honest "not found" rather than an empty view.
-   */
-  async function loadTraceForAttempt(attemptId: string) {
-    const request = ++traceRequest;
-    traceLoading = true;
-    traceError = null;
-    trace = null;
-    selectedReceiptId = null;
-    try {
-      const attempt = await fetchAttempt(attemptId);
-      if (request !== traceRequest) return;
-      if (!attempt) {
-        traceError = `Delivery attempt ${attemptId} is not available in your tenant.`;
-        traceLoading = false;
-        return;
-      }
-      await loadTrace(attempt.receiptId);
-    } catch (err) {
-      if (request !== traceRequest) return;
-      traceError = describeOperatorFailure(err).message;
-      traceLoading = false;
     }
   }
 
@@ -192,6 +204,8 @@
           event.detail.idempotencyKey
         );
         await deliveryConsole?.reload();
+        void attemptSearch?.reload();
+        attemptInspector?.reload();
         if (selectedReceiptId) {
           await loadTrace(selectedReceiptId);
         }
@@ -256,7 +270,30 @@
 </svelte:head>
 
 <div class="operator">
-  {#if preflight}
+  {#if preflight?.reason === 'not-configured'}
+    <Toolbar title="Operator" />
+    <div class="preflight-wrap">
+      <EmptyState
+        icon={ServerOff}
+        align="start"
+        class="preflight"
+        data-testid="operator-preflight"
+        data-reason="not-configured"
+        data-missing-roles={preflight.missingRoles.length > 0 ? preflight.missingRoles.join(',') : undefined}
+      >
+        <span class="line">
+          The operator control plane is not configured on this deployment, so nothing was queried. It needs the
+          PostgreSQL submission store (<code>{preflight.keys[0]}</code>) or <code>{preflight.keys[1]}</code>.
+        </span>
+        {#if preflight.missingRoles.length > 0}
+          <span class="line muted">
+            This identity{#if preflight.principal}&nbsp;(<code>{preflight.principal}</code>){/if} would also need
+            {#each preflight.missingRoles as role, index (role)}{#if index > 0}{LIST_SEPARATOR}{/if}<code>{role}</code>{/each}.
+          </span>
+        {/if}
+      </EmptyState>
+    </div>
+  {:else if preflight}
     <Toolbar title="Operator" />
     <div class="preflight-wrap">
       <EmptyState
@@ -264,6 +301,7 @@
         align="start"
         class="preflight"
         data-testid="operator-preflight"
+        data-reason="missing-role"
         data-missing-roles={preflight.missingRoles.join(',')}
       >
         <span class="line">
@@ -318,24 +356,49 @@
               on:retry={() => selectedReceiptId && loadTrace(selectedReceiptId)}
               on:control={(event) =>
                 openDeliveryDialog(event.detail.action, event.detail.attemptId)}
+              on:inspect={(event) => inspectAttempt(event.detail.attemptId)}
             />
           </div>
         </div>
       {:else if activeTab === 'delivery'}
-        <div class="stack">
-          <DeliveryConsole
-            bind:this={deliveryConsole}
-            on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
-            on:inspect={(event) => {
-              activeTab = 'messages';
-              void loadTraceForAttempt(event.detail.attemptId);
-            }}
-          />
+        <div class="split">
+          <div class="split-main stack">
+            <AttemptSearch
+              bind:this={attemptSearch}
+              selectedAttemptId={inspectedAttemptId}
+              oninspect={inspectAttempt}
+              ontrace={openTrace}
+            />
+            <DeliveryConsole
+              bind:this={deliveryConsole}
+              on:control={(event) => openDeliveryDialog(event.detail.action, event.detail.attemptId)}
+              on:inspect={(event) => inspectAttempt(event.detail.attemptId)}
+            />
+          </div>
+          <div class="split-pane">
+            {#if inspectedAttemptId}
+              <AttemptInspector
+                bind:this={attemptInspector}
+                attemptId={inspectedAttemptId}
+                ontrace={openTrace}
+                oninspect={inspectAttempt}
+                oncontrol={(action, attemptId) => openDeliveryDialog(action, attemptId)}
+                onclose={() => (inspectedAttemptId = null)}
+              />
+            {:else}
+              <EmptyState
+                icon={MousePointerClick}
+                align="start"
+                message="No attempt selected. Pick one from Delivery attempts or a dead letter to see its ledger and audit trail."
+              />
+            {/if}
+          </div>
         </div>
       {:else}
         <div class="stack">
           <DeploymentControls
             bind:this={deploymentControls}
+            focus={deploymentFocus}
             on:command={(event) =>
               openDeploymentDialog(event.detail.action, event.detail.deployment)}
           />

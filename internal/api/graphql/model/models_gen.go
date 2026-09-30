@@ -989,9 +989,13 @@ type OperatorDeployment struct {
 	Health              string                       `json:"health"`
 	ValidationPassed    bool                         `json:"validationPassed"`
 	ValidationExpiresAt *time.Time                   `json:"validationExpiresAt,omitempty"`
-	UpdatedBy           *OperatorPrincipal           `json:"updatedBy"`
-	UpdatedReason       string                       `json:"updatedReason"`
-	UpdatedAt           time.Time                    `json:"updatedAt"`
+	// Whether Deploy and Resume would pass the lifecycle's validation gate now:
+	// a passed validation record whose expiry is still in the future, evaluated
+	// server-side at read time.
+	ValidationCurrent bool               `json:"validationCurrent"`
+	UpdatedBy         *OperatorPrincipal `json:"updatedBy"`
+	UpdatedReason     string             `json:"updatedReason"`
+	UpdatedAt         time.Time          `json:"updatedAt"`
 }
 
 type OperatorDeploymentCommandInput struct {
@@ -1061,6 +1065,11 @@ type OperatorEvent struct {
 	RecordedAt       time.Time              `json:"recordedAt"`
 	PayloadFields    []OperatorPayloadField `json:"payloadFields"`
 	PayloadTruncated bool                   `json:"payloadTruncated"`
+	// Retention deadline stamped by the purge worker; null until stamped.
+	PurgeAfter *time.Time `json:"purgeAfter,omitempty"`
+	// When retention replaced this event's payload with a tombstone. When set,
+	// payloadFields describe the tombstone, not the admitted document.
+	PurgedAt *time.Time `json:"purgedAt,omitempty"`
 }
 
 type OperatorLineage struct {
