@@ -369,17 +369,12 @@ admissions".
 - [x] **Copilot: enable the backend LLM in production** — closed outside the
   IDE unlock program: `/api/auth/status` reports `llm.configured: true` in
   production (`.loom/42`'s 2026-09-29 read, repeated from the LAN on
-  2026-09-30). The original item follows. — the IDE says "No
-  LLM is configured for this deployment" because the runtime enables LLM
-  features only with `FI_FHIR_LLM_ENABLED=true`, and the in-cluster LiteLLM
-  refuses keyless calls (401) while `fi-fhir-api` carries no `LLM_API_KEY`.
-  The chosen route is scoped LiteLLM virtual keys declared in GitOps
-  (platform/gitops `.loom/30-implementation-plan-litellm-scoped-keys.md`,
-  MR 815): a dedicated LiteLLM database, keys declared once as labelled SOPS
-  secrets in each consumer namespace and reconciled by the LiteLLM manager,
-  fi-fhir first. Implementation waits on an owner decision (it writes shared
-  platform resources and secrets). Then verify
-  `capabilities.llm.configured: true` and `copilot-llm-state` = ready.
+  2026-09-30). The item as written: the IDE said "No LLM is configured for
+  this deployment" because the runtime enables LLM features only with
+  `FI_FHIR_LLM_ENABLED=true` and the in-cluster LiteLLM refused keyless
+  calls; `fi-fhir-api` now carries `FI_FHIR_LLM_ENABLED=true` and an
+  `LLM_API_KEY` from a secret, so the remaining check is `copilot-llm-state`
+  = ready in the Copilot panel.
 - [ ] **Terminology-store availability as a capability** — terminology without
   a mapping store shows only "GraphQL request failed" and an error toast,
   because the API's reason ("terminology mapping store not configured") does
