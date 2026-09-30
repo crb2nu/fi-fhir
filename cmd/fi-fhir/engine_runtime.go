@@ -13,6 +13,7 @@ import (
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	integrationingress "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/ingress"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle/authoring"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
@@ -136,6 +137,7 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_FHIR_SERVER_URL"},
 
 		{key: "FI_FHIR_OPERATOR_CONTROL_PLANE_ENABLED", defaultValue: "false"},
+		{key: envLifecycleValidationMaxAge, defaultValue: strconv.Itoa(authoring.DefaultValidationMaxAgeSeconds)},
 		{key: "FI_FHIR_INTEGRATION_SESSION_ENABLED", defaultValue: "false"},
 		{key: "FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE", secret: true},
 

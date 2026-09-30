@@ -1,0 +1,240 @@
+# Integration definition authoring (.loom/42 E-1), against the surface in
+# internal/api/graphql/schema.graphql. One root field per operation: the
+# transport gate authorizes whole operations, so a read never rides with a
+# write it could be refused for.
+#
+# Secret bindings are references ({name, provider, key, version}); no field
+# here can carry a secret value.
+
+fragment DefinitionPrincipalFields on OperatorPrincipal {
+  id
+  kind
+}
+
+fragment DefinitionArtifactFields on IntegrationArtifactRevision {
+  artifactId
+  revisionId
+  digest
+}
+
+fragment IntegrationDefinitionFields on IntegrationDefinition {
+  definitionId
+  revisionId
+  digest
+  parentRevisionId
+  state
+  version
+  health
+  releaseId
+  validationPassed
+  validationCheckedAt
+  validationExpiresAt
+  source {
+    artifactId
+    revisionId
+    digest
+    sourceId
+  }
+  profile {
+    ...DefinitionArtifactFields
+  }
+  workflow {
+    ...DefinitionArtifactFields
+  }
+  destinations {
+    artifactId
+    revisionId
+    digest
+    class
+  }
+  secretBindings {
+    name
+    provider
+    key
+    version
+  }
+  policy {
+    classification
+    rawRetention {
+      mode
+      ttlSeconds
+      purpose
+      storageRevision {
+        ...DefinitionArtifactFields
+      }
+      encryptionKey {
+        provider
+        key
+        version
+      }
+      accessAuditRequired
+    }
+  }
+  deployment {
+    validationTimeoutSeconds
+    validationMaxAgeSeconds
+    scheduleMode
+    cronExpression
+    timezone
+    healthStartupGraceSeconds
+    healthCheckIntervalSeconds
+    healthTimeoutSeconds
+    healthFailureThreshold
+    maxInFlight
+    maxQueued
+    maxMessagesPerSecond
+  }
+  createdBy {
+    ...DefinitionPrincipalFields
+  }
+  createdReason
+  createdAt
+  updatedBy {
+    ...DefinitionPrincipalFields
+  }
+  updatedReason
+  updatedAt
+}
+
+fragment IntegrationDefinitionDetailFields on IntegrationDefinitionDetail {
+  definition {
+    ...IntegrationDefinitionFields
+  }
+  validation {
+    validationId
+    passed
+    codes
+    checkedAt
+    expiresAt
+    sourceRevision {
+      ...DefinitionArtifactFields
+    }
+    actor {
+      ...DefinitionPrincipalFields
+    }
+    reason
+  }
+  approval {
+    eventId
+    actor {
+      ...DefinitionPrincipalFields
+    }
+    reason
+    occurredAt
+  }
+  release {
+    releaseId
+    digest
+    validationId
+    approvalEventId
+    publishedBy {
+      ...DefinitionPrincipalFields
+    }
+    publishedReason
+    publishedAt
+  }
+  realValidationAvailable
+}
+
+fragment DefinitionProblemFields on ConnectionProblem {
+  code
+  path
+  message
+}
+
+query IntegrationDefinitions($includeRetired: Boolean) {
+  integrationDefinitions(includeRetired: $includeRetired) {
+    ...IntegrationDefinitionFields
+  }
+}
+
+query IntegrationDefinition($definitionId: ID!, $revisionId: ID!) {
+  integrationDefinition(definitionId: $definitionId, revisionId: $revisionId) {
+    ...IntegrationDefinitionDetailFields
+  }
+}
+
+query IntegrationRegistryArtifacts {
+  integrationRegistryArtifacts {
+    integrationId
+    profile {
+      ...DefinitionArtifactFields
+    }
+    workflow {
+      ...DefinitionArtifactFields
+    }
+    sourceId
+    format
+  }
+}
+
+# The compiled connections a definition can bind: each connection's latest
+# revision with what a definition needs of it (source id or destination class,
+# and the binding names its own ValidateAgainst requires).
+query DefinitionConnectionChoices($direction: ConnectionDirection) {
+  connections(direction: $direction, includeArchived: false) {
+    id
+    kind
+    name
+    secretBindings {
+      name
+      provider
+      key
+      version
+    }
+    latestRevision {
+      artifactId
+      revisionId
+      digest
+      sourceId
+      destinationClass
+      secretBindingNames
+    }
+  }
+}
+
+# The default evidence max age for new drafts (FI_FHIR_LIFECYCLE_VALIDATION_MAX_AGE).
+query DefinitionPolicyDefaults {
+  engineRuntime {
+    properties {
+      key
+      value
+      source
+    }
+  }
+}
+
+mutation ValidateIntegrationDefinitionDraft($input: IntegrationDefinitionDraftInput!) {
+  validateIntegrationDefinitionDraft(input: $input) {
+    ...DefinitionProblemFields
+  }
+}
+
+mutation CreateIntegrationDefinitionDraft($input: IntegrationDefinitionDraftInput!, $reason: String!) {
+  createIntegrationDefinitionDraft(input: $input, reason: $reason) {
+    definition {
+      ...IntegrationDefinitionDetailFields
+    }
+    problems {
+      ...DefinitionProblemFields
+    }
+  }
+}
+
+mutation ValidateIntegrationDefinition($input: IntegrationDefinitionValidateInput!) {
+  validateIntegrationDefinition(input: $input) {
+    ...IntegrationDefinitionDetailFields
+  }
+}
+
+mutation ApproveIntegrationDefinition($input: IntegrationDefinitionCommandInput!) {
+  approveIntegrationDefinition(input: $input) {
+    ...IntegrationDefinitionDetailFields
+  }
+}
+
+mutation PublishIntegrationDefinition($input: IntegrationDefinitionCommandInput!) {
+  publishIntegrationDefinition(input: $input) {
+    ...IntegrationDefinitionDetailFields
+  }
+}

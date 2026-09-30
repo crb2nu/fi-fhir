@@ -46,7 +46,7 @@ func TestAuthCapabilities(t *testing.T) {
 	none := []string{}
 	allRolesHeld := missingRoles{
 		OperatorRead: none, OperatorDelivery: none, OperatorDeployment: none, ClinicalRead: none,
-		ConnectionsRead: none, ConnectionsWrite: none,
+		ConnectionsRead: none, ConnectionsWrite: none, DefinitionAuthoring: none,
 	}
 	tests := []struct {
 		name         string
@@ -62,12 +62,13 @@ func TestAuthCapabilities(t *testing.T) {
 				ClinicalRead: true, Subscriptions: none,
 			},
 			missing: missingRoles{
-				OperatorRead:       []string{operator.ReadRole},
-				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
-				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
-				ClinicalRead:       none,
-				ConnectionsRead:    []string{operator.ReadRole},
-				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				OperatorRead:        []string{operator.ReadRole},
+				OperatorDelivery:    []string{operator.ReadRole, delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				ClinicalRead:        none,
+				ConnectionsRead:     []string{operator.ReadRole},
+				ConnectionsWrite:    []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.ReadRole, operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -86,12 +87,13 @@ func TestAuthCapabilities(t *testing.T) {
 				OperatorRead: true, ClinicalRead: true, ConnectionsRead: true, Subscriptions: none,
 			},
 			missing: missingRoles{
-				OperatorRead:       none,
-				OperatorDelivery:   []string{delivery.OperatorRole},
-				OperatorDeployment: []string{operator.DeploymentOperatorRole},
-				ClinicalRead:       none,
-				ConnectionsRead:    none,
-				ConnectionsWrite:   []string{operator.DeploymentOperatorRole},
+				OperatorRead:        none,
+				OperatorDelivery:    []string{delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.DeploymentOperatorRole},
+				ClinicalRead:        none,
+				ConnectionsRead:     none,
+				ConnectionsWrite:    []string{operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -101,12 +103,13 @@ func TestAuthCapabilities(t *testing.T) {
 				ClinicalRead: true, Subscriptions: none,
 			},
 			missing: missingRoles{
-				OperatorRead:       []string{operator.ReadRole},
-				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
-				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
-				ClinicalRead:       none,
-				ConnectionsRead:    []string{operator.ReadRole},
-				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				OperatorRead:        []string{operator.ReadRole},
+				OperatorDelivery:    []string{operator.ReadRole, delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				ClinicalRead:        none,
+				ConnectionsRead:     []string{operator.ReadRole},
+				ConnectionsWrite:    []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.ReadRole, operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -120,12 +123,13 @@ func TestAuthCapabilities(t *testing.T) {
 				OperatorRead: true, ConnectionsRead: true, IntegrationSessions: true, Streaming: true, Subscriptions: none,
 			},
 			missing: missingRoles{
-				OperatorRead:       none,
-				OperatorDelivery:   []string{delivery.OperatorRole},
-				OperatorDeployment: []string{operator.DeploymentOperatorRole},
-				ClinicalRead:       []string{clinicalReadRole},
-				ConnectionsRead:    none,
-				ConnectionsWrite:   []string{operator.DeploymentOperatorRole},
+				OperatorRead:        none,
+				OperatorDelivery:    []string{delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.DeploymentOperatorRole},
+				ClinicalRead:        []string{clinicalReadRole},
+				ConnectionsRead:     none,
+				ConnectionsWrite:    []string{operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -135,12 +139,13 @@ func TestAuthCapabilities(t *testing.T) {
 				Subscriptions: none,
 			},
 			missing: missingRoles{
-				OperatorRead:       []string{operator.ReadRole},
-				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
-				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
-				ClinicalRead:       []string{clinicalReadRole},
-				ConnectionsRead:    []string{operator.ReadRole},
-				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				OperatorRead:        []string{operator.ReadRole},
+				OperatorDelivery:    []string{operator.ReadRole, delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				ClinicalRead:        []string{clinicalReadRole},
+				ConnectionsRead:     []string{operator.ReadRole},
+				ConnectionsWrite:    []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.ReadRole, operator.DeploymentOperatorRole},
 			},
 		},
 		{
@@ -182,6 +187,41 @@ func TestAuthCapabilities(t *testing.T) {
 			missing: allRolesHeld,
 		},
 		{
+			// .loom/42 E-1: definitionAuthoring is the deployment fact; the
+			// roles its writes need are in missingRoles.definitionAuthoring.
+			name:     "definition authoring configured",
+			security: securityFor("network", "fi-fhir-ide-operator", operatorBundle...),
+			config: ServerConfig{
+				OperatorControlPlaneConfigured: true, ConnectionCatalogConfigured: true, DefinitionAuthoringConfigured: true,
+			},
+			capabilities: accessCapabilities{
+				OperatorRead: true, OperatorDelivery: true, OperatorDeployment: true, ClinicalRead: true,
+				ConnectionsRead: true, ConnectionsWrite: true, Subscriptions: none,
+				ControlPlane: true, ConnectionCatalog: true, DefinitionAuthoring: true,
+			},
+			missing: allRolesHeld,
+		},
+		{
+			name:     "definition authoring configured, read-only caller",
+			security: securityFor("bearer", "reader", previewRole, GraphQLOperatorRole, operator.ReadRole),
+			config: ServerConfig{
+				OperatorControlPlaneConfigured: true, ConnectionCatalogConfigured: true, DefinitionAuthoringConfigured: true,
+			},
+			capabilities: accessCapabilities{
+				OperatorRead: true, ClinicalRead: true, ConnectionsRead: true, Subscriptions: none,
+				ControlPlane: true, ConnectionCatalog: true, DefinitionAuthoring: true,
+			},
+			missing: missingRoles{
+				OperatorRead:        none,
+				OperatorDelivery:    []string{delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.DeploymentOperatorRole},
+				ClinicalRead:        none,
+				ConnectionsRead:     none,
+				ConnectionsWrite:    []string{operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.DeploymentOperatorRole},
+			},
+		},
+		{
 			name:     "configured, but the caller holds only the transport grant",
 			security: securityFor("network", "fi-fhir-ide-operator", productionRoles...),
 			config:   ServerConfig{OperatorControlPlaneConfigured: true, ConnectionCatalogConfigured: true},
@@ -189,12 +229,13 @@ func TestAuthCapabilities(t *testing.T) {
 				ClinicalRead: true, Subscriptions: none, ControlPlane: true, ConnectionCatalog: true,
 			},
 			missing: missingRoles{
-				OperatorRead:       []string{operator.ReadRole},
-				OperatorDelivery:   []string{operator.ReadRole, delivery.OperatorRole},
-				OperatorDeployment: []string{operator.ReadRole, operator.DeploymentOperatorRole},
-				ClinicalRead:       none,
-				ConnectionsRead:    []string{operator.ReadRole},
-				ConnectionsWrite:   []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				OperatorRead:        []string{operator.ReadRole},
+				OperatorDelivery:    []string{operator.ReadRole, delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				ClinicalRead:        none,
+				ConnectionsRead:     []string{operator.ReadRole},
+				ConnectionsWrite:    []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.ReadRole, operator.DeploymentOperatorRole},
 			},
 		},
 	}

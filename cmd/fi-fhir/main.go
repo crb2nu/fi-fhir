@@ -30,6 +30,7 @@ import (
 	integrationdelivery "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle/authoring"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/mllp"
 	operatorplane "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
@@ -4659,8 +4660,16 @@ func runServe(args []string) error {
 	// once the engine runtime description it labels connections against exists.
 	var connectionStore *connection.PostgresStore
 	operatorControlPlaneConfigured := false
+	// .loom/42 E-1: the catalog hosts connection validation for the
+	// definition editor (definition_authoring_runtime.go).
+	definitionAuthoring, err := newDefinitionAuthoringRuntime(securePreviewRuntime.composition, serveLog)
+	if err != nil {
+		return err
+	}
 	if securePreviewRuntime.submissionDB != nil {
-		lifecycleCatalog, err = lifecycle.NewPostgresCatalog(securePreviewRuntime.submissionDB, lifecycle.Config{})
+		lifecycleCatalog, err = lifecycle.NewPostgresCatalog(securePreviewRuntime.submissionDB, lifecycle.Config{
+			ValidateConnection: definitionAuthoring.validator(),
+		})
 		if err != nil {
 			return fmt.Errorf("configure integration lifecycle catalog: %w", err)
 		}
@@ -5107,6 +5116,7 @@ func runServe(args []string) error {
 	}
 	resolverOpts = append(resolverOpts, resolvers.WithEngineRuntime(engineRuntime))
 	connectionCatalogConfigured := false
+	definitionAuthoringConfigured := false
 	if connectionStore != nil {
 		var definitions connection.DefinitionCatalog
 		if lifecycleCatalog != nil {
@@ -5121,6 +5131,26 @@ func runServe(args []string) error {
 		connectionService.SetObservationInterval(runtimeReportInterval)
 		resolverOpts = append(resolverOpts, resolvers.WithConnectionCatalog(connectionService))
 		connectionCatalogConfigured = true
+		if lifecycleCatalog != nil {
+			definitionAuthoring.bind(connectionService, engineRuntime)
+			registryProof, err := authoring.NewRegistry(securePreviewRuntime.tenantID, securePreviewRuntime.composition.registry)
+			if err != nil {
+				return fmt.Errorf("configure definition authoring registry: %w", err)
+			}
+			authoringService, err := authoring.NewService(authoring.Config{
+				Catalog: lifecycleCatalog, Revisions: connectionService, Registry: registryProof,
+				TenantID: securePreviewRuntime.tenantID, ValidationMaxAgeSeconds: definitionAuthoring.maxAge,
+				RealSource: definitionAuthoring.realSource,
+			})
+			if err != nil {
+				return fmt.Errorf("configure definition authoring: %w", err)
+			}
+			resolverOpts = append(resolverOpts, resolvers.WithDefinitionAuthoring(authoringService))
+			definitionAuthoringConfigured = true
+			serveLog.Info("definition authoring configured",
+				observability.F(observability.FieldComponent, "definition-authoring"),
+				observability.F(observability.FieldEnabled, definitionAuthoring.realSource != nil))
+		}
 		serveLog.Info("connection catalog configured",
 			observability.F(observability.FieldComponent, "connection-catalog"),
 			observability.F(observability.FieldDriver, "postgres"))
@@ -5235,6 +5265,7 @@ func runServe(args []string) error {
 		LLMConfigured:                  llmConfigured,
 		OperatorControlPlaneConfigured: operatorControlPlaneConfigured,
 		ConnectionCatalogConfigured:    connectionCatalogConfigured,
+		DefinitionAuthoringConfigured:  definitionAuthoringConfigured,
 		Authenticator:                  securePreviewRuntime.authenticator,
 		TrustedNetworkAuthenticator:    securePreviewRuntime.trustedNetwork,
 		CloudflareAccessAuthenticator:  securePreviewRuntime.accessIdentity,
@@ -5628,6 +5659,10 @@ Optional operator control-plane environment:
     operator services independently of ingestion, delivery, or sessions (default: false).
     Available only with serve; applies submission, lifecycle, and destination migrations.
     Operator reads still require integration.operator; mutations require additional roles.
+  FI_FHIR_LIFECYCLE_VALIDATION_MAX_AGE  Seconds a definition's connection validation stays
+    current when the Studio's definition editor authors it with the default deployment
+    policy (default: 300; 5-86400). REAL validation runs only for the batch source this
+    replica mounts; STATIC and SKIP are recorded with their own codes.
 
 Optional integration session environment:
   FI_FHIR_INTEGRATION_SESSION_ENABLED  true enables the PostgreSQL-backed session

@@ -58,6 +58,10 @@ type accessCapabilities struct {
 	ControlPlane        bool     `json:"controlPlane"`
 	ConnectionCatalog   bool     `json:"connectionCatalog"`
 	PhiExport           bool     `json:"phiExport"`
+	// DefinitionAuthoring (.loom/42 E-1) is a deployment fact: serve composed
+	// the definition editor (lifecycle catalog, connection catalog, static
+	// registry). missingRoles.definitionAuthoring names the roles its writes need.
+	DefinitionAuthoring bool `json:"definitionAuthoring"`
 }
 
 type llmState struct {
@@ -75,6 +79,8 @@ type missingRoles struct {
 	ConnectionsRead    []string `json:"connectionsRead"`
 	ConnectionsWrite   []string `json:"connectionsWrite"`
 	PhiExport          []string `json:"phiExport"`
+	// DefinitionAuthoring lists the roles the definition editor's writes need.
+	DefinitionAuthoring []string `json:"definitionAuthoring"`
 }
 
 // roleCapability is one IDE surface expressed as the two gates a request to it
@@ -114,6 +120,9 @@ var (
 	// (ExportRequest.Validate), so the IDE offers includeRawPayload only when
 	// the export would not be refused for it.
 	phiExportCapability = roleCapability{operation: ast.Mutation, field: "exportIntegrationBundle", serviceRoles: []string{enginesession.PHIExportRole}}
+	// .loom/42 E-1: authoring.Service re-checks the connection catalog's
+	// write roles.
+	definitionAuthoringCapability = roleCapability{operation: ast.Mutation, field: "createIntegrationDefinitionDraft", serviceRoles: operatorDeployment}
 )
 
 // evaluate reports whether roles clear both gates and, if not, the roles that
@@ -169,6 +178,10 @@ func deriveAuthStatus(security integration.SecurityContext, config *ServerConfig
 	status.Capabilities.LLM.Configured = config.LLMConfigured
 	status.Capabilities.ControlPlane = config.OperatorControlPlaneConfigured
 	status.Capabilities.ConnectionCatalog = config.ConnectionCatalogConfigured
+	// A deployment fact, like controlPlane; the roles its writes need are in
+	// missingRoles.definitionAuthoring.
+	status.Capabilities.DefinitionAuthoring = config.DefinitionAuthoringConfigured
+	_, status.MissingRoles.DefinitionAuthoring = definitionAuthoringCapability.evaluate(roles)
 	return status
 }
 

@@ -207,6 +207,21 @@ for (const route of ROUTES) {
   });
 }
 
+test('E1-2. /connections › Definitions says definition authoring is not configured, and queries no definition', async ({
+  page
+}) => {
+  const watch = await watchPage(page);
+  await openIDE(page, '/connections');
+  await page.getByTestId('connections-tab-definitions').click();
+  const preflight = page.getByTestId('definitions-preflight');
+  await expect(preflight).toBeVisible();
+  await expect(preflight).toHaveAttribute('data-reason', 'not-configured');
+  await expect(preflight).toContainText('Definition authoring is not configured on this deployment');
+  for (const field of ['integrationDefinitions', 'integrationDefinition', 'integrationRegistryArtifacts']) {
+    expect(watch.graphql.filter((request) => selects(request, field)), `${field} was not issued`).toHaveLength(0);
+  }
+});
+
 test('E0-8. controlPlane pre-flight: /operator and Home say the control plane is not configured, and query nothing', async ({
   page,
   request

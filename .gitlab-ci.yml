@@ -36,6 +36,7 @@ include:
   - local: ci/test-wasm.yml
   - local: ci/test-lifecycle-seed.yml
   - local: ci/test-verification-reads.yml
+  - local: ci/test-definition-authoring.yml
 stages:
   - lint
   - test

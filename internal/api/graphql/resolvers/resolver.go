@@ -16,6 +16,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/store"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/fhir/subscription"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle/authoring"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
 	integrationpreview "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
 	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
@@ -166,6 +167,10 @@ type Resolver struct {
 	// knows what it mounted, so every other composition leaves it nil and
 	// engineRuntime fails closed.
 	EngineRuntimeDescription *connection.RuntimeDescription
+
+	// DefinitionAuthoring is the definition editor's service (.loom/42 E-1),
+	// nil until serve composes it over the lifecycle and connection catalogs.
+	DefinitionAuthoring *authoring.Service
 
 	// False in every production composition. Superseded helper tests opt in
 	// directly so the public server remains fail-closed by default.

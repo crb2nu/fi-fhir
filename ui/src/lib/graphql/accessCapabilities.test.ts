@@ -92,8 +92,9 @@ describe('parseAuthStatus', () => {
       connectionsWrite: null,
       controlPlane: null,
       connectionCatalog: null,
-      // Nor does it know phiExport (.loom/42 E-3).
-      phiExport: null
+      // Nor does it know phiExport (.loom/42 E-3) or definitionAuthoring (E-1).
+      phiExport: null,
+      definitionAuthoring: null
     });
     expect(missingRolesFor(state, 'operatorRead')).toEqual(['integration.operator']);
     expect(missingRolesFor(state, 'clinicalRead')).toEqual([]);
@@ -139,6 +140,17 @@ describe('parseAuthStatus', () => {
     expect(capabilityOf(state, 'connectionCatalog')).toBe(true);
     expect(missingRolesFor(state, 'connectionsWrite')).toEqual(['integration.deployment.operator']);
     expect(missingRolesFor(state, 'connectionsRead')).toEqual([]);
+  });
+
+  it('reads definitionAuthoring and its missing roles (.loom/42 E-1)', () => {
+    const state = parseAuthStatus(
+      contractStatus({
+        capabilities: { ...contractStatus().capabilities, definitionAuthoring: false },
+        missingRoles: { ...contractStatus().missingRoles, definitionAuthoring: ['integration.deployment.operator'] }
+      })
+    );
+    expect(capabilityOf(state, 'definitionAuthoring')).toBe(false);
+    expect(missingRolesFor(state, 'definitionAuthoring')).toEqual(['integration.deployment.operator']);
   });
 
   it('keeps a connection capability unknown when its value is not a boolean', () => {

@@ -28,6 +28,7 @@ const laneChecks = [
 ];
 for (const [project, prefix] of laneChecks) (required[project] ??= []).push(prefix);
 required['operator-bundle'].push('E4-1.', 'E4-2.', 'E4-3.'); // .loom/42 E-4 shell honesty (shell.spec.ts)
+required['operator-bundle'].push('E1-1.'); required['preview-only'].push('E1-2.'); // .loom/42 E-1 definition authoring
 
 const [reportPath] = process.argv.slice(2);
 if (!reportPath) {

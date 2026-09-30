@@ -39,6 +39,7 @@ test:chaos-recovery	test	false
 test:connection-capture	test	false
 test:connection-catalog	test	false
 test:coverage-merge	test	false
+test:definition-authoring	test	false
 test:delivery-identity	test	false
 test:delivery-reliability	test	false
 test:deployment-lifecycle	test	false

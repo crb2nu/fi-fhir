@@ -373,6 +373,82 @@ A tap failure is also logged at warn with `component=connection-capture` and
 the reason; the error text comes from a store or the tap, never from a
 message.
 
+## Definition authoring
+
+`.loom/42` E-1. The Studio's Definitions tab writes integration definitions
+into the **lifecycle** catalog (not this ledger) through
+`internal/integration/lifecycle/authoring`, the package `fi-fhir lifecycle
+seed` also calls: `BuildDefinition`, the registry resolver proof
+(`Registry`), the planner rule (`RequireWorkflowDestinations`), the seed's
+file-binding convention (`FileBindings`), and the skip, static and batch
+validators live there, so the CLI and the API cannot author different bytes
+for the same inputs (`TestDefinitionAuthoringParity_SeedAndEditorAuthorTheSameBytes`).
+No migration: definitions use the lifecycle ledger's existing tables, and one
+new read (`ListDefinitions`) joins snapshots to revisions.
+
+**Composition.** `serve` builds `authoring.Service` when it has a lifecycle
+catalog (the durable database), this catalog, and the static registry
+(`FI_FHIR_INTEGRATION_REGISTRY_PATH`, always loaded by `serve`);
+`/api/auth/status` reports that deployment fact as
+`capabilities.definitionAuthoring`, and the roles the writes need as
+`missingRoles.definitionAuthoring`.
+
+**Roles.** Reads (`integrationDefinitions`, `integrationDefinition`,
+`integrationRegistryArtifacts`) need `integration.operator`; writes
+(`validateIntegrationDefinitionDraft`, `createIntegrationDefinitionDraft`,
+`validateIntegrationDefinition`, `approveIntegrationDefinition`,
+`publishIntegrationDefinition`) add `integration.deployment.operator`.
+The service re-checks both. Deploy stays `deployIntegrationRelease` on the
+operator plane.
+
+**Drafts.** Every secret binding reference, and a raw-retention encryption
+key, is checked with this catalog's own rules
+(`connection.CheckSecretBindingReferences`, `CheckSecretReference`): at most
+`MaxSecretBindings`, provider in the allow-list, key and version at most 256
+characters with no whitespace, no certificate or key material
+(`SECRET_VALUE_FORBIDDEN`); no problem message repeats a value, because a
+definition revision is append-only. The profile and workflow refs must be one
+static-registry entry's pair. Creating a revision that is already stored is
+idempotent: rebuilt under the stored creation audit, an equal digest returns
+the stored revision and different content is `ALREADY_EXISTS` (the seed's
+resume rule).
+
+**Validation modes.** `serve` installs one `ConnectionValidatorFunc` on its
+lifecycle catalog that dispatches on the mode the service puts on the context;
+a call that names no mode records `CONNECTION_CHECK_ERROR`.
+
+| Mode | Runs | Records |
+|---|---|---|
+| `REAL` | The batch validator the seed runs (`authoring.BatchValidator`), only for the batch source this replica mounts (`FI_FHIR_BATCH_SOURCE_CONFIG_PATH`), with the `FI_FHIR_BATCH_*` credentials the co-located batch runner already uses, so it opens no connection the pod does not already open. One REAL probe per replica at a time, held until the probe goroutine exits; an API-started check is capped at 20 s (recorded as `CONNECTION_CHECK_TIMEOUT`). Any other source is refused with "real validation is unavailable for this source on this replica" before anything is written. | The seed's codes |
+| `STATIC` | Nothing external. `SOURCE_MOUNTED` when this replica mounts the source digest or a fresh `integration_runtime_observations` row reports it; the source revision's binding names checked against the definition's bindings. Secret values are not resolved (`BINDINGS_NOT_CHECKED`): adapters load their own material at startup. | `VALIDATION_STATIC`, `SOURCE_MOUNTED`/`SOURCE_NOT_MOUNTED`, `BINDINGS_NOT_CHECKED`/`BINDING_UNRESOLVABLE` |
+| `SKIP` | Nothing; the reason must be at least 16 bytes. | `VALIDATION_SKIPPED` |
+
+The probe goroutine of a REAL check that outlives the catalog's deadline exits
+on its own once the provider's bounded dial returns (10 s TCP + 10 s SSH), and
+closes its provider (`TestBatchValidator_DeadlineLeaksNoGoroutineOrProvider`).
+
+**Environment.** `FI_FHIR_LIFECYCLE_VALIDATION_MAX_AGE` (seconds, 5–86400,
+default 300) is the validation max age of the default deployment policy a new
+draft gets; the evidence a check records expires after the definition's own
+`connection_validation.max_age_seconds`. It is in `serve --help` and the
+`engineRuntime` allowlist.
+
+**Error strings** (catalog-safe, admitted by the presenter):
+"integration definition authoring unavailable", "integration definition
+authoring forbidden", "invalid integration definition request", "integration
+definition not found", "integration definition version conflict", "invalid
+integration definition transition", "current connection validation required",
+"another revision of this definition is deployed or paused", "real validation
+is unavailable for this source on this replica", "a real validation is already
+running on this replica", "integration definition request failed". A draft
+refused by pre-flight is a result (`definition: null` plus `problems` in the
+`ConnectionProblem` shape), not an error.
+
+**CI proof.** `test:definition-authoring` (`ci/test-definition-authoring.yml`,
+`make definition-authoring`): the serve-shaped catalog hosts SKIP and STATIC
+validation, and an end-to-end draft → validated → approved → published run
+through `authoring.Service` over compiled connections and the golden registry.
+
 ## CI proofs
 
 | Job | Make target | Proves |

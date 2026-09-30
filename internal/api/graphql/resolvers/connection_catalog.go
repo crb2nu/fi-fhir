@@ -11,6 +11,7 @@ import (
 	graphqlapi "gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/api/graphql/model"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/connection"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle/authoring"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -416,7 +417,7 @@ func projectConnection(item connection.Connection) model.Connection {
 }
 
 func projectConnectionRevision(revision connection.Revision) model.ConnectionRevision {
-	return model.ConnectionRevision{
+	projected := model.ConnectionRevision{
 		ArtifactID:          revision.ArtifactID,
 		RevisionID:          revision.RevisionID,
 		Digest:              revision.Digest,
@@ -424,10 +425,21 @@ func projectConnectionRevision(revision connection.Revision) model.ConnectionRev
 		Kind:                model.ConnectionKind(strings.ToUpper(string(revision.Kind))),
 		RevisionJSON:        string(revision.Document),
 		CompiledFromVersion: int(revision.CompiledFromVersion),
+		SecretBindingNames:  []string{},
 		CreatedBy:           projectAuditPrincipal(revision.Created.Principal),
 		CreatedReason:       revision.Created.Reason,
 		CreatedAt:           revision.Created.OccurredAt.UTC(),
 	}
+	// .loom/42 E-1: what a definition binds, decoded with the kind's own
+	// decoder. A document that does not decode projects none of it.
+	if source, err := authoring.SourceFromDocument(revision.Kind, revision.Document); err == nil {
+		projected.SourceID = optionalPreviewString(source.SourceID)
+		projected.SecretBindingNames = nonNilStrings(source.BindingNames)
+	} else if destination, err := authoring.DestinationFromDocument(revision.Kind, revision.Document); err == nil {
+		projected.DestinationClass = optionalPreviewString(string(destination.Ref.Class))
+		projected.SecretBindingNames = nonNilStrings(destination.BindingNames)
+	}
+	return projected
 }
 
 func projectConnectionProblems(problems []connection.Problem) []model.ConnectionProblem {

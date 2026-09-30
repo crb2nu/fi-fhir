@@ -16,10 +16,8 @@ import (
 	integrationbatch "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/batch"
 	integrationdestination "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle/authoring"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/workflow"
-	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/events"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -52,6 +50,13 @@ import (
 // one of the definition's destination artifact IDs (processor/workflow_plan.go);
 // a miss fails every matching message with ErrInvalidWorkflowPlan. The seed
 // refuses such a definition instead of deploying one that cannot ingest.
+//
+// The seed and the Studio's definition editor (.loom/42 E-1) share one
+// implementation: internal/integration/lifecycle/authoring builds the
+// revision, proves the registry refs, applies the planner rule, and owns the
+// skip and batch validators. This file only assembles authoring's inputs from
+// files and flags, so the CLI and the API cannot author different bytes for
+// the same inputs (TestDefinitionAuthoringParity_SeedAndEditorAuthorTheSameBytes).
 
 const (
 	lifecycleSeedDefaultRevisionID = "v1"
@@ -59,29 +64,19 @@ const (
 	// The PostgreSQL connection authenticates the operator, as it does for
 	// `fi-fhir delivery replay`.
 	lifecycleSeedAuthMethod        = "postgres"
-	lifecycleSeedSourceKeyPrefix   = "batch/"
-	lifecycleSeedDestKeyPrefix     = "destinations/"
+	lifecycleSeedDestKeyPrefix     = authoring.DestinationFileKeyPrefix
 	lifecycleSeedMaxReasonBytes    = 1024
-	lifecycleSeedMinSkipReason     = 16
+	lifecycleSeedMinSkipReason     = authoring.MinSkipReasonBytes
 	lifecycleSeedRunTimeout        = 2 * time.Minute
 	lifecycleSeedValidationMargin  = 30 * time.Second
 	lifecycleSeedDestinationSchema = "fi-fhir/destination-registry/v1"
 	lifecycleSeedStdinPath         = "-"
 
-	seedValidateReal = "real"
-	seedValidateSkip = "skip"
+	seedValidateReal = string(authoring.ModeReal)
+	seedValidateSkip = string(authoring.ModeSkip)
 
-	// Validation outcome codes recorded in integration_connection_validations.
-	seedCodeSkipped           = "VALIDATION_SKIPPED"
-	seedCodeReachable         = "SOURCE_REACHABLE"
-	seedCodeHostKeyVerified   = "HOST_KEY_VERIFIED"
-	seedCodeAuthOK            = "AUTH_OK"
-	seedCodeVersioningEnabled = "BUCKET_VERSIONING_ENABLED"
-	seedCodeInputListed       = "INPUT_LISTED"
-	seedCodeConnectFailed     = "SOURCE_CONNECT_FAILED"
-	seedCodeListFailed        = "INPUT_LIST_FAILED"
-	seedCodeObjectInvalid     = "INPUT_OBJECT_INVALID"
-	seedCodeSourceMismatch    = "SOURCE_REVISION_MISMATCH"
+	// The validation outcome code a skipped validation records.
+	seedCodeSkipped = authoring.CodeSkipped
 )
 
 var errLifecycleSeedConflict = errors.New("definition revision already exists with different content")
@@ -412,14 +407,7 @@ func parseLifecycleSeedArgs(args []string) (lifecycleSeedArgs, error) {
 }
 
 func defaultSeedDeploymentPolicy() integration.IntegrationDeploymentPolicy {
-	return integration.IntegrationDeploymentPolicy{
-		ConnectionValidation: integration.ConnectionValidationPolicy{TimeoutSeconds: 5, MaxAgeSeconds: 300},
-		Schedule:             integration.SchedulePolicy{Mode: integration.ScheduleModeContinuous},
-		Health: integration.HealthPolicy{
-			StartupGraceSeconds: 5, CheckIntervalSeconds: 30, TimeoutSeconds: 5, FailureThreshold: 3,
-		},
-		Capacity: integration.CapacityPolicy{MaxInFlight: 2, MaxQueued: 10, MaxMessagesPerSecond: 100},
-	}
+	return authoring.DefaultDeploymentPolicy(authoring.DefaultValidationMaxAgeSeconds)
 }
 
 func parseSeedPositiveInt(name, value string) (int64, error) {
@@ -506,35 +494,18 @@ func resolveSeedRegistryArtifacts(
 	if err != nil {
 		return none, none, nil, err
 	}
-	if staticRegistry.DeploymentTenantID() != parsed.tenantID {
-		return none, none, nil, fmt.Errorf("integration registry tenant does not match deployment tenant %q", parsed.tenantID)
-	}
-	binding, err := staticRegistry.LookupPreviewBinding(ctx, parsed.tenantID, parsed.integrationID)
+	proven, err := authoring.NewRegistry(parsed.tenantID, staticRegistry)
 	if err != nil {
+		return none, none, nil, err
+	}
+	artifact, err := proven.Artifact(ctx, parsed.integrationID)
+	if errors.Is(err, authoring.ErrUnknownIntegration) {
 		return none, none, nil, fmt.Errorf("--integration %q is not in the integration registry", parsed.integrationID)
 	}
-	raw, err := staticRegistry.LoadDefinitionRevision(
-		ctx, parsed.tenantID, binding.IntegrationRevision.ArtifactID, binding.IntegrationRevision.RevisionID,
-	)
 	if err != nil {
-		return none, none, nil, fmt.Errorf("load registry definition for %q: %w", parsed.integrationID, err)
+		return none, none, nil, err
 	}
-	entry, err := integration.DecodeIntegrationDefinitionRevision(bytes.NewReader(raw))
-	if err != nil {
-		return none, none, nil, fmt.Errorf("decode registry definition for %q: %w", parsed.integrationID, err)
-	}
-	if entry.Format != events.FormatHL7v2 {
-		return none, none, nil, fmt.Errorf("--integration %q is format %q; the batch runner admits only %q", parsed.integrationID, entry.Format, events.FormatHL7v2)
-	}
-	resolver, err := processor.NewRevisionResolver(parsed.tenantID, staticRegistry)
-	if err != nil {
-		return none, none, nil, fmt.Errorf("configure artifact resolver: %w", err)
-	}
-	resolved, err := resolver.Resolve(ctx, parsed.tenantID, entry.Profile, entry.Workflow)
-	if err != nil {
-		return none, none, nil, fmt.Errorf("registry artifacts for %q do not resolve as the runtime resolves them: %w", parsed.integrationID, err)
-	}
-	return resolved.ProfileReference(), resolved.WorkflowReference(), resolved.WorkflowYAML(), nil
+	return artifact.Profile, artifact.Workflow, artifact.WorkflowYAML, nil
 }
 
 func loadSeedRegistry(path string) (*registry.StaticRegistry, error) {
@@ -553,37 +524,14 @@ func loadSeedRegistry(path string) (*registry.StaticRegistry, error) {
 	return staticRegistry, nil
 }
 
-// requireWorkflowDestinations mirrors the planner's binding rule
-// (processor/workflow_plan.go): a log action names no destination and every
-// other action names one of the definition's destination artifact IDs.
+// requireWorkflowDestinations is the planner's binding rule, shared with the
+// definition editor (authoring.RequireWorkflowDestinations).
 func requireWorkflowDestinations(
 	workflowRef integration.ArtifactRevisionRef,
 	workflowYAML []byte,
 	destinations map[string]struct{},
 ) error {
-	published, err := workflow.ParsePublishedWorkflow(workflowYAML)
-	if err != nil {
-		return fmt.Errorf("registry workflow %s/%s is not executable: %w", workflowRef.ArtifactID, workflowRef.RevisionID, err)
-	}
-	given := make([]string, 0, len(destinations))
-	for artifactID := range destinations {
-		given = append(given, artifactID)
-	}
-	sort.Strings(given)
-	for _, route := range published.Workflow().Routes {
-		for _, action := range route.Actions {
-			if action.Type == "log" {
-				continue
-			}
-			if _, found := destinations[action.Destination]; !found {
-				return fmt.Errorf(
-					"workflow %s/%s route %q action %q delivers to destination %q, which is not among the --destination artifacts [%s]; the runtime planner would refuse every matching message, so choose a registry entry whose workflow routes to these destinations or add that destination",
-					workflowRef.ArtifactID, workflowRef.RevisionID, route.Name, action.ID, action.Destination, strings.Join(given, ", "),
-				)
-			}
-		}
-	}
-	return nil
+	return authoring.RequireWorkflowDestinations(workflowRef, workflowYAML, destinations)
 }
 
 func readSeedFile(path string, stdin io.Reader, label string) ([]byte, error) {
@@ -623,41 +571,23 @@ func seedPathLabel(path string) string {
 // audit produce an equal digest. The creation audit is part of the digest, so
 // resume rebuilds the candidate under the stored revision's audit to compare.
 func buildSeedDefinition(inputs lifecycleSeedInputs, created integration.AuditEnvelope) (integration.IntegrationDefinitionRevision, error) {
-	bindings, err := seedDefinitionSecretBindings(inputs)
+	source := authoring.BatchSource(inputs.source)
+	destinations := make([]authoring.Destination, 0, len(inputs.destinations))
+	for _, destination := range inputs.destinations {
+		destinations = append(destinations, authoring.DestinationOf(destination.revision))
+	}
+	bindings, err := seedDefinitionSecretBindings(source, destinations)
 	if err != nil {
 		return integration.IntegrationDefinitionRevision{}, err
 	}
-	destinations := make([]integration.DestinationRevisionRef, 0, len(inputs.destinations))
-	for _, destination := range inputs.destinations {
-		destinations = append(destinations, destination.revision.Reference())
-	}
-	policy := inputs.args.policy
-	revision, err := integration.NewIntegrationDefinitionRevision(integration.IntegrationDefinitionRevisionInput{
-		DefinitionID: inputs.args.definitionID,
-		RevisionID:   inputs.args.revisionID,
-		TenantID:     inputs.args.tenantID,
-		Source: integration.SourceRevisionRef{
-			ArtifactRevisionRef: inputs.source.Reference(), SourceID: inputs.source.SourceID,
-		},
-		Format:         events.FormatHL7v2,
-		Profile:        inputs.profile,
-		Workflow:       inputs.workflow,
-		Destinations:   destinations,
-		SecretBindings: bindings,
-		Policy: integration.IntegrationPolicy{
-			Classification: integration.DataClassificationPHI,
-			RawRetention:   integration.RawRetentionPolicy{Mode: integration.RawRetentionModeEphemeral},
-		},
-		Deployment: &policy,
+	return authoring.BuildDefinition(authoring.Draft{
+		DefinitionID: inputs.args.definitionID, RevisionID: inputs.args.revisionID, TenantID: inputs.args.tenantID,
+		Source: source, Profile: inputs.profile, Workflow: inputs.workflow,
+		Destinations: destinations, SecretBindings: bindings,
+		Policy:     authoring.DefaultPolicy(),
+		Deployment: inputs.args.policy,
 		Created:    created,
 	})
-	if err != nil {
-		return integration.IntegrationDefinitionRevision{}, fmt.Errorf("build integration definition revision: %w", err)
-	}
-	if err := revision.ValidateForDeployment(); err != nil {
-		return integration.IntegrationDefinitionRevision{}, fmt.Errorf("integration definition revision is not deployable: %w", err)
-	}
-	return revision, nil
 }
 
 // seedDefinitionSecretBindings binds every name the source declares (file key
@@ -665,32 +595,8 @@ func buildSeedDefinition(inputs lifecycleSeedInputs, created integration.AuditEn
 // (file key destinations/<name>, the same reference the destination registry
 // carries), because destination.Revision.ValidateAgainst requires a deployed
 // release to name each of them too.
-func seedDefinitionSecretBindings(inputs lifecycleSeedInputs) ([]integration.SecretBinding, error) {
-	byName := make(map[string]integration.SecretBinding)
-	add := func(name, prefix string) error {
-		binding := integration.SecretBinding{
-			Name:      name,
-			Reference: integration.SecretReference{Provider: integration.SecretProviderFile, Key: prefix + name},
-		}
-		if existing, found := byName[name]; found && existing != binding {
-			return fmt.Errorf("secret binding %q is declared by both the source and a destination; rename one of them", name)
-		}
-		byName[name] = binding
-		return nil
-	}
-	for _, name := range inputs.source.SecretBindingNames() {
-		if err := add(name, lifecycleSeedSourceKeyPrefix); err != nil {
-			return nil, err
-		}
-	}
-	for _, destination := range inputs.destinations {
-		for _, name := range destination.revision.SecretBindingNames() {
-			if err := add(name, lifecycleSeedDestKeyPrefix); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return sortedSeedBindings(byName), nil
+func seedDefinitionSecretBindings(source authoring.Source, destinations []authoring.Destination) ([]integration.SecretBinding, error) {
+	return authoring.FileBindings(source, destinations)
 }
 
 func sortedSeedBindings(byName map[string]integration.SecretBinding) []integration.SecretBinding {
@@ -1002,79 +908,20 @@ func seedTransitionError(action string, args lifecycleSeedArgs, err error) error
 }
 
 func skipConnectionValidator() lifecycle.ConnectionValidatorFunc {
-	return func(context.Context, integration.IntegrationDefinitionRevision) (lifecycle.ConnectionValidationOutcome, error) {
-		return lifecycle.ConnectionValidationOutcome{Passed: true, Codes: []string{seedCodeSkipped}}, nil
-	}
+	return authoring.SkipValidator()
 }
 
-type batchProviderFactory func(integrationbatch.SourceRevision, batchProviderSecrets) (integrationbatch.Provider, error)
+type batchProviderFactory = authoring.BatchProviderFactory
 
-// batchConnectionValidator builds the provider the runner would build and lists
-// at most one object of the input location. The SFTP provider dials without a
-// context, so the probe runs beside the catalog's deadline; on expiry the
-// catalog records CONNECTION_CHECK_TIMEOUT and the probe closes its own provider.
-// Provider errors are already free of hosts, credentials, and paths; they go to
-// stderr as operator detail and never into the catalog, which keeps codes only.
+// batchConnectionValidator is the shared batch validator
+// (authoring.BatchValidator) the definition editor hosts in serve too.
 func batchConnectionValidator(
 	source integrationbatch.SourceRevision,
 	secrets batchProviderSecrets,
 	build batchProviderFactory,
 	stderr io.Writer,
 ) lifecycle.ConnectionValidatorFunc {
-	return func(ctx context.Context, revision integration.IntegrationDefinitionRevision) (lifecycle.ConnectionValidationOutcome, error) {
-		if revision.Source.ArtifactRevisionRef != source.Reference() || revision.Source.SourceID != source.SourceID {
-			return lifecycle.ConnectionValidationOutcome{Codes: []string{seedCodeSourceMismatch}}, nil
-		}
-		type probeResult struct {
-			outcome lifecycle.ConnectionValidationOutcome
-			detail  error
-		}
-		done := make(chan probeResult, 1)
-		go func() {
-			outcome, detail := probeBatchSource(ctx, source, secrets, build)
-			done <- probeResult{outcome: outcome, detail: detail}
-		}()
-		select {
-		case <-ctx.Done():
-			return lifecycle.ConnectionValidationOutcome{}, ctx.Err()
-		case result := <-done:
-			if result.detail != nil && stderr != nil {
-				_, _ = fmt.Fprintf(stderr, "connection validation detail: %v\n", result.detail)
-			}
-			return result.outcome, nil
-		}
-	}
-}
-
-func probeBatchSource(
-	ctx context.Context,
-	source integrationbatch.SourceRevision,
-	secrets batchProviderSecrets,
-	build batchProviderFactory,
-) (lifecycle.ConnectionValidationOutcome, error) {
-	provider, err := build(source, secrets)
-	if err != nil {
-		return lifecycle.ConnectionValidationOutcome{Codes: []string{seedCodeConnectFailed}}, err
-	}
-	defer func() { _ = provider.Close() }()
-	// NewSFTPProvider returns only after the TCP dial, the pinned host-key check,
-	// and authentication succeed. The S3 client makes no request until List.
-	reached := []string{}
-	if source.Provider == integrationbatch.ProviderSFTP {
-		reached = []string{seedCodeReachable, seedCodeHostKeyVerified, seedCodeAuthOK}
-	}
-	if _, err := provider.List(ctx, 1); err != nil {
-		code := seedCodeListFailed
-		if errors.Is(err, integrationbatch.ErrInvalidObject) {
-			code = seedCodeObjectInvalid
-		}
-		return lifecycle.ConnectionValidationOutcome{Codes: append(reached, code)}, err
-	}
-	if source.Provider == integrationbatch.ProviderS3 {
-		// List checks bucket versioning before listing under the input prefix.
-		reached = []string{seedCodeReachable, seedCodeAuthOK, seedCodeVersioningEnabled}
-	}
-	return lifecycle.ConnectionValidationOutcome{Passed: true, Codes: append(reached, seedCodeInputListed)}, nil
+	return authoring.BatchValidator(source, secrets, build, stderr)
 }
 
 func printLifecycleUsage(writer io.Writer) {

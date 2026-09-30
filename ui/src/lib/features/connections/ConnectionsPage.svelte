@@ -8,16 +8,22 @@
       runtime, which does not depend on the catalog);
     - no connectionsRead → the page names the missing role and issues no query;
     - no connectionsWrite → every form is read only, with one status line.
+  The Definitions tab (.loom/42 E-1) pre-flights definitionAuthoring in the
+  same precedence (definitionsAccess.ts) and reads `?definition=&revision=`
+  on mount.
   Unknown capabilities never block: the page queries and renders any failure
   inline.
 -->
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import ServerOff from '@lucide/svelte/icons/server-off';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import { accessCapabilities } from '$lib/graphql/accessCapabilities';
   import { EmptyState, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
   import ConnectionCatalog from './ConnectionCatalog.svelte';
+  import DefinitionsView from './DefinitionsView.svelte';
+  import { definitionsPreflight } from './definitionsAccess';
+  import { definitionFromQuery } from './definitionDraft';
   import EngineRuntimePanel from './EngineRuntimePanel.svelte';
   import { catalogPreflight, readPreflight, writeBlockedRoles } from './connectionsAccess';
   import { connectionsIntent, takeConnectionsIntent, type ConnectionsView } from './connectionsIntent';
@@ -30,6 +36,12 @@
       controls: 'connections-view-destinations',
       testid: 'connections-tab-destinations'
     },
+    {
+      id: 'definitions',
+      label: 'Definitions',
+      controls: 'connections-view-definitions',
+      testid: 'connections-tab-definitions'
+    },
     { id: 'engine', label: 'Engine', controls: 'connections-view-engine', testid: 'connections-tab-engine' }
   ];
 
@@ -40,7 +52,13 @@
 
   let view = $state<ConnectionsView>('sources');
   // A view mounts on first visit and stays mounted, so unsaved edits survive tab switches.
-  let visited = $state<Record<ConnectionsView, boolean>>({ sources: true, destinations: false, engine: false });
+  let visited = $state<Record<ConnectionsView, boolean>>({
+    sources: true,
+    destinations: false,
+    definitions: false,
+    engine: false
+  });
+  let definitionTarget = $state<{ definitionId: string; revisionId: string } | null>(null);
   let newRequest = $state<Record<'source' | 'destination', number>>({ source: 0, destination: 0 });
 
   const catalog = $derived(catalogPreflight($accessCapabilities));
@@ -48,6 +66,16 @@
   const writeBlocked = $derived(writeBlockedRoles($accessCapabilities));
   // Every read on the page needs the role; only "not configured" outranks it on the catalog tabs.
   const pagePreflight = $derived(read !== null && catalog?.reason !== 'not-configured' ? read : null);
+  const definitions = $derived(definitionsPreflight($accessCapabilities));
+
+  // `/connections?definition=<id>&revision=<id>` opens that definition.
+  onMount(() => {
+    const target = typeof window === 'undefined' ? null : definitionFromQuery(window.location.search);
+    if (target) {
+      definitionTarget = target;
+      show('definitions');
+    }
+  });
 
   function show(next: string): void {
     const target = next as ConnectionsView;
@@ -59,7 +87,7 @@
     if (!intent) return;
     takeConnectionsIntent();
     show(intent.view);
-    if (intent.openNew && intent.view !== 'engine') {
+    if (intent.openNew && (intent.view === 'sources' || intent.view === 'destinations')) {
       const direction = intent.view === 'sources' ? 'source' : 'destination';
       newRequest[direction] += 1;
     }
@@ -141,6 +169,64 @@
         {/if}
       </div>
     {/if}
+    {#if visited.definitions}
+      <div
+        class="view"
+        id="connections-view-definitions"
+        role="tabpanel"
+        aria-label="Definitions"
+        hidden={view !== 'definitions'}
+      >
+        {#if definitions?.reason === 'not-configured'}
+          <div class="preflight-wrap">
+            <EmptyState
+              icon={ServerOff}
+              align="start"
+              class="preflight"
+              data-testid="definitions-preflight"
+              data-reason="not-configured"
+            >
+              Definition authoring is not configured on this deployment. It needs the lifecycle and connection catalogs
+              (the PostgreSQL submission store, <code>{definitions.keys[0]}</code>, or <code>{definitions.keys[1]}</code>)
+              and the static integration registry.
+            </EmptyState>
+          </div>
+        {:else if definitions?.reason === 'missing-role'}
+          <div class="preflight-wrap">
+            <EmptyState
+              icon={ShieldAlert}
+              align="start"
+              class="preflight"
+              data-testid="definitions-preflight"
+              data-reason="missing-role"
+              data-missing-roles={definitions.missingRoles.join(',')}
+            >
+              Definitions need
+              {#each definitions.missingRoles as role, index (role)}{#if index > 0}{LIST_SEPARATOR}{/if}<code>{role}</code>{/each},
+              which this identity does not hold, so they were not queried.
+            </EmptyState>
+          </div>
+        {:else}
+          {#if definitions?.reason === 'read-only'}
+            <p
+              class="read-only"
+              role="status"
+              data-testid="definitions-preflight"
+              data-reason="read-only"
+              data-missing-roles={definitions.missingRoles.join(',')}
+            >
+              Read only: this identity does not hold
+              {#each definitions.missingRoles as role, index (role)}{#if index > 0}{LIST_SEPARATOR}{/if}<code>{role}</code>{/each},
+              so definitions cannot be created, validated, approved or published here.
+            </p>
+          {/if}
+          <DefinitionsView
+            writeBlocked={definitions?.reason === 'read-only' ? definitions.missingRoles : null}
+            initial={definitionTarget}
+          />
+        {/if}
+      </div>
+    {/if}
     {#if visited.engine}
       <div class="view" id="connections-view-engine" role="tabpanel" aria-label="Engine" hidden={view !== 'engine'}>
         {#if read}
@@ -202,6 +288,14 @@
 
   .line {
     display: block;
+  }
+
+  .read-only {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
   }
 
   .line + .line {

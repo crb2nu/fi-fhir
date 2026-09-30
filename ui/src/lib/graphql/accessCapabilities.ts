@@ -43,6 +43,12 @@ export interface AccessCapabilities {
    * holds `integration.phi.export`, .loom/42 E-3); `null` when not reported.
    */
   phiExport: boolean | null;
+  /**
+   * Definition authoring (.loom/42 E-1): a deployment fact, like
+   * `controlPlane`. The roles its writes need are in
+   * `missingRoles.definitionAuthoring`.
+   */
+  definitionAuthoring: boolean | null;
 }
 
 export type CapabilityKey = keyof Omit<AccessCapabilities, 'subscriptions' | 'llmConfigured'>;
@@ -114,7 +120,8 @@ export function parseAuthStatus(body: unknown): AccessCapabilityState {
       connectionsWrite: reportedBoolean(caps.connectionsWrite),
       controlPlane: reportedBoolean(caps.controlPlane),
       connectionCatalog: reportedBoolean(caps.connectionCatalog),
-      phiExport: reportedBoolean(caps.phiExport)
+      phiExport: reportedBoolean(caps.phiExport),
+      definitionAuthoring: reportedBoolean(caps.definitionAuthoring)
     },
     missingRoles: missing
   };

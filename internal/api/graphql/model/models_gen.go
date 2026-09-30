@@ -217,10 +217,23 @@ type ConnectionRevision struct {
 	// The exact bytes serve mounts.
 	RevisionJSON string `json:"revisionJson"`
 	// The draft version this revision was compiled from.
-	CompiledFromVersion int                `json:"compiledFromVersion"`
-	CreatedBy           *OperatorPrincipal `json:"createdBy"`
-	CreatedReason       string             `json:"createdReason"`
-	CreatedAt           time.Time          `json:"createdAt"`
+	CompiledFromVersion int `json:"compiledFromVersion"`
+	// The runtime source identity the revision carries (source_id); null for a
+	// destination. A definition binds it as source.sourceId (.loom/42 E-1).
+	SourceID *string `json:"sourceId,omitempty"`
+	// production or sandbox; null for a source.
+	DestinationClass *string `json:"destinationClass,omitempty"`
+	// The secret binding names this revision's own ValidateAgainst requires a
+	// definition to bind. Names only, never a reference or a value.
+	SecretBindingNames []string           `json:"secretBindingNames"`
+	CreatedBy          *OperatorPrincipal `json:"createdBy"`
+	CreatedReason      string             `json:"createdReason"`
+	CreatedAt          time.Time          `json:"createdAt"`
+}
+
+type ConnectionRevisionRefInput struct {
+	ArtifactID string `json:"artifactId"`
+	RevisionID string `json:"revisionId"`
 }
 
 type ConnectionRuntimeState struct {
@@ -575,6 +588,227 @@ type IdentifierConfigInput struct {
 	PrimaryIDPreference  []IDPreferenceRuleInput     `json:"primaryIdPreference,omitempty"`
 	Validation           *ValidationSettingsInput    `json:"validation,omitempty"`
 	Normalization        *NormalizationSettingsInput `json:"normalization,omitempty"`
+}
+
+type IntegrationArtifactRevisionInput struct {
+	ArtifactID string `json:"artifactId"`
+	RevisionID string `json:"revisionId"`
+	Digest     string `json:"digest"`
+}
+
+// One definition revision and its lifecycle snapshot.
+type IntegrationDefinition struct {
+	DefinitionID string `json:"definitionId"`
+	RevisionID   string `json:"revisionId"`
+	// The definition revision's semantic digest.
+	Digest           string  `json:"digest"`
+	ParentRevisionID *string `json:"parentRevisionId,omitempty"`
+	// draft, validated, approved, published, deployed, paused, or retired.
+	State string `json:"state"`
+	// Optimistic snapshot version; every write names it as expectedVersion.
+	Version             int                                `json:"version"`
+	Health              string                             `json:"health"`
+	ReleaseID           *string                            `json:"releaseId,omitempty"`
+	ValidationPassed    bool                               `json:"validationPassed"`
+	ValidationCheckedAt *time.Time                         `json:"validationCheckedAt,omitempty"`
+	ValidationExpiresAt *time.Time                         `json:"validationExpiresAt,omitempty"`
+	Source              *IntegrationDefinitionSource       `json:"source"`
+	Profile             *IntegrationArtifactRevision       `json:"profile"`
+	Workflow            *IntegrationArtifactRevision       `json:"workflow"`
+	Destinations        []IntegrationDefinitionDestination `json:"destinations"`
+	// References only: a name and where the secret lives, never its value.
+	SecretBindings []ConnectionSecretBinding        `json:"secretBindings"`
+	Policy         *IntegrationDefinitionPolicy     `json:"policy"`
+	Deployment     *IntegrationDeploymentPolicyView `json:"deployment"`
+	CreatedBy      *OperatorPrincipal               `json:"createdBy"`
+	CreatedReason  string                           `json:"createdReason"`
+	CreatedAt      time.Time                        `json:"createdAt"`
+	UpdatedBy      *OperatorPrincipal               `json:"updatedBy"`
+	UpdatedReason  string                           `json:"updatedReason"`
+	UpdatedAt      time.Time                        `json:"updatedAt"`
+}
+
+// The approval event a release binds.
+type IntegrationDefinitionApproval struct {
+	EventID    string             `json:"eventId"`
+	Actor      *OperatorPrincipal `json:"actor"`
+	Reason     string             `json:"reason"`
+	OccurredAt time.Time          `json:"occurredAt"`
+}
+
+type IntegrationDefinitionCommandInput struct {
+	DefinitionID string `json:"definitionId"`
+	RevisionID   string `json:"revisionId"`
+	// Optimistic concurrency guard; a stale version is rejected, never retried.
+	ExpectedVersion int    `json:"expectedVersion"`
+	Reason          string `json:"reason"`
+}
+
+type IntegrationDefinitionDestination struct {
+	ArtifactID string `json:"artifactId"`
+	RevisionID string `json:"revisionId"`
+	Digest     string `json:"digest"`
+	// production or sandbox.
+	Class string `json:"class"`
+}
+
+type IntegrationDefinitionDetail struct {
+	Definition *IntegrationDefinition `json:"definition"`
+	// Null until the first validation is recorded.
+	Validation *IntegrationDefinitionValidation `json:"validation,omitempty"`
+	// Null until approved.
+	Approval *IntegrationDefinitionApproval `json:"approval,omitempty"`
+	// Null until published.
+	Release *IntegrationDefinitionRelease `json:"release,omitempty"`
+	// True when REAL validation can run for this definition's source on this replica.
+	RealValidationAvailable bool `json:"realValidationAvailable"`
+}
+
+type IntegrationDefinitionDraftInput struct {
+	DefinitionID     string  `json:"definitionId"`
+	RevisionID       string  `json:"revisionId"`
+	ParentRevisionID *string `json:"parentRevisionId,omitempty"`
+	// A compiled source connection revision.
+	Source *ConnectionRevisionRefInput `json:"source"`
+	// Compiled destination connection revisions.
+	Destinations []ConnectionRevisionRefInput `json:"destinations"`
+	// From integrationRegistryArtifacts.
+	Profile  *IntegrationArtifactRevisionInput `json:"profile"`
+	Workflow *IntegrationArtifactRevisionInput `json:"workflow"`
+	// References only; a value is never accepted anywhere.
+	SecretBindings []ConnectionSecretBindingInput `json:"secretBindings"`
+	// Omitted: ephemeral.
+	RawRetention *IntegrationRawRetentionInput `json:"rawRetention,omitempty"`
+	// Omitted: the default policy with FI_FHIR_LIFECYCLE_VALIDATION_MAX_AGE.
+	Deployment *IntegrationDeploymentPolicyInput `json:"deployment,omitempty"`
+}
+
+type IntegrationDefinitionDraftResult struct {
+	// Null exactly when a blocking problem was found; nothing was written then.
+	Definition *IntegrationDefinitionDetail `json:"definition,omitempty"`
+	// Every code but UNUSED_BINDING blocks.
+	Problems []ConnectionProblem `json:"problems"`
+}
+
+type IntegrationDefinitionPolicy struct {
+	// Always phi.
+	Classification string                   `json:"classification"`
+	RawRetention   *IntegrationRawRetention `json:"rawRetention"`
+}
+
+// The immutable, digest-verified release a publish created.
+type IntegrationDefinitionRelease struct {
+	ReleaseID string `json:"releaseId"`
+	// The release record's own digest.
+	Digest          string             `json:"digest"`
+	ValidationID    string             `json:"validationId"`
+	ApprovalEventID string             `json:"approvalEventId"`
+	PublishedBy     *OperatorPrincipal `json:"publishedBy"`
+	PublishedReason string             `json:"publishedReason"`
+	PublishedAt     time.Time          `json:"publishedAt"`
+}
+
+type IntegrationDefinitionSource struct {
+	ArtifactID string `json:"artifactId"`
+	RevisionID string `json:"revisionId"`
+	Digest     string `json:"digest"`
+	SourceID   string `json:"sourceId"`
+}
+
+type IntegrationDefinitionValidateInput struct {
+	DefinitionID    string                    `json:"definitionId"`
+	RevisionID      string                    `json:"revisionId"`
+	ExpectedVersion int                       `json:"expectedVersion"`
+	Mode            IntegrationValidationMode `json:"mode"`
+	Reason          string                    `json:"reason"`
+}
+
+// The current connection-validation record of a definition revision.
+type IntegrationDefinitionValidation struct {
+	ValidationID string `json:"validationId"`
+	Passed       bool   `json:"passed"`
+	// Outcome codes, e.g. VALIDATION_STATIC, SOURCE_MOUNTED, VALIDATION_SKIPPED, INPUT_LISTED.
+	Codes     []string  `json:"codes"`
+	CheckedAt time.Time `json:"checkedAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	// The exact source revision the check was recorded against.
+	SourceRevision *IntegrationArtifactRevision `json:"sourceRevision"`
+	Actor          *OperatorPrincipal           `json:"actor"`
+	Reason         string                       `json:"reason"`
+}
+
+type IntegrationDeploymentPolicyInput struct {
+	ValidationTimeoutSeconds   int     `json:"validationTimeoutSeconds"`
+	ValidationMaxAgeSeconds    int     `json:"validationMaxAgeSeconds"`
+	ScheduleMode               string  `json:"scheduleMode"`
+	CronExpression             *string `json:"cronExpression,omitempty"`
+	Timezone                   *string `json:"timezone,omitempty"`
+	HealthStartupGraceSeconds  int     `json:"healthStartupGraceSeconds"`
+	HealthCheckIntervalSeconds int     `json:"healthCheckIntervalSeconds"`
+	HealthTimeoutSeconds       int     `json:"healthTimeoutSeconds"`
+	HealthFailureThreshold     int     `json:"healthFailureThreshold"`
+	MaxInFlight                int     `json:"maxInFlight"`
+	MaxQueued                  int     `json:"maxQueued"`
+	MaxMessagesPerSecond       int     `json:"maxMessagesPerSecond"`
+}
+
+type IntegrationDeploymentPolicyView struct {
+	ValidationTimeoutSeconds int `json:"validationTimeoutSeconds"`
+	ValidationMaxAgeSeconds  int `json:"validationMaxAgeSeconds"`
+	// continuous or cron.
+	ScheduleMode               string  `json:"scheduleMode"`
+	CronExpression             *string `json:"cronExpression,omitempty"`
+	Timezone                   *string `json:"timezone,omitempty"`
+	HealthStartupGraceSeconds  int     `json:"healthStartupGraceSeconds"`
+	HealthCheckIntervalSeconds int     `json:"healthCheckIntervalSeconds"`
+	HealthTimeoutSeconds       int     `json:"healthTimeoutSeconds"`
+	HealthFailureThreshold     int     `json:"healthFailureThreshold"`
+	MaxInFlight                int     `json:"maxInFlight"`
+	MaxQueued                  int     `json:"maxQueued"`
+	MaxMessagesPerSecond       int     `json:"maxMessagesPerSecond"`
+}
+
+type IntegrationRawRetention struct {
+	// ephemeral or encrypted.
+	Mode                string                       `json:"mode"`
+	TTLSeconds          *int                         `json:"ttlSeconds,omitempty"`
+	Purpose             *string                      `json:"purpose,omitempty"`
+	StorageRevision     *IntegrationArtifactRevision `json:"storageRevision,omitempty"`
+	EncryptionKey       *IntegrationSecretReference  `json:"encryptionKey,omitempty"`
+	AccessAuditRequired bool                         `json:"accessAuditRequired"`
+}
+
+type IntegrationRawRetentionInput struct {
+	// ephemeral (default) or encrypted.
+	Mode            string                            `json:"mode"`
+	TTLSeconds      *int                              `json:"ttlSeconds,omitempty"`
+	Purpose         *string                           `json:"purpose,omitempty"`
+	StorageRevision *IntegrationArtifactRevisionInput `json:"storageRevision,omitempty"`
+	EncryptionKey   *IntegrationSecretReferenceInput  `json:"encryptionKey,omitempty"`
+}
+
+// One static-registry integration's profile and workflow refs, proven with the
+// processor.RevisionResolver the runtime resolves admissions with. These are the
+// only refs a definition can bind until resolution moves onto the catalog.
+type IntegrationRegistryArtifact struct {
+	IntegrationID string                       `json:"integrationId"`
+	Profile       *IntegrationArtifactRevision `json:"profile"`
+	Workflow      *IntegrationArtifactRevision `json:"workflow"`
+	SourceID      string                       `json:"sourceId"`
+	Format        string                       `json:"format"`
+}
+
+type IntegrationSecretReference struct {
+	// env, file, vault, aws-ssm, or k8s.
+	Provider string  `json:"provider"`
+	Key      string  `json:"key"`
+	Version  *string `json:"version,omitempty"`
+}
+
+type IntegrationSecretReferenceInput struct {
+	Provider string  `json:"provider"`
+	Key      string  `json:"key"`
+	Version  *string `json:"version,omitempty"`
 }
 
 type LLMCapability struct {
@@ -1902,6 +2136,67 @@ func (e *ConnectionKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e ConnectionKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// The runtime check a validation performs; every mode records its own codes.
+type IntegrationValidationMode string
+
+const (
+	// The batch provider lists one object of the input location. Only for the batch source this replica mounts.
+	IntegrationValidationModeReal IntegrationValidationMode = "REAL"
+	// Contacts nothing: source mounted by a fresh replica, source bindings bound. Code VALIDATION_STATIC.
+	IntegrationValidationModeStatic IntegrationValidationMode = "STATIC"
+	// Records VALIDATION_SKIPPED; the reason must be at least 16 bytes.
+	IntegrationValidationModeSkip IntegrationValidationMode = "SKIP"
+)
+
+var AllIntegrationValidationMode = []IntegrationValidationMode{
+	IntegrationValidationModeReal,
+	IntegrationValidationModeStatic,
+	IntegrationValidationModeSkip,
+}
+
+func (e IntegrationValidationMode) IsValid() bool {
+	switch e {
+	case IntegrationValidationModeReal, IntegrationValidationModeStatic, IntegrationValidationModeSkip:
+		return true
+	}
+	return false
+}
+
+func (e IntegrationValidationMode) String() string {
+	return string(e)
+}
+
+func (e *IntegrationValidationMode) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = IntegrationValidationMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid IntegrationValidationMode", str)
+	}
+	return nil
+}
+
+func (e IntegrationValidationMode) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *IntegrationValidationMode) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e IntegrationValidationMode) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

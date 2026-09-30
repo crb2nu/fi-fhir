@@ -1,0 +1,36 @@
+# .loom/42 E-1: definition authoring over the lifecycle catalog.
+#
+# Against a fresh PostgreSQL schema per proof: the catalog serve builds, given
+# the mode-dispatching validator, records SKIP and STATIC evidence with their
+# codes and advances draft -> validated, stays draft on a failed static check,
+# and fails closed with CONNECTION_CHECK_ERROR when no mode is named (the E-1
+# kill-test, part b). End to end, compiled MLLP and FHIR connections plus the
+# golden registry entry adt-east become a draft through authoring.Service; an
+# unbound secret, a destination the workflow does not deliver to, and a taken
+# revision ID are refused with nothing written; STATIC fails while no replica
+# mounts the source and passes once one reports it; a stale version conflicts;
+# approve and publish produce the approval event and a digest-verified release;
+# REAL for an unmounted source, SKIP with a short reason, and a write without
+# the deployment grant are refused.
+#
+# The seed-vs-editor byte parity (kill-test part a), the validator leak check,
+# and the GraphQL gate tests need no database and run in test:unit.
+test:definition-authoring:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_definition_authoring_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_definition_authoring_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "definition authoring no longer records validation evidence in serve's catalog, stopped refusing a draft the runtime could not ingest, or broke the draft -> validated -> approved -> published path."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make definition-authoring"
+    PROOF_DOCS: "docs/operations/CONNECTION-CATALOG.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard: every proof t.Skips without POSTGRES_TEST_URL outside
+    # CI, so a renamed proof would make this job greener, not redder.
+    - >-
+      go test -tags=integration
+      -list '^TestDefinitionAuthoringPostgres_(ServeCatalogHostsSkipAndStaticValidation|EditorAuthorsValidatesApprovesAndPublishes)$'
+      ./internal/integration/lifecycle/authoring
+      | rg -x 'TestDefinitionAuthoringPostgres_(ServeCatalogHostsSkipAndStaticValidation|EditorAuthorsValidatesApprovesAndPublishes)'
+      | awk 'END { if (NR != 2) exit 1 }'
+    - make definition-authoring
