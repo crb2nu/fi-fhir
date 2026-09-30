@@ -86,7 +86,7 @@ var operatorRecovery = []string{operator.ReadRole, delivery.OperatorRole}
 // (internal/integration/operator/service.go:299).
 var operatorDeployment = []string{operator.ReadRole, operator.DeploymentOperatorRole}
 
-// rootFieldRoles covers all 145 schema root fields. A root field that is absent
+// rootFieldRoles covers all 147 schema root fields. A root field that is absent
 // is refused: see transportGateRolesSatisfied. TestTransportGateRoleMapIsExhaustive
 // fails when schema.graphql grows a root field this map does not name, so a new
 // field cannot reach production without a role decision.
@@ -102,6 +102,9 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		"operatorAttemptAudit":     operatorRead,
 		"operatorDeployments":      operatorRead,
 		"operatorDeploymentEvents": operatorRead,
+		// .loom/42 E-2 Verification: operator.Service re-checks the read role.
+		"operatorCanonicalEvents":     operatorRead,
+		"operatorAdmissionStatistics": operatorRead,
 
 		// .loom/38 C-0 connection catalog and engine runtime. Reads ride the
 		// operator read role (Decision 4: no new role); connection.Service

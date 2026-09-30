@@ -1,0 +1,31 @@
+# .loom/42 E-2: the Verification reads behind /events.
+#
+# operatorCanonicalEvents and operatorAdmissionStatistics read the durable
+# admission tables (integration_canonical_events joined to integration_receipts
+# and integration_message_lineage; integration_delivery_attempts) through the
+# operator control plane. This proof holds them against a real PostgreSQL 16 and
+# the full submission ledger, including 0006_verification_reads.sql: every
+# filter is an exact column match, keyset paging walks every row once,
+# tombstoned rows appear only with includePurged, a planted payload value never
+# appears in any response while the structural projection does (the negative
+# control), another tenant's admission never appears, and the statistics'
+# totals, groups and UTC series agree over a half-open window.
+test:verification-reads:
+  extends: .integration-proof
+  variables:
+    POSTGRES_DB: fi_fhir_verification_reads_test
+    POSTGRES_TEST_URL: "postgres://testuser:testpass@postgres:5432/fi_fhir_verification_reads_test?sslmode=disable"
+    PROOF_FAILURE_SUMMARY: "the Verification reads over durable admissions (browse, statistics, payload rule, tenant scope) regressed."
+    PROOF_LOCAL: "POSTGRES_TEST_URL=... make verification-reads"
+    PROOF_DOCS: ".loom/42-ide-unlock-execution-specs.md (E-2), docs/user-guide/verification.md"
+  script:
+    - !reference [.integration-proof-toolchain, script]
+    # Existence guard: the proof t.Skips without POSTGRES_TEST_URL, so a rename
+    # would make this job greener rather than redder (AGENTS.md).
+    - >-
+      go test -tags=integration
+      -list '^TestVerificationReads_BrowseAndStatisticsOverDurableAdmissions$'
+      ./internal/integration/operator
+      | rg -x 'TestVerificationReads_BrowseAndStatisticsOverDurableAdmissions'
+      | awk 'END { if (NR != 1) exit 1 }'
+    - make verification-reads

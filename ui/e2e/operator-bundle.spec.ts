@@ -70,7 +70,7 @@ test("2. operator page lists the fixture's Messages, with no pre-flight and no \
   expect(watch.errorToasts).toEqual([]);
 });
 
-test('3. an Integration Session stream opens; Events → Live Stream shows the honest state', async ({
+test('3. an Integration Session stream opens; Verification says admissions are not streamed', async ({
   page
 }) => {
   const watch = await watchPage(page);
@@ -99,14 +99,13 @@ test('3. an Integration Session stream opens; Events → Live Stream shows the h
   await expect(progress).toContainText('Preview complete');
   await expect(progress.locator('.stream-error')).toHaveCount(0);
 
-  // Events → Live Stream subscribes to eventStream, a root the SSE allowlist
-  // refuses by design: the tab must say so, and must not try.
+  // Verification (/events) has no Live tab since .loom/42 E-2: admissions are
+  // read from the durable tables, and the page says in one sentence that they
+  // are not streamed and where a session's run stream is. It never subscribes
+  // to eventStream, a root the SSE allowlist refuses by design.
   await openIDE(page, '/events');
-  await page.getByRole('tab', { name: 'Live Stream' }).click();
-  const unavailable = page.getByTestId('streaming-unavailable');
-  await expect(unavailable).toBeVisible();
-  await expect(unavailable).toHaveAttribute('data-stream', 'eventStream');
-  await expect(unavailable).toHaveAttribute('data-reason', 'not-allowlisted');
+  await expect(page.getByTestId('verification-not-streamed')).toContainText('not streamed');
+  await expect(page.getByRole('tab', { name: /Live/ })).toHaveCount(0);
 
   expect(watch.graphql.filter((request) => selects(request, 'eventStream'))).toHaveLength(0);
   expect(watch.errorToasts).toEqual([]);
@@ -792,5 +791,162 @@ test("E0-6. fleet: the Engine tab and Home report every replica's heartbeat, thi
   // Counted as the server counts totalReplicas: fresh replicas only.
   await expect(row).toHaveAttribute('data-fresh', /^[1-9]\d*$/);
   await expect(row).toContainText(/\d+ replicas? with a fresh heartbeat/);
+  expect(watch.errorToasts).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// .loom/42 E-2: Verification over durable admissions, on E-0's fixture
+// (e2e/fixture.sh): an accepted receipt per E2E-FIXTURE-00n, each one
+// canonical event. E0-4's resubmit adds an attempt, never a receipt.
+// ---------------------------------------------------------------------------
+
+interface FixtureAdmission {
+  eventId: string;
+  eventType: string;
+  sourceMessageId: string;
+  receiptId: string;
+}
+
+async function fixtureAdmissions(request: APIRequestContext): Promise<FixtureAdmission[]> {
+  const { operatorCanonicalEvents } = await graphqlData<{ operatorCanonicalEvents: { nodes: FixtureAdmission[] } }>(
+    request,
+    `query {
+      operatorCanonicalEvents(page: { first: 100 }) {
+        nodes { eventId eventType sourceMessageId receiptId }
+      }
+    }`
+  );
+  return operatorCanonicalEvents.nodes.filter((node) => node.sourceMessageId.startsWith('E2E-FIXTURE-'));
+}
+
+test("E2-1. admissions: Verification lists the fixture's admissions from the durable tables, never a payload value", async ({
+  page,
+  request
+}) => {
+  const fixture = await fixtureAdmissions(request);
+  // Every admission fixture.sh made (E2E-FIXTURE-001…004 since E-0's review), one event each.
+  const messages = fixture.map((row) => row.sourceMessageId).sort();
+  expect(messages).toEqual(expect.arrayContaining(['E2E-FIXTURE-001', 'E2E-FIXTURE-002', 'E2E-FIXTURE-003']));
+  expect(new Set(messages).size, 'one canonical event per fixture admission').toBe(messages.length);
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/events');
+  await expect(page.getByRole('heading', { name: 'Verification', exact: true })).toBeVisible();
+  await expect(page.getByTestId('verification-preflight')).toHaveCount(0);
+  const table = page.getByRole('table', { name: 'Durable admissions', exact: true });
+  await expect(table).toBeVisible();
+  for (const row of fixture) {
+    await expect(table.locator(`[data-event-id="${row.eventId}"]`)).toContainText(row.sourceMessageId);
+  }
+  await expect(page.getByTestId('verification-no-timeline')).toContainText('payload values are never read back');
+
+  // A row shows its payload's structure — paths and kinds, never a value.
+  // Click the event-type cell: the row's centre is a link out to Operator.
+  await table.locator(`[data-event-id="${fixture[0]!.eventId}"] td`).nth(1).click();
+  const fields = page.getByTestId('admission-fields');
+  await expect(fields).toBeVisible();
+  await expect(fields).not.toContainText('SYNTHETIC');
+
+  expect(watch.graphql.filter((request) => selects(request, 'operatorCanonicalEvents')).length).toBeGreaterThanOrEqual(1);
+  for (const legacy of ['events', 'eventStatistics', 'patientTimeline', 'eventStream']) {
+    expect(watch.graphql.filter((request) => selects(request, legacy)), `no ${legacy} query`).toHaveLength(0);
+  }
+  await expect(page.locator('body')).not.toContainText(/forbidden/i);
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('E2-2. admissions: filtering by event type and by MSH-10 narrows the list', async ({ page, request }) => {
+  const fixture = await fixtureAdmissions(request);
+  const eventType = fixture[0]!.eventType;
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/events');
+  const panel = page.getByTestId('verification-admissions');
+  const rows = panel.getByTestId('admission-row');
+  await expect(rows.first()).toBeVisible();
+
+  const apply = async () => {
+    const answered = page.waitForResponse((response) => selects(response.request(), 'operatorCanonicalEvents'));
+    await panel.getByRole('button', { name: 'Apply' }).click();
+    await answered;
+  };
+
+  // A type no fixture admission has: nothing matches.
+  await panel.getByRole('textbox', { name: 'Event type' }).fill('e2e_no_such_event_type');
+  await apply();
+  await expect(panel.getByTestId('admissions-empty')).toHaveText('No admissions match these filters.');
+
+  // The fixture's own type: every admission of that type, and only those.
+  await panel.getByRole('textbox', { name: 'Event type' }).fill(eventType);
+  await apply();
+  await expect(rows.first()).toBeVisible();
+  const types = await rows.evaluateAll((elements) => elements.map((element) => element.getAttribute('data-event-type')));
+  expect(new Set(types)).toEqual(new Set([eventType]));
+  expect(types.length).toBeGreaterThanOrEqual(fixture.filter((row) => row.eventType === eventType).length);
+
+  await panel.getByRole('textbox', { name: 'Event type' }).fill('');
+  await panel.getByRole('textbox', { name: 'Source message ID (MSH-10)' }).fill('E2E-FIXTURE-002');
+  await apply();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('E2E-FIXTURE-002');
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test("E2-3. deep links: ?receipt= filters to that receipt, and its row opens the receipt's trace on Operator", async ({
+  page,
+  request
+}) => {
+  const [admission] = (await fixtureAdmissions(request)).filter((row) => row.sourceMessageId === 'E2E-FIXTURE-003');
+  expect(admission).toBeTruthy();
+
+  const watch = await watchPage(page);
+  await openIDE(page, `/events?receipt=${encodeURIComponent(admission!.receiptId)}`);
+  const rows = page.getByTestId('admission-row');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toHaveAttribute('data-receipt-id', admission!.receiptId);
+  await expect(page.getByRole('textbox', { name: 'Receipt' })).toHaveValue(admission!.receiptId);
+
+  const link = rows.first().getByTestId('admission-receipt-link');
+  await expect(link).toHaveAttribute('href', `/operator?receipt=${encodeURIComponent(admission!.receiptId)}`);
+  await link.click();
+  await expect(page).toHaveURL(/\/operator\?receipt=/);
+  await expect(page.locator('.receipt-id')).toHaveText(admission!.receiptId);
+
+  // An absent receipt is said, not rendered as a blank.
+  await openIDE(page, '/events?receipt=e2e-no-such-receipt');
+  await expect(page.getByTestId('admissions-empty')).toHaveText('No admissions match these filters.');
+  expect(watch.errorToasts).toEqual([]);
+});
+
+test('E2-4. statistics: the last 24 hours count every accepted receipt, with the delivered ratio from attempts', async ({
+  page,
+  request
+}) => {
+  const { operatorReceipts } = await graphqlData<{ operatorReceipts: { nodes: { receiptId: string }[] } }>(
+    request,
+    `query { operatorReceipts(filter: { status: "accepted" }, page: { first: 100 }) { nodes { receiptId } } }`
+  );
+  const accepted = operatorReceipts.nodes.length;
+  expect(accepted, 'the fixture admitted at least three messages').toBeGreaterThanOrEqual(3);
+
+  const watch = await watchPage(page);
+  await openIDE(page, '/events');
+  await page.getByRole('tab', { name: 'Statistics' }).click();
+  const tile = page.getByTestId('stat-accepted');
+  await expect(tile).toHaveAttribute('data-value', String(accepted));
+  await expect(page.getByTestId('statistics-window')).toContainText('by hour');
+  await expect(page.getByTestId('stat-delivered')).toContainText('delivery attempts created in this window');
+  await expect(page.getByTestId('statistics-series')).toHaveAttribute('data-buckets', /^2[45]$/);
+  const bucketTotal = await page
+    .getByTestId('series-bucket')
+    .evaluateAll((elements) => elements.reduce((sum, element) => sum + Number(element.getAttribute('data-accepted')), 0));
+  expect(bucketTotal, 'the series sums to the total').toBe(accepted);
+
+  // Retention says whether the purge runs here; this stack has no policy.
+  await page.getByRole('tab', { name: 'Retention' }).click();
+  await expect(page.getByTestId('retention-posture')).toHaveAttribute('data-purge', 'false');
+  await expect(page.getByTestId('retention-posture')).toContainText('The retention purge is off');
+  await expect(page.getByTestId('retention-purged')).toHaveAttribute('data-value', '0');
+  expect(watch.graphql.filter((request) => selects(request, 'operatorAdmissionStatistics')).length).toBeGreaterThanOrEqual(2);
   expect(watch.errorToasts).toEqual([]);
 });

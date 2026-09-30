@@ -3425,6 +3425,16 @@ func (r *queryResolver) OperatorDeploymentEvents(ctx context.Context, definition
 	return r.operatorDeploymentEvents(ctx, definitionID, revisionID)
 }
 
+// OperatorCanonicalEvents is the resolver for the operatorCanonicalEvents field.
+func (r *queryResolver) OperatorCanonicalEvents(ctx context.Context, filter *model.OperatorCanonicalEventFilter, page *model.OperatorPageInput) (*model.OperatorCanonicalEventConnection, error) {
+	return r.operatorCanonicalEvents(ctx, filter, page)
+}
+
+// OperatorAdmissionStatistics is the resolver for the operatorAdmissionStatistics field.
+func (r *queryResolver) OperatorAdmissionStatistics(ctx context.Context, window model.OperatorStatisticsWindow, bucket model.OperatorStatisticsBucket) (*model.OperatorAdmissionStatistics, error) {
+	return r.operatorAdmissionStatistics(ctx, window, bucket)
+}
+
 // Connections is the resolver for the connections field.
 func (r *queryResolver) Connections(ctx context.Context, direction *model.ConnectionDirection, includeArchived *bool) ([]model.Connection, error) {
 	return r.connections(ctx, direction, includeArchived)

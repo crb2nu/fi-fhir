@@ -2781,6 +2781,136 @@ extend type Mutation {
 }
 
 # =============================================================================
+# Verification over durable admissions (.loom/42 E-2)
+#
+# The IDE's Verification stage (/events) reads the canonical events the
+# admission path committed, joined to their receipts, and counts admissions and
+# delivery attempts from columns. Same role, tenant scope and payload rule as
+# the operator reads above: a canonical event is described by its identifiers,
+# retention marks and payload structure, never by a stored value. The legacy
+# events/patientTimeline/eventStatistics/eventStream fields are unrelated and
+# unchanged.
+# =============================================================================
+
+input OperatorCanonicalEventFilter {
+  eventType: String
+  """The integration definition (receipt integration revision) artifact id."""
+  definitionId: ID
+  receiptId: ID
+  """MSH-10 for HL7v2 admissions."""
+  sourceMessageId: String
+  correlationId: String
+  from: DateTime
+  to: DateTime
+  """
+  Include events whose payload retention has tombstoned. Omitted or false
+  lists only events whose payload is intact.
+  """
+  includePurged: Boolean
+}
+
+"""One durable admission: a canonical event joined to its receipt."""
+type OperatorCanonicalEvent {
+  eventId: ID!
+  eventType: String!
+  sourceMessageId: String!
+  correlationId: String!
+  classification: String!
+  recordedAt: DateTime!
+  receiptId: ID!
+  """The admitting receipt's status: accepted or rejected."""
+  receiptStatus: String!
+  """The integration definition revision the receipt recorded."""
+  definition: IntegrationArtifactRevision!
+  """The source connection revision from the event's lineage; null without one."""
+  source: IntegrationArtifactRevision
+  payloadFields: [OperatorPayloadField!]!
+  payloadTruncated: Boolean!
+  purgeAfter: DateTime
+  purgedAt: DateTime
+}
+
+type OperatorCanonicalEventConnection {
+  nodes: [OperatorCanonicalEvent!]!
+  pageInfo: OperatorPageInfo!
+}
+
+"""A half-open [from, to) statistics window."""
+input OperatorStatisticsWindow {
+  from: DateTime!
+  to: DateTime!
+}
+
+"""
+Time-series bucket width, in UTC. A window may span at most 744 buckets
+(a month of hours); a wider one is refused, never clipped.
+"""
+enum OperatorStatisticsBucket {
+  HOUR
+  DAY
+}
+
+type OperatorKeyCount {
+  key: String!
+  count: Int!
+}
+
+type OperatorDefinitionAdmissions {
+  definitionId: ID!
+  revisionId: ID!
+  accepted: Int!
+  rejected: Int!
+}
+
+type OperatorDestinationAttempts {
+  destinationArtifactId: ID!
+  queued: Int!
+  succeeded: Int!
+  failed: Int!
+}
+
+"""
+One bucket of the series. Receipts count by their recorded time, delivery
+attempts by the time they were created, each under its current status.
+"""
+type OperatorStatisticsBucketCounts {
+  start: DateTime!
+  accepted: Int!
+  rejected: Int!
+  queued: Int!
+  succeeded: Int!
+  failed: Int!
+}
+
+"""Every count of one window, read from one database snapshot."""
+type OperatorAdmissionStatistics {
+  from: DateTime!
+  to: DateTime!
+  bucket: OperatorStatisticsBucket!
+  acceptedReceipts: Int!
+  rejectedReceipts: Int!
+  canonicalEvents: Int!
+  """Events whose payload retention replaced with a tombstone."""
+  purgedEvents: Int!
+  """Events carrying a retention deadline whose payload is still intact."""
+  scheduledForPurge: Int!
+  queuedAttempts: Int!
+  succeededAttempts: Int!
+  failedAttempts: Int!
+  eventsByType: [OperatorKeyCount!]!
+  receiptsByDefinition: [OperatorDefinitionAdmissions!]!
+  attemptsByDestination: [OperatorDestinationAttempts!]!
+  """True when a grouped list reached 100 groups and was cut; totals never are."""
+  groupsTruncated: Boolean!
+  series: [OperatorStatisticsBucketCounts!]!
+}
+
+extend type Query {
+  operatorCanonicalEvents(filter: OperatorCanonicalEventFilter, page: OperatorPageInput): OperatorCanonicalEventConnection!
+  operatorAdmissionStatistics(window: OperatorStatisticsWindow!, bucket: OperatorStatisticsBucket!): OperatorAdmissionStatistics!
+}
+
+# =============================================================================
 # Connection catalog (.loom/38 C-0)
 #
 # Named, editable declarations of the endpoints the engine listens on (sources:

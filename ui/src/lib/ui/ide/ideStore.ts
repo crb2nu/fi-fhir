@@ -114,7 +114,7 @@ const WORKSPACE_ROUTE_TITLES: Record<IDEView, string> = {
   system: 'Home',
   hl7: 'HL7 / Intake',
   workflows: 'Workflows',
-  events: 'Events',
+  events: 'Verification',
   profiles: 'Profiles',
   terminology: 'Terminology',
   connections: 'Connections',

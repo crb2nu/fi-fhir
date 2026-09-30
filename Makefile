@@ -41,6 +41,7 @@
 .PHONY: connection-capture                                             # .loom/38 — C-2
 .PHONY: wasm wasm-deps-check wasm-size-check wasm-smoke                # .loom/40 — D-0
 .PHONY: lifecycle-seed                                                 # lifecycle seed CLI
+.PHONY: verification-reads                                             # .loom/42 — E-2
 .PHONY: definition-authoring                                           # .loom/42 — E-1
 
 # Tool versions (update these when upgrading)
@@ -170,6 +171,19 @@ operator-control-plane:
 	go test -tags=integration -race -count=1 -timeout=300s \
 		-run '^TestOperatorControlPlane_(FailureReplayAndAuditGoldenJourneys|TraceShowsTheFHIRDelivery)$$' \
 		./internal/api/graphql
+
+# .loom/42 E-2: the Verification reads (ci/test-verification-reads.yml). Over
+# the real submission schema, operatorCanonicalEvents filters, pages and joins
+# canonical events to their receipts and lineage, hides tombstoned rows unless
+# asked, and never returns a payload value or another tenant's row; and
+# operatorAdmissionStatistics counts the same rows over a half-open UTC window
+# from one snapshot, with totals equal to the sum of the series. Requires
+# POSTGRES_TEST_URL; the proof skips without it outside CI, which is why the CI
+# job asserts the name exists first.
+verification-reads:
+	go test -tags=integration -race -count=1 -timeout=300s \
+		-run '^TestVerificationReads_BrowseAndStatisticsOverDurableAdmissions$$' \
+		./internal/integration/operator
 
 # Slice 4.1d C1 PHI audit immutability and export attribution kill-test
 # (PostgreSQL 16 required). Also runs the retention-posture gate that keeps

@@ -73,4 +73,5 @@ test:transport-gate	test	false
 test:ui	test	false
 test:ui-e2e	test	false
 test:unit	test	false
+test:verification-reads	test	false
 test:wasm	test	false

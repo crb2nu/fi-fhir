@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import {
-  EventsDocument,
   HealthDocument,
+  OperatorReceiptsDocument,
   PreviewIntegrationMessageDocument,
 } from "$lib/gen/graphql";
 import { graphqlFetch } from "./client";
@@ -52,12 +52,10 @@ describe("Live Backend GraphQL Integration", () => {
       try {
         await expect(
           graphqlFetch(
-            EventsDocument,
+            OperatorReceiptsDocument,
             {
-              first: 1,
               filter: null,
-              after: null,
-              orderBy: null,
+              page: { first: 1, after: null },
             },
             { showErrorToast: false },
           ),

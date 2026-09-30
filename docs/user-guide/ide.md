@@ -40,7 +40,7 @@ capabilities, pages try the request and report any failure inline.
   arrow keys, Home and End move between them. Home (`/`), Connections and
   Operator are not stages.
 - **Activity bar**: Home, HL7 / Intake, Profiles, Terminology, Workflows,
-  Events, Connections, Operator.
+  Verification, Connections, Operator.
 - **Status bar**: the API connection ("Connected", "Connecting", "Offline",
   from `/health` every 30 s), the access chip, **Next:** *the following
   stage*, and the build tag.
@@ -158,12 +158,12 @@ stream Integration Sessions only, it says so and points to the recorded runs.
 Details are in [Managing Workflows in the IDE](workflows.md#managing-workflows-in-the-ide);
 the DSL is in [Workflow Configuration](workflows.md).
 
-### Events (`/events`), stage 5
+### Verification (`/events`), stage 5
 
-Browse recorded events, Live Stream, Patient Timeline and Statistics. Live
-Stream needs the `eventStream` subscription, which production deployments do
-not allow. There it shows "Live streaming for the event stream is not available
-on this deployment" and points to the Events browser.
+**Admissions**, **Statistics** and **Retention**, read from the durable
+admission records through the operator control plane (`integration.operator`).
+The page does not stream and has no patient timeline, and it says why. See
+[Verification](verification.md).
 
 ### Connections (`/connections`)
 

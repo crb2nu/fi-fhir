@@ -119,7 +119,7 @@ describe('ideStore', () => {
       const tabs: EditorTab[] = [
         { id: '/hl7', title: 'HL7 Mapping', dirty: false, view: 'hl7' },
         { id: '/workflows', title: 'Workflows', dirty: false, view: 'workflows' },
-        { id: '/events', title: 'Events', dirty: false, view: 'events' },
+        { id: '/events', title: 'Verification', dirty: false, view: 'events' },
       ];
 
       expect(resolveNextWorkspaceTabId(tabs, '/workflows', '/workflows')).toBe('/events');

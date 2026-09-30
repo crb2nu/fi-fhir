@@ -1,0 +1,90 @@
+# Verification (/events, .loom/42 E-2): durable admissions and their counts,
+# read through the operator control plane (integration.operator). A canonical
+# event is described by identifiers, retention marks and payload structure;
+# no selection here can return a stored payload value.
+
+query VerificationAdmissions($filter: OperatorCanonicalEventFilter, $page: OperatorPageInput) {
+  operatorCanonicalEvents(filter: $filter, page: $page) {
+    nodes {
+      eventId
+      eventType
+      sourceMessageId
+      correlationId
+      classification
+      recordedAt
+      receiptId
+      receiptStatus
+      definition {
+        artifactId
+        revisionId
+        digest
+      }
+      source {
+        artifactId
+        revisionId
+        digest
+      }
+      payloadFields {
+        path
+        kind
+        repeated
+      }
+      payloadTruncated
+      purgeAfter
+      purgedAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query VerificationStatistics($window: OperatorStatisticsWindow!, $bucket: OperatorStatisticsBucket!) {
+  operatorAdmissionStatistics(window: $window, bucket: $bucket) {
+    from
+    to
+    bucket
+    acceptedReceipts
+    rejectedReceipts
+    canonicalEvents
+    purgedEvents
+    scheduledForPurge
+    queuedAttempts
+    succeededAttempts
+    failedAttempts
+    eventsByType {
+      key
+      count
+    }
+    receiptsByDefinition {
+      definitionId
+      revisionId
+      accepted
+      rejected
+    }
+    attemptsByDestination {
+      destinationArtifactId
+      queued
+      succeeded
+      failed
+    }
+    groupsTruncated
+    series {
+      start
+      accepted
+      rejected
+      queued
+      succeeded
+      failed
+    }
+  }
+}
+
+# Whether the retention purge worker runs on the replica that answered.
+query VerificationRetentionPosture {
+  engineRuntime {
+    replicaId
+    retentionPurge
+  }
+}

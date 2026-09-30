@@ -879,6 +879,29 @@ type NormalizationSettingsInput struct {
 	PhoneFormat       *string  `json:"phoneFormat,omitempty"`
 }
 
+// Every count of one window, read from one database snapshot.
+type OperatorAdmissionStatistics struct {
+	From             time.Time                `json:"from"`
+	To               time.Time                `json:"to"`
+	Bucket           OperatorStatisticsBucket `json:"bucket"`
+	AcceptedReceipts int                      `json:"acceptedReceipts"`
+	RejectedReceipts int                      `json:"rejectedReceipts"`
+	CanonicalEvents  int                      `json:"canonicalEvents"`
+	// Events whose payload retention replaced with a tombstone.
+	PurgedEvents int `json:"purgedEvents"`
+	// Events carrying a retention deadline whose payload is still intact.
+	ScheduledForPurge     int                            `json:"scheduledForPurge"`
+	QueuedAttempts        int                            `json:"queuedAttempts"`
+	SucceededAttempts     int                            `json:"succeededAttempts"`
+	FailedAttempts        int                            `json:"failedAttempts"`
+	EventsByType          []OperatorKeyCount             `json:"eventsByType"`
+	ReceiptsByDefinition  []OperatorDefinitionAdmissions `json:"receiptsByDefinition"`
+	AttemptsByDestination []OperatorDestinationAttempts  `json:"attemptsByDestination"`
+	// True when a grouped list reached 100 groups and was cut; totals never are.
+	GroupsTruncated bool                             `json:"groupsTruncated"`
+	Series          []OperatorStatisticsBucketCounts `json:"series"`
+}
+
 type OperatorAttemptFilter struct {
 	Status                *string    `json:"status,omitempty"`
 	DestinationArtifactID *string    `json:"destinationArtifactId,omitempty"`
@@ -902,6 +925,47 @@ type OperatorAuditRecord struct {
 	Reason       string             `json:"reason"`
 	Detail       map[string]any     `json:"detail"`
 	RecordedAt   time.Time          `json:"recordedAt"`
+}
+
+// One durable admission: a canonical event joined to its receipt.
+type OperatorCanonicalEvent struct {
+	EventID         string    `json:"eventId"`
+	EventType       string    `json:"eventType"`
+	SourceMessageID string    `json:"sourceMessageId"`
+	CorrelationID   string    `json:"correlationId"`
+	Classification  string    `json:"classification"`
+	RecordedAt      time.Time `json:"recordedAt"`
+	ReceiptID       string    `json:"receiptId"`
+	// The admitting receipt's status: accepted or rejected.
+	ReceiptStatus string `json:"receiptStatus"`
+	// The integration definition revision the receipt recorded.
+	Definition *IntegrationArtifactRevision `json:"definition"`
+	// The source connection revision from the event's lineage; null without one.
+	Source           *IntegrationArtifactRevision `json:"source,omitempty"`
+	PayloadFields    []OperatorPayloadField       `json:"payloadFields"`
+	PayloadTruncated bool                         `json:"payloadTruncated"`
+	PurgeAfter       *time.Time                   `json:"purgeAfter,omitempty"`
+	PurgedAt         *time.Time                   `json:"purgedAt,omitempty"`
+}
+
+type OperatorCanonicalEventConnection struct {
+	Nodes    []OperatorCanonicalEvent `json:"nodes"`
+	PageInfo *OperatorPageInfo        `json:"pageInfo"`
+}
+
+type OperatorCanonicalEventFilter struct {
+	EventType *string `json:"eventType,omitempty"`
+	// The integration definition (receipt integration revision) artifact id.
+	DefinitionID *string `json:"definitionId,omitempty"`
+	ReceiptID    *string `json:"receiptId,omitempty"`
+	// MSH-10 for HL7v2 admissions.
+	SourceMessageID *string    `json:"sourceMessageId,omitempty"`
+	CorrelationID   *string    `json:"correlationId,omitempty"`
+	From            *time.Time `json:"from,omitempty"`
+	To              *time.Time `json:"to,omitempty"`
+	// Include events whose payload retention has tombstoned. Omitted or false
+	// lists only events whose payload is intact.
+	IncludePurged *bool `json:"includePurged,omitempty"`
 }
 
 type OperatorCircuit struct {
@@ -937,6 +1001,13 @@ type OperatorDeadLetter struct {
 type OperatorDeadLetterConnection struct {
 	Nodes    []OperatorDeadLetter `json:"nodes"`
 	PageInfo *OperatorPageInfo    `json:"pageInfo"`
+}
+
+type OperatorDefinitionAdmissions struct {
+	DefinitionID string `json:"definitionId"`
+	RevisionID   string `json:"revisionId"`
+	Accepted     int    `json:"accepted"`
+	Rejected     int    `json:"rejected"`
 }
 
 type OperatorDeliveryAttempt struct {
@@ -1019,6 +1090,13 @@ type OperatorDeploymentEvent struct {
 	OccurredAt time.Time          `json:"occurredAt"`
 }
 
+type OperatorDestinationAttempts struct {
+	DestinationArtifactID string `json:"destinationArtifactId"`
+	Queued                int    `json:"queued"`
+	Succeeded             int    `json:"succeeded"`
+	Failed                int    `json:"failed"`
+}
+
 // One executed destination delivery from the provenance ledger. The ledger is
 // clinical-content-free by construction: server-owned provenance plus three
 // advisory values (endpoint, certificate subject, OperationOutcome issue codes),
@@ -1070,6 +1148,11 @@ type OperatorEvent struct {
 	// When retention replaced this event's payload with a tombstone. When set,
 	// payloadFields describe the tombstone, not the admitted document.
 	PurgedAt *time.Time `json:"purgedAt,omitempty"`
+}
+
+type OperatorKeyCount struct {
+	Key   string `json:"key"`
+	Count int    `json:"count"`
 }
 
 type OperatorLineage struct {
@@ -1157,6 +1240,23 @@ type OperatorRoute struct {
 	TransformCount  int      `json:"transformCount"`
 	PlannedActions  []string `json:"plannedActions"`
 	DiagnosticCodes []string `json:"diagnosticCodes"`
+}
+
+// One bucket of the series. Receipts count by their recorded time, delivery
+// attempts by the time they were created, each under its current status.
+type OperatorStatisticsBucketCounts struct {
+	Start     time.Time `json:"start"`
+	Accepted  int       `json:"accepted"`
+	Rejected  int       `json:"rejected"`
+	Queued    int       `json:"queued"`
+	Succeeded int       `json:"succeeded"`
+	Failed    int       `json:"failed"`
+}
+
+// A half-open [from, to) statistics window.
+type OperatorStatisticsWindow struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
 }
 
 type PagingInput struct {
@@ -2213,6 +2313,63 @@ func (e *MappingOrigin) UnmarshalJSON(b []byte) error {
 }
 
 func (e MappingOrigin) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Time-series bucket width, in UTC. A window may span at most 744 buckets
+// (a month of hours); a wider one is refused, never clipped.
+type OperatorStatisticsBucket string
+
+const (
+	OperatorStatisticsBucketHour OperatorStatisticsBucket = "HOUR"
+	OperatorStatisticsBucketDay  OperatorStatisticsBucket = "DAY"
+)
+
+var AllOperatorStatisticsBucket = []OperatorStatisticsBucket{
+	OperatorStatisticsBucketHour,
+	OperatorStatisticsBucketDay,
+}
+
+func (e OperatorStatisticsBucket) IsValid() bool {
+	switch e {
+	case OperatorStatisticsBucketHour, OperatorStatisticsBucketDay:
+		return true
+	}
+	return false
+}
+
+func (e OperatorStatisticsBucket) String() string {
+	return string(e)
+}
+
+func (e *OperatorStatisticsBucket) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = OperatorStatisticsBucket(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid OperatorStatisticsBucket", str)
+	}
+	return nil
+}
+
+func (e OperatorStatisticsBucket) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *OperatorStatisticsBucket) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e OperatorStatisticsBucket) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

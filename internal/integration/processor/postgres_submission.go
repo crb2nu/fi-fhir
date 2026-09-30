@@ -56,6 +56,9 @@ var auditImmutabilityMigration string
 //go:embed migrations/0005_retention_expiry.sql
 var retentionExpiryMigration string
 
+//go:embed migrations/0006_verification_reads.sql
+var verificationReadsMigration string
+
 var submissionMigrations = []struct {
 	version int64
 	name    string
@@ -66,6 +69,7 @@ var submissionMigrations = []struct {
 	{version: 3, name: "0003_operator_control_plane", sql: operatorControlPlaneMigration},
 	{version: 4, name: "0004_audit_immutability", sql: auditImmutabilityMigration},
 	{version: 5, name: "0005_retention_expiry", sql: retentionExpiryMigration},
+	{version: 6, name: "0006_verification_reads", sql: verificationReadsMigration},
 }
 
 // SchemaVersion is the submission ledger version this binary expects.
@@ -77,7 +81,7 @@ var submissionMigrations = []struct {
 // TestMigrationCompatibility_ConcurrentReplicaMigrationRollbackAndRestore
 // asserts this equals the highest version in submissionMigrations, so the two
 // cannot drift.
-const SchemaVersion = 5
+const SchemaVersion = 6
 
 // AdmissionAuthorizer runs inside the durable submission transaction before
 // any receipt rows are written. Implementations may take database locks that

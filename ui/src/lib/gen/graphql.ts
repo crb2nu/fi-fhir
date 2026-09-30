@@ -2029,6 +2029,30 @@ export type NormalizationSettingsInput = {
   ssnStripDashes: InputMaybe<Scalars['Boolean']['input']>;
 };
 
+/** Every count of one window, read from one database snapshot. */
+export type OperatorAdmissionStatistics = {
+  __typename?: 'OperatorAdmissionStatistics';
+  acceptedReceipts: Scalars['Int']['output'];
+  attemptsByDestination: Array<OperatorDestinationAttempts>;
+  bucket: OperatorStatisticsBucket;
+  canonicalEvents: Scalars['Int']['output'];
+  eventsByType: Array<OperatorKeyCount>;
+  failedAttempts: Scalars['Int']['output'];
+  from: Scalars['DateTime']['output'];
+  /** True when a grouped list reached 100 groups and was cut; totals never are. */
+  groupsTruncated: Scalars['Boolean']['output'];
+  /** Events whose payload retention replaced with a tombstone. */
+  purgedEvents: Scalars['Int']['output'];
+  queuedAttempts: Scalars['Int']['output'];
+  receiptsByDefinition: Array<OperatorDefinitionAdmissions>;
+  rejectedReceipts: Scalars['Int']['output'];
+  /** Events carrying a retention deadline whose payload is still intact. */
+  scheduledForPurge: Scalars['Int']['output'];
+  series: Array<OperatorStatisticsBucketCounts>;
+  succeededAttempts: Scalars['Int']['output'];
+  to: Scalars['DateTime']['output'];
+};
+
 export type OperatorAttemptFilter = {
   destinationArtifactId: InputMaybe<Scalars['ID']['input']>;
   from: InputMaybe<Scalars['DateTime']['input']>;
@@ -2054,6 +2078,51 @@ export type OperatorAuditRecord = {
   principal: OperatorPrincipal;
   reason: Scalars['String']['output'];
   recordedAt: Scalars['DateTime']['output'];
+};
+
+/** One durable admission: a canonical event joined to its receipt. */
+export type OperatorCanonicalEvent = {
+  __typename?: 'OperatorCanonicalEvent';
+  classification: Scalars['String']['output'];
+  correlationId: Scalars['String']['output'];
+  /** The integration definition revision the receipt recorded. */
+  definition: IntegrationArtifactRevision;
+  eventId: Scalars['ID']['output'];
+  eventType: Scalars['String']['output'];
+  payloadFields: Array<OperatorPayloadField>;
+  payloadTruncated: Scalars['Boolean']['output'];
+  purgeAfter: Maybe<Scalars['DateTime']['output']>;
+  purgedAt: Maybe<Scalars['DateTime']['output']>;
+  receiptId: Scalars['ID']['output'];
+  /** The admitting receipt's status: accepted or rejected. */
+  receiptStatus: Scalars['String']['output'];
+  recordedAt: Scalars['DateTime']['output'];
+  /** The source connection revision from the event's lineage; null without one. */
+  source: Maybe<IntegrationArtifactRevision>;
+  sourceMessageId: Scalars['String']['output'];
+};
+
+export type OperatorCanonicalEventConnection = {
+  __typename?: 'OperatorCanonicalEventConnection';
+  nodes: Array<OperatorCanonicalEvent>;
+  pageInfo: OperatorPageInfo;
+};
+
+export type OperatorCanonicalEventFilter = {
+  correlationId: InputMaybe<Scalars['String']['input']>;
+  /** The integration definition (receipt integration revision) artifact id. */
+  definitionId: InputMaybe<Scalars['ID']['input']>;
+  eventType: InputMaybe<Scalars['String']['input']>;
+  from: InputMaybe<Scalars['DateTime']['input']>;
+  /**
+   * Include events whose payload retention has tombstoned. Omitted or false
+   * lists only events whose payload is intact.
+   */
+  includePurged: InputMaybe<Scalars['Boolean']['input']>;
+  receiptId: InputMaybe<Scalars['ID']['input']>;
+  /** MSH-10 for HL7v2 admissions. */
+  sourceMessageId: InputMaybe<Scalars['String']['input']>;
+  to: InputMaybe<Scalars['DateTime']['input']>;
 };
 
 export type OperatorCircuit = {
@@ -2093,6 +2162,14 @@ export type OperatorDeadLetterConnection = {
   __typename?: 'OperatorDeadLetterConnection';
   nodes: Array<OperatorDeadLetter>;
   pageInfo: OperatorPageInfo;
+};
+
+export type OperatorDefinitionAdmissions = {
+  __typename?: 'OperatorDefinitionAdmissions';
+  accepted: Scalars['Int']['output'];
+  definitionId: Scalars['ID']['output'];
+  rejected: Scalars['Int']['output'];
+  revisionId: Scalars['ID']['output'];
 };
 
 export type OperatorDeliveryAttempt = {
@@ -2183,6 +2260,14 @@ export type OperatorDeploymentEvent = {
   version: Scalars['Int']['output'];
 };
 
+export type OperatorDestinationAttempts = {
+  __typename?: 'OperatorDestinationAttempts';
+  destinationArtifactId: Scalars['ID']['output'];
+  failed: Scalars['Int']['output'];
+  queued: Scalars['Int']['output'];
+  succeeded: Scalars['Int']['output'];
+};
+
 /**
  * One executed destination delivery from the provenance ledger. The ledger is
  * clinical-content-free by construction: server-owned provenance plus three
@@ -2241,6 +2326,12 @@ export type OperatorEvent = {
   receiptId: Scalars['ID']['output'];
   recordedAt: Scalars['DateTime']['output'];
   sourceMessageId: Scalars['String']['output'];
+};
+
+export type OperatorKeyCount = {
+  __typename?: 'OperatorKeyCount';
+  count: Scalars['Int']['output'];
+  key: Scalars['String']['output'];
 };
 
 export type OperatorLineage = {
@@ -2336,6 +2427,34 @@ export type OperatorRoute = {
   skipReason: Maybe<Scalars['String']['output']>;
   skipped: Scalars['Boolean']['output'];
   transformCount: Scalars['Int']['output'];
+};
+
+/**
+ * Time-series bucket width, in UTC. A window may span at most 744 buckets
+ * (a month of hours); a wider one is refused, never clipped.
+ */
+export type OperatorStatisticsBucket =
+  | 'DAY'
+  | 'HOUR';
+
+/**
+ * One bucket of the series. Receipts count by their recorded time, delivery
+ * attempts by the time they were created, each under its current status.
+ */
+export type OperatorStatisticsBucketCounts = {
+  __typename?: 'OperatorStatisticsBucketCounts';
+  accepted: Scalars['Int']['output'];
+  failed: Scalars['Int']['output'];
+  queued: Scalars['Int']['output'];
+  rejected: Scalars['Int']['output'];
+  start: Scalars['DateTime']['output'];
+  succeeded: Scalars['Int']['output'];
+};
+
+/** A half-open [from, to) statistics window. */
+export type OperatorStatisticsWindow = {
+  from: Scalars['DateTime']['input'];
+  to: Scalars['DateTime']['input'];
 };
 
 export type OrderDirection =
@@ -2649,7 +2768,9 @@ export type Query = {
   listPendingAutoroutes: PendingAutorouteConnection;
   llmCapability: LlmCapability;
   lookupMapping: Maybe<CodeMapping>;
+  operatorAdmissionStatistics: OperatorAdmissionStatistics;
   operatorAttemptAudit: OperatorAuditConnection;
+  operatorCanonicalEvents: OperatorCanonicalEventConnection;
   operatorCircuits: Array<OperatorCircuit>;
   operatorDeadLetters: OperatorDeadLetterConnection;
   operatorDeliveryAttempt: Maybe<OperatorDeliveryAttempt>;
@@ -2840,8 +2961,20 @@ export type QueryLookupMappingArgs = {
 };
 
 
+export type QueryOperatorAdmissionStatisticsArgs = {
+  bucket: OperatorStatisticsBucket;
+  window: OperatorStatisticsWindow;
+};
+
+
 export type QueryOperatorAttemptAuditArgs = {
   attemptId: Scalars['ID']['input'];
+  page: InputMaybe<OperatorPageInput>;
+};
+
+
+export type QueryOperatorCanonicalEventsArgs = {
+  filter: InputMaybe<OperatorCanonicalEventFilter>;
   page: InputMaybe<OperatorPageInput>;
 };
 
@@ -4152,47 +4285,6 @@ export type PatientEventsSubscriptionVariables = Exact<{
 
 export type PatientEventsSubscription = { __typename?: 'Subscription', patientEvents: { __typename?: 'AppointmentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ConditionEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'DocumentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ImmunizationEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'LabResultEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'PatientAdmitEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'PatientDischargeEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ProcedureEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'VitalSignEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } };
 
-export type EventsQueryVariables = Exact<{
-  filter: InputMaybe<EventFilter>;
-  first: InputMaybe<Scalars['Int']['input']>;
-  after: InputMaybe<Scalars['String']['input']>;
-  orderBy: InputMaybe<EventOrderBy>;
-}>;
-
-
-export type EventsQuery = { __typename?: 'Query', events: { __typename?: 'EventConnection', totalCount: number, edges: Array<{ __typename?: 'EventEdge', cursor: string, node: { __typename?: 'AppointmentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ConditionEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'DocumentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ImmunizationEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'LabResultEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'PatientAdmitEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'PatientDischargeEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ProcedureEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'VitalSignEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } }>, pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, hasPreviousPage: boolean, startCursor: string | null, endCursor: string | null } } };
-
-export type EventByIdQueryVariables = Exact<{
-  id: Scalars['ID']['input'];
-}>;
-
-
-export type EventByIdQuery = { __typename?: 'Query', event: { __typename?: 'AppointmentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ConditionEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'DocumentEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ImmunizationEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'LabResultEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'PatientAdmitEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'PatientDischargeEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'ProcedureEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | { __typename?: 'VitalSignEvent', id: string, type: EventType, timestamp: string, source: string, sourceFormat: SourceFormat | null, correlationId: string | null } | null };
-
-export type EventStatisticsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type EventStatisticsQuery = { __typename?: 'Query', eventStatistics: { __typename?: 'EventStatistics', totalEvents: number, byType: Array<{ __typename?: 'EventTypeCount', eventType: string, count: number }>, bySource: Array<{ __typename?: 'SourceCount', source: string, count: number }> } };
-
-export type PatientTimelineQueryVariables = Exact<{
-  mrn: Scalars['ID']['input'];
-  fromTimestamp: InputMaybe<Scalars['DateTime']['input']>;
-  toTimestamp: InputMaybe<Scalars['DateTime']['input']>;
-  limit: InputMaybe<Scalars['Int']['input']>;
-}>;
-
-
-export type PatientTimelineQuery = { __typename?: 'Query', patientTimeline: { __typename?: 'PatientTimeline', mrn: string, lastUpdated: string, eventCount: number, events: Array<{ __typename?: 'TimelineEvent', position: number, timestamp: string, eventType: string, summary: string, streamId: string, source: string | null }> } | null };
-
-export type PatientsQueryVariables = Exact<{
-  filter: InputMaybe<PatientFilter>;
-  first: InputMaybe<Scalars['Int']['input']>;
-  after: InputMaybe<Scalars['String']['input']>;
-}>;
-
-
-export type PatientsQuery = { __typename?: 'Query', patients: { __typename?: 'PatientConnection', totalCount: number, edges: Array<{ __typename?: 'PatientEdge', cursor: string, node: { __typename?: 'Patient', mrn: string, familyName: string, givenName: string, middleName: string | null, dateOfBirth: string | null, gender: string | null } }>, pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor: string | null } } };
-
 export type ExplainWarningsQueryVariables = Exact<{
   warnings: Array<ParseWarningInput> | ParseWarningInput;
   format: SourceFormat;
@@ -4799,6 +4891,27 @@ export type StartTerminologyReviewMutationVariables = Exact<{
 
 export type StartTerminologyReviewMutation = { __typename?: 'Mutation', startTerminologyReview: { __typename?: 'StartTerminologyReviewResult', workflowId: string, runId: string, started: boolean } };
 
+export type VerificationAdmissionsQueryVariables = Exact<{
+  filter: InputMaybe<OperatorCanonicalEventFilter>;
+  page: InputMaybe<OperatorPageInput>;
+}>;
+
+
+export type VerificationAdmissionsQuery = { __typename?: 'Query', operatorCanonicalEvents: { __typename?: 'OperatorCanonicalEventConnection', nodes: Array<{ __typename?: 'OperatorCanonicalEvent', eventId: string, eventType: string, sourceMessageId: string, correlationId: string, classification: string, recordedAt: string, receiptId: string, receiptStatus: string, payloadTruncated: boolean, purgeAfter: string | null, purgedAt: string | null, definition: { __typename?: 'IntegrationArtifactRevision', artifactId: string, revisionId: string, digest: string }, source: { __typename?: 'IntegrationArtifactRevision', artifactId: string, revisionId: string, digest: string } | null, payloadFields: Array<{ __typename?: 'OperatorPayloadField', path: string, kind: string, repeated: boolean }> }>, pageInfo: { __typename?: 'OperatorPageInfo', hasNextPage: boolean, endCursor: string | null } } };
+
+export type VerificationStatisticsQueryVariables = Exact<{
+  window: OperatorStatisticsWindow;
+  bucket: OperatorStatisticsBucket;
+}>;
+
+
+export type VerificationStatisticsQuery = { __typename?: 'Query', operatorAdmissionStatistics: { __typename?: 'OperatorAdmissionStatistics', from: string, to: string, bucket: OperatorStatisticsBucket, acceptedReceipts: number, rejectedReceipts: number, canonicalEvents: number, purgedEvents: number, scheduledForPurge: number, queuedAttempts: number, succeededAttempts: number, failedAttempts: number, groupsTruncated: boolean, eventsByType: Array<{ __typename?: 'OperatorKeyCount', key: string, count: number }>, receiptsByDefinition: Array<{ __typename?: 'OperatorDefinitionAdmissions', definitionId: string, revisionId: string, accepted: number, rejected: number }>, attemptsByDestination: Array<{ __typename?: 'OperatorDestinationAttempts', destinationArtifactId: string, queued: number, succeeded: number, failed: number }>, series: Array<{ __typename?: 'OperatorStatisticsBucketCounts', start: string, accepted: number, rejected: number, queued: number, succeeded: number, failed: number }> } };
+
+export type VerificationRetentionPostureQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type VerificationRetentionPostureQuery = { __typename?: 'Query', engineRuntime: { __typename?: 'EngineRuntime', replicaId: string, retentionPurge: boolean } };
+
 export type ListWorkflowsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -5020,11 +5133,6 @@ export const PublishIntegrationDefinitionDocument = {"kind":"Document","definiti
 export const EventStreamDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"EventStream"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"EventFilter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"eventStream"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<EventStreamSubscription, EventStreamSubscriptionVariables>;
 export const WorkflowEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"WorkflowEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workflowName"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workflowName"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"event"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}}]}},{"kind":"Field","name":{"kind":"Name","value":"workflow"}},{"kind":"Field","name":{"kind":"Name","value":"routesMatched"}},{"kind":"Field","name":{"kind":"Name","value":"actionsExecuted"}},{"kind":"Field","name":{"kind":"Name","value":"duration"}}]}}]}}]} as unknown as DocumentNode<WorkflowEventsSubscription, WorkflowEventsSubscriptionVariables>;
 export const PatientEventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"PatientEvents"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patientEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"mrn"},"value":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<PatientEventsSubscription, PatientEventsSubscriptionVariables>;
-export const EventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Events"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"EventFilter"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"first"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"after"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"orderBy"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"EventOrderBy"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"events"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}},{"kind":"Argument","name":{"kind":"Name","value":"first"},"value":{"kind":"Variable","name":{"kind":"Name","value":"first"}}},{"kind":"Argument","name":{"kind":"Name","value":"after"},"value":{"kind":"Variable","name":{"kind":"Name","value":"after"}}},{"kind":"Argument","name":{"kind":"Name","value":"orderBy"},"value":{"kind":"Variable","name":{"kind":"Name","value":"orderBy"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"edges"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"cursor"}},{"kind":"Field","name":{"kind":"Name","value":"node"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hasNextPage"}},{"kind":"Field","name":{"kind":"Name","value":"hasPreviousPage"}},{"kind":"Field","name":{"kind":"Name","value":"startCursor"}},{"kind":"Field","name":{"kind":"Name","value":"endCursor"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}}]} as unknown as DocumentNode<EventsQuery, EventsQueryVariables>;
-export const EventByIdDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"EventById"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"event"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"sourceFormat"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}}]}}]}}]} as unknown as DocumentNode<EventByIdQuery, EventByIdQueryVariables>;
-export const EventStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"EventStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"eventStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"totalEvents"}},{"kind":"Field","name":{"kind":"Name","value":"byType"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}},{"kind":"Field","name":{"kind":"Name","value":"bySource"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}}]}}]}}]} as unknown as DocumentNode<EventStatisticsQuery, EventStatisticsQueryVariables>;
-export const PatientTimelineDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PatientTimeline"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"fromTimestamp"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"toTimestamp"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"limit"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patientTimeline"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"mrn"},"value":{"kind":"Variable","name":{"kind":"Name","value":"mrn"}}},{"kind":"Argument","name":{"kind":"Name","value":"fromTimestamp"},"value":{"kind":"Variable","name":{"kind":"Name","value":"fromTimestamp"}}},{"kind":"Argument","name":{"kind":"Name","value":"toTimestamp"},"value":{"kind":"Variable","name":{"kind":"Name","value":"toTimestamp"}}},{"kind":"Argument","name":{"kind":"Name","value":"limit"},"value":{"kind":"Variable","name":{"kind":"Name","value":"limit"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"position"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"summary"}},{"kind":"Field","name":{"kind":"Name","value":"streamId"}},{"kind":"Field","name":{"kind":"Name","value":"source"}}]}},{"kind":"Field","name":{"kind":"Name","value":"lastUpdated"}},{"kind":"Field","name":{"kind":"Name","value":"eventCount"}}]}}]}}]} as unknown as DocumentNode<PatientTimelineQuery, PatientTimelineQueryVariables>;
-export const PatientsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Patients"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"PatientFilter"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"first"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"after"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"patients"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}},{"kind":"Argument","name":{"kind":"Name","value":"first"},"value":{"kind":"Variable","name":{"kind":"Name","value":"first"}}},{"kind":"Argument","name":{"kind":"Name","value":"after"},"value":{"kind":"Variable","name":{"kind":"Name","value":"after"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"edges"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"cursor"}},{"kind":"Field","name":{"kind":"Name","value":"node"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mrn"}},{"kind":"Field","name":{"kind":"Name","value":"familyName"}},{"kind":"Field","name":{"kind":"Name","value":"givenName"}},{"kind":"Field","name":{"kind":"Name","value":"middleName"}},{"kind":"Field","name":{"kind":"Name","value":"dateOfBirth"}},{"kind":"Field","name":{"kind":"Name","value":"gender"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hasNextPage"}},{"kind":"Field","name":{"kind":"Name","value":"endCursor"}}]}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}}]} as unknown as DocumentNode<PatientsQuery, PatientsQueryVariables>;
 export const ExplainWarningsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ExplainWarnings"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"warnings"}},"type":{"kind":"NonNullType","type":{"kind":"ListType","type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ParseWarningInput"}}}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"format"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"SourceFormat"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"explainWarnings"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"warnings"},"value":{"kind":"Variable","name":{"kind":"Name","value":"warnings"}}},{"kind":"Argument","name":{"kind":"Name","value":"format"},"value":{"kind":"Variable","name":{"kind":"Name","value":"format"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"explanation"}},{"kind":"Field","name":{"kind":"Name","value":"fixSuggestion"}},{"kind":"Field","name":{"kind":"Name","value":"impact"}},{"kind":"Field","name":{"kind":"Name","value":"fromCache"}}]}}]}}]} as unknown as DocumentNode<ExplainWarningsQuery, ExplainWarningsQueryVariables>;
 export const HealthDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"health"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"version"}}]}}]}}]} as unknown as DocumentNode<HealthQuery, HealthQueryVariables>;
 export const PreviewIntegrationMessageDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"PreviewIntegrationMessage"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"PreviewIntegrationMessageInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"previewIntegrationMessage"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"tenantId"}},{"kind":"Field","name":{"kind":"Name","value":"integrationRevision"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"artifactId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"digest"}}]}},{"kind":"Field","name":{"kind":"Name","value":"artifactRevisions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"source"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"artifactId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"digest"}}]}},{"kind":"Field","name":{"kind":"Name","value":"profile"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"artifactId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"digest"}}]}},{"kind":"Field","name":{"kind":"Name","value":"workflow"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"artifactId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"digest"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"events"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"tenantId"}},{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"sourceMessageId"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}},{"kind":"Field","name":{"kind":"Name","value":"classification"}},{"kind":"Field","name":{"kind":"Name","value":"payload"}}]}},{"kind":"Field","name":{"kind":"Name","value":"diagnostics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"tenantId"}},{"kind":"Field","name":{"kind":"Name","value":"severity"}},{"kind":"Field","name":{"kind":"Name","value":"stage"}},{"kind":"Field","name":{"kind":"Name","value":"code"}},{"kind":"Field","name":{"kind":"Name","value":"message"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"classification"}}]}},{"kind":"Field","name":{"kind":"Name","value":"routes"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"tenantId"}},{"kind":"Field","name":{"kind":"Name","value":"eventId"}},{"kind":"Field","name":{"kind":"Name","value":"route"}},{"kind":"Field","name":{"kind":"Name","value":"matched"}},{"kind":"Field","name":{"kind":"Name","value":"skipped"}},{"kind":"Field","name":{"kind":"Name","value":"skipReason"}},{"kind":"Field","name":{"kind":"Name","value":"transformCount"}},{"kind":"Field","name":{"kind":"Name","value":"plannedActions"}},{"kind":"Field","name":{"kind":"Name","value":"diagnosticCodes"}}]}},{"kind":"Field","name":{"kind":"Name","value":"deliveries"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"tenantId"}},{"kind":"Field","name":{"kind":"Name","value":"eventId"}},{"kind":"Field","name":{"kind":"Name","value":"destination"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"artifactId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"digest"}},{"kind":"Field","name":{"kind":"Name","value":"class"}}]}},{"kind":"Field","name":{"kind":"Name","value":"route"}},{"kind":"Field","name":{"kind":"Name","value":"action"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"diagnosticCodes"}}]}},{"kind":"Field","name":{"kind":"Name","value":"correlations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"tenantId"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}},{"kind":"Field","name":{"kind":"Name","value":"traceId"}},{"kind":"Field","name":{"kind":"Name","value":"sourceMessageId"}},{"kind":"Field","name":{"kind":"Name","value":"eventIds"}},{"kind":"Field","name":{"kind":"Name","value":"workflowRunId"}}]}}]}}]}}]} as unknown as DocumentNode<PreviewIntegrationMessageMutation, PreviewIntegrationMessageMutationVariables>;
@@ -5102,6 +5210,9 @@ export const ApprovePendingAutorouteDocument = {"kind":"Document","definitions":
 export const RejectPendingAutorouteDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RejectPendingAutoroute"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RejectPendingAutorouteInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"rejectPendingAutoroute"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}]}]}}]} as unknown as DocumentNode<RejectPendingAutorouteMutation, RejectPendingAutorouteMutationVariables>;
 export const BulkApprovePendingAutoroutesDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"BulkApprovePendingAutoroutes"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"BulkApproveInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"bulkApprovePendingAutoroutes"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"approved"}},{"kind":"Field","name":{"kind":"Name","value":"skipped"}},{"kind":"Field","name":{"kind":"Name","value":"mappings"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"MappingFields"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"MappingFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CodeMapping"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"sourceSystem"}},{"kind":"Field","name":{"kind":"Name","value":"sourceCode"}},{"kind":"Field","name":{"kind":"Name","value":"sourceDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"targetSystem"}},{"kind":"Field","name":{"kind":"Name","value":"targetCode"}},{"kind":"Field","name":{"kind":"Name","value":"targetDisplay"}},{"kind":"Field","name":{"kind":"Name","value":"equivalence"}},{"kind":"Field","name":{"kind":"Name","value":"confidence"}},{"kind":"Field","name":{"kind":"Name","value":"comment"}},{"kind":"Field","name":{"kind":"Name","value":"origin"}},{"kind":"Field","name":{"kind":"Name","value":"profileId"}},{"kind":"Field","name":{"kind":"Name","value":"uploadBatchId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}}]}}]} as unknown as DocumentNode<BulkApprovePendingAutoroutesMutation, BulkApprovePendingAutoroutesMutationVariables>;
 export const StartTerminologyReviewDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"StartTerminologyReview"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"StartTerminologyReviewInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startTerminologyReview"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"runId"}},{"kind":"Field","name":{"kind":"Name","value":"started"}}]}}]}}]} as unknown as DocumentNode<StartTerminologyReviewMutation, StartTerminologyReviewMutationVariables>;
+export const VerificationAdmissionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"VerificationAdmissions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"OperatorCanonicalEventFilter"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"page"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"OperatorPageInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"operatorCanonicalEvents"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}},{"kind":"Argument","name":{"kind":"Name","value":"page"},"value":{"kind":"Variable","name":{"kind":"Name","value":"page"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"nodes"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"eventId"}},{"kind":"Field","name":{"kind":"Name","value":"eventType"}},{"kind":"Field","name":{"kind":"Name","value":"sourceMessageId"}},{"kind":"Field","name":{"kind":"Name","value":"correlationId"}},{"kind":"Field","name":{"kind":"Name","value":"classification"}},{"kind":"Field","name":{"kind":"Name","value":"recordedAt"}},{"kind":"Field","name":{"kind":"Name","value":"receiptId"}},{"kind":"Field","name":{"kind":"Name","value":"receiptStatus"}},{"kind":"Field","name":{"kind":"Name","value":"definition"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"artifactId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"digest"}}]}},{"kind":"Field","name":{"kind":"Name","value":"source"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"artifactId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"digest"}}]}},{"kind":"Field","name":{"kind":"Name","value":"payloadFields"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"repeated"}}]}},{"kind":"Field","name":{"kind":"Name","value":"payloadTruncated"}},{"kind":"Field","name":{"kind":"Name","value":"purgeAfter"}},{"kind":"Field","name":{"kind":"Name","value":"purgedAt"}}]}},{"kind":"Field","name":{"kind":"Name","value":"pageInfo"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hasNextPage"}},{"kind":"Field","name":{"kind":"Name","value":"endCursor"}}]}}]}}]}}]} as unknown as DocumentNode<VerificationAdmissionsQuery, VerificationAdmissionsQueryVariables>;
+export const VerificationStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"VerificationStatistics"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"window"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"OperatorStatisticsWindow"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"bucket"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"OperatorStatisticsBucket"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"operatorAdmissionStatistics"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"window"},"value":{"kind":"Variable","name":{"kind":"Name","value":"window"}}},{"kind":"Argument","name":{"kind":"Name","value":"bucket"},"value":{"kind":"Variable","name":{"kind":"Name","value":"bucket"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"from"}},{"kind":"Field","name":{"kind":"Name","value":"to"}},{"kind":"Field","name":{"kind":"Name","value":"bucket"}},{"kind":"Field","name":{"kind":"Name","value":"acceptedReceipts"}},{"kind":"Field","name":{"kind":"Name","value":"rejectedReceipts"}},{"kind":"Field","name":{"kind":"Name","value":"canonicalEvents"}},{"kind":"Field","name":{"kind":"Name","value":"purgedEvents"}},{"kind":"Field","name":{"kind":"Name","value":"scheduledForPurge"}},{"kind":"Field","name":{"kind":"Name","value":"queuedAttempts"}},{"kind":"Field","name":{"kind":"Name","value":"succeededAttempts"}},{"kind":"Field","name":{"kind":"Name","value":"failedAttempts"}},{"kind":"Field","name":{"kind":"Name","value":"eventsByType"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"key"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}},{"kind":"Field","name":{"kind":"Name","value":"receiptsByDefinition"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"definitionId"}},{"kind":"Field","name":{"kind":"Name","value":"revisionId"}},{"kind":"Field","name":{"kind":"Name","value":"accepted"}},{"kind":"Field","name":{"kind":"Name","value":"rejected"}}]}},{"kind":"Field","name":{"kind":"Name","value":"attemptsByDestination"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"destinationArtifactId"}},{"kind":"Field","name":{"kind":"Name","value":"queued"}},{"kind":"Field","name":{"kind":"Name","value":"succeeded"}},{"kind":"Field","name":{"kind":"Name","value":"failed"}}]}},{"kind":"Field","name":{"kind":"Name","value":"groupsTruncated"}},{"kind":"Field","name":{"kind":"Name","value":"series"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"start"}},{"kind":"Field","name":{"kind":"Name","value":"accepted"}},{"kind":"Field","name":{"kind":"Name","value":"rejected"}},{"kind":"Field","name":{"kind":"Name","value":"queued"}},{"kind":"Field","name":{"kind":"Name","value":"succeeded"}},{"kind":"Field","name":{"kind":"Name","value":"failed"}}]}}]}}]}}]} as unknown as DocumentNode<VerificationStatisticsQuery, VerificationStatisticsQueryVariables>;
+export const VerificationRetentionPostureDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"VerificationRetentionPosture"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"engineRuntime"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"replicaId"}},{"kind":"Field","name":{"kind":"Name","value":"retentionPurge"}}]}}]}}]} as unknown as DocumentNode<VerificationRetentionPostureQuery, VerificationRetentionPostureQueryVariables>;
 export const ListWorkflowsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListWorkflows"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflows"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"routeCount"}},{"kind":"Field","name":{"kind":"Name","value":"eventsProcessed"}},{"kind":"Field","name":{"kind":"Name","value":"lastEventTime"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}}]}}]}}]} as unknown as DocumentNode<ListWorkflowsQuery, ListWorkflowsQueryVariables>;
 export const ListWorkflowDefinitionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ListWorkflowDefinitions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filter"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"WorkflowDefinitionFilter"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"paging"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"PagingInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowDefinitions"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filter"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filter"}}},{"kind":"Argument","name":{"kind":"Name","value":"paging"},"value":{"kind":"Variable","name":{"kind":"Name","value":"paging"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"latestVersion"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"versionNumber"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"valid"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"info"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"publishedVersionsByEnv"}}]}}]}}]} as unknown as DocumentNode<ListWorkflowDefinitionsQuery, ListWorkflowDefinitionsQueryVariables>;
 export const GetWorkflowVersionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetWorkflowVersions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workflowId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"paging"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"PagingInput"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workflowVersions"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workflowId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workflowId"}}},{"kind":"Argument","name":{"kind":"Name","value":"paging"},"value":{"kind":"Variable","name":{"kind":"Name","value":"paging"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"workflowId"}},{"kind":"Field","name":{"kind":"Name","value":"versionNumber"}},{"kind":"Field","name":{"kind":"Name","value":"yaml"}},{"kind":"Field","name":{"kind":"Name","value":"createdBy"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"notes"}},{"kind":"Field","name":{"kind":"Name","value":"validation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"valid"}},{"kind":"Field","name":{"kind":"Name","value":"errors"}},{"kind":"Field","name":{"kind":"Name","value":"warnings"}},{"kind":"Field","name":{"kind":"Name","value":"info"}}]}}]}}]}}]} as unknown as DocumentNode<GetWorkflowVersionsQuery, GetWorkflowVersionsQueryVariables>;
