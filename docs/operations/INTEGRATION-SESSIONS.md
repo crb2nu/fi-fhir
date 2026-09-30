@@ -280,6 +280,29 @@ Back up the key through the deployment's secret-management process whenever
 retained samples exist. Losing it makes those samples intentionally unreadable.
 Key rotation and retention expiry are Phase 4 work; prefer redacted samples.
 
+### Exports from the IDE
+
+HL7 intake's session sidebar exports through `exportIntegrationBundle` with a
+reason the operator types; the export row (`integration_session_exports`)
+records it with the verified principal and `include_raw_payload`. The raw
+payload option is offered only when `/api/auth/status` reports
+`capabilities.phiExport: true`: the caller clears the export field's transport
+gate and holds `integration.phi.export`, the grant the store re-checks; an
+unreported capability is treated as not held. The documented operator bundle
+does not include that grant, so an operator's export carries no raw sample
+text unless the deployment grants it separately. Whatever the grant, the
+downloaded file selects no parsed patient fields from the runs (event ids,
+types, times and correlation only); diagnostic messages are included as the
+parser wrote them. To read back who exported what:
+
+```sql
+SELECT exported_at, session_id, principal_json->>'id' AS principal, reason, include_raw_payload
+FROM integration_session_exports ORDER BY exported_at DESC LIMIT 20;
+```
+
+`integrationSession(id)` answers `null` for an id the tenant's store does not
+hold, which is how a `/hl7?session=<id>` link says "not found".
+
 ## Immutability and replay
 
 - Each artifact save appends a revision with a stable artifact ID, unique

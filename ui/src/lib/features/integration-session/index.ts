@@ -3,6 +3,8 @@ export {
   integrationSessionEngineEnabled,
   isIntegrationSessionBuildEnabled,
   isIntegrationSessionEngineEnabled,
+  projectSessionInspectorView,
+  projectSessionMeta,
   resolveIntegrationSessionEngine,
   runAuthenticatedIntegrationPreview
 } from './api';
@@ -14,3 +16,5 @@ export type {
   IntegrationSessionPreviewMeta,
   IntegrationSessionStage
 } from './types';
+export { createSessionWorkspace, isLiveRun } from './sessionWorkspace';
+export type { SessionWorkspaceController, SessionWorkspaceState, WorkspaceStatus } from './sessionWorkspace';

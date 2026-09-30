@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 const required = {
   'operator-bundle': ['1.', '2.', '3.', '4.', '5.', '7.', '8.', '9.', '10.'],
   // A lane's checks in a shared project: '<project>:<lane>' (one line per lane).
+  'operator-bundle:e3': ['E3-1.', 'E3-2.', 'E3-3.', 'E3-4.'],
   'operator-bundle:e5': ['E5-1.', 'E5-2.', 'E5-3.'],
   'missing-operator-role': ['6a.', '6c.'],
   'sessions-off': ['6b.', '6d.'],
