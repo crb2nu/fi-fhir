@@ -26,3 +26,11 @@ export function beforeNavigate(_callback: (navigation: unknown) => void) {
 export function afterNavigate(_callback: (navigation: unknown) => void) {
   // No-op in tests
 }
+
+export function replaceState(_url: string | URL, _state: unknown) {
+  // No-op in tests
+}
+
+export function pushState(_url: string | URL, _state: unknown) {
+  // No-op in tests
+}

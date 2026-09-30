@@ -41,6 +41,8 @@
     ListWorkflowRunsQueryVariables
   } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
+  import { loadRealTraceSpans } from '$lib/features/debug/debugStore';
+  import { openPanelTab } from '$lib/ui/ide/ideStore';
   import { isErrorToasted } from '$lib/graphql/client';
 
   type WfEvent = WorkflowEventsSubscription['workflowEvents'];
@@ -224,6 +226,12 @@
     } finally {
       loadingSelectedRun = false;
     }
+  }
+
+  // A recorded run's spans open in the bottom Trace panel (.loom/42 E-5).
+  function openRunTrace(runID: string) {
+    openPanelTab('trace');
+    void loadRealTraceSpans(runID);
   }
 
   function buildApprovalFilter(): ListWorkflowApprovalRequestsQueryVariables['filter'] {
@@ -553,6 +561,9 @@
               <Badge tone={runStatusVariant(selectedRun.status)} dot>{selectedRun.status}</Badge>
             </div>
             <KeyValue items={runDetailItems(selectedRun)} />
+            <div class="details-actions">
+              <Button onclick={() => selectedRun && openRunTrace(selectedRun.id)} data-testid="workflow-run-open-trace">Open trace</Button>
+            </div>
             {#if selectedRun.errors.length > 0}
               <ul class="error-list">
                 {#each selectedRun.errors as err, idx (idx)}
@@ -811,6 +822,11 @@
     overflow: auto;
     padding: var(--space-3);
     border-left: 1px solid var(--color-border-subtle);
+  }
+
+  .details-actions {
+    display: flex;
+    gap: var(--space-2);
   }
 
   .details-head {

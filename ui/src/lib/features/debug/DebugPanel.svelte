@@ -19,7 +19,6 @@
     breakpoints as breakpointsStore,
     stepHistory,
     eventLineage,
-    loadMockData,
     updateSessionState,
     addStep,
     subscribeToSession,
@@ -39,14 +38,11 @@
   import type { BreakpointType } from './types';
   import { workflowDraft } from '$lib/features/workflows/workflowStore';
   import { draftToYaml } from '$lib/features/workflows/workflowYaml';
-  import { validateWorkflowDraft } from '$lib/features/workflows/workflowTypes';
+  import { validateWorkflowDraft, type WorkflowDraft } from '$lib/features/workflows/workflowTypes';
   import { get } from 'svelte/store';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
-  import { toasts } from '$lib/ui/toastStore';
   import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
   import { streamStatus } from '$lib/graphql/streamAvailability';
-
-  export let useMockData = false;
 
   // Live step delivery needs the `debugStepEvent` subscription. Without it
   // the session still works — Step and Continue fetch each step on request —
@@ -78,12 +74,25 @@
     };
   }
 
-  onMount(() => {
-    if (useMockData && import.meta.env.DEV && !$debugSession) {
-      loadMockData();
-      return;
-    }
+  // Starting a session needs a structurally valid draft and a JSON event.
+  // Both are state, so Play is disabled with the reason beside it instead of
+  // toasting after the click (.loom/22 B1/B2).
+  $: playBlocker = playBlockedReason($workflowDraft, debugEventJson);
 
+  function playBlockedReason(draft: WorkflowDraft, eventJson: string): string | null {
+    const issues = validateWorkflowDraft(draft);
+    if (issues.length > 0) {
+      return `The workflow draft is not ready to debug: ${issues[0]}${issues.length > 1 ? ` (and ${issues.length - 1} more in Problems)` : ''}.`;
+    }
+    try {
+      JSON.parse(eventJson);
+    } catch {
+      return 'The debug event must be valid JSON.';
+    }
+    return null;
+  }
+
+  onMount(() => {
     if (!debugEventJson) {
       debugEventJson = JSON.stringify(buildDefaultDebugEvent(), null, 2);
     }
@@ -94,25 +103,9 @@
   });
 
   async function handlePlay(): Promise<void> {
-    if (useMockData) {
-      loadMockData();
-      return;
-    }
-
+    if (playBlocker) return;
     const draft = get(workflowDraft);
-    const validationIssues = validateWorkflowDraft(draft);
-    if (validationIssues.length > 0) {
-      toasts.error(validationIssues[0] ?? 'Workflow draft is not ready to debug');
-      return;
-    }
-
-    let event: unknown;
-    try {
-      event = JSON.parse(debugEventJson);
-    } catch {
-      toasts.error('Debug event JSON must be valid before starting a session');
-      return;
-    }
+    const event: unknown = JSON.parse(debugEventJson);
 
     updateSessionState('running');
     const session = await startDebugSession(draftToYaml(draft), event);
@@ -145,12 +138,6 @@
   }
 
   async function handleRestart(): Promise<void> {
-    if (useMockData) {
-      endSession();
-      loadMockData();
-      return;
-    }
-
     cleanupSubscription();
     if ($debugSession) {
       await endDebugSession($debugSession.id);
@@ -168,10 +155,9 @@
   }
 
   async function handleToggleBreakpoint(id: string): Promise<void> {
-    if (!$debugSession) {
-      toasts.info('Start a debug session before changing breakpoints');
-      return;
-    }
+    // The breakpoint controls are disabled without a session (BreakpointList
+    // says so on each control); this guard only covers a race.
+    if (!$debugSession) return;
 
     const breakpoint = $breakpointsStore.find((entry) => entry.id === id);
     if (!breakpoint) return;
@@ -197,10 +183,7 @@
   }
 
   async function handleAddBreakpoint(detail: { type: BreakpointType; name: string }): Promise<void> {
-    if (!$debugSession) {
-      toasts.info('Start a debug session before adding breakpoints');
-      return;
-    }
+    if (!$debugSession) return;
 
     const { type, name } = detail;
     const breakpoint = await setBreakpoint($debugSession.id, type, name);
@@ -209,30 +192,28 @@
 </script>
 
 <div class="debug-panel">
-  {#if !useMockData}
-    <div class="debug-config">
-      <div class="config-header">
-        <span class="config-title">Debug Event Input</span>
-        <button
-          type="button"
-          class="config-reset"
-          on:click={() => {
-            debugEventJson = JSON.stringify(buildDefaultDebugEvent(), null, 2);
-          }}
-        >
-          Reset
-        </button>
-      </div>
-      <CodeEditor
-        language="json"
-        value={debugEventJson}
-        on:change={(e) => { debugEventJson = e.detail; }}
-        height="120px"
-      />
+  <div class="debug-config">
+    <div class="config-header">
+      <span class="config-title">Debug Event Input</span>
+      <button
+        type="button"
+        class="config-reset"
+        on:click={() => {
+          debugEventJson = JSON.stringify(buildDefaultDebugEvent(), null, 2);
+        }}
+      >
+        Reset
+      </button>
     </div>
-  {/if}
+    <CodeEditor
+      language="json"
+      value={debugEventJson}
+      on:change={(e) => { debugEventJson = e.detail; }}
+      height="120px"
+    />
+  </div>
 
-  {#if liveStepsUnavailable && !useMockData}
+  {#if liveStepsUnavailable}
     <StreamingUnavailable
       compact
       root="debugStepEvent"
@@ -244,12 +225,17 @@
 
   <StepControls
     state={$sessionState}
+    playBlockedReason={playBlocker}
     onPlay={handlePlay}
     onStep={handleStep}
     onContinue={handleContinue}
     onRestart={handleRestart}
     onStop={handleStop}
   />
+
+  {#if playBlocker && $sessionState === 'idle'}
+    <p class="play-blocked" data-testid="debug-play-blocked">Play is unavailable: {playBlocker}</p>
+  {/if}
 
   <div class="debug-body">
     <aside class="debug-sidebar">
@@ -324,6 +310,14 @@
     background: var(--color-bg-elevated);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+  }
+
+  .play-blocked {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .debug-config {

@@ -3,6 +3,7 @@ package graphql
 import (
 	"github.com/vektah/gqlparser/v2/ast"
 
+	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -56,6 +57,7 @@ type accessCapabilities struct {
 	LLM                 llmState `json:"llm"`
 	ControlPlane        bool     `json:"controlPlane"`
 	ConnectionCatalog   bool     `json:"connectionCatalog"`
+	PhiExport           bool     `json:"phiExport"`
 }
 
 type llmState struct {
@@ -72,6 +74,7 @@ type missingRoles struct {
 	ClinicalRead       []string `json:"clinicalRead"`
 	ConnectionsRead    []string `json:"connectionsRead"`
 	ConnectionsWrite   []string `json:"connectionsWrite"`
+	PhiExport          []string `json:"phiExport"`
 }
 
 // roleCapability is one IDE surface expressed as the two gates a request to it
@@ -106,6 +109,11 @@ var (
 	// transport half, as it does for the operator plane.
 	connectionsReadCapability  = roleCapability{operation: ast.Query, field: "connections", serviceRoles: operatorRead}
 	connectionsWriteCapability = roleCapability{operation: ast.Mutation, field: "createConnection", serviceRoles: operatorDeployment}
+	// Raw sample payloads in a session export (.loom/42 E-3): the export field's
+	// transport requirement plus the grant the session store re-checks
+	// (ExportRequest.Validate), so the IDE offers includeRawPayload only when
+	// the export would not be refused for it.
+	phiExportCapability = roleCapability{operation: ast.Mutation, field: "exportIntegrationBundle", serviceRoles: []string{enginesession.PHIExportRole}}
 )
 
 // evaluate reports whether roles clear both gates and, if not, the roles that
@@ -153,6 +161,7 @@ func deriveAuthStatus(security integration.SecurityContext, config *ServerConfig
 	status.Capabilities.ClinicalRead, status.MissingRoles.ClinicalRead = clinicalReadCapability.evaluate(roles)
 	status.Capabilities.ConnectionsRead, status.MissingRoles.ConnectionsRead = connectionsReadCapability.evaluate(roles)
 	status.Capabilities.ConnectionsWrite, status.MissingRoles.ConnectionsWrite = connectionsWriteCapability.evaluate(roles)
+	status.Capabilities.PhiExport, status.MissingRoles.PhiExport = phiExportCapability.evaluate(roles)
 
 	status.Capabilities.IntegrationSessions = config.IntegrationSessionsConfigured
 	status.Capabilities.Streaming = config.IntegrationSessionStreaming

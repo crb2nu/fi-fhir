@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
+	enginesession "gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/session"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 )
 
@@ -209,8 +211,49 @@ func TestAuthCapabilities(t *testing.T) {
 			if !reflect.DeepEqual(status.Capabilities, tt.capabilities) {
 				t.Fatalf("capabilities = %+v\nwant           %+v", status.Capabilities, tt.capabilities)
 			}
-			if !reflect.DeepEqual(status.MissingRoles, tt.missing) {
-				t.Fatalf("missingRoles = %+v\nwant           %+v", status.MissingRoles, tt.missing)
+			// No row holds integration.phi.export; TestAuthCapabilityPHIExport
+			// pins phiExport and its missing roles.
+			missing := status.MissingRoles
+			missing.PhiExport = nil
+			if !reflect.DeepEqual(missing, tt.missing) {
+				t.Fatalf("missingRoles = %+v\nwant           %+v", missing, tt.missing)
+			}
+		})
+	}
+}
+
+// TestAuthCapabilityPHIExport (.loom/42 E-3): phiExport is true exactly when
+// the session store would accept an export with raw payloads from the same
+// principal, and missingRoles.phiExport names what it would take.
+func TestAuthCapabilityPHIExport(t *testing.T) {
+	withPHI := append(append([]string{}, operatorBundle...), enginesession.PHIExportRole)
+	tests := []struct {
+		name    string
+		roles   []string
+		want    bool
+		missing []string
+	}{
+		{name: "operator bundle (no PHI export grant)", roles: operatorBundle, missing: []string{enginesession.PHIExportRole}},
+		{name: "operator bundle plus integration.phi.export", roles: withPHI, want: true, missing: []string{}},
+		{name: "preview only", roles: []string{previewRole}, missing: []string{GraphQLOperatorRole, enginesession.PHIExportRole}},
+		{name: "the grant without the export field's transport grant", roles: []string{previewRole, enginesession.PHIExportRole},
+			missing: []string{GraphQLOperatorRole}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status := deriveAuthStatus(securityFor("network", "p", tt.roles...), &ServerConfig{})
+			if status.Capabilities.PhiExport != tt.want || !reflect.DeepEqual(status.MissingRoles.PhiExport, tt.missing) {
+				t.Fatalf("phiExport = %v missing %v, want %v missing %v",
+					status.Capabilities.PhiExport, status.MissingRoles.PhiExport, tt.want, tt.missing)
+			}
+			// The service half is the store's own rule, not a copy of it.
+			request := enginesession.ExportRequest{
+				SessionID: "s", Reason: "e2e", IncludeRawPayload: true,
+				Principal: integration.Principal{ID: "p", Kind: integration.PrincipalKindHuman, AuthMethod: "network", Roles: tt.roles},
+			}
+			refused := errors.Is(request.Validate(), enginesession.ErrForbidden)
+			if hasOperationRole(tt.roles, enginesession.PHIExportRole) == refused {
+				t.Fatalf("store refuses raw export = %v for roles %v", refused, tt.roles)
 			}
 		})
 	}

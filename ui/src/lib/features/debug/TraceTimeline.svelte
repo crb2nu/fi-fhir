@@ -7,8 +7,15 @@
    * Color-coded by status. Hover reveals span details.
    */
   import type { TraceSpan } from './types';
+  import { traceSource } from './debugStore';
 
   export let spans: TraceSpan[] = [];
+
+  // Where the spans came from (a debug session, or a recorded workflow run
+  // opened from Workflows > Verification), so the panel can say what it shows
+  // and why a run has none.
+  $: source = $traceSource;
+  $: runSource = source.kind === 'workflow-run' ? source : null;
 
   interface FlatSpan {
     span: TraceSpan;
@@ -83,7 +90,29 @@
 </script>
 
 <div class="trace-timeline" role="figure" aria-label="Trace timeline">
-  {#if !hasSpans}
+  {#if runSource}
+    <div class="timeline-source" data-testid="trace-source" data-state={runSource.state}>
+      Workflow run <code>{runSource.runId}</code>
+      {#if runSource.state === 'loading'}
+        · loading its trace
+      {:else if runSource.state === 'loaded'}
+        · {flatSpans.length} span{flatSpans.length === 1 ? '' : 's'}
+      {/if}
+    </div>
+  {/if}
+  {#if runSource?.state === 'error'}
+    <div class="timeline-empty" role="alert" data-testid="trace-error">
+      The trace for this run could not be loaded: {runSource.message}
+    </div>
+  {:else if runSource?.state === 'loaded' && !hasSpans}
+    <div class="timeline-empty" data-testid="trace-run-empty">
+      No spans are recorded for this run on the API process that answered. Run traces are kept in memory by the
+      process that executed the run, so a restart or another replica has none; the run's summary is in Workflows,
+      Verification.
+    </div>
+  {:else if runSource?.state === 'loading'}
+    <div class="timeline-empty">Loading the run's trace.</div>
+  {:else if !hasSpans}
     <div class="timeline-empty">No trace spans</div>
   {:else}
     <div class="timeline-container">
@@ -124,6 +153,13 @@
 </div>
 
 <style>
+  .timeline-source {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-tertiary);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
   .trace-timeline {
     overflow: auto;
   }
