@@ -18,7 +18,7 @@
 - Connections and engine properties execution specs: `38-connections-execution-specs.md` (delivered 2026-09-27; MRs !240–!243, C-3 !245, C-4 !248)
 - Brainstorm - DB-backed configuration plane vs GitOps-only (fi-fhir, flexinfer, loom-core): `39-brainstorm-config-plane-2026-09-27.md`
 - **Public demo, portfolio links, docs coverage execution specs: `40-public-demo-execution-specs.md`** (delivered 2026-09-28)
-- **IDE unlock execution specs: `42-ide-unlock-execution-specs.md`** (active; lanes E-0..E-6; `41` is reserved for the config-plane spec from `39`)
+- IDE unlock execution specs: `42-ide-unlock-execution-specs.md` (delivered 2026-09-30; spec !263, E-0..E-5 MRs !264–!269, E-6 close-out; `41` is reserved for the config-plane spec from `39`)
 - Implementation plan: `30-implementation-plan.md`
 - Decisions: `decisions/` (one file per entry; `make decisions` renders it, `make decisions-new TITLE="..."` starts one). `40-decisions.md` is a pointer kept for existing links.
 - Worklog: `worklog/` (one file per entry; `make worklog` renders it, `make worklog-new TITLE="..."` starts one). `50-worklog.md` is a pointer kept for existing links.

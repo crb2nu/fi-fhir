@@ -1,5 +1,14 @@
 # IDE unlock: execution specs (lanes E-0..E-6)
 
+> **Delivered 2026-09-30.** Spec MR !263; E-4 MR !265 (merged 2026-09-29,
+> `94c0e2f63`); E-5 MR !266 (2026-09-29, `cb5a1e996`); E-0 MR !267
+> (2026-09-30, `fb4a68a0c`); E-3 MR !264 (2026-09-30, `aeb009781`); E-2 MR
+> !269 (2026-09-30, `af212930a`); E-1 MR !268 (2026-09-30, `d996cd610`);
+> E-6 close-out `docs/unlock-6-close-out`. Kill-test passed (below). Where
+> the merged code differs from this spec, the MR descriptions and the user
+> guide follow the code (worklog 2026-09-30, "IDE unlock program delivered";
+> decision 2026-09-30, "IDE unlock: definitions on connections…").
+
 > Brief (Cody, 2026-09-29): "continue building on this work and further
 > improving our UI/UX surfaces to unlock the power of our backend."
 > Coordinator = session 391c0868; Opus lanes implement; the coordinator
@@ -130,7 +139,13 @@ UI (`ui/src/lib/features/operator/**` only, plus the Home IntegrationsPanel):
 Fixture (owned here, reused by E-2): `ui/e2e/` gains a seed step for the
 operator-bundle stack so it starts with **at least one `deployed` definition
 in the catalog and at least two `accepted` receipts with queued delivery
-attempts, produced by the real admission path**. Recommended: the stack
+attempts, produced by the real admission path**. *As delivered
+(`ui/e2e/fixture.sh`): one deployed batch definition (`e2e-batch-adt/v1`)
+and four accepted receipts — three admissions (`E2E-FIXTURE-001` dead-lettered
+by the real delivery worker against a broker at `127.0.0.1:9`,
+`E2E-FIXTURE-002`/`003` queued) plus a fourth dead-letter admission
+(`E2E-FIXTURE-004`) that only E0-4 resubmits; the ingress runs in two
+short-lived `serve` side processes, not on the bundle API.* Recommended: the stack
 enables the durable HTTP ingress (`/v1/hl7v2`, bearer credential, definition
 from the stack's static registry) and the seed posts two synthetic ADT^A01
 messages from `testdata/`; `fi-fhir lifecycle seed --validate skip` (reason
@@ -248,8 +263,10 @@ sentence that admissions are not streamed and where the per-session run
 stream is. No patient timeline: the page says why (payload values are never
 read back by design) in its empty state, once.
 
-Acceptance: E2 checks over E-0's fixture (browse shows the two admissions,
-filter by type, deep link to the trace, statistics count 2 accepted); the
+Acceptance: E2 checks over E-0's fixture (browse shows the fixture's
+admissions — three, plus the fourth dead-letter admission E0-4 resubmits —
+filter by type, deep link to the trace, statistics count every accepted
+receipt); the
 preview-only stack shows the preflight; `journey.ts` unchanged (E-4 owns
 it); CHANGELOG fragment; `docs/user-guide/` page for Verification.
 
@@ -449,7 +466,16 @@ for the chosen inputs. If in-process validation is unsafe, `REAL` is
 dropped and the page offers `STATIC`/`SKIP` with the CLI command for real
 validation.
 
-**Status**: not run.
+**Status: PASSED 2026-09-29 (E-1).** (a) Parity:
+`TestDefinitionAuthoringParity_SeedAndEditorAuthorTheSameBytes` — equal
+`Digest` and canonical JSON over SFTP and S3; the negative control moves both
+digests to the same new digest. (b) `TestDefinitionAuthoringPostgres_ServeCatalogHostsSkipAndStaticValidation`
+(PostgreSQL 16 on 7900xtx) — SKIP → `[VALIDATION_SKIPPED]`, STATIC mounted →
+`[VALIDATION_STATIC, SOURCE_MOUNTED]`, STATIC unmounted → failed record,
+no mode → `CONNECTION_CHECK_ERROR`. Disconfirming search:
+`TestBatchValidator_DeadlineLeaksNoGoroutineOrProvider` (no goroutine or
+provider leak; REAL only for the replica's mounted batch source, one probe
+at a time). Full authoring shipped; no fallback.
 
 ## Decisions taken by the coordinator
 

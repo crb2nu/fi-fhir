@@ -53,6 +53,14 @@ Consequences the design respects:
   empty on a deployment nobody seeded, and the Referenced/Deployed states
   below will honestly read as absent until the definition editor
   (Decision 5) ships. The Mounted-here state does not depend on it.
+  *Superseded: since MR !258 the `fi-fhir lifecycle seed` CLI
+  (`cmd/fi-fhir/lifecycle_seed.go`) calls both, and since MR !268 (`.loom/42`
+  E-1) so does the authoring service
+  (`internal/integration/lifecycle/authoring/service.go`) behind the
+  Definitions tab; `serve`'s lifecycle catalog is built with the
+  mode-dispatching validator (`cmd/fi-fhir/main.go`,
+  `definitionAuthoring.validator()`). The preview and batch runtimes' catalogs
+  still carry no validator; they never validate.*
 - **The kernel's production and preview path accepts HL7v2 `ADT^A01` only**
   (`processor/adt_a01.go:43-47`); the session runner parses with the full
   parser (`session/runner.go`). Sample intake therefore lands messages in a

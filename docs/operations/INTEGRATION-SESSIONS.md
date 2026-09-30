@@ -142,7 +142,7 @@ the allowlist, the resolver's read-only lookup answers not-found as an event,
 and the stream completes without creating anything. In the IDE, reload the page. HL7
 intake's **Preview** now shows the Integration Session run progress in place of
 the "not available" note, and Workflow Builder's Dry Run offers the **Session**
-source. Events → Live Stream, Workflow Monitor, Debug and Runtime Output still
+source. HL7 intake's Live events tab, Workflow Monitor, Debug and Runtime Output still
 show the honest unavailable state, because their subscriptions are not on the
 SSE allowlist (see [RUNBOOK](RUNBOOK.md#live-streaming-is-unavailable)).
 

@@ -22,7 +22,7 @@ See the [roadmap](../ROADMAP.md) and [FHIR output guide](user-guide/fhir-output.
 | -------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Production** | 33    | Stable, tested, deployed                                                                                                                                            |
 | **Beta**       | 11    | Feature-complete, needs coverage or hardening                                                                                                                       |
-| **Alpha**      | 9     | Functional but limited testing or scope                                                                                                                             |
+| **Alpha**      | 12    | Functional but limited testing or scope                                                                                                                             |
 | **Planned**    | 2     | Designed but not yet implemented (tracked via [#7](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/7), [#8](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/8)) |
 
 ---
@@ -78,6 +78,8 @@ See the [roadmap](../ROADMAP.md) and [FHIR output guide](user-guide/fhir-output.
 | Integration Sessions  | `internal/integration/session/`   | Alpha      | —        | Restart-safe workspace, simulation, signed tested-revision publication, exact lifecycle promotion | 2026-07-18 |
 | Retention Purge       | `internal/integration/retention/` | Alpha      | —        | Per-tenant audited retention policy plus multi-replica purge by tombstone; PostgreSQL-proved | 2026-08-09 |
 | Connection Catalog    | `internal/integration/connection/` | Alpha     | —        | Connection drafts compiled by the document constructors into mounted-exact revisions, engine runtime description, audited batch peek and admission-time capture; PostgreSQL-proved, activation stays GitOps | 2026-09-27 |
+| Definition Authoring  | `internal/integration/lifecycle/authoring/` | Alpha | — | One service for the `lifecycle seed` CLI and the IDE's Definitions tab: build (byte parity with the seed proved), pre-flight check, draft, REAL/STATIC/SKIP validation hosted in `serve`, approve, publish; PostgreSQL-proved (`test:definition-authoring`) | 2026-09-30 |
+| Operator Control Plane | `internal/integration/operator/` | Alpha | — | Receipts, trace, delivery attempts and audit, recovery actions, deployment history and controls, durable admissions browse and statistics (`test:operator-control-plane`, `test:verification-reads`) | 2026-09-30 |
 | GraphQL API           | `internal/api/graphql/`           | Beta       | 9.5%\*   | Bounded POST plus session-only SSE; WebSocket disabled | 2026-07-16 |
 | FHIR Subscriptions    | `internal/fhir/subscription/`     | Production | 83.7%    | Bidirectional; client + webhook receiver         | 2026-02-27   |
 | Terminology Autoroute | `internal/terminology/autoroute/` | Beta       | 92.1%    | Routing engine + serve-time pending-expiry sweep + review webhook notifier | 2026-08-08   |
