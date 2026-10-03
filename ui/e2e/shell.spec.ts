@@ -133,13 +133,7 @@ test('E4-1. journey stages equal the evidence the operator-bundle stack holds; a
     await expect(page.getByTestId('status-next')).toHaveCount(0);
   }
 
-  // The sidebar's stage badge reads the same evidence.
-  await openIDE(page, '/hl7');
-  await evidenceSettled(page);
-  await page.keyboard.press('ControlOrMeta+b');
-  const badge = page.getByTestId('sidebar-stage-badge');
-  await expect(badge).toHaveText('1/5');
-  await expect(badge).toHaveAttribute('data-state', 'complete');
+
 });
 
 test('E4-2. on the preview-only stack no stage is complete: each is unknown, says why, and nothing is queried', async ({
@@ -231,4 +225,61 @@ test('E4-4. switching views and closing a tab returns to the linked receipt', as
     await expect(page.locator('.receipt-id')).toHaveText(receipt!);
     await expect(page.getByRole('tablist', { name: 'Open editors' }).getByRole('tab', { name: 'Operator', exact: true })).toHaveCount(1);
   }
+});
+
+test('E4-5. explorer resumes sessions, remembers collapsed sections and becomes a keyboard-safe drawer', async ({ page, request }, testInfo) => {
+  const data = await graphqlData<{ integrationSessions: { id: string; name: string }[] }>(request, '{ integrationSessions { id name } }');
+  const session = data.integrationSessions[0];
+  expect(session, 'the fixture has a saved session').toBeTruthy();
+  await openIDE(page, '/hl7');
+  await page.getByRole('button', { name: 'Show explorer' }).click();
+  const explorer = page.getByRole('complementary', { name: 'Explorer' });
+  await expect(explorer).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Activity bar' })).toHaveCount(0);
+  const sessionLink = explorer.locator(`a[href="/hl7?session=${encodeURIComponent(session!.id)}"]`);
+  await expect(sessionLink).toBeVisible();
+  await sessionLink.click();
+  await expect(page).toHaveURL((url) => url.searchParams.get('session') === session!.id);
+  await page.screenshot({ path: testInfo.outputPath('explorer-desktop.png') });
+
+  await explorer.getByRole('button', { name: 'Build', exact: true }).click();
+  await page.reload();
+  await expect(explorer).toBeVisible();
+  await expect(explorer.getByRole('button', { name: 'Build', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  const filter = explorer.getByRole('textbox', { name: 'Filter explorer' });
+  await filter.fill('profiles');
+  await expect(explorer.getByRole('link', { name: 'Profiles', exact: true })).toBeVisible();
+  await explorer.getByRole('button', { name: 'Clear explorer filter' }).click();
+  await expect(explorer.getByRole('link', { name: 'Profiles', exact: true })).toHaveCount(0);
+  await explorer.getByRole('button', { name: 'Build', exact: true }).click();
+  await explorer.getByRole('button', { name: 'Collapse explorer' }).click();
+  await expect(page.getByRole('button', { name: 'Show explorer' })).toBeFocused();
+  await expect(page.getByRole('navigation', { name: 'Activity bar' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('explorer-collapsed.png') });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const toggle = page.getByRole('button', { name: 'Show explorer' });
+  await toggle.click();
+  const drawer = page.getByRole('dialog', { name: 'Explorer', exact: true });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('textbox', { name: 'Filter explorer' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(drawer.getByRole('button', { name: 'Close explorer' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  // Wrapping backward from the first control must stay inside the drawer.
+  await expect(drawer.locator(':focus')).toHaveCount(1);
+  await page.screenshot({ path: testInfo.outputPath('explorer-drawer.png') });
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await drawer.getByRole('link', { name: 'Connections', exact: true }).click();
+  await expect(page).toHaveURL(/\/connections$/);
+  await expect(drawer).toHaveCount(0);
+  await toggle.click();
+  await page.mouse.click(380, 400);
+  await expect(drawer).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(explorer).toHaveCount(0);
 });

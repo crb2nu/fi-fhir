@@ -86,6 +86,15 @@ describe('ideStore', () => {
     });
   });
 
+  it('remembers whether the desktop explorer is open across reloads', () => {
+    toggleSidebar();
+    resetIDEState();
+    expect(get(ideState).sidebarOpen).toBe(true);
+    toggleSidebar();
+    resetIDEState();
+    expect(get(ideState).sidebarOpen).toBe(false);
+  });
+
   describe('setSidebarWidth', () => {
     it('should update sidebar width', () => {
       setSidebarWidth(350);

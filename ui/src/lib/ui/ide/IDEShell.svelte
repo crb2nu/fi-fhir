@@ -5,6 +5,7 @@
   import { page } from '$app/stores';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import Search from '@lucide/svelte/icons/search';
+  import PanelLeft from '@lucide/svelte/icons/panel-left';
   import ActivityBar from './ActivityBar.svelte';
   import Sidebar from './Sidebar.svelte';
   import EditorTabs from './EditorTabs.svelte';
@@ -30,6 +31,7 @@
   import {
     ideState,
     toggleSidebar,
+    setSidebarOpen,
     setActiveView,
     openTab as openTabAction,
     closeTab as closeTabAction,
@@ -59,7 +61,7 @@
   /**
    * IDE shell composition root: a 40 px header (wordmark, stage control,
    * breadcrumb, command palette, theme), the activity bar, editor tabs, the
-   * document region, the bottom panel, the contextual sidebar and a 24 px
+   * document region, the bottom panel, the workspace explorer and a 24 px
    * status bar — the one place for connection and access state (plus
    * Next: stage and the build).
    *
@@ -80,6 +82,29 @@
   /** The dirty tab a close is waiting on (the confirmation dialog's subject). */
   let pendingClose: { id: string; title: string } | null = null;
   type WorkspaceTab = ReturnType<typeof createWorkspaceTab>;
+  let narrowScreen = false;
+  let drawerOpen = false;
+  $: explorerOpen = narrowScreen ? drawerOpen : $ideState.sidebarOpen;
+
+  function toggleExplorer(): void {
+    if (explorerOpen) closeExplorer();
+    else if (narrowScreen) drawerOpen = true;
+    else toggleSidebar();
+  }
+
+  function closeExplorer(): void {
+    if (narrowScreen) drawerOpen = false;
+    else {
+      setSidebarOpen(false);
+      document.getElementById('explorer-toggle')?.focus();
+    }
+  }
+
+  function explore(path: string): void {
+    navigateTo(path);
+    if (narrowScreen) drawerOpen = false;
+  }
+
   let currentPath = '/';
   let currentView: IDEView = 'hl7';
   let currentWorkspaceTab: WorkspaceTab = createWorkspaceTab('/', 'system');
@@ -140,7 +165,7 @@
     { id: 'cmd:new-source-connection', label: 'New source connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'source', 'mllp', 'http', 'batch', 's3', 'sftp', 'create'], run: () => openConnections({ view: 'sources', openNew: true }) },
     { id: 'cmd:new-destination-connection', label: 'New destination connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'destination', 'https', 'fhir', 'kafka', 'create'], run: () => openConnections({ view: 'destinations', openNew: true }) },
     { id: 'cmd:engine-properties', label: 'Engine properties', hint: '/connections', group: 'Connections', keywords: ['engine', 'runtime', 'adapters', 'properties', 'environment', 'ledgers'], run: () => openConnections({ view: 'engine' }) },
-    { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), group: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
+    { id: 'cmd:toggle-sidebar', label: 'Toggle explorer', shortcut: shortcut('B'), group: 'Workspace', keywords: ['sidebar', 'drawer', 'navigation'], run: () => toggleExplorer() },
     { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), group: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
     { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), group: 'Workspace', keywords: ['close', 'tab'], when: () => $ideState.activeDocumentId !== null, run: () => closeActiveTab() },
     { id: 'cmd:debug-panel', label: 'Open debug panel', shortcut: shortcut('D', true), group: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
@@ -276,8 +301,17 @@
   $: breadcrumbDocument = activeDocument?.title ?? currentWorkspaceTab.title;
 
   onMount(() => {
+    const media = window.matchMedia('(max-width: 960px)');
+    const updateViewport = () => {
+      narrowScreen = media.matches;
+      drawerOpen = false;
+    };
+    updateViewport();
+    media.addEventListener('change', updateViewport);
     cleanupShortcuts = initKeyboardShortcuts({
-      toggleSidebar,
+      toggleSidebar: () => {
+        if (!document.querySelector('[aria-modal="true"]') || drawerOpen) toggleExplorer();
+      },
       toggleBottomPanel,
       closeTab: closeActiveTab,
       openDebugPanel: () => {
@@ -308,6 +342,7 @@
 
     return () => {
       window.removeEventListener('keydown', onCmdK, true);
+      media.removeEventListener('change', updateViewport);
     };
   });
 
@@ -342,6 +377,19 @@
   <header class="ide-header">
     <a class="ide-brand" href={resolve('/')} aria-label="fi-fhir dashboard">fi-fhir</a>
 
+    <Button
+      id="explorer-toggle"
+      variant="ghost"
+      icon={PanelLeft}
+      aria-label={explorerOpen ? 'Hide explorer' : 'Show explorer'}
+      aria-expanded={explorerOpen}
+      aria-controls="workspace-explorer"
+      title="Explorer ({shortcut('B')})"
+      onclick={toggleExplorer}
+    >
+      <span class="explorer-label">Explorer</span>
+    </Button>
+
     <StageControl pathname={currentPath} />
 
     <nav class="breadcrumb" aria-label="Breadcrumb">
@@ -373,9 +421,18 @@
     </div>
   </header>
 
-  <!-- Main body: activity bar + content + sidebar -->
+  <!-- Main body: explorer (or compact activity bar) + content -->
   <div class="ide-body">
-    <ActivityBar activeView={currentView} on:change={onViewChange} />
+    {#if !explorerOpen && !narrowScreen}
+      <ActivityBar activeView={currentView} on:change={onViewChange} />
+    {/if}
+    <Sidebar
+      open={explorerOpen}
+      drawer={narrowScreen}
+      width={$ideState.sidebarWidth}
+      onclose={closeExplorer}
+      onnavigate={explore}
+    />
 
     <div class="ide-main">
       {#if $ideState.documents.length > 0}
@@ -410,12 +467,6 @@
         {/if}
       </BottomPanel>
     </div>
-
-    <Sidebar
-      open={$ideState.sidebarOpen}
-      width={$ideState.sidebarWidth}
-      pathname={$page.url.pathname}
-    />
   </div>
 
   <StatusBar
@@ -577,6 +628,7 @@
       display: none;
     }
 
+    .explorer-label,
     .command-label,
     .command-kbd {
       display: none;

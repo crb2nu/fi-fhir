@@ -36,8 +36,8 @@
     description?: string | undefined;
     /** Width: sm 400 px, md 560 px, lg 720 px. */
     size?: 'sm' | 'md' | 'lg';
-    /** Vertical position: centred, or 64 px from the top (the palette). */
-    placement?: 'center' | 'top';
+    /** Centred, 64 px from the top (palette), or a full-height left drawer. */
+    placement?: 'center' | 'top' | 'left';
     layout?: 'default' | 'bare';
     /** Escape, the backdrop and the close button close it. Off while a write is in flight. */
     dismissible?: boolean;
@@ -116,6 +116,7 @@
   <div
     class="ui-dialog-overlay"
     class:is-top={placement === 'top'}
+    class:is-left={placement === 'left'}
     role="presentation"
     onclick={onBackdropClick}
     onkeydown={onKeydown}
@@ -172,6 +173,18 @@
   .ui-dialog-overlay.is-top {
     align-items: flex-start;
     padding-top: 64px;
+  }
+
+  .ui-dialog-overlay.is-left {
+    justify-content: flex-start;
+    padding: 0;
+  }
+
+  .is-left .ui-dialog {
+    width: min(320px, calc(100vw - 40px));
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
   }
 
   .ui-dialog {

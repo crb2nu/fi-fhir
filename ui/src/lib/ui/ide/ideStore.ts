@@ -20,6 +20,7 @@ import type {
   IDEAppRoute,
 } from './types';
 
+const SIDEBAR_OPEN_KEY = 'fi-fhir-ide-sidebar-open';
 const SIDEBAR_WIDTH_KEY = 'fi-fhir-ide-sidebar-width';
 const BOTTOM_PANEL_HEIGHT_KEY = 'fi-fhir-ide-bottom-panel-height';
 const LAYOUT_KEY = 'fi-fhir-ide-layout';
@@ -253,7 +254,7 @@ interface InternalIDEState {
 
 function createInitialState(): InternalIDEState {
   return {
-    sidebarOpen: false,
+    sidebarOpen: loadNumber(SIDEBAR_OPEN_KEY, 0) === 1,
     sidebarWidth: loadNumber(SIDEBAR_WIDTH_KEY, 280),
     activeView: 'hl7',
     documents: [],
@@ -295,7 +296,12 @@ ideState.subscribe((state) => {
 });
 
 export function toggleSidebar(): void {
-  _store.update((s) => ({ ...s, sidebarOpen: !s.sidebarOpen }));
+  setSidebarOpen(!get(_store).sidebarOpen);
+}
+
+export function setSidebarOpen(open: boolean): void {
+  saveNumber(SIDEBAR_OPEN_KEY, open ? 1 : 0);
+  _store.update((s) => ({ ...s, sidebarOpen: open }));
 }
 
 export function setSidebarWidth(width: number): void {

@@ -34,9 +34,22 @@ describe('IDEShell workspace', () => {
   beforeEach(() => {
     gotoMock.mockClear();
     refreshJourneyEvidence.mockClear();
+    localStorage.clear();
     resetIDEState();
     resetCommandRegistry();
     pageStore.set({ url: new URL('http://localhost/hl7') });
+  });
+
+  it('offers a visible explorer toggle and restores the compact navigation on collapse', async () => {
+    render(IDEShell);
+    const toggle = screen.getByRole('button', { name: 'Show explorer' });
+    await fireEvent.click(toggle);
+    expect(screen.getByRole('complementary', { name: 'Explorer' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Activity bar' })).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await fireEvent.click(screen.getByRole('button', { name: 'Collapse explorer' }));
+    expect(toggle).toHaveFocus();
+    expect(screen.getByRole('navigation', { name: 'Activity bar' })).toBeInTheDocument();
   });
 
   it('opens route-aware tabs as navigation changes', async () => {
@@ -282,7 +295,7 @@ describe('IDEShell workspace', () => {
     await fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     const palette = await screen.findByRole('dialog', { name: 'Commands' });
     expect(palette).toHaveTextContent('Workspace');
-    const sidebar = screen.getByRole('option', { name: /Toggle sidebar/ });
+    const sidebar = screen.getByRole('option', { name: /Toggle explorer/ });
     const panel = screen.getByRole('option', { name: /Toggle bottom panel/ });
     expect(sidebar.querySelector('kbd')?.textContent).toMatch(/B$/);
     expect(panel.querySelector('kbd')?.textContent).toMatch(/J$/);
