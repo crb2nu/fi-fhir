@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { get, writable } from 'svelte/store';
-import { ideState, markDirty, resetIDEState } from './ideStore';
+import { ideState, markDirty, resetIDEState, setSidebarOpen } from './ideStore';
 import { registerCommands, resetCommandRegistry } from './commandRegistry';
 import { takeConnectionsIntent } from '$lib/features/connections/connectionsIntent';
 
@@ -47,9 +47,26 @@ describe('IDEShell workspace', () => {
     expect(screen.getByRole('complementary', { name: 'Explorer' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Activity bar' })).not.toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('textbox', { name: 'Filter explorer' })).toHaveFocus();
     await fireEvent.click(screen.getByRole('button', { name: 'Collapse explorer' }));
     expect(toggle).toHaveFocus();
     expect(screen.getByRole('navigation', { name: 'Activity bar' })).toBeInTheDocument();
+  });
+
+  it('focuses the explorer when opened by shortcut but not when restoring its open state', async () => {
+    const editor = document.createElement('textarea');
+    document.body.appendChild(editor);
+    editor.focus();
+    setSidebarOpen(true);
+    render(IDEShell);
+    await tick();
+    expect(editor).toHaveFocus();
+
+    await fireEvent.keyDown(editor, { key: 'b', ctrlKey: true });
+    expect(screen.queryByRole('complementary', { name: 'Explorer' })).not.toBeInTheDocument();
+    await fireEvent.keyDown(editor, { key: 'b', ctrlKey: true });
+    expect(screen.getByRole('textbox', { name: 'Filter explorer' })).toHaveFocus();
+    editor.remove();
   });
 
   it('opens route-aware tabs as navigation changes', async () => {

@@ -70,7 +70,7 @@
     projectSessionMeta
   } from '$lib/features/integration-session';
   import { accessCapabilities, capabilityOf, missingRolesFor } from '$lib/graphql/accessCapabilities';
-  import { replaceState } from '$app/navigation';
+  import { afterNavigate, replaceState } from '$app/navigation';
   import History from '@lucide/svelte/icons/history';
   import SessionSidebar from '$lib/features/integration-session/SessionSidebar.svelte';
   import { createSessionWorkspace } from '$lib/features/integration-session/sessionWorkspace';
@@ -127,16 +127,23 @@
   // intake when a capture or peek comes first, and reused by both after that.
   let pageSessionId: string | null = null;
   let creatingSession: Promise<string> | null = null;
+  let sessionSelector: string | null | undefined;
+  let sessionGeneration = 0;
+  let resultsGeneration = 0;
 
   async function ensurePageSession(): Promise<string> {
-    // A `?session=` link still opening is the page's session once it opens:
-    // never create a second one in that window.
+    const generation = sessionGeneration;
     await awaitLinkedSession();
+    if (generation !== sessionGeneration) throw new Error('The selected session changed. Try the action again.');
     if (pageSessionId) return pageSessionId;
-    creatingSession ??= createSession({ inlineErrors: true }).finally(() => {
-      creatingSession = null;
-    });
+    if (!creatingSession) {
+      const pending = createSession({ inlineErrors: true }).finally(() => {
+        if (creatingSession === pending) creatingSession = null;
+      });
+      creatingSession = pending;
+    }
     const id = await creatingSession;
+    if (generation !== sessionGeneration) throw new Error('The selected session changed. Try the action again.');
     pageSessionId ??= id;
     void adoptSession(pageSessionId);
     return pageSessionId;
@@ -149,7 +156,11 @@
   // as it has a session, so a reload comes back to the same work.
   const workspace = createSessionWorkspace();
   const workspaceState = workspace.state;
-  onDestroy(() => workspace.dispose());
+  onDestroy(() => {
+    sessionGeneration += 1;
+    resultsGeneration += 1;
+    workspace.dispose();
+  });
   // null follows the session: the rail opens once the page has (or links to)
   // one. The toolbar's Session button makes it an explicit choice.
   let sessionRailChoice: boolean | null = null;
@@ -200,6 +211,10 @@
 
   /** Opens `id` in the sidebar, or refreshes it (newest run selected) when it is already open. */
   async function adoptSession(id: string): Promise<void> {
+    if (id !== pageSessionId) return;
+    // Our own shallow URL update acknowledges the current session; it must
+    // not be mistaken for navigation that clears the Preview just completed.
+    sessionSelector = id;
     setSessionUrl(id);
     const status = $workspaceState.status;
     if (status.kind === 'ready' && status.sessionId === id) {
@@ -215,10 +230,45 @@
   let linkedSession: Promise<string | null> | null = null;
 
   async function awaitLinkedSession(): Promise<void> {
-    if (pageSessionId || !linkedSession) return;
-    const linked = await linkedSession;
-    if (linked) pageSessionId ??= linked;
+    const pending = linkedSession;
+    if (pending) await pending;
+    if (sessionSelector && sessionEngineEnabled && !pageSessionId) {
+      throw new Error(`Session ${sessionSelector} could not be opened. Choose an available session before previewing.`);
+    }
   }
+
+  /** Change the session context without replacing the user's editor or drafts. */
+  function syncSessionSelector(url: URL): void {
+    const id = url.searchParams.get('session')?.trim() || null;
+    if (id === sessionSelector) return;
+    sessionSelector = id;
+    sessionGeneration += 1;
+    resultsGeneration += 1;
+    pageSessionId = null;
+    creatingSession = null;
+    linkedSession = null;
+    shownRunId = null;
+    state.update((s) => ({ ...s, loading: false, error: null, result: null, session: null }));
+    setSessionDiagnostics(null);
+    selectedPath = null;
+    selectedLocation = null;
+    acceptFixError = null;
+    explainLoadingCodes = new SvelteSet<string>();
+    lastUsedProfileId = null;
+    lastUsedProfileVersion = null;
+    lastRunRedactionMode = 'none';
+    lastProcessRedactionMode = 'none';
+    lastProcessedSource = null;
+    processState = { state: 'idle' };
+    workspace.reset();
+    intake.dispose();
+    intake = createPageIntake();
+    if (id) void openLinkedSession(id);
+  }
+
+  afterNavigate(({ to }) => {
+    if (to) syncSessionSelector(to.url);
+  });
 
   /** `/hl7?session=<id>`: reopen a session and show its newest run. */
   async function openLinkedSession(id: string): Promise<void> {
@@ -226,27 +276,42 @@
       workspace.markUnavailable(id);
       return;
     }
-    linkedSession = workspace.open(id).then((opened) => (opened.status.kind === 'ready' ? id : null));
-    const linked = await linkedSession;
-    linkedSession = null;
+    const generation = sessionGeneration;
+    const results = resultsGeneration;
+    const pending = workspace.open(id).then((opened) =>
+      generation === sessionGeneration && opened.status.kind === 'ready' && opened.status.sessionId === id
+        ? id
+        : null
+    );
+    linkedSession = pending;
+    const linked = await pending;
+    if (generation !== sessionGeneration) return;
+    if (linkedSession === pending) linkedSession = null;
     if (!linked) return;
-    // Later Previews and intake continue this session.
-    pageSessionId ??= linked;
-    if (pageSessionId !== linked) return;
+    pageSessionId = linked;
     if (intakeEntryState.visible && !intakeEntryState.disabledReason) void intake.refresh();
     const newest = $workspaceState.runs[0];
-    // A Preview that started meanwhile owns the results pane.
-    if (newest && !$state.loading && !$state.result) await showRun(newest.id);
+    // Navigation reads results, but only an explicit Show run may load a
+    // captured sample over the editor. A pending Preview owns its results.
+    if (newest && results === resultsGeneration) await showRun(newest.id, false);
   }
 
   /** Loads a run of the page's session into the results pane. */
-  async function showRun(runId: string): Promise<void> {
-    const sessionId = pageSessionId ?? ($workspaceState.status.kind === 'ready' ? $workspaceState.status.sessionId : null);
+  async function showRun(runId: string, loadCapturedSample = true): Promise<void> {
+    const sessionId = pageSessionId;
     if (!sessionId) return;
+    const generation = sessionGeneration;
+    const results = ++resultsGeneration;
+    const isCurrent = () => generation === sessionGeneration && results === resultsGeneration;
+    if ($state.loading) {
+      state.update((s) => ({ ...s, loading: false, result: null, session: null }));
+      setSessionDiagnostics(null);
+    }
     try {
       const run = await workspace.runDetail(runId);
-      if (!run) {
-        state.update((s) => ({ ...s, error: `Run ${runId} is no longer in this session.` }));
+      if (!isCurrent()) return;
+      if (!run || run.sessionId !== sessionId) {
+        state.update((s) => ({ ...s, loading: false, error: `Run ${runId} is no longer in this session.` }));
         return;
       }
       const streamState = run.status === 'completed' ? 'complete' : run.status === 'failed' ? 'error' : 'running';
@@ -260,16 +325,17 @@
       }));
       setSessionDiagnostics(session);
       shownRunId = run.id;
-      // A captured or peeked sample of this run is in Samples with its text:
-      // put it in the editor. A pasted sample's text stays on the server.
-      const captured = $samples.find((sample) => sample.session?.sampleId === run.sampleId);
+      const captured = loadCapturedSample && $samples.find((sample) =>
+        sample.session?.sessionId === sessionId && sample.session.sampleId === run.sampleId
+      );
       if (captured) {
         samplesStore.setActive(captured.id);
         loadSample(captured);
       }
     } catch (error) {
+      if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : String(error);
-      state.update((s) => ({ ...s, error: `Run ${runId} could not be read: ${message}` }));
+      state.update((s) => ({ ...s, loading: false, error: `Run ${runId} could not be read: ${message}` }));
     }
   }
 
@@ -277,9 +343,9 @@
    * Keeps the results pane in step with an accepted fix: the run's session
    * diagnostics and the warning that carries the diagnostic's id.
    */
-  function markDiagnosticAccepted(accepted: { id: string; runId: string | null; acceptedAt: string | null }): void {
+  function markDiagnosticAccepted(accepted: { id: string; sessionId: string; runId: string | null; acceptedAt: string | null }): void {
     state.update((s) => {
-      if (!s.session || (accepted.runId && s.session.runId !== accepted.runId)) return s;
+      if (!s.session || s.session.id !== accepted.sessionId || (accepted.runId && s.session.runId !== accepted.runId)) return s;
       return {
         ...s,
         session: {
@@ -310,9 +376,14 @@
     const sessionId = pageSessionId ?? ($state.session?.mode === 'session' ? $state.session.id : null);
     if (!sessionId) return;
     acceptFixError = null;
+    const generation = sessionGeneration;
+    const results = resultsGeneration;
     try {
-      markDiagnosticAccepted(await workspace.acceptFix(diagnosticId, sessionId));
+      const accepted = await workspace.acceptFix(diagnosticId, sessionId);
+      if (generation !== sessionGeneration || results !== resultsGeneration) return;
+      markDiagnosticAccepted(accepted);
     } catch (error) {
+      if (generation !== sessionGeneration || results !== resultsGeneration) return;
       acceptFixError = error instanceof Error ? error.message : String(error);
     }
   }
@@ -321,13 +392,18 @@
 
   // Sample intake from connections (.loom/38 C-3). The controller lives here,
   // not in the Samples tab, so a capture keeps arriving while another tab is open.
-  const intake = createIntakeController({
-    currentSession: () => pageSessionId,
-    ensureSession: ensurePageSession,
-    onSamples: (samples, { activate }) => {
-      samplesStore.addSessionSamples(samples, activate);
-    }
-  });
+  function createPageIntake() {
+    const generation = sessionGeneration;
+    return createIntakeController({
+      currentSession: () => generation === sessionGeneration ? pageSessionId : null,
+      ensureSession: ensurePageSession,
+      onSamples: (samples, { activate }) => {
+        if (generation !== sessionGeneration) return;
+        samplesStore.addSessionSamples(samples, activate);
+      }
+    });
+  }
+  let intake = createPageIntake();
   onDestroy(() => intake.dispose());
   $: intakeEntryState = intakeEntry($accessCapabilities, sessionEngineEnabled);
 
@@ -346,6 +422,7 @@
    * Calls the GraphQL API to get LLM-powered explanation for a warning.
    */
   async function onExplainWarning(e: CustomEvent<WarningLike>) {
+    const results = resultsGeneration;
     const warning = e.detail;
     const key = warningKey(warning);
     explainLoadingCodes.add(key);
@@ -367,6 +444,7 @@
       });
 
       // Update the store with the explanation
+      if (results !== resultsGeneration) return;
       const firstResult = result.explainWarnings[0];
       if (firstResult) {
         updateWarningExplanation(warning.code, firstResult);
@@ -374,7 +452,7 @@
     } catch (err) {
       console.error('Failed to get explanation:', err);
     } finally {
-      explainLoadingCodes.delete(key);
+      if (results === resultsGeneration) explainLoadingCodes.delete(key);
     }
   }
 
@@ -383,6 +461,7 @@
    * Calls the GraphQL API in a single batch request.
    */
   async function onExplainAll() {
+    const results = resultsGeneration;
     const warnings = $state.result?.parsePreview.warnings ?? [];
     const unexplained = warnings.filter((w) => !w.explanation);
 
@@ -407,6 +486,7 @@
         format: 'HL7V2' as SourceFormat
       });
 
+      if (results !== resultsGeneration) return;
       // Update each warning with its explanation
       for (const explained of result.explainWarnings) {
         updateWarningExplanation(explained.code, explained);
@@ -416,7 +496,7 @@
     } finally {
       // Clear all loading states
       for (const w of unexplained) {
-        explainLoadingCodes.delete(warningKey(w));
+        if (results === resultsGeneration) explainLoadingCodes.delete(warningKey(w));
       }
     }
   }
@@ -548,6 +628,7 @@
     if ($state.loading || processBlocked) return;
     if (!($state.data ?? '').trim()) return;
 
+    const generation = sessionGeneration;
     const snapshot = getSnapshot();
     const correlationId = makeCorrelationId();
     const data =
@@ -566,9 +647,11 @@
         data,
         correlationId
       });
+      if (generation !== sessionGeneration) return;
       processState = { state: 'done', correlationId, result };
       activeTab = 'process';
     } catch (e) {
+      if (generation !== sessionGeneration) return;
       const msg = e instanceof Error ? e.message : String(e);
       processState = { state: 'error', correlationId, message: msg };
       activeTab = 'process';
@@ -576,52 +659,53 @@
   }
 
   async function run() {
-    // A `?session=` link still opening is this run's session.
-    await awaitLinkedSession();
-    // A new run starts from no session state, so a run that fails before its
-    // first session update never leaves the previous run's "Preview complete"
-    // (or its diagnostics) on screen. The server session itself is reused.
-    const previousSessionId =
-      pageSessionId ?? ($state.session?.mode === 'session' ? $state.session.id : null);
+    const generation = sessionGeneration;
+    const results = ++resultsGeneration;
+    const isCurrent = () => generation === sessionGeneration && results === resultsGeneration;
+    // Mark the request before waiting, so opening the linked session cannot
+    // replace it with an older stored run in the meantime.
     state.update((s) => ({ ...s, loading: true, error: null, result: null, session: null }));
     setSessionDiagnostics(null);
     selectedPath = null;
     selectedLocation = null;
-    const snapshot = getSnapshot();
-    rememberSource(snapshot.source);
-    const profileId = $selectedProfile?.id ?? null;
-    const data =
-      useRedactionForPreview && editorRedactionMode !== 'none'
-        ? redactHL7(snapshot.data, editorRedactionMode)
-        : snapshot.data;
-    const sessionSampleId = sessionSampleFor($activeSample, previousSessionId, data);
-
+    shownRunId = null;
     try {
+      await awaitLinkedSession();
+      if (!isCurrent()) return;
+      const previousSessionId = pageSessionId;
+      const snapshot = getSnapshot();
+      rememberSource(snapshot.source);
+      const profile = $selectedProfile;
+      const profileId = profile?.id ?? null;
+      const redaction = useRedactionForPreview ? editorRedactionMode : 'none';
+      const data = redaction !== 'none' ? redactHL7(snapshot.data, redaction) : snapshot.data;
+      const sessionSampleId = sessionSampleFor($activeSample, previousSessionId, data);
       const result = await parseHL7Preview({
         source: snapshot.source,
         data,
         profileId,
-        profile: $selectedProfile,
+        profile,
         sessionId: previousSessionId,
         sessionSampleId,
         onSessionUpdate: (session) => {
+          if (!isCurrent()) return;
           if (session.mode === 'session' && session.id) pageSessionId ??= session.id;
           state.update((current) => ({ ...current, session }));
           setSessionDiagnostics(session);
         }
       });
+      if (!isCurrent()) return;
       lastUsedProfileId = profileId;
-      lastUsedProfileVersion = $selectedProfile?.version ?? null;
-      lastRunRedactionMode =
-        useRedactionForPreview && editorRedactionMode !== 'none' ? editorRedactionMode : 'none';
+      lastUsedProfileVersion = profile?.version ?? null;
+      lastRunRedactionMode = redaction;
       state.update((s) => ({ ...s, loading: false, result, session: result.session ?? null }));
       shownRunId = result.session?.runId ?? null;
     } catch (e) {
+      if (!isCurrent()) return;
       const msg = e instanceof Error ? e.message : String(e);
       state.update((s) => ({ ...s, loading: false, error: msg }));
     }
-    // The run (or its failure) is now part of the session's history.
-    if (pageSessionId) void adoptSession(pageSessionId);
+    if (isCurrent() && pageSessionId) void adoptSession(pageSessionId);
   }
 
   /**
@@ -938,6 +1022,7 @@
 
   async function handleResolveWarning(w: WarningLike) {
     if (!w.path) return;
+    const generation = sessionGeneration;
     
     // Parse the path to get the value from HL7
     const loc = parseHL7Path(w.path);
@@ -961,6 +1046,7 @@
         minConfidence: 0,
         allowAutoroute: true
       });
+      if (generation !== sessionGeneration) return;
       toasts.success(`Resolved mapping for ${value}`);
       // Re-run to clear the warning
       void run();
@@ -1191,8 +1277,7 @@
   $: registerCommands('hl7', paletteCommands, { priority: 10 });
 
   onMount(() => {
-    const linkedSession = new URL(window.location.href).searchParams.get('session')?.trim();
-    if (linkedSession) void openLinkedSession(linkedSession);
+    syncSessionSelector(new URL(window.location.href));
 
     // Load a sample into the editor when the active sample *changes*. The
     // store re-emits on every samples update (a rename, tags, a removal of

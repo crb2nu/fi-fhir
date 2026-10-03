@@ -64,15 +64,24 @@ function loadLayout(): PersistedLayout | null {
     if (typeof obj['activePanelTab'] !== 'string' || !VALID_PANEL_TABS.has(obj['activePanelTab'] as PanelTab)) return null;
     if (typeof obj['activeView'] !== 'string' || !VALID_VIEWS.has(obj['activeView'] as IDEView)) return null;
 
-    // Only route tabs survive; artifact tabs from older layouts have no surface.
-    // Titles are re-derived from the route so renamed views restore renamed.
-    const openTabs = (obj['openTabs'] as WorkspaceDocument[])
-      .filter((doc) => doc && typeof doc === 'object' && (doc.type === undefined || doc.type === 'route'))
-      .map((doc) => ({
-        ...doc,
-        title: getWorkspaceTabTitle(doc.path ?? doc.route ?? doc.id, doc.view),
-        dirty: false,
-      }));
+    // Rebuild saved tabs through the same route/query allowlist as live
+    // navigation. Older layouts can contain obsolete documents or extra data.
+    const documents = new Map<string, WorkspaceDocument>();
+    for (const entry of obj['openTabs']) {
+      if (!entry || typeof entry !== 'object') continue;
+      const doc = entry as Record<string, unknown>;
+      if (doc.type !== undefined && doc.type !== 'route') continue;
+      const path = doc.path ?? doc.route ?? doc.id;
+      if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) continue;
+      try {
+        const url = new URL(path, 'https://workspace.invalid');
+        const route = normalizeWorkspacePathname(url.pathname);
+        if (url.origin !== 'https://workspace.invalid' || !Object.values(WORKSPACE_VIEW_ROUTES).includes(route as IDEAppRoute)) continue;
+        const tab = createWorkspaceTab(route, undefined, url.search);
+        documents.set(tab.id, tab);
+      } catch { /* One malformed saved path must not discard the other tabs. */ }
+    }
+    const openTabs = [...documents.values()];
     const storedActive = obj['activeTabId'] as string | null;
     const activeTabId = openTabs.some((doc) => doc.id === storedActive)
       ? storedActive
@@ -105,8 +114,6 @@ function saveLayout(state: IDEState): void {
     // Ignore storage errors
   }
 }
-
-let _layoutRestored = false;
 
 // Editor tab titles: the same words as the ActivityBar labels and the route
 // toolbars ("Home", "Operator"). Stage names (Source Intake, Delivery, …) live
@@ -252,21 +259,25 @@ interface InternalIDEState {
   activePanelTab: PanelTab;
 }
 
-function createInitialState(): InternalIDEState {
+function createInitialState(saved: PersistedLayout | null = null): InternalIDEState {
   return {
     sidebarOpen: loadNumber(SIDEBAR_OPEN_KEY, 0) === 1,
     sidebarWidth: loadNumber(SIDEBAR_WIDTH_KEY, 280),
-    activeView: 'hl7',
-    documents: [],
-    activeDocumentId: null,
+    activeView: saved?.activeView ?? 'hl7',
+    documents: saved?.openTabs ?? [],
+    activeDocumentId: saved?.activeTabId ?? null,
     dirtyIds: [],
-    bottomPanelOpen: false,
+    bottomPanelOpen: saved?.bottomPanelOpen ?? false,
     bottomPanelHeight: loadNumber(BOTTOM_PANEL_HEIGHT_KEY, 200),
-    activePanelTab: 'output',
+    activePanelTab: saved?.activePanelTab ?? 'output',
   };
 }
 
-const _store = writable<InternalIDEState>(createInitialState());
+// Restore before the persistence subscription's first synchronous emission.
+// The shell then applies the actual URL, preserving the other saved tabs.
+const savedLayout = loadLayout();
+let _layoutRestored = savedLayout !== null;
+const _store = writable<InternalIDEState>(createInitialState(savedLayout));
 
 /**
  * Public ideState derived store that exposes the full IDEState interface

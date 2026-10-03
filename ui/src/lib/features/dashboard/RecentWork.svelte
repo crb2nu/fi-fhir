@@ -36,6 +36,11 @@
     return doc.path ?? doc.route;
   }
 
+  function documentSessionId(doc: WorkspaceDocument): string | null {
+    const [route, query] = (documentRoute(doc) ?? '').split('?');
+    return route === '/hl7' ? new URLSearchParams(query).get('session') : null;
+  }
+
   function openDocument(doc: WorkspaceDocument): void {
     setActiveTab(doc.id);
     const route = documentRoute(doc);
@@ -66,6 +71,7 @@
   const documentRows = $derived<Row[]>(
     $ideState.documents
       .filter((doc) => documentRoute(doc) !== '/')
+      .filter((doc) => !sessions.some((session) => session.id === documentSessionId(doc)))
       .map((doc) => ({
         key: `doc:${doc.id}`,
         name: doc.subtitle ? `${doc.title} — ${doc.subtitle}` : doc.title,
@@ -83,7 +89,9 @@
       name: session.name,
       kind: 'Session',
       reference: session.id,
-      status: runStatus(session),
+      status: $ideState.documents.some((doc) => doc.dirty && documentSessionId(doc) === session.id)
+        ? { label: 'unsaved', tone: 'warning' }
+        : runStatus(session),
       updatedAt: session.updatedAt,
       open: () => openSession(session)
     }))

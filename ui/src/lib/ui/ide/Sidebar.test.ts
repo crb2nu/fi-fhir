@@ -55,6 +55,7 @@ describe('Explorer', () => {
     expect(screen.getByRole('link', { name: 'Profiles' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Operator' })).not.toBeInTheDocument();
     await fireEvent.click(screen.getByRole('button', { name: 'Clear explorer filter' }));
+    expect(screen.getByRole('textbox', { name: 'Filter explorer' })).toHaveFocus();
     expect(screen.queryByRole('link', { name: 'Profiles' })).not.toBeInTheDocument();
     view.unmount();
     render(Sidebar, { props });
@@ -69,6 +70,23 @@ describe('Explorer', () => {
     expect(screen.getByRole('link', { name: /ADT intake/ })).toBeInTheDocument();
     await fireEvent.input(filter, { target: { value: 'missing' } });
     expect(screen.getByRole('status')).toHaveTextContent('No matching views or recent sessions.');
+  });
+
+  it('marks only the current intake session, and clears the mark in other views', async () => {
+    fetchSessions.mockResolvedValue([session, { ...session, id: 'session/2', name: 'Second intake' }]);
+    openTab(createWorkspaceTab('/hl7', 'hl7', '?session=session%2F1'));
+    render(Sidebar, { props });
+    const first = await screen.findByRole('link', { name: /ADT intake/ });
+    const second = screen.getByRole('link', { name: /Second intake/ });
+    expect(first).toHaveAttribute('aria-current', 'page');
+    expect(first).toHaveClass('active');
+    expect(second).not.toHaveAttribute('aria-current');
+
+    openTab(createWorkspaceTab('/hl7', 'hl7', '?session=session%2F2'));
+    await waitFor(() => expect(second).toHaveAttribute('aria-current', 'page'));
+    expect(first).not.toHaveAttribute('aria-current');
+    openTab(createWorkspaceTab('/operator'));
+    await waitFor(() => expect(second).not.toHaveAttribute('aria-current'));
   });
 
   it('shows loading, a retryable error, and the empty session state', async () => {

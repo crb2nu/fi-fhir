@@ -33,6 +33,8 @@ capabilities, pages try the request and report any failure inline.
 
 Editor tabs remember the last session or record opened by a deep link. Switch
 back through a tab, the explorer, the activity bar, or a **Go to** command to resume there.
+Open tabs and their record links survive reloads on any page. A link you open
+directly takes precedence over the saved selection for that page.
 An explicit link to the base page clears that selection. This remembers the
 record location, not an unsaved form or filter state.
 
@@ -52,10 +54,14 @@ own keyboard focus.
   groups intake, profiles, terminology and workflows; **Operate** groups
   connections, operator and verification. Collapse either group, or filter by
   view name. Filtering temporarily reveals collapsed groups. The desktop
-  open/closed preference and section choices survive a reload.
+  open/closed preference and section choices survive a reload. Opening the
+  explorer focuses its filter; clearing the filter keeps focus there. Restoring
+  an already-open explorer does not take focus from your work.
 - **Recent sessions** in the explorer: up to eight sessions ordered by latest
   update, with the last run status. Select one to reopen it in HL7 intake;
-  filter by name or session ID. The list loads on opening the explorer and
+  filter by name or session ID. The current session is highlighted. Switching
+  sessions within intake updates the run history and results without replacing
+  the message you are editing. The list loads on opening the explorer and
   refreshes on request. It loads only when this UI build and your API access
   support sessions; failures offer a refresh. Session data is not saved to
   browser storage by the explorer.

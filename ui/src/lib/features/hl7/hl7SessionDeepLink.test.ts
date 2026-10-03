@@ -7,12 +7,42 @@
  * Only `fetch` is faked; the real GraphQL client runs.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/svelte';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 import { setGraphQLTrustedNetworkAccess } from '$lib/graphql/credentials';
 import { resetObservedStreams } from '$lib/graphql/streamAvailability';
 import { toasts } from '$lib/ui/toastStore';
+import { tick } from 'svelte';
+import { get } from 'svelte/store';
+import { EditorView } from '@codemirror/view';
+import { problemsDiagnostics } from '$lib/ui/ide/panels/workflowProblemsStore';
 import HL7PreviewPage from './HL7PreviewPage.svelte';
+
+const navigation = vi.hoisted(() => ({
+  callback: null as ((navigation: { to: { url: URL } }) => void) | null
+}));
+vi.mock('$app/navigation', () => ({
+  afterNavigate: (callback: typeof navigation.callback) => { navigation.callback = callback; },
+  replaceState: (url: URL) => history.replaceState(null, '', url)
+}));
+
+async function navigate(path: string): Promise<void> {
+  history.pushState(null, '', path);
+  navigation.callback?.({ to: { url: new URL(window.location.href) } });
+  await tick();
+}
+
+function editorView(): EditorView {
+  const view = EditorView.findFromDOM(screen.getByTestId('code-editor'));
+  if (!view) throw new Error('HL7 editor is not mounted');
+  return view;
+}
+
+function deferred() {
+  let resolve: () => void = () => {};
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 const RUN = {
   id: 'run-7',
@@ -79,7 +109,14 @@ const DIAGNOSTIC = {
   lineage: []
 };
 
-function fakeApi(options: { workspaceGate?: Promise<void>; withWarning?: boolean } = {}) {
+function fakeApi(options: {
+  workspaceGate?: Promise<void>;
+  workspaceGates?: Record<string, Promise<void>>;
+  detailGates?: Record<string, Promise<void>>;
+  previewGate?: Promise<void>;
+  runDetailFailure?: 'absent' | 'error';
+  withWarning?: boolean;
+} = {}) {
   const operations: string[] = [];
   const variables: Record<string, Record<string, unknown>[]> = {};
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -90,28 +127,43 @@ function fakeApi(options: { workspaceGate?: Promise<void>; withWarning?: boolean
     (variables[operation] ??= []).push(body.variables ?? {});
     if (new Headers(init?.headers).get('accept')?.includes('text/event-stream')) return openStream();
     switch (operation) {
-      case 'IntegrationSessionWorkspace':
-        await options.workspaceGate;
-        return json({ data: { integrationSession: body.variables?.['id'] === 'session-1' ? WORKSPACE : null } });
+      case 'IntegrationSessionWorkspace': {
+        const id = String(body.variables?.['id']);
+        await (options.workspaceGates?.[id] ?? options.workspaceGate);
+        return json({ data: { integrationSession: ['session-1', 'session-2'].includes(id) ? { ...WORKSPACE, id } : null } });
+      }
       case 'CreateStreamingIntegrationSession':
         return json({ data: { createIntegrationSession: { id: 'session-new' } } });
-      case 'AddStreamingSessionSample':
-        return json({ data: { addSessionSample: { id: 'sample-2', sessionId: 'session-1' } } });
-      case 'RunStreamingSessionPreview':
+      case 'AddStreamingSessionSample': {
+        const input = body.variables?.['input'] as { sessionId: string };
+        return json({ data: { addSessionSample: { id: 'sample-2', sessionId: input.sessionId } } });
+      }
+      case 'RunStreamingSessionPreview': {
+        await options.previewGate;
+        const input = body.variables?.['input'] as { sessionId: string };
         return json({
           data: {
-            runSessionPreview: { ...RUN, id: 'run-8', diagnostics: [], lineage: [], events: [], warnings: [] }
+            runSessionPreview: { ...RUN, id: 'run-8', sessionId: input.sessionId, diagnostics: [], lineage: [], events: [], warnings: [] }
           }
         });
+      }
       case 'SessionRunHistory':
-        return json({ data: { sessionRuns: [RUN] } });
+        return json({ data: { sessionRuns: [body.variables?.['sessionId'] === 'session-2'
+          ? { ...RUN, id: 'run-2', sessionId: 'session-2' }
+          : RUN] } });
       case 'SessionRunDiagnostics':
         return json({ data: { sessionDiagnostics: [] } });
-      case 'SessionRunDetail':
+      case 'SessionRunDetail': {
+        const id = String(body.variables?.['id']);
+        await options.detailGates?.[id];
+        if (options.runDetailFailure === 'absent') return json({ data: { sessionRun: null } });
+        if (options.runDetailFailure === 'error') return json({ errors: [{ message: 'Run read failed' }] });
         return json({
           data: {
             sessionRun: {
               ...RUN,
+              id,
+              sessionId: id === 'run-2' ? 'session-2' : 'session-1',
               diagnostics: options.withWarning ? [DIAGNOSTIC] : [],
               lineage: [],
               events: [],
@@ -119,6 +171,7 @@ function fakeApi(options: { workspaceGate?: Promise<void>; withWarning?: boolean
             }
           }
         });
+      }
       case 'AcceptSessionDiagnosticFix':
         return json({
           data: { acceptDiagnosticFix: { ...DIAGNOSTIC, accepted: true, acceptedAt: '2026-01-01T10:00:00Z' } }
@@ -147,6 +200,7 @@ function status(integrationSessions: boolean) {
 }
 
 beforeEach(() => {
+  navigation.callback = null;
   vi.stubEnv('VITE_FI_FHIR_INTEGRATION_SESSION_ENABLED', 'true');
   setGraphQLTrustedNetworkAccess(true);
 });
@@ -247,4 +301,174 @@ describe('HL7 intake deep link', { timeout: 30_000 }, () => {
       input: { sessionId: 'session-1', diagnosticId: 'diag_001' }
     });
   });
+
+  it('switches the rail and results on same-route navigation without discarding samples or editor edits', async () => {
+    status(true);
+    const api = fakeApi({ withWarning: true });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await screen.findByText('In results');
+    await fireEvent.click(screen.getByRole('tab', { name: /^Samples/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Load examples' }));
+    const sampleRows = within(screen.getByRole('table', { name: 'Saved samples' })).getAllByRole('row').length;
+    const edited = 'MSH|^~\\&|EDITED|TEST|FI_FHIR|TEST|20260101090000||ADT^A01|EDITED-001|T|2.5.1';
+    const editor = editorView();
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: edited } });
+    await fireEvent.input(screen.getByPlaceholderText('epic_adt_hosp_a'), { target: { value: 'edited_source' } });
+    await navigate('/hl7?session=session-2');
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('hl7-session-sidebar')).toHaveAttribute('data-session-id', 'session-2');
+      expect(screen.getByTestId('hl7-session-run')).toHaveAttribute('data-run-id', 'run-2');
+      expect(screen.getByText('In results')).toBeInTheDocument();
+      expect(get(problemsDiagnostics).issues[0]?.id).toBe('run-2:diag_001');
+    });
+    expect(editorView()).toBe(editor);
+    expect(editorView().state.doc.toString()).toBe(edited);
+    expect(screen.getByPlaceholderText('epic_adt_hosp_a')).toHaveValue('edited_source');
+    expect(within(screen.getByRole('table', { name: 'Saved samples' })).getAllByRole('row')).toHaveLength(sampleRows);
+    expect(api.operations).not.toContain('CreateStreamingIntegrationSession');
+  });
+
+  it('clears old results for a missing target and does not preview into the old or a replacement session', async () => {
+    status(true);
+    const api = fakeApi({ withWarning: true });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await screen.findByText('In results');
+    await navigate('/hl7?session=gone');
+
+    await screen.findByTestId('hl7-session-absent');
+    expect(screen.queryByRole('region', { name: 'Server preview progression' })).not.toBeInTheDocument();
+    expect(get(problemsDiagnostics).sessionCount).toBe(0);
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[0]!);
+    expect(await screen.findByText(/Session gone could not be opened/)).toBeInTheDocument();
+    expect(api.operations).not.toContain('CreateStreamingIntegrationSession');
+    expect(api.operations).not.toContain('AddStreamingSessionSample');
+  });
+
+  it('a Preview pressed while the replacement session opens writes into that target and preserves its own result', async () => {
+    status(true);
+    const gate = deferred();
+    const api = fakeApi({ workspaceGates: { 'session-2': gate.promise } });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await screen.findByText('In results');
+    await navigate('/hl7?session=session-2');
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[0]!);
+    gate.resolve();
+
+    await vi.waitFor(() => expect(api.operations).toContain('RunStreamingSessionPreview'));
+    expect(api.variables['AddStreamingSessionSample']?.[0]).toMatchObject({ input: { sessionId: 'session-2' } });
+    expect(api.variables['RunStreamingSessionPreview']?.[0]).toMatchObject({ input: { sessionId: 'session-2' } });
+    await vi.waitFor(() => expect(screen.getByText('run-8')).toBeInTheDocument());
+    await navigate('/hl7?session=session-2');
+    expect(screen.getByText('run-8')).toBeInTheDocument();
+    expect(api.variables['SessionRunDetail']).toEqual([{ id: 'run-7' }]);
+  });
+
+  it('ignores an older session open that finishes after the replacement is ready', async () => {
+    status(true);
+    const gate = deferred();
+    const api = fakeApi({ workspaceGates: { 'session-1': gate.promise } });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await vi.waitFor(() => expect(api.operations).toContain('IntegrationSessionWorkspace'));
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[0]!);
+    await navigate('/hl7?session=session-2');
+    await screen.findByText('In results');
+    gate.resolve();
+    await tick();
+    await vi.waitFor(() => expect(screen.getByTestId('hl7-session-run')).toHaveAttribute('data-run-id', 'run-2'));
+    expect(api.variables['SessionRunDetail']).toEqual([{ id: 'run-2' }]);
+    expect(api.operations).not.toContain('AddStreamingSessionSample');
+    expect(new URL(window.location.href).searchParams.get('session')).toBe('session-2');
+  });
+
+  it('ignores an old run detail that completes after another session is displayed', async () => {
+    status(true);
+    const gate = deferred();
+    const api = fakeApi({ detailGates: { 'run-7': gate.promise }, withWarning: true });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await vi.waitFor(() => expect(api.operations).toContain('SessionRunDetail'));
+    await navigate('/hl7?session=session-2');
+    await screen.findByText('In results');
+    gate.resolve();
+    await tick();
+    await vi.waitFor(() => expect(get(problemsDiagnostics).issues[0]?.id).toBe('run-2:diag_001'));
+    expect(screen.getByTestId('hl7-session-run')).toHaveAttribute('data-run-id', 'run-2');
+    expect(screen.getByText('In results')).toBeInTheDocument();
+  });
+
+  it('ignores an old Preview completion and resets the workspace when the selector is removed', async () => {
+    status(true);
+    const gate = deferred();
+    const api = fakeApi({ previewGate: gate.promise });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await screen.findByText('In results');
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[0]!);
+    await vi.waitFor(() => expect(api.operations).toContain('RunStreamingSessionPreview'));
+    await navigate('/hl7?session=session-2');
+    await screen.findByText('In results');
+    gate.resolve();
+    await tick();
+    await vi.waitFor(() => expect(screen.getByText('In results')).toBeInTheDocument());
+    expect(screen.queryByText('run-8')).not.toBeInTheDocument();
+    expect(new URL(window.location.href).searchParams.get('session')).toBe('session-2');
+
+    await navigate('/hl7');
+    expect(screen.queryByTestId('hl7-session-sidebar')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Server preview progression' })).not.toBeInTheDocument();
+    expect(get(problemsDiagnostics).sessionCount).toBe(0);
+  });
+
+
+  it('clears the previous result when the next target is unavailable on the deployment', async () => {
+    status(true);
+    const api = fakeApi({ withWarning: true });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await screen.findByText('In results');
+    status(false);
+    await tick();
+    await navigate('/hl7?session=session-2');
+
+    expect(await screen.findByTestId('hl7-session-unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Server preview progression' })).not.toBeInTheDocument();
+    expect(get(problemsDiagnostics).sessionCount).toBe(0);
+    expect(api.variables['IntegrationSessionWorkspace']).toEqual([{ id: 'session-1' }]);
+  });
+
+
+  it.each(['absent', 'error'] as const)('unlocks Preview after Show in results supersedes it and returns %s', async (failure) => {
+    status(true);
+    const gate = deferred();
+    const options: Parameters<typeof fakeApi>[0] = { previewGate: gate.promise };
+    const api = fakeApi(options);
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+    await screen.findByText('In results');
+    await fireEvent.click(screen.getAllByRole('button', { name: 'Preview' })[0]!);
+    await vi.waitFor(() => expect(api.operations).toContain('RunStreamingSessionPreview'));
+    options.runDetailFailure = failure;
+    await fireEvent.click(screen.getByTestId('hl7-session-show-run'));
+
+    expect(await screen.findByText(failure === 'absent' ? /Run run-7 is no longer/ : /Run run-7 could not be read/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Preview' })[0]).toBeEnabled();
+    expect(screen.queryByRole('region', { name: 'Server preview progression' })).not.toBeInTheDocument();
+    gate.resolve();
+    await tick();
+    expect(screen.queryByText('run-8')).not.toBeInTheDocument();
+  });
+
 });

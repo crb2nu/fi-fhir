@@ -4,19 +4,11 @@
   or says it has none (`.loom/37` U-2).
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { Toolbar } from '$lib/ui/primitives';
   import AlertsPanel from '$lib/features/dashboard/AlertsPanel.svelte';
   import IntegrationsPanel from '$lib/features/dashboard/IntegrationsPanel.svelte';
   import RecentWork from '$lib/features/dashboard/RecentWork.svelte';
   import SystemStatusPanel from '$lib/features/system/SystemStatusPanel.svelte';
-  import { restoreLayout } from '$lib/ui/ide/ideStore';
-
-  // Reopen the documents the operator left open (the saved layout), so Recent
-  // lists them.
-  onMount(() => {
-    restoreLayout();
-  });
 </script>
 
 <svelte:head>
