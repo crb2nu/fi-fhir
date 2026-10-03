@@ -5,6 +5,7 @@
   import { page } from '$app/stores';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import Search from '@lucide/svelte/icons/search';
+  import PanelLeft from '@lucide/svelte/icons/panel-left';
   import ActivityBar from './ActivityBar.svelte';
   import Sidebar from './Sidebar.svelte';
   import EditorTabs from './EditorTabs.svelte';
@@ -30,6 +31,7 @@
   import {
     ideState,
     toggleSidebar,
+    setSidebarOpen,
     setActiveView,
     openTab as openTabAction,
     closeTab as closeTabAction,
@@ -59,7 +61,7 @@
   /**
    * IDE shell composition root: a 40 px header (wordmark, stage control,
    * breadcrumb, command palette, theme), the activity bar, editor tabs, the
-   * document region, the bottom panel, the contextual sidebar and a 24 px
+   * document region, the bottom panel, the workspace explorer and a 24 px
    * status bar — the one place for connection and access state (plus
    * Next: stage and the build).
    *
@@ -80,6 +82,29 @@
   /** The dirty tab a close is waiting on (the confirmation dialog's subject). */
   let pendingClose: { id: string; title: string } | null = null;
   type WorkspaceTab = ReturnType<typeof createWorkspaceTab>;
+  let narrowScreen = false;
+  let drawerOpen = false;
+  $: explorerOpen = narrowScreen ? drawerOpen : $ideState.sidebarOpen;
+
+  function toggleExplorer(): void {
+    if (explorerOpen) closeExplorer();
+    else if (narrowScreen) drawerOpen = true;
+    else toggleSidebar();
+  }
+
+  function closeExplorer(): void {
+    if (narrowScreen) drawerOpen = false;
+    else {
+      setSidebarOpen(false);
+      document.getElementById('explorer-toggle')?.focus();
+    }
+  }
+
+  function explore(path: string): void {
+    navigateTo(path);
+    if (narrowScreen) drawerOpen = false;
+  }
+
   let currentPath = '/';
   let currentView: IDEView = 'hl7';
   let currentWorkspaceTab: WorkspaceTab = createWorkspaceTab('/', 'system');
@@ -129,18 +154,18 @@
   // ── Shell commands (the palette also lists the current route's) ──
 
   const shellCommands: Command[] = [
-    { id: 'nav:system', label: 'Go to Home', hint: '/', group: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => goto(resolve('/')) },
-    { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', group: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
-    { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', group: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
-    { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', group: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
-    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', group: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
-    { id: 'nav:events', label: 'Go to Verification', hint: '/events', group: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
-    { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', group: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => goto(resolve('/connections')) },
-    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', group: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
+    { id: 'nav:system', label: 'Go to Home', hint: '/', group: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => openView('system') },
+    { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', group: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => openView('hl7') },
+    { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', group: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => openView('profiles') },
+    { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', group: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => openView('terminology') },
+    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', group: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => openView('workflows') },
+    { id: 'nav:events', label: 'Go to Verification', hint: '/events', group: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => openView('events') },
+    { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', group: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => openView('connections') },
+    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', group: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => openView('operator') },
     { id: 'cmd:new-source-connection', label: 'New source connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'source', 'mllp', 'http', 'batch', 's3', 'sftp', 'create'], run: () => openConnections({ view: 'sources', openNew: true }) },
     { id: 'cmd:new-destination-connection', label: 'New destination connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'destination', 'https', 'fhir', 'kafka', 'create'], run: () => openConnections({ view: 'destinations', openNew: true }) },
     { id: 'cmd:engine-properties', label: 'Engine properties', hint: '/connections', group: 'Connections', keywords: ['engine', 'runtime', 'adapters', 'properties', 'environment', 'ledgers'], run: () => openConnections({ view: 'engine' }) },
-    { id: 'cmd:toggle-sidebar', label: 'Toggle sidebar', shortcut: shortcut('B'), group: 'Workspace', keywords: ['sidebar', 'context'], run: () => toggleSidebar() },
+    { id: 'cmd:toggle-sidebar', label: 'Toggle explorer', shortcut: shortcut('B'), group: 'Workspace', keywords: ['sidebar', 'drawer', 'navigation'], run: () => toggleExplorer() },
     { id: 'cmd:toggle-panel', label: 'Toggle bottom panel', shortcut: shortcut('J'), group: 'Workspace', keywords: ['panel', 'output', 'problems', 'copilot'], run: () => toggleBottomPanel() },
     { id: 'cmd:close-tab', label: 'Close editor tab', shortcut: shortcut('W'), group: 'Workspace', keywords: ['close', 'tab'], when: () => $ideState.activeDocumentId !== null, run: () => closeActiveTab() },
     { id: 'cmd:debug-panel', label: 'Open debug panel', shortcut: shortcut('D', true), group: 'Workspace', keywords: ['debug', 'breakpoint', 'step'], run: () => openPanelTab('debug') },
@@ -170,9 +195,14 @@
     return viewRoutes[view];
   }
 
+  function openView(view: IDEView): void {
+    const doc = $ideState.documents.find((entry) => entry.view === view);
+    navigateTo(doc?.path ?? getWorkspaceTabRoute(view));
+  }
+
   $: currentPath = normalizeRoute($page.url.pathname);
   $: currentView = detectViewFromPath(currentPath);
-  $: currentWorkspaceTab = createWorkspaceTab(currentPath, currentView);
+  $: currentWorkspaceTab = createWorkspaceTab(currentPath, currentView, $page.url.search);
   $: setActiveView(currentView);
   $: openTabAction(currentWorkspaceTab);
 
@@ -196,9 +226,7 @@
   $: markDirty('/profiles', $profileDraftDirty);
 
   function onViewChange(e: CustomEvent<IDEView>): void {
-    const view = e.detail;
-    const route = getWorkspaceTabRoute(view);
-    navigateTo(route);
+    openView(e.detail);
   }
 
   function onTabSelect(e: CustomEvent<string>): void {
@@ -273,8 +301,17 @@
   $: breadcrumbDocument = activeDocument?.title ?? currentWorkspaceTab.title;
 
   onMount(() => {
+    const media = window.matchMedia('(max-width: 960px)');
+    const updateViewport = () => {
+      narrowScreen = media.matches;
+      drawerOpen = false;
+    };
+    updateViewport();
+    media.addEventListener('change', updateViewport);
     cleanupShortcuts = initKeyboardShortcuts({
-      toggleSidebar,
+      toggleSidebar: () => {
+        if (!document.querySelector('[aria-modal="true"]') || drawerOpen) toggleExplorer();
+      },
       toggleBottomPanel,
       closeTab: closeActiveTab,
       openDebugPanel: () => {
@@ -283,22 +320,19 @@
     });
     cleanupCommands = registerCommands('shell', shellCommands);
 
-    // Cmd/Ctrl+K opens the one palette, on every route. A route that still
-    // binds the key itself (HL7 intake) hands it to the same palette through
-    // the registry.
+    // Capture before CodeMirror handles Ctrl+K, so commands remain available
+    // while editing. Other modal dialogs keep their own keyboard context.
     const onCmdK = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      if ($paletteOpen) return;
-      const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (e.defaultPrevented || e.isComposing || e.altKey || e.shiftKey) return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && (e.key === 'k' || e.key === 'K')) {
+        if (!$paletteOpen && document.querySelector('[aria-modal="true"]')) return;
         e.preventDefault();
-        openPalette();
+        if (!$paletteOpen) openPalette();
       }
     };
 
-    window.addEventListener('keydown', onCmdK);
+    window.addEventListener('keydown', onCmdK, true);
 
     // The loom platform is an optional HUD integration (PUBLIC_LOOM_ENDPOINT).
     // Without it there is nothing to connect to, so nothing is started.
@@ -307,7 +341,8 @@
     }
 
     return () => {
-      window.removeEventListener('keydown', onCmdK);
+      window.removeEventListener('keydown', onCmdK, true);
+      media.removeEventListener('change', updateViewport);
     };
   });
 
@@ -342,6 +377,19 @@
   <header class="ide-header">
     <a class="ide-brand" href={resolve('/')} aria-label="fi-fhir dashboard">fi-fhir</a>
 
+    <Button
+      id="explorer-toggle"
+      variant="ghost"
+      icon={PanelLeft}
+      aria-label={explorerOpen ? 'Hide explorer' : 'Show explorer'}
+      aria-expanded={explorerOpen}
+      aria-controls="workspace-explorer"
+      title="Explorer ({shortcut('B')})"
+      onclick={toggleExplorer}
+    >
+      <span class="explorer-label">Explorer</span>
+    </Button>
+
     <StageControl pathname={currentPath} />
 
     <nav class="breadcrumb" aria-label="Breadcrumb">
@@ -373,9 +421,18 @@
     </div>
   </header>
 
-  <!-- Main body: activity bar + content + sidebar -->
+  <!-- Main body: explorer (or compact activity bar) + content -->
   <div class="ide-body">
-    <ActivityBar activeView={currentView} on:change={onViewChange} />
+    {#if !explorerOpen && !narrowScreen}
+      <ActivityBar activeView={currentView} on:change={onViewChange} />
+    {/if}
+    <Sidebar
+      open={explorerOpen}
+      drawer={narrowScreen}
+      width={$ideState.sidebarWidth}
+      onclose={closeExplorer}
+      onnavigate={explore}
+    />
 
     <div class="ide-main">
       {#if $ideState.documents.length > 0}
@@ -410,12 +467,6 @@
         {/if}
       </BottomPanel>
     </div>
-
-    <Sidebar
-      open={$ideState.sidebarOpen}
-      width={$ideState.sidebarWidth}
-      pathname={$page.url.pathname}
-    />
   </div>
 
   <StatusBar
@@ -577,6 +628,7 @@
       display: none;
     }
 
+    .explorer-label,
     .command-label,
     .command-kbd {
       display: none;

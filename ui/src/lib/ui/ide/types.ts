@@ -42,8 +42,8 @@ export interface WorkspaceDocument {
   restorableState?: unknown;
   /** @deprecated Kept for backward compat with route-type documents. */
   view?: IDEView | undefined;
-  /** @deprecated Kept for backward compat with route-type documents. */
-  path?: IDEAppRoute | undefined;
+  /** Last visited location, including the route's supported record selectors. */
+  path?: IDEAppRoute | `${IDEAppRoute}?${string}` | undefined;
 }
 
 /**

@@ -1,0 +1,11 @@
+{
+  "name": "@fi-fhir/braces",
+  "version": "3.0.3-fi-fhir.1",
+  "private": true,
+  "description": "braces 3.0.3 with the CVE-2026-93687 depth-limit backport",
+  "license": "MIT",
+  "main": "index.js",
+  "dependencies": {
+    "fill-range": "^7.1.1"
+  }
+}

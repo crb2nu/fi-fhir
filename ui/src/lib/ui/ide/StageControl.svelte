@@ -173,4 +173,20 @@
       padding: 0 8px;
     }
   }
+
+  /* Keep Commands and Theme reachable when the whole shell is phone-width. */
+  @media (max-width: 520px) {
+    .stage.is-current .stage-order {
+      display: inline;
+    }
+
+    .stage.is-current .stage-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+  }
 </style>

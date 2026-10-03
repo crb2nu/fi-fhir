@@ -86,6 +86,15 @@ describe('ideStore', () => {
     });
   });
 
+  it('remembers whether the desktop explorer is open across reloads', () => {
+    toggleSidebar();
+    resetIDEState();
+    expect(get(ideState).sidebarOpen).toBe(true);
+    toggleSidebar();
+    resetIDEState();
+    expect(get(ideState).sidebarOpen).toBe(false);
+  });
+
   describe('setSidebarWidth', () => {
     it('should update sidebar width', () => {
       setSidebarWidth(350);
@@ -106,6 +115,27 @@ describe('ideStore', () => {
   });
 
   describe('workspace tab helpers', () => {
+    it('keeps record selectors in the location without changing the tab identity', () => {
+      const tab = createWorkspaceTab('/operator', 'operator', '?definition=lab%2Fadt&revision=r2&token=private');
+      expect(tab.id).toBe('/operator');
+      expect(tab.route).toBe('/operator');
+      expect(tab.path).toBe('/operator?definition=lab%2Fadt&revision=r2');
+      expect(createWorkspaceTab('/hl7', 'hl7', '?session=sess-2&receipt=wrong-view').path)
+        .toBe('/hl7?session=sess-2');
+    });
+
+    it('updates the remembered record and persists it without duplicating or clearing a dirty tab', () => {
+      openTab(createWorkspaceTab('/hl7', 'hl7', '?session=first'));
+      markDirty('/hl7');
+      openTab(createWorkspaceTab('/hl7', 'hl7', '?session=second'));
+      expect(get(ideState).documents).toHaveLength(1);
+      expect(get(ideState).documents[0]).toMatchObject({ path: '/hl7?session=second', dirty: true });
+      const layout = JSON.parse(localStorage.getItem('fi-fhir-ide-layout')!);
+      expect(layout.openTabs[0]).toMatchObject({ path: '/hl7?session=second', dirty: false });
+      openTab(createWorkspaceTab('/hl7'));
+      expect(get(ideState).documents[0]?.path).toBe('/hl7');
+    });
+
     it('should build route-aware tabs from a pathname', () => {
       const tab = createWorkspaceTab('/workflows/');
       expect(tab.id).toBe('/workflows');

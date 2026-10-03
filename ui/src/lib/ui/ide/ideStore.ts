@@ -20,6 +20,7 @@ import type {
   IDEAppRoute,
 } from './types';
 
+const SIDEBAR_OPEN_KEY = 'fi-fhir-ide-sidebar-open';
 const SIDEBAR_WIDTH_KEY = 'fi-fhir-ide-sidebar-width';
 const BOTTOM_PANEL_HEIGHT_KEY = 'fi-fhir-ide-bottom-panel-height';
 const LAYOUT_KEY = 'fi-fhir-ide-layout';
@@ -132,6 +133,15 @@ const WORKSPACE_VIEW_ROUTES: Record<IDEView, IDEAppRoute> = {
   operator: '/operator',
 };
 
+// Keep only record selectors understood by the routes. Arbitrary URL params
+// (including credentials) must not become part of the persisted layout.
+const WORKSPACE_QUERY_KEYS: Partial<Record<IDEView, string[]>> = {
+  hl7: ['session'],
+  operator: ['receipt', 'attempt', 'definition', 'revision'],
+  connections: ['connection', 'definition', 'revision'],
+  events: ['receipt'],
+};
+
 function normalizeWorkspacePathname(pathname: string): string {
   if (!pathname) return '/';
   if (pathname.length > 1 && pathname.endsWith('/')) {
@@ -159,17 +169,24 @@ export function getWorkspaceTabTitle(pathname: string, view?: IDEView): string {
 }
 
 /** Create a route-type workspace document (backward compat with createWorkspaceTab). */
-export function createWorkspaceTab(pathname: string, view?: IDEView): WorkspaceDocument {
+export function createWorkspaceTab(pathname: string, view?: IDEView, search = ''): WorkspaceDocument {
   const normalized = normalizeWorkspacePathname(pathname);
   const workspaceView = view ?? workspaceViewForPath(normalized);
   const workspaceRoute = WORKSPACE_VIEW_ROUTES[workspaceView];
+  const params = new URLSearchParams(search);
+  const selection = new URLSearchParams();
+  for (const key of WORKSPACE_QUERY_KEYS[workspaceView] ?? []) {
+    const value = params.get(key);
+    if (value) selection.set(key, value);
+  }
+  const query = selection.toString();
   return {
     id: workspaceRoute,
     type: 'route',
     title: getWorkspaceTabTitle(normalized, workspaceView),
     dirty: false,
     view: workspaceView,
-    path: workspaceRoute,
+    path: query ? `${workspaceRoute}?${query}` : workspaceRoute,
     route: workspaceRoute,
   };
 }
@@ -237,7 +254,7 @@ interface InternalIDEState {
 
 function createInitialState(): InternalIDEState {
   return {
-    sidebarOpen: false,
+    sidebarOpen: loadNumber(SIDEBAR_OPEN_KEY, 0) === 1,
     sidebarWidth: loadNumber(SIDEBAR_WIDTH_KEY, 280),
     activeView: 'hl7',
     documents: [],
@@ -279,7 +296,12 @@ ideState.subscribe((state) => {
 });
 
 export function toggleSidebar(): void {
-  _store.update((s) => ({ ...s, sidebarOpen: !s.sidebarOpen }));
+  setSidebarOpen(!get(_store).sidebarOpen);
+}
+
+export function setSidebarOpen(open: boolean): void {
+  saveNumber(SIDEBAR_OPEN_KEY, open ? 1 : 0);
+  _store.update((s) => ({ ...s, sidebarOpen: open }));
 }
 
 export function setSidebarWidth(width: number): void {
@@ -305,7 +327,11 @@ export function openDocument(doc: WorkspaceDocument): void {
   _store.update((s) => {
     const exists = s.documents.some((d) => d.id === doc.id);
     if (exists) {
-      return { ...s, activeDocumentId: doc.id };
+      return {
+        ...s,
+        documents: s.documents.map((existing) => existing.id === doc.id ? { ...existing, ...doc } : existing),
+        activeDocumentId: doc.id,
+      };
     }
     return {
       ...s,

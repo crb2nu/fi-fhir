@@ -15,6 +15,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import {
   SYNTHETIC_ADT_A01,
   enterHL7Message,
+  graphqlData,
   hl7PreviewButton,
   openIDE,
   selects,
@@ -132,13 +133,7 @@ test('E4-1. journey stages equal the evidence the operator-bundle stack holds; a
     await expect(page.getByTestId('status-next')).toHaveCount(0);
   }
 
-  // The sidebar's stage badge reads the same evidence.
-  await openIDE(page, '/hl7');
-  await evidenceSettled(page);
-  await page.keyboard.press('ControlOrMeta+b');
-  const badge = page.getByTestId('sidebar-stage-badge');
-  await expect(badge).toHaveText('1/5');
-  await expect(badge).toHaveAttribute('data-state', 'complete');
+
 });
 
 test('E4-2. on the preview-only stack no stage is complete: each is unknown, says why, and nothing is queried', async ({
@@ -161,10 +156,12 @@ test('E4-2. on the preview-only stack no stage is complete: each is unknown, say
   expect(watch.errorToasts).toEqual([]);
 });
 
-test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 and shell commands', async ({ page }) => {
+test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 and shell commands', async ({ page }, testInfo) => {
   await openIDE(page, '/hl7');
-  await expect(page.getByTestId('code-editor').locator('.cm-content')).toContainText('MSH|');
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const editor = page.getByTestId('code-editor').locator('.cm-content');
+  await expect(editor).toContainText('MSH|');
+  await editor.click();
+  const originalMessage = await editor.innerText();
 
   await page.keyboard.press('ControlOrMeta+k');
   const palette = page.getByRole('dialog', { name: 'Commands', exact: true });
@@ -173,8 +170,11 @@ test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 a
   await expect(palette.getByRole('textbox', { name: 'Search commands' })).toBeFocused();
   await expect(palette.getByRole('option', { name: /Preview \(parse\)/ })).toBeVisible();
   await expect(palette.getByRole('option', { name: /Go to Operator/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('commands-from-editor.png') });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveText(originalMessage, { useInnerText: true });
 
   await page.getByRole('button', { name: 'Open commands' }).click();
   await expect(palette).toBeVisible();
@@ -182,4 +182,104 @@ test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 a
   await expect(palette.getByRole('option', { name: /Preview \(parse\)/ })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const name of ['Open commands', 'Theme: dark']) {
+    const control = page.getByRole('button', { name, exact: true });
+    await expect(control).toBeVisible();
+    const bounds = await control.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  }
+  await page.getByRole('button', { name: 'Open commands' }).click();
+  await expect(palette).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('commands-narrow.png') });
+});
+
+test('E4-4. switching views and closing a tab returns to the linked receipt', async ({ page, request }) => {
+  const data = await graphqlData<{ operatorReceipts: { nodes: { receiptId: string }[] } }>(
+    request,
+    '{ operatorReceipts(page: { first: 1 }) { nodes { receiptId } } }'
+  );
+  const receipt = data.operatorReceipts.nodes[0]?.receiptId;
+  expect(receipt, 'the operator-bundle fixture has a receipt').toBeTruthy();
+  const target = `/operator?receipt=${encodeURIComponent(receipt!)}`;
+  await openIDE(page, target);
+  await expect(page.locator('.receipt-id')).toHaveText(receipt!);
+
+  for (const via of ['tab', 'activity', 'command', 'close']) {
+    await page.getByRole('navigation', { name: 'Activity bar' }).getByRole('button', { name: 'Connections', exact: true }).click();
+    await expect(page).toHaveURL(/\/connections$/);
+    if (via === 'tab') {
+      await page.getByRole('tablist', { name: 'Open editors' }).getByRole('tab', { name: 'Operator', exact: true }).click();
+    } else if (via === 'activity') {
+      await page.getByRole('navigation', { name: 'Activity bar' }).getByRole('button', { name: 'Operator', exact: true }).click();
+    } else if (via === 'command') {
+      await page.getByRole('button', { name: 'Open commands' }).click();
+      await page.getByRole('option', { name: /Go to Operator/ }).click();
+    } else {
+      await page.getByRole('button', { name: 'Close Connections', exact: true }).click();
+    }
+    await expect(page).toHaveURL((url) => url.pathname === '/operator' && url.searchParams.get('receipt') === receipt);
+    await expect(page.locator('.receipt-id')).toHaveText(receipt!);
+    await expect(page.getByRole('tablist', { name: 'Open editors' }).getByRole('tab', { name: 'Operator', exact: true })).toHaveCount(1);
+  }
+});
+
+test('E4-5. explorer resumes sessions, remembers collapsed sections and becomes a keyboard-safe drawer', async ({ page, request }, testInfo) => {
+  const data = await graphqlData<{ integrationSessions: { id: string; name: string }[] }>(request, '{ integrationSessions { id name } }');
+  const session = data.integrationSessions[0];
+  expect(session, 'the fixture has a saved session').toBeTruthy();
+  await openIDE(page, '/hl7');
+  await page.getByRole('button', { name: 'Show explorer' }).click();
+  const explorer = page.getByRole('complementary', { name: 'Explorer' });
+  await expect(explorer).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Activity bar' })).toHaveCount(0);
+  const sessionLink = explorer.locator(`a[href="/hl7?session=${encodeURIComponent(session!.id)}"]`);
+  await expect(sessionLink).toBeVisible();
+  await sessionLink.click();
+  await expect(page).toHaveURL((url) => url.searchParams.get('session') === session!.id);
+  await page.screenshot({ path: testInfo.outputPath('explorer-desktop.png') });
+
+  await explorer.getByRole('button', { name: 'Build', exact: true }).click();
+  await page.reload();
+  await expect(explorer).toBeVisible();
+  await expect(explorer.getByRole('button', { name: 'Build', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  const filter = explorer.getByRole('textbox', { name: 'Filter explorer' });
+  await filter.fill('profiles');
+  await expect(explorer.getByRole('link', { name: 'Profiles', exact: true })).toBeVisible();
+  await explorer.getByRole('button', { name: 'Clear explorer filter' }).click();
+  await expect(explorer.getByRole('link', { name: 'Profiles', exact: true })).toHaveCount(0);
+  await explorer.getByRole('button', { name: 'Build', exact: true }).click();
+  await explorer.getByRole('button', { name: 'Collapse explorer' }).click();
+  await expect(page.getByRole('button', { name: 'Show explorer' })).toBeFocused();
+  await expect(page.getByRole('navigation', { name: 'Activity bar' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('explorer-collapsed.png') });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const toggle = page.getByRole('button', { name: 'Show explorer' });
+  await toggle.click();
+  const drawer = page.getByRole('dialog', { name: 'Explorer', exact: true });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('textbox', { name: 'Filter explorer' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(drawer.getByRole('button', { name: 'Close explorer' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  // Wrapping backward from the first control must stay inside the drawer.
+  await expect(drawer.locator(':focus')).toHaveCount(1);
+  await page.screenshot({ path: testInfo.outputPath('explorer-drawer.png') });
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await drawer.getByRole('link', { name: 'Connections', exact: true }).click();
+  await expect(page).toHaveURL(/\/connections$/);
+  await expect(drawer).toHaveCount(0);
+  await toggle.click();
+  await page.mouse.click(380, 400);
+  await expect(drawer).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(explorer).toHaveCount(0);
 });

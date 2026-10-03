@@ -1,0 +1,1 @@
+Updated Busboy and DOMPurify to patched releases, constrained SvelteKit's cookie dependency to 0.7.2, and backported the proposed braces nesting-depth fix into a documented private fork. The dependency audit passes without suppressing findings; regression tests verify the installed fork and cookie validation.

@@ -31,6 +31,15 @@ capabilities, pages try the request and report any failure inline.
 
 ## The shell
 
+Editor tabs remember the last session or record opened by a deep link. Switch
+back through a tab, the explorer, the activity bar, or a **Go to** command to resume there.
+An explicit link to the base page clears that selection. This remembers the
+record location, not an unsaved form or filter state.
+
+⌘/Ctrl+K opens Commands even while typing in a field or the HL7 editor.
+Escape returns focus to where you were working. Other open dialogs keep their
+own keyboard focus.
+
 - **Header**: the fi-fhir mark (Home), the five **stages**, a breadcrumb,
   **Commands** (⌘K / Ctrl+K) and the theme toggle (system, light, dark).
 - **Stages**: 1 Source Intake (`/hl7`) → 2 Normalization (`/profiles`) →
@@ -39,8 +48,22 @@ capabilities, pages try the request and report any failure inline.
   highlighted and earlier ones carry a check. With the stages focused, the
   arrow keys, Home and End move between them. Home (`/`), Connections and
   Operator are not stages.
-- **Activity bar**: Home, HL7 / Intake, Profiles, Terminology, Workflows,
-  Verification, Connections, Operator.
+- **Explorer**: the header button or ⌘/Ctrl+B expands a left sidebar. **Build**
+  groups intake, profiles, terminology and workflows; **Operate** groups
+  connections, operator and verification. Collapse either group, or filter by
+  view name. Filtering temporarily reveals collapsed groups. The desktop
+  open/closed preference and section choices survive a reload.
+- **Recent sessions** in the explorer: up to eight sessions ordered by latest
+  update, with the last run status. Select one to reopen it in HL7 intake;
+  filter by name or session ID. The list loads on opening the explorer and
+  refreshes on request. It loads only when this UI build and your API access
+  support sessions; failures offer a refresh. Session data is not saved to
+  browser storage by the explorer.
+- **Compact navigation**: collapsing the explorer restores the icon activity
+  bar on desktop. At 960 px and below, the explorer becomes a drawer over the
+  workspace. Escape, the backdrop, its close button, or selecting a link
+  dismisses it. Keyboard focus stays inside while open and returns to its
+  opener on dismissal. Opening the drawer does not change your desktop choice.
 - **Status bar**: the API connection ("Connected", "Connecting", "Offline",
   from `/health` every 30 s), the access chip, **Next:** *the following
   stage*, and the build tag.
