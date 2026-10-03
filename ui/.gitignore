@@ -6,3 +6,8 @@ build/
 .env.*
 npm-debug.log*
 e2e-results/
+
+# Reviewed source backports are part of the application, unlike Go's vendor/.
+!vendor/
+vendor/*
+!vendor/braces/

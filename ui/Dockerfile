@@ -12,6 +12,8 @@ WORKDIR /app
 
 # Copy package files first for better layer caching
 COPY package.json package-lock.json ./
+# Local security backports must be present when npm resolves file dependencies.
+COPY vendor/ ./vendor/
 RUN npm install --global "npm@${NPM_VERSION}" && \
     npm ci --no-audit --no-fund
 
