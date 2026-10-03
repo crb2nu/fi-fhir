@@ -41,12 +41,17 @@
   }
   let collapsed = $state(loadCollapsed());
   let filter = $state('');
+  let filterInput: HTMLInputElement | undefined = $state();
   let sessions = $state<RecentSession[]>([]);
   let loading = $state(false);
   let error = $state(false);
   let refresh = $state(0);
   const sessionsAvailable = $derived(isIntegrationSessionBuildEnabled() && $integrationSessionsCapability === true);
   const query = $derived(filter.trim().toLocaleLowerCase());
+  const activeDocument = $derived($ideState.documents.find((doc) => doc.id === $ideState.activeDocumentId));
+  const activeSession = $derived(activeDocument?.view === 'hl7'
+    ? new URLSearchParams(activeDocument.path?.split('?')[1]).get('session')
+    : null);
   const matches = (name: string) => name.toLocaleLowerCase().includes(query);
   const filteredGroups = $derived(groups.map((group) => ({ ...group, links: group.links.filter((link) => matches(link.label)) })));
   const filteredSessions = $derived(sessions.filter((session) => matches(session.name) || matches(session.id)));
@@ -77,6 +82,10 @@
   }
 
   function expanded(id: string): boolean { return !!query || !collapsed.includes(id); }
+  function clearFilter(): void {
+    filter = '';
+    filterInput?.focus();
+  }
   function location(view: IDEView, fallback: IDEAppRoute): string {
     return $ideState.documents.find((doc) => doc.view === view)?.path ?? fallback;
   }
@@ -94,8 +103,8 @@
   </header>
   <div class="filter">
     <Icon icon={Search} size={14} />
-    <input aria-label="Filter explorer" placeholder="Filter views and recent sessions" bind:value={filter} />
-    {#if filter}<IconButton icon={X} label="Clear explorer filter" onclick={() => (filter = '')} />{/if}
+    <input aria-label="Filter explorer" placeholder="Filter views and recent sessions" bind:this={filterInput} bind:value={filter} />
+    {#if filter}<IconButton icon={X} label="Clear explorer filter" onclick={clearFilter} />{/if}
   </div>
   <div class="tree">
     <nav aria-label="Workspace views">
@@ -148,7 +157,7 @@
             {#each filteredSessions as session (session.id)}
               {@const path = `/hl7?session=${encodeURIComponent(session.id)}`}
               {@const lastRun = session.runs[session.runs.length - 1]}
-              <a class="row session" href={resolve(path as IDEAppRoute)} title={session.name + ' · ' + session.id} onclick={(event) => follow(event, path)}>
+              <a class="row session" class:active={activeSession === session.id} aria-current={activeSession === session.id ? 'page' : undefined} href={resolve(path as IDEAppRoute)} title={session.name + ' · ' + session.id} onclick={(event) => follow(event, path)}>
                 <Icon icon={VIEW_ICONS.hl7} size={14} />
                 <span class="session-text"><span class="session-name">{session.name}</span><span class="session-status">{lastRun?.status ?? 'No runs'} · {new Date(session.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span></span>
               </a>

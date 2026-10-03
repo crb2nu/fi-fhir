@@ -235,8 +235,10 @@ test('E4-5. explorer resumes sessions, remembers collapsed sections and becomes 
   await page.getByRole('button', { name: 'Show explorer' }).click();
   const explorer = page.getByRole('complementary', { name: 'Explorer' });
   await expect(explorer).toBeVisible();
+  await expect(explorer.getByRole('textbox', { name: 'Filter explorer' })).toBeFocused();
   await expect(page.getByRole('navigation', { name: 'Activity bar' })).toHaveCount(0);
-  const sessionLink = explorer.locator(`a[href="/hl7?session=${encodeURIComponent(session!.id)}"]`);
+  const sessionLink = explorer.getByRole('region', { name: 'Recent sessions' })
+    .locator(`a[href="/hl7?session=${encodeURIComponent(session!.id)}"]`);
   await expect(sessionLink).toBeVisible();
   await sessionLink.click();
   await expect(page).toHaveURL((url) => url.searchParams.get('session') === session!.id);
@@ -250,6 +252,7 @@ test('E4-5. explorer resumes sessions, remembers collapsed sections and becomes 
   await filter.fill('profiles');
   await expect(explorer.getByRole('link', { name: 'Profiles', exact: true })).toBeVisible();
   await explorer.getByRole('button', { name: 'Clear explorer filter' }).click();
+  await expect(filter).toBeFocused();
   await expect(explorer.getByRole('link', { name: 'Profiles', exact: true })).toHaveCount(0);
   await explorer.getByRole('button', { name: 'Build', exact: true }).click();
   await explorer.getByRole('button', { name: 'Collapse explorer' }).click();
@@ -282,4 +285,57 @@ test('E4-5. explorer resumes sessions, remembers collapsed sections and becomes 
   await expect(toggle).toBeFocused();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(explorer).toHaveCount(0);
+});
+
+test('E4-6. explorer switches the session content without discarding text and restores record tabs after reload', async ({ page, request }, testInfo) => {
+  async function createSession(name: string) {
+    const created = await graphqlData<{ createIntegrationSession: { id: string } }>(request,
+      'mutation Create($input: CreateIntegrationSessionInput!) { createIntegrationSession(input: $input) { id } }',
+      { input: { name } });
+    const id = created.createIntegrationSession.id;
+    const added = await graphqlData<{ addSessionSample: { id: string } }>(request,
+      'mutation Add($input: AddSessionSampleInput!) { addSessionSample(input: $input) { id } }',
+      { input: { sessionId: id, name: 'Synthetic ADT', format: 'HL7V2', data: SYNTHETIC_ADT_A01, retainRawPayload: false } });
+    const ran = await graphqlData<{ runSessionPreview: { id: string } }>(request,
+      'mutation Preview($input: RunSessionPreviewInput!) { runSessionPreview(input: $input) { id } }',
+      { input: { sessionId: id, sampleId: added.addSessionSample.id } });
+    return { id, runId: ran.runSessionPreview.id };
+  }
+
+  const first = await createSession('Explorer first session');
+  const second = await createSession('Explorer second session');
+  await openIDE(page, `/hl7?session=${encodeURIComponent(first.id)}`);
+  const rail = page.getByTestId('hl7-session-sidebar');
+  const shownRun = page.getByTestId('hl7-session-selected-run');
+  await expect(rail).toHaveAttribute('data-session-id', first.id);
+  await expect(shownRun).toHaveAttribute('data-run-id', first.runId);
+  await page.getByRole('button', { name: 'Show explorer' }).click();
+  const explorer = page.getByRole('complementary', { name: 'Explorer' });
+  const secondLink = explorer.getByRole('region', { name: 'Recent sessions' })
+    .locator(`a[href="/hl7?session=${encodeURIComponent(second.id)}"]`);
+  await expect(secondLink).toBeVisible();
+  await enterHL7Message(page, SYNTHETIC_ADT_A01 + '\rNTE|1||Keep this explorer draft');
+  await secondLink.click();
+  await expect(rail).toHaveAttribute('data-session-id', second.id);
+  await expect(shownRun).toHaveAttribute('data-run-id', second.runId);
+  await expect(secondLink).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('code-editor').locator('.cm-content')).toContainText('Keep this explorer draft');
+  await page.screenshot({ path: testInfo.outputPath('explorer-current-session.png') });
+
+  await explorer.getByRole('link', { name: 'Operator', exact: true }).click();
+  await expect(page).toHaveURL(/\/operator$/);
+  await page.reload();
+  await expect(page.getByRole('tab', { name: 'Operator', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(explorer.getByRole('link', { name: 'HL7 / Intake', exact: true })).toHaveAttribute('href', `/hl7?session=${encodeURIComponent(second.id)}`);
+  await page.getByRole('tab', { name: 'HL7 / Intake', exact: true }).click();
+  await expect(rail).toHaveAttribute('data-session-id', second.id);
+  await expect(shownRun).toHaveAttribute('data-run-id', second.runId);
+
+  // An incoming deep link wins over that tab's previously saved selection.
+  await page.goto(`/hl7?session=${encodeURIComponent(first.id)}`);
+  await expect(rail).toHaveAttribute('data-session-id', first.id);
+  await expect(shownRun).toHaveAttribute('data-run-id', first.runId);
+  await expect(page.getByRole('tab', { name: 'Operator', exact: true })).toBeVisible();
+  await explorer.getByRole('link', { name: 'Home', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Home', exact: true })).toHaveAttribute('aria-selected', 'true');
 });

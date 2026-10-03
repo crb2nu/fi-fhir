@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { resolve } from '$app/paths';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -86,10 +86,16 @@
   let drawerOpen = false;
   $: explorerOpen = narrowScreen ? drawerOpen : $ideState.sidebarOpen;
 
-  function toggleExplorer(): void {
+  async function toggleExplorer(): Promise<void> {
     if (explorerOpen) closeExplorer();
     else if (narrowScreen) drawerOpen = true;
-    else toggleSidebar();
+    else {
+      toggleSidebar();
+      await tick();
+      if (!narrowScreen && $ideState.sidebarOpen) {
+        document.querySelector<HTMLInputElement>('#workspace-explorer input')?.focus();
+      }
+    }
   }
 
   function closeExplorer(): void {
