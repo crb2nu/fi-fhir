@@ -72,6 +72,46 @@ describe('IDEShell workspace', () => {
     expect(get(ideState).activeTabId).toBe('/hl7');
   });
 
+  it('returns to the latest session from editor tabs, the activity bar and commands', async () => {
+    pageStore.set({ url: new URL('http://localhost/hl7?session=first') });
+    render(IDEShell);
+    await tick();
+    pageStore.set({ url: new URL('http://localhost/hl7?session=second') });
+    await tick();
+
+    for (const method of ['tab', 'activity', 'command']) {
+      pageStore.set({ url: new URL('http://localhost/operator?receipt=receipt-1') });
+      await tick();
+      gotoMock.mockClear();
+      if (method === 'tab') {
+        await fireEvent.click(screen.getByRole('tab', { name: 'HL7 / Intake' }));
+      } else if (method === 'activity') {
+        await fireEvent.click(screen.getByRole('button', { name: 'HL7 / Intake' }));
+      } else {
+        await fireEvent.click(screen.getByRole('button', { name: 'Open commands' }));
+        await fireEvent.click(await screen.findByRole('option', { name: /Go to HL7/ }));
+      }
+      expect(gotoMock).toHaveBeenCalledWith('/hl7?session=second');
+      await tick();
+      expect(get(ideState).documents.filter((doc) => doc.id === '/hl7')).toHaveLength(1);
+    }
+
+    await fireEvent.click(screen.getByLabelText('Close HL7 / Intake'));
+    expect(gotoMock).toHaveBeenLastCalledWith('/operator?receipt=receipt-1');
+  });
+
+  it('clears the remembered selection on an explicit navigation to the base route', async () => {
+    pageStore.set({ url: new URL('http://localhost/hl7?session=first') });
+    render(IDEShell);
+    await tick();
+    pageStore.set({ url: new URL('http://localhost/hl7') });
+    await tick();
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    await tick();
+    await fireEvent.click(screen.getByRole('tab', { name: 'HL7 / Intake' }));
+    expect(gotoMock).toHaveBeenCalledWith('/hl7');
+  });
+
   it('opens the bottom panel when a panel tab is clicked', async () => {
     render(IDEShell);
     await tick();
@@ -164,6 +204,64 @@ describe('IDEShell workspace', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Open commands' }));
     expect(await screen.findByRole('dialog', { name: 'Commands' })).toBeInTheDocument();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it.each(['input', 'textarea', 'editor'])('opens commands from a focused %s and returns focus on Escape', async (kind) => {
+    render(IDEShell);
+    await tick();
+    const field = document.createElement(kind === 'editor' ? 'div' : kind);
+    if (kind === 'editor') {
+      field.contentEditable = 'true';
+      field.tabIndex = 0;
+    }
+    // An editor must see the shortcut as handled before its own key binding.
+    const editorBinding = vi.fn((event: KeyboardEvent) => {
+      expect(event.defaultPrevented).toBe(true);
+    });
+    field.addEventListener('keydown', editorBinding);
+    document.body.append(field);
+    try {
+      field.focus();
+      await fireEvent.keyDown(field, { key: 'k', ctrlKey: true });
+      const palette = await screen.findByRole('dialog', { name: 'Commands' });
+      const query = within(palette).getByRole('textbox', { name: 'Search commands' });
+      expect(query).toHaveFocus();
+      expect(editorBinding).toHaveBeenCalledTimes(1);
+      await fireEvent.keyDown(query, { key: 'Escape' });
+      expect(screen.queryByRole('dialog', { name: 'Commands' })).not.toBeInTheDocument();
+      expect(field).toHaveFocus();
+    } finally {
+      field.remove();
+    }
+  });
+
+  it('keeps a repeated palette shortcut in the existing palette without resetting its query', async () => {
+    render(IDEShell);
+    await fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const query = await screen.findByRole('textbox', { name: 'Search commands' });
+    await fireEvent.input(query, { target: { value: 'operator' } });
+    const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true });
+    query.dispatchEvent(event);
+    await tick();
+    expect(event.defaultPrevented).toBe(true);
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(query).toHaveValue('operator');
+  });
+
+  it('leaves another dialog and modified or composing shortcuts alone', async () => {
+    render(IDEShell);
+    await tick();
+    for (const modifier of [{ altKey: true }, { shiftKey: true }, { isComposing: true }]) {
+      await fireEvent.keyDown(window, { key: 'k', ctrlKey: true, ...modifier });
+      expect(screen.queryByRole('dialog', { name: 'Commands' })).not.toBeInTheDocument();
+    }
+    markDirty('/hl7');
+    await tick();
+    await fireEvent.click(screen.getByLabelText('Close HL7 / Intake'));
+    const dialog = await screen.findByRole('dialog', { name: 'Close HL7 / Intake?' });
+    await fireEvent.keyDown(within(dialog).getByRole('button', { name: 'Keep open' }), { key: 'k', ctrlKey: true });
+    expect(screen.queryByRole('dialog', { name: 'Commands' })).not.toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
   });
 
   it('shows the stage breadcrumb for the current document', async () => {

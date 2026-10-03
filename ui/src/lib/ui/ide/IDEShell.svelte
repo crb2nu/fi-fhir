@@ -129,14 +129,14 @@
   // ── Shell commands (the palette also lists the current route's) ──
 
   const shellCommands: Command[] = [
-    { id: 'nav:system', label: 'Go to Home', hint: '/', group: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => goto(resolve('/')) },
-    { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', group: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => goto(resolve('/hl7')) },
-    { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', group: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => goto(resolve('/profiles')) },
-    { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', group: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => goto(resolve('/terminology')) },
-    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', group: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => goto(resolve('/workflows')) },
-    { id: 'nav:events', label: 'Go to Verification', hint: '/events', group: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => goto(resolve('/events')) },
-    { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', group: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => goto(resolve('/connections')) },
-    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', group: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => goto(resolve('/operator')) },
+    { id: 'nav:system', label: 'Go to Home', hint: '/', group: 'Navigation', keywords: ['navigate', 'home', 'dashboard', 'health'], run: () => openView('system') },
+    { id: 'nav:hl7', label: 'Go to HL7 / Intake', hint: '/hl7', group: 'Navigation', keywords: ['navigate', 'hl7', 'source intake'], run: () => openView('hl7') },
+    { id: 'nav:profiles', label: 'Go to Profiles', hint: '/profiles', group: 'Navigation', keywords: ['navigate', 'profiles', 'normalization'], run: () => openView('profiles') },
+    { id: 'nav:terminology', label: 'Go to Terminology', hint: '/terminology', group: 'Navigation', keywords: ['navigate', 'terminology', 'translation'], run: () => openView('terminology') },
+    { id: 'nav:workflows', label: 'Go to Workflows', hint: '/workflows', group: 'Navigation', keywords: ['navigate', 'workflows', 'delivery'], run: () => openView('workflows') },
+    { id: 'nav:events', label: 'Go to Verification', hint: '/events', group: 'Navigation', keywords: ['navigate', 'events', 'verification'], run: () => openView('events') },
+    { id: 'nav:connections', label: 'Go to Connections', hint: '/connections', group: 'Navigation', keywords: ['navigate', 'connections', 'sources', 'destinations', 'engine'], run: () => openView('connections') },
+    { id: 'nav:operator', label: 'Go to Operator', hint: '/operator', group: 'Navigation', keywords: ['navigate', 'operator', 'operations', 'replay', 'dead letter', 'deployments'], run: () => openView('operator') },
     { id: 'cmd:new-source-connection', label: 'New source connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'source', 'mllp', 'http', 'batch', 's3', 'sftp', 'create'], run: () => openConnections({ view: 'sources', openNew: true }) },
     { id: 'cmd:new-destination-connection', label: 'New destination connection', hint: '/connections', group: 'Connections', keywords: ['connection', 'destination', 'https', 'fhir', 'kafka', 'create'], run: () => openConnections({ view: 'destinations', openNew: true }) },
     { id: 'cmd:engine-properties', label: 'Engine properties', hint: '/connections', group: 'Connections', keywords: ['engine', 'runtime', 'adapters', 'properties', 'environment', 'ledgers'], run: () => openConnections({ view: 'engine' }) },
@@ -170,9 +170,14 @@
     return viewRoutes[view];
   }
 
+  function openView(view: IDEView): void {
+    const doc = $ideState.documents.find((entry) => entry.view === view);
+    navigateTo(doc?.path ?? getWorkspaceTabRoute(view));
+  }
+
   $: currentPath = normalizeRoute($page.url.pathname);
   $: currentView = detectViewFromPath(currentPath);
-  $: currentWorkspaceTab = createWorkspaceTab(currentPath, currentView);
+  $: currentWorkspaceTab = createWorkspaceTab(currentPath, currentView, $page.url.search);
   $: setActiveView(currentView);
   $: openTabAction(currentWorkspaceTab);
 
@@ -196,9 +201,7 @@
   $: markDirty('/profiles', $profileDraftDirty);
 
   function onViewChange(e: CustomEvent<IDEView>): void {
-    const view = e.detail;
-    const route = getWorkspaceTabRoute(view);
-    navigateTo(route);
+    openView(e.detail);
   }
 
   function onTabSelect(e: CustomEvent<string>): void {
@@ -283,22 +286,19 @@
     });
     cleanupCommands = registerCommands('shell', shellCommands);
 
-    // Cmd/Ctrl+K opens the one palette, on every route. A route that still
-    // binds the key itself (HL7 intake) hands it to the same palette through
-    // the registry.
+    // Capture before CodeMirror handles Ctrl+K, so commands remain available
+    // while editing. Other modal dialogs keep their own keyboard context.
     const onCmdK = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return;
-      if ($paletteOpen) return;
-      const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (e.defaultPrevented || e.isComposing || e.altKey || e.shiftKey) return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && (e.key === 'k' || e.key === 'K')) {
+        if (!$paletteOpen && document.querySelector('[aria-modal="true"]')) return;
         e.preventDefault();
-        openPalette();
+        if (!$paletteOpen) openPalette();
       }
     };
 
-    window.addEventListener('keydown', onCmdK);
+    window.addEventListener('keydown', onCmdK, true);
 
     // The loom platform is an optional HUD integration (PUBLIC_LOOM_ENDPOINT).
     // Without it there is nothing to connect to, so nothing is started.
@@ -307,7 +307,7 @@
     }
 
     return () => {
-      window.removeEventListener('keydown', onCmdK);
+      window.removeEventListener('keydown', onCmdK, true);
     };
   });
 

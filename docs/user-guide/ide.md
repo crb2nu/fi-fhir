@@ -31,6 +31,15 @@ capabilities, pages try the request and report any failure inline.
 
 ## The shell
 
+Editor tabs remember the last session or record opened by a deep link. Switch
+back through a tab, the activity bar, or a **Go to** command to resume there.
+An explicit link to the base page clears that selection. This remembers the
+record location, not an unsaved form or filter state.
+
+⌘/Ctrl+K opens Commands even while typing in a field or the HL7 editor.
+Escape returns focus to where you were working. Other open dialogs keep their
+own keyboard focus.
+
 - **Header**: the fi-fhir mark (Home), the five **stages**, a breadcrumb,
   **Commands** (⌘K / Ctrl+K) and the theme toggle (system, light, dark).
 - **Stages**: 1 Source Intake (`/hl7`) → 2 Normalization (`/profiles`) →

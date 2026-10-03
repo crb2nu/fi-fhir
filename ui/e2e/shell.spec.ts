@@ -15,6 +15,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import {
   SYNTHETIC_ADT_A01,
   enterHL7Message,
+  graphqlData,
   hl7PreviewButton,
   openIDE,
   selects,
@@ -161,10 +162,12 @@ test('E4-2. on the preview-only stack no stage is complete: each is unknown, say
   expect(watch.errorToasts).toEqual([]);
 });
 
-test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 and shell commands', async ({ page }) => {
+test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 and shell commands', async ({ page }, testInfo) => {
   await openIDE(page, '/hl7');
-  await expect(page.getByTestId('code-editor').locator('.cm-content')).toContainText('MSH|');
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const editor = page.getByTestId('code-editor').locator('.cm-content');
+  await expect(editor).toContainText('MSH|');
+  await editor.click();
+  const originalMessage = await editor.innerText();
 
   await page.keyboard.press('ControlOrMeta+k');
   const palette = page.getByRole('dialog', { name: 'Commands', exact: true });
@@ -173,8 +176,11 @@ test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 a
   await expect(palette.getByRole('textbox', { name: 'Search commands' })).toBeFocused();
   await expect(palette.getByRole('option', { name: /Preview \(parse\)/ })).toBeVisible();
   await expect(palette.getByRole('option', { name: /Go to Operator/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('commands-from-editor.png') });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveText(originalMessage, { useInnerText: true });
 
   await page.getByRole('button', { name: 'Open commands' }).click();
   await expect(palette).toBeVisible();
@@ -182,4 +188,47 @@ test('E4-3. on /hl7 Cmd/Ctrl+K and the header button open one palette with HL7 a
   await expect(palette.getByRole('option', { name: /Preview \(parse\)/ })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const name of ['Open commands', 'Theme: dark']) {
+    const control = page.getByRole('button', { name, exact: true });
+    await expect(control).toBeVisible();
+    const bounds = await control.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  }
+  await page.getByRole('button', { name: 'Open commands' }).click();
+  await expect(palette).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('commands-narrow.png') });
+});
+
+test('E4-4. switching views and closing a tab returns to the linked receipt', async ({ page, request }) => {
+  const data = await graphqlData<{ operatorReceipts: { nodes: { receiptId: string }[] } }>(
+    request,
+    '{ operatorReceipts(page: { first: 1 }) { nodes { receiptId } } }'
+  );
+  const receipt = data.operatorReceipts.nodes[0]?.receiptId;
+  expect(receipt, 'the operator-bundle fixture has a receipt').toBeTruthy();
+  const target = `/operator?receipt=${encodeURIComponent(receipt!)}`;
+  await openIDE(page, target);
+  await expect(page.locator('.receipt-id')).toHaveText(receipt!);
+
+  for (const via of ['tab', 'activity', 'command', 'close']) {
+    await page.getByRole('navigation', { name: 'Activity bar' }).getByRole('button', { name: 'Connections', exact: true }).click();
+    await expect(page).toHaveURL(/\/connections$/);
+    if (via === 'tab') {
+      await page.getByRole('tablist', { name: 'Open editors' }).getByRole('tab', { name: 'Operator', exact: true }).click();
+    } else if (via === 'activity') {
+      await page.getByRole('navigation', { name: 'Activity bar' }).getByRole('button', { name: 'Operator', exact: true }).click();
+    } else if (via === 'command') {
+      await page.getByRole('button', { name: 'Open commands' }).click();
+      await page.getByRole('option', { name: /Go to Operator/ }).click();
+    } else {
+      await page.getByRole('button', { name: 'Close Connections', exact: true }).click();
+    }
+    await expect(page).toHaveURL((url) => url.pathname === '/operator' && url.searchParams.get('receipt') === receipt);
+    await expect(page.locator('.receipt-id')).toHaveText(receipt!);
+    await expect(page.getByRole('tablist', { name: 'Open editors' }).getByRole('tab', { name: 'Operator', exact: true })).toHaveCount(1);
+  }
 });
