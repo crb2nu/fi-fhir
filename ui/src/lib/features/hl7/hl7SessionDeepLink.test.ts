@@ -116,6 +116,7 @@ function fakeApi(options: {
   previewGate?: Promise<void>;
   runDetailFailure?: 'absent' | 'error';
   withWarning?: boolean;
+  noRuns?: boolean;
 } = {}) {
   const operations: string[] = [];
   const variables: Record<string, Record<string, unknown>[]> = {};
@@ -130,7 +131,9 @@ function fakeApi(options: {
       case 'IntegrationSessionWorkspace': {
         const id = String(body.variables?.['id']);
         await (options.workspaceGates?.[id] ?? options.workspaceGate);
-        return json({ data: { integrationSession: ['session-1', 'session-2'].includes(id) ? { ...WORKSPACE, id } : null } });
+        return json({ data: { integrationSession: ['session-1', 'session-2'].includes(id)
+          ? { ...WORKSPACE, id, name: id === 'session-2' ? 'Second session' : WORKSPACE.name }
+          : null } });
       }
       case 'CreateStreamingIntegrationSession':
         return json({ data: { createIntegrationSession: { id: 'session-new' } } });
@@ -148,7 +151,7 @@ function fakeApi(options: {
         });
       }
       case 'SessionRunHistory':
-        return json({ data: { sessionRuns: [body.variables?.['sessionId'] === 'session-2'
+        return json({ data: { sessionRuns: options.noRuns ? [] : [body.variables?.['sessionId'] === 'session-2'
           ? { ...RUN, id: 'run-2', sessionId: 'session-2' }
           : RUN] } });
       case 'SessionRunDiagnostics':
@@ -217,6 +220,27 @@ afterEach(() => {
 });
 
 describe('HL7 intake deep link', { timeout: 30_000 }, () => {
+  it('keeps the loaded session identity visible without runs or an open sidebar', async () => {
+    status(true);
+    const api = fakeApi({ noRuns: true });
+    vi.stubGlobal('fetch', api.fetchMock);
+    history.replaceState(null, '', '/hl7?session=session-1');
+    render(HL7PreviewPage);
+
+    const location = await screen.findByTestId('hl7-session-location');
+    await vi.waitFor(() => expect(location).toHaveTextContent(WORKSPACE.name));
+    await fireEvent.click(screen.getByTestId('hl7-session-toggle'));
+    expect(screen.queryByTestId('hl7-session-rail')).not.toBeInTheDocument();
+    expect(within(location).getByRole('button')).toHaveAttribute('title', `${WORKSPACE.name} · session-1`);
+
+    await navigate('/hl7?session=session-2');
+    await vi.waitFor(() => expect(location).toHaveTextContent('Second session'));
+    expect(location).toHaveAttribute('data-session-id', 'session-2');
+    expect(screen.queryByTestId('hl7-session-rail')).not.toBeInTheDocument();
+    await navigate('/hl7');
+    expect(screen.queryByTestId('hl7-session-location')).not.toBeInTheDocument();
+  });
+
   it('reopens the session: the rail lists its run and the results show it', async () => {
     status(true);
     const api = fakeApi();

@@ -6,18 +6,18 @@
   and drafts; and the two session-level acts, Export (audited, with a reason)
   and Archive.
 
-  Every state is one the server reported. The shell's right sidebar is static
-  per route (ui/src/lib/ui/ide/sidebar/sidebarContent.ts has no feature slot),
-  so this rail lives inside the page.
+  Every state is one the server reported. The page docks this rail when there
+  is space and opens it as a drawer on demand in a compact workspace.
 -->
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import X from '@lucide/svelte/icons/x';
   import Download from '@lucide/svelte/icons/download';
   import Archive from '@lucide/svelte/icons/archive';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import History from '@lucide/svelte/icons/history';
-  import { Badge, Button, EmptyState, Icon, IconButton, KeyValue, Table, Td, Th, Tr, type BadgeTone } from '$lib/ui/primitives';
+  import { Badge, Button, Dialog, EmptyState, Icon, IconButton, KeyValue, Table, Td, Th, Tr, type BadgeTone } from '$lib/ui/primitives';
   import StreamingUnavailable from '$lib/ui/StreamingUnavailable.svelte';
   import { streamStatus } from '$lib/graphql/streamAvailability';
   import SessionActionDialog from './SessionActionDialog.svelte';
@@ -27,6 +27,10 @@
   import type { SessionDiagnosticRow } from './workspaceApi';
 
   interface Props {
+    open?: boolean;
+    drawer?: boolean;
+    /** Keep the presentation stable while an export/archive form is open. */
+    onactionchange?: (open: boolean) => void;
     workspace: SessionWorkspaceController;
     view: SessionWorkspaceState;
     /**
@@ -46,6 +50,9 @@
   }
 
   let {
+    open = true,
+    drawer = false,
+    onactionchange,
     workspace,
     view,
     phiExport,
@@ -68,6 +75,9 @@
   let lastExport = $state<{ fileName: string; reason: string; includeRawPayload: boolean } | null>(null);
   let acceptError = $state<string | null>(null);
   let accepting = $state<string | null>(null);
+
+  $effect(() => onactionchange?.(dialog !== null));
+  onDestroy(() => onactionchange?.(false));
 
   function runTone(status: string): BadgeTone {
     if (status === 'completed') return 'success';
@@ -147,14 +157,15 @@
   }
 </script>
 
-<aside class="rail" aria-label="Session" data-testid="hl7-session-rail" data-state={view.status.kind}>
+{#snippet rail()}
+<aside class="rail" class:drawer aria-label="Session" data-testid="hl7-session-rail" data-state={view.status.kind}>
   <header class="rail-head">
     <Icon icon={History} size={14} />
     <h2 class="rail-title">Session</h2>
     {#if view.status.kind === 'ready'}
       <IconButton icon={RefreshCw} label="Refresh session" onclick={() => void workspace.refresh()} />
     {/if}
-    <IconButton icon={X} label="Close session sidebar" onclick={onclose} />
+    <IconButton icon={X} label="Close session sidebar" data-session-close onclick={onclose} />
   </header>
 
   <div class="rail-body">
@@ -444,6 +455,15 @@
     {/if}
   </div>
 </aside>
+{/snippet}
+
+{#if drawer}
+  <Dialog {open} title="Session details" placement="right" layout="bare" initialFocus="[data-session-close]" dismissible={dialog === null} {onclose}>
+    {@render rail()}
+  </Dialog>
+{:else if open}
+  {@render rail()}
+{/if}
 
 <SessionActionDialog
   open={dialog === 'export'}
@@ -487,6 +507,12 @@
     min-height: 0;
     border-left: 1px solid var(--color-border-subtle);
     background: var(--color-bg-surface, var(--color-bg-elevated));
+  }
+
+  .rail.drawer {
+    width: 100%;
+    min-width: 0;
+    border-left: 0;
   }
 
   .rail-head {

@@ -95,6 +95,12 @@ An editor for one HL7v2 message, and tabs for what the engine made of it:
 **Samples, Warnings, Events, Extraction, Inspector, Profile draft, Process,
 Live events**.
 
+Drag the divider, or focus it and use the arrow keys, to resize the editor.
+The split reserves space for results and remembers your preferred width;
+opening a side panel temporarily reduces it without replacing that preference.
+When the two work panes cannot fit side by side, they stack and the workspace
+scrolls vertically. The toolbar actions wrap to remain reachable.
+
 - **Preview** (⌘/Ctrl+Enter) parses the editor text and fills Warnings and
   Events. When the Integration Session engine is available, Preview runs in a
   session, which keeps the samples, profile draft and diagnostics together.
@@ -126,9 +132,15 @@ Bundle a message produces, use the [Browser Playground](playground.md) or a
 With the session engine on, the page's Integration Session is a piece of work
 you can come back to. The first Preview (or a capture) creates it, and the
 address becomes `/hl7?session=<id>`: reload the page, bookmark it, or pick
-the session in Home › Recent, and the page reopens it. The **Session** toolbar
-button shows or hides the session sidebar, which reads everything back from
-the API:
+the session in Home › Recent, and the page reopens it. The session's name stays
+visible above the workspace, even before its first run; its full ID is in the
+name's tooltip. Select the name or **Session** to open its details. Those
+details dock beside the work panes when there is enough room, or open as a
+drawer on demand. Resizing never opens the drawer automatically. Escape closes
+it and returns focus to its opener. An open Export or Archive form keeps its
+state while the window is resized.
+
+The session details read everything back from the API:
 
 - **Runs** (`sessionRuns`), newest first. Selecting one lists its diagnostics
   (`sessionDiagnostics`); **Show in results** loads that run's warnings and

@@ -108,12 +108,13 @@ afterEach(() => {
 });
 
 async function renderSidebar(
-  options: { phiExport?: boolean; reported?: boolean; missing?: string[]; open?: string } = {}
+  options: { phiExport?: boolean; reported?: boolean; missing?: string[]; open?: string; drawer?: boolean } = {}
 ) {
   const api = fakeApi();
   const workspace = createSessionWorkspace({ api, canStream: () => false });
   await workspace.open(options.open ?? 's-1');
   const props = {
+    drawer: options.drawer ?? false,
     workspace,
     view: get(workspace.state),
     phiExport: {
@@ -124,15 +125,39 @@ async function renderSidebar(
     onshowrun: vi.fn(),
     oninspectpath: vi.fn(),
     onaccepted: vi.fn(),
-    onclose: vi.fn()
+    onclose: vi.fn(),
+    onactionchange: vi.fn()
   };
   const rendered = render(SessionSidebar, props);
   // The page passes the store's value; follow it the same way.
   const unsubscribe = workspace.state.subscribe((view) => void rendered.rerender({ ...props, view }));
-  return { api, workspace, props, unsubscribe };
+  return { api, workspace, props, unsubscribe, rendered };
 }
 
 describe('SessionSidebar', () => {
+  it('keeps export state when the rail presentation changes and closes only the inner dialog on Escape', async () => {
+    const { props, rendered, unsubscribe } = await renderSidebar({ drawer: true });
+    const drawer = screen.getByRole('dialog', { name: 'Session details' });
+    expect(drawer.parentElement).toHaveClass('is-right');
+    await fireEvent.click(screen.getByTestId('hl7-session-export'));
+    const dialog = screen.getByTestId('hl7-session-export-dialog');
+    await fireEvent.input(within(dialog).getByRole('textbox'), { target: { value: 'Retain this export reason' } });
+    expect(props.onactionchange).toHaveBeenLastCalledWith(true);
+
+    await rendered.rerender({ ...props, drawer: false });
+    expect(within(dialog).getByRole('textbox')).toHaveValue('Retain this export reason');
+    await rendered.rerender({ ...props, drawer: true });
+    await fireEvent.keyDown(within(dialog).getByRole('textbox'), { key: 'Escape' });
+    expect(screen.queryByTestId('hl7-session-export-dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Session details' })).toBeInTheDocument();
+    expect(props.onclose).not.toHaveBeenCalled();
+    expect(props.onactionchange).toHaveBeenLastCalledWith(false);
+
+    await fireEvent.keyDown(screen.getByRole('dialog', { name: 'Session details' }), { key: 'Escape' });
+    expect(props.onclose).toHaveBeenCalledOnce();
+    unsubscribe();
+  });
+
   it('says a deep-linked session is not in this store', async () => {
     const { unsubscribe } = await renderSidebar({ open: 'gone' });
     const absent = screen.getByTestId('hl7-session-absent');
