@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
+import { isDirty, resetIDEState } from '$lib/ui/ide/ideStore';
 import type { ConnectionChoice, DefinitionDetail, RegistryArtifact } from './definitionsApi';
 
 // Every GraphQL boundary the Connections page touches is mocked.
@@ -162,6 +163,7 @@ function detail(state: string, version: number, overrides: Partial<DefinitionDet
 }
 
 beforeEach(() => {
+  resetIDEState();
   resetAccessCapabilities();
   connections.fetchConnections.mockResolvedValue([]);
   definitions.fetchDefinitions.mockResolvedValue([]);
@@ -184,6 +186,81 @@ async function openDefinitions(): Promise<void> {
 }
 
 describe('Connections › Definitions', () => {
+  it('keeps asynchronous defaults clean and guards a revision-only edit when cancelling', async () => {
+    setAccessStatus(status());
+    let resolveDefault!: (value: number) => void;
+    definitions.fetchDefaultMaxAge.mockReturnValueOnce(new Promise<number>((resolve) => { resolveDefault = resolve; }));
+    render(ConnectionsPage);
+    await openDefinitions();
+    await fireEvent.click(await screen.findByTestId('definitions-new'));
+    await waitFor(() => expect(definitions.fetchDefaultMaxAge).toHaveBeenCalled());
+    expect(isDirty('/connections')).toBe(false);
+    resolveDefault(900);
+    const revision = await screen.findByTestId('definition-new-revision');
+    expect(isDirty('/connections')).toBe(false);
+    await fireEvent.input(revision, { target: { value: 'v2' } });
+    await waitFor(() => expect(isDirty('/connections')).toBe(true));
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel new definition' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Discard definition changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+    expect(revision).toHaveValue('v2');
+    await fireEvent.input(revision, { target: { value: 'v1' } });
+    await waitFor(() => expect(isDirty('/connections')).toBe(false));
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel new definition' }));
+    expect(screen.queryByTestId('definition-new')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('retains a definition across page tabs and asks before selecting a row replaces it', async () => {
+    setAccessStatus(status());
+    const saved = detail('draft', 1);
+    definitions.fetchDefinitions.mockResolvedValue([saved.definition]);
+    definitions.fetchDefinition.mockResolvedValue(saved);
+    render(ConnectionsPage);
+    await openDefinitions();
+    await fireEvent.click(await screen.findByTestId('definitions-new'));
+    const revision = await screen.findByTestId('definition-new-revision');
+    await fireEvent.input(revision, { target: { value: 'v3' } });
+    await fireEvent.click(screen.getByTestId('connections-tab-sources'));
+    expect(isDirty('/connections')).toBe(true);
+    await openDefinitions();
+    expect(revision).toHaveValue('v3');
+    const table = screen.getByTestId('definitions-table');
+    await fireEvent.click(within(table).getByText('adt-east-mllp', { exact: true }));
+    let dialog = await screen.findByRole('dialog', { name: 'Discard definition changes?' });
+    expect(definitions.fetchDefinition).not.toHaveBeenCalled();
+    await fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(revision).toHaveValue('v3');
+    await fireEvent.click(within(table).getByText('adt-east-mllp', { exact: true }));
+    dialog = await screen.findByRole('dialog', { name: 'Discard definition changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(definitions.fetchDefinition).toHaveBeenCalledWith('adt-east-mllp', 'v1'));
+    expect(screen.queryByTestId('definition-new')).not.toBeInTheDocument();
+    await waitFor(() => expect(isDirty('/connections')).toBe(false));
+  });
+
+  it('discarding a definition leaves a hidden new source draft protected', async () => {
+    setAccessStatus(status());
+    render(ConnectionsPage);
+    const sources = screen.getByRole('tabpanel', { name: 'Sources' });
+    await fireEvent.click(within(sources).getByTestId('connections-new'));
+    const menu = await screen.findByRole('dialog', { name: 'New source connection' });
+    await fireEvent.click(within(menu).getByText('MLLP', { exact: true }));
+    const form = await within(sources).findByTestId('connection-form');
+    const name = form.querySelector('[data-path="name"] input') as HTMLInputElement;
+    await fireEvent.input(name, { target: { value: 'Keep this source' } });
+    await openDefinitions();
+    await fireEvent.click(await screen.findByTestId('definitions-new'));
+    await fireEvent.input(await screen.findByTestId('definition-new-revision'), { target: { value: 'v2' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel new definition' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Discard definition changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(screen.queryByTestId('definition-new')).not.toBeInTheDocument());
+    expect(isDirty('/connections')).toBe(true);
+    await fireEvent.click(screen.getByTestId('connections-tab-sources'));
+    expect(name).toHaveValue('Keep this source');
+  });
+
   it('says not configured before any query on a deployment without the control plane', async () => {
     setAccessStatus(status({ controlPlane: false, connectionCatalog: false, definitionAuthoring: false }));
     render(ConnectionsPage);

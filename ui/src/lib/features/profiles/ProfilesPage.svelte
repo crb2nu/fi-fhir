@@ -4,7 +4,7 @@
   the selected profile's workspace on the right.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy } from 'svelte';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import CircleHelp from '@lucide/svelte/icons/circle-help';
   import Copy from '@lucide/svelte/icons/copy';
@@ -34,6 +34,7 @@
   } from '$lib/ui/primitives';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
   import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
+  import { clearDraftState, setDraftState } from '$lib/ui/ide/ideStore';
 
   import ProfileSelector from '$lib/features/hl7/components/ProfileSelector.svelte';
   import ToleranceEditor from '$lib/features/hl7/components/ToleranceEditor.svelte';
@@ -124,7 +125,10 @@
   let revisions: RevisionsState = { state: 'idle', loadedAt: '', revisions: [], error: null };
 
   $: yamlDirty = (yamlState === 'ready' || yamlState === 'saving') && yamlValue !== yamlOriginal;
+  $: setDraftState('/profiles', 'profile-yaml', yamlDirty);
   $: lifecycleBlocked = $isProfileLoading || $isProfileDirty || yamlDirty;
+
+  onDestroy(() => clearDraftState('/profiles', 'profile-yaml'));
 
   async function loadYaml(profileId: string): Promise<void> {
     yamlState = 'loading';
@@ -263,16 +267,6 @@
   function formatLoaded(value: string): string {
     return formatProfileTimestamp(value, { seconds: true });
   }
-
-  onMount(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (!($isProfileDirty || yamlDirty)) return;
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  });
 </script>
 
 <div class="profiles-page">

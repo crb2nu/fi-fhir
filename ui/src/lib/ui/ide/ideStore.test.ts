@@ -15,6 +15,9 @@ import {
   setBottomPanelHeight,
   setActivePanelTab,
   openPanelTab,
+  setDraftState,
+  clearDraftState,
+  hasDraftsToLose,
   markDirty,
   clearDirty,
   isDirty,
@@ -74,6 +77,37 @@ describe('ideStore', () => {
       const state = get(ideState);
       expect(state.activePanelTab).toBe('output');
     });
+  });
+
+  it('aggregates route owners and clears only the saved or unmounted editor', () => {
+    openTab(createWorkspaceTab('/connections'));
+    setDraftState('/connections', 'sources', true);
+    setDraftState('/connections', 'destinations', true);
+    setDraftState('/connections', 'new-definition', true);
+    clearDraftState('/connections', 'new-definition');
+    clearDraftState('/connections', 'sources');
+    expect(isDirty('/connections')).toBe(true);
+    expect(get(ideState).documents[0]?.dirty).toBe(true);
+    clearDirty('/connections');
+    expect(isDirty('/connections')).toBe(true);
+    clearDraftState('/connections', 'destinations');
+    expect(isDirty('/connections')).toBe(false);
+  });
+
+  it('distinguishes route loss from shared in-memory state and does not persist either', () => {
+    openTab(createWorkspaceTab('/profiles'));
+    setDraftState('/profiles', 'builder', true, false);
+    expect(hasDraftsToLose('/profiles')).toBe(false);
+    expect(hasDraftsToLose('/hl7', true)).toBe(true);
+    setDraftState('/profiles', 'yaml', true);
+    expect(hasDraftsToLose('/profiles')).toBe(true);
+    expect(hasDraftsToLose('/hl7')).toBe(false);
+    clearDraftState('/profiles', 'yaml');
+    expect(hasDraftsToLose('/profiles')).toBe(false);
+    expect(isDirty('/profiles')).toBe(true);
+    const saved = JSON.parse(localStorage.getItem('fi-fhir-ide-layout')!);
+    expect(saved.openTabs[0].dirty).toBe(false);
+    expect(saved.drafts).toBeUndefined();
   });
 
   describe('toggleSidebar', () => {

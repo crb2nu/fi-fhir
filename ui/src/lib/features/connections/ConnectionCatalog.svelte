@@ -5,7 +5,7 @@
   moving between rows keeps them; a row with unsaved edits says so.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import Plus from '@lucide/svelte/icons/plus';
@@ -25,6 +25,7 @@
     Tr
   } from '$lib/ui/primitives';
   import ConnectionDetails from './ConnectionDetails.svelte';
+  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import { fetchConnections, type ConnectionRow } from './connectionsApi';
   import { writeBlockedReason } from './connectionsAccess';
   import { describeConnectionFailure } from './connectionsErrors';
@@ -46,9 +47,10 @@
     writeBlocked: string[] | null;
     /** Incremented by the page to open the New menu (command palette). */
     newRequest?: number | undefined;
+    ondirtychange?: ((dirty: boolean) => void) | undefined;
   }
 
-  let { direction, writeBlocked, newRequest = 0 }: Props = $props();
+  let { direction, writeBlocked, newRequest = 0, ondirtychange }: Props = $props();
 
   const NEW_KEY = '\u0000new';
   const noun = $derived(direction === 'source' ? 'source' : 'destination');
@@ -64,6 +66,7 @@
   let edits = $state<Record<string, EditBuffer>>({});
   let creating = $state<EditBuffer | null>(null);
   let newMenuOpen = $state(false);
+  let pendingDiscard = $state<(() => void) | null>(null);
   let loadSeq = 0;
 
   const selectedRow = $derived(rows.find((row) => row.id === selectedKey) ?? null);
@@ -86,6 +89,11 @@
         .map(([id]) => id)
     )
   );
+  const dirty = $derived(dirtyIds.size > 0 || (creating !== null && isDirty(creating)));
+  $effect(() => {
+    ondirtychange?.(dirty);
+  });
+  onDestroy(() => ondirtychange?.(false));
 
   async function load(): Promise<void> {
     const seq = ++loadSeq;
@@ -135,6 +143,14 @@
 
   function startCreate(kind: SpecKind): void {
     newMenuOpen = false;
+    if (creating && isDirty(creating)) {
+      pendingDiscard = () => createBuffer(kind);
+      return;
+    }
+    createBuffer(kind);
+  }
+
+  function createBuffer(kind: SpecKind): void {
     creating = newBuffer(kind);
     selectedKey = NEW_KEY;
   }
@@ -168,12 +184,28 @@
   }
 
   function discard(): void {
-    if (selectedKey === NEW_KEY) {
-      creating = null;
-      selectedKey = null;
-      return;
+    const key = selectedKey;
+    const row = selectedRow;
+    const buffer = key === NEW_KEY ? creating : key ? edits[key] : null;
+    const apply = () => {
+      if (key === NEW_KEY) {
+        creating = null;
+        selectedKey = null;
+      } else if (row) {
+        edits[row.id] = bufferFromConnection(row);
+      }
+    };
+    if (buffer && isDirty(buffer)) {
+      pendingDiscard = apply;
+    } else {
+      apply();
     }
-    if (selectedRow) edits[selectedRow.id] = bufferFromConnection(selectedRow);
+  }
+
+  function confirmDiscard(): void {
+    const apply = pendingDiscard;
+    pendingDiscard = null;
+    apply?.();
   }
 
   function revisionText(row: ConnectionRow): string {
@@ -181,6 +213,19 @@
     return latest ? `r${latest.revisionId} ${shortHash(latest.digest, 8)}` : '—';
   }
 </script>
+
+{#if pendingDiscard}
+  <ConfirmModal
+    open
+    title="Discard connection changes?"
+    message="This connection has unsaved changes. Continuing discards those changes."
+    confirmText="Discard changes"
+    cancelText="Keep editing"
+    variant="danger"
+    on:confirm={confirmDiscard}
+    on:cancel={() => (pendingDiscard = null)}
+  />
+{/if}
 
 <div class="catalog" data-direction={direction}>
   <div class="list">

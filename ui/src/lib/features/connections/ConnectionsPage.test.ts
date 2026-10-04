@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { GraphQLResponseError } from '$lib/graphql/client';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 import { requestConnectionsView } from './connectionsIntent';
+import { clearDraftState, isDirty, resetIDEState, setDraftState } from '$lib/ui/ide/ideStore';
 import type { ConnectionRevisionRow, ConnectionRow, EngineRuntimeView } from './connectionsApi';
 
 // The catalog and runtime boundary is mocked so the page renders deterministically.
@@ -220,6 +221,7 @@ async function confirmReason(confirm: string, reason = 'synthetic change for the
 }
 
 beforeEach(() => {
+  resetIDEState();
   vi.clearAllMocks();
   api.fetchConnections.mockResolvedValue([]);
   api.fetchEngineRuntime.mockResolvedValue(runtime());
@@ -232,6 +234,122 @@ afterEach(() => {
   resetAccessCapabilities();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe('Connections — draft protection', () => {
+  async function openNew(direction: 'source' | 'destination', label: string): Promise<HTMLElement> {
+    const panel = screen.getByRole('tabpanel', { name: direction === 'source' ? 'Sources' : 'Destinations' });
+    await fireEvent.click(within(panel).getByTestId('connections-new'));
+    const menu = await screen.findByRole('dialog', { name: `New ${direction} connection` });
+    await fireEvent.click(within(menu).getByText(label, { exact: true }));
+    return within(panel).findByTestId('connection-form');
+  }
+
+  function field(form: HTMLElement, path: string): HTMLInputElement {
+    return form.querySelector(`[data-path="${path}"] input`) as HTMLInputElement;
+  }
+
+  async function confirmDiscard(): Promise<void> {
+    const dialog = await screen.findByRole('dialog', { name: 'Discard connection changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
+  }
+
+  it('keeps hidden source and destination edits dirty until each is saved or discarded', async () => {
+    setAccessStatus(status());
+    const source = mllpRow();
+    const destination = mllpRow({
+      id: 'fhir-primary', name: 'Hospital FHIR', direction: 'DESTINATION', kind: 'FHIR', spec: {}
+    });
+    api.fetchConnections.mockImplementation(async (direction: string) => direction === 'SOURCE' ? [source] : [destination]);
+    api.updateConnection.mockResolvedValue({ ...source, name: 'Edited source', version: 3 });
+    render(ConnectionsPage);
+    await selectRow(source.name);
+    expect(isDirty('/connections')).toBe(false);
+    const sourceForm = screen.getByTestId('connection-form');
+    await fireEvent.input(field(sourceForm, 'name'), { target: { value: 'Edited source' } });
+    await waitFor(() => expect(isDirty('/connections')).toBe(true));
+
+    await fireEvent.click(screen.getByTestId('connections-tab-destinations'));
+    const destinations = screen.getByRole('tabpanel', { name: 'Destinations' });
+    await fireEvent.click(await within(destinations).findByText(destination.name));
+    const destinationForm = within(destinations).getByTestId('connection-form');
+    await fireEvent.input(field(destinationForm, 'name'), { target: { value: 'Edited destination' } });
+
+    await fireEvent.click(screen.getByTestId('connections-tab-sources'));
+    const sources = screen.getByRole('tabpanel', { name: 'Sources' });
+    expect(field(sourceForm, 'name')).toHaveValue('Edited source');
+    await fireEvent.click(within(sources).getByRole('button', { name: 'Save' }));
+    await confirmReason('Save');
+    await waitFor(() => expect(within(sources).getByRole('button', { name: 'Save' })).toBeDisabled());
+    expect(isDirty('/connections')).toBe(true);
+
+    await fireEvent.click(screen.getByTestId('connections-tab-destinations'));
+    expect(field(destinationForm, 'name')).toHaveValue('Edited destination');
+    await fireEvent.click(within(destinations).getByRole('button', { name: 'Discard' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Discard connection changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+    expect(field(destinationForm, 'name')).toHaveValue('Edited destination');
+    expect(isDirty('/connections')).toBe(true);
+    await fireEvent.click(within(destinations).getByRole('button', { name: 'Discard' }));
+    await confirmDiscard();
+    await waitFor(() => expect(isDirty('/connections')).toBe(false));
+  });
+
+  it('retains a new connection behind another row and guards replacing or cancelling it', async () => {
+    setAccessStatus(status());
+    api.fetchConnections.mockResolvedValue([mllpRow()]);
+    render(ConnectionsPage);
+    await selectRow('ADT east');
+    let form = await openNew('source', 'MLLP');
+    expect(isDirty('/connections')).toBe(false);
+    await fireEvent.input(field(form, 'name'), { target: { value: 'Unsaved listener' } });
+    await waitFor(() => expect(isDirty('/connections')).toBe(true));
+    await selectRow('ADT east');
+    expect(isDirty('/connections')).toBe(true);
+    const sources = screen.getByRole('tabpanel', { name: 'Sources' });
+    await fireEvent.click(within(sources).getByText('Unsaved listener'));
+    form = within(sources).getByTestId('connection-form');
+    expect(field(form, 'name')).toHaveValue('Unsaved listener');
+
+    await fireEvent.click(within(sources).getByTestId('connections-new'));
+    const menu = await screen.findByRole('dialog', { name: 'New source connection' });
+    await fireEvent.click(within(menu).getByText('HTTP', { exact: true }));
+    let dialog = await screen.findByRole('dialog', { name: 'Discard connection changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+    expect(field(form, 'name')).toHaveValue('Unsaved listener');
+
+    await fireEvent.click(within(sources).getByRole('button', { name: 'Cancel' }));
+    dialog = await screen.findByRole('dialog', { name: 'Discard connection changes?' });
+    await fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(field(form, 'name')).toHaveValue('Unsaved listener');
+    await fireEvent.click(within(sources).getByRole('button', { name: 'Cancel' }));
+    await confirmDiscard();
+    await waitFor(() => expect(within(sources).queryByTestId('connection-form')).not.toBeInTheDocument());
+    expect(isDirty('/connections')).toBe(false);
+  });
+
+  it('tracks new drafts in both directions and removes only its own dirty owner on teardown', async () => {
+    setAccessStatus(status());
+    const { unmount } = render(ConnectionsPage);
+    const sourceForm = await openNew('source', 'MLLP');
+    await fireEvent.input(field(sourceForm, 'name'), { target: { value: 'New source' } });
+    await fireEvent.click(screen.getByTestId('connections-tab-destinations'));
+    const destinationForm = await openNew('destination', 'FHIR');
+    await fireEvent.input(field(destinationForm, 'name'), { target: { value: 'New destination' } });
+    const destinations = screen.getByRole('tabpanel', { name: 'Destinations' });
+    await fireEvent.click(within(destinations).getByRole('button', { name: 'Cancel' }));
+    await confirmDiscard();
+    await waitFor(() => expect(within(destinations).queryByTestId('connection-form')).not.toBeInTheDocument());
+    expect(isDirty('/connections')).toBe(true);
+    await fireEvent.click(screen.getByTestId('connections-tab-sources'));
+    expect(field(sourceForm, 'name')).toHaveValue('New source');
+
+    setDraftState('/connections', 'another-editor', true);
+    unmount();
+    expect(isDirty('/connections')).toBe(true);
+    clearDraftState('/connections', 'another-editor');
+    expect(isDirty('/connections')).toBe(false);
+  });
 });
 
 describe('Connections — honest states', () => {

@@ -1,0 +1,1 @@
+Protect connection forms, profile YAML and managed workflow edits across workspace navigation. Cancelled or failed navigation keeps the active tab and draft; closing asks once before leaving. Track independent editors without clearing other unsaved work, preserve Workflow Design across its internal views, and resume Back/Forward without replacing history.

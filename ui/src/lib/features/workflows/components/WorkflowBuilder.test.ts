@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import WorkflowBuilder from './WorkflowBuilder.svelte';
 import { resetWorkflowBuilderOpened, workflowDraft } from '../workflowStore';
 import { workflowProblemCounts } from '$lib/ui/ide/panels/workflowProblemsStore';
-import { clearDirty, isDirty } from '$lib/ui/ide/ideStore';
+import { clearDraftState, hasDraftsToLose, isDirty, setDraftState } from '$lib/ui/ide/ideStore';
 
 const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
@@ -86,8 +86,10 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
 
   afterEach(() => {
     confirmSpy.mockRestore();
+    cleanup();
     workflowDraft.reset();
-    clearDirty('/workflows');
+    clearDraftState('/workflows', 'managed-workflow');
+    clearDraftState('/workflows', 'other-editor');
   });
 
   it('opens on the untouched default draft without problems, errors or toasts', () => {
@@ -226,4 +228,116 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
       'This definition is archived. Restore it to draft in Inventory before changing it.'
     );
   });
+
+  it('does not mark a locally persisted unmanaged draft as work that navigation would lose', async () => {
+    render(WorkflowBuilder);
+    workflowDraft.update((draft) => ({ ...draft, name: 'locally-kept-draft' }));
+    await screen.findByDisplayValue('locally-kept-draft');
+    expect(isDirty('/workflows')).toBe(false);
+    expect(hasDraftsToLose('/workflows')).toBe(false);
+  });
+
+  it('keeps the original managed draft and selection until replacing it is confirmed', async () => {
+    const { rerender } = render(WorkflowBuilder, { props: { managedSelection: SELECTION } });
+    await screen.findByTestId('workflow-yaml-only');
+    workflowDraft.update((draft) => ({ ...draft, version: '1.1' }));
+    await waitFor(() => expect(hasDraftsToLose('/workflows')).toBe(true));
+    const callsBefore = mocks.fetchWorkflowVersions.mock.calls.length;
+
+    await rerender({ managedSelection: {
+      workflowId: 'wf-other', name: 'other-workflow', description: 'Other definition',
+      status: 'draft', versionId: 'other-v1', versionNumber: 1
+    } });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    expect(mocks.fetchWorkflowVersions).toHaveBeenCalledTimes(callsBefore);
+    expect(get(workflowDraft).name).toBe('e5-nested');
+    expect(get(workflowDraft).version).toBe('1.1');
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(get(workflowDraft).version).toBe('1.1');
+    expect(hasDraftsToLose('/workflows')).toBe(true);
+    expect(screen.getByText('wf-1')).toBeInTheDocument();
+    expect(screen.queryByText('wf-other')).not.toBeInTheDocument();
+  });
+
+  it('replaces a managed draft only after acceptance and establishes the replacement baseline', async () => {
+    const { rerender } = render(WorkflowBuilder, { props: { managedSelection: SELECTION } });
+    await screen.findByTestId('workflow-yaml-only');
+    workflowDraft.update((draft) => ({ ...draft, version: '1.1' }));
+    await waitFor(() => expect(isDirty('/workflows')).toBe(true));
+    const nextVersion = { ...VERSION, id: 'other-v1', workflowId: 'wf-other', yaml: NESTED_YAML.replace('e5-nested', 'other-workflow') };
+    mocks.fetchWorkflowVersions.mockResolvedValue({ workflowVersions: [nextVersion] });
+    mocks.fetchWorkflowVersionById.mockResolvedValue({ workflowVersion: nextVersion });
+
+    await rerender({ managedSelection: {
+      workflowId: 'wf-other', name: 'other-workflow', description: null,
+      status: 'draft', versionId: 'other-v1', versionNumber: 1
+    } });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
+
+    await screen.findByDisplayValue('other-workflow');
+    expect(screen.getByText('wf-other')).toBeInTheDocument();
+    expect(get(workflowDraft).version).toBe('1.0');
+    expect(hasDraftsToLose('/workflows')).toBe(false);
+    workflowDraft.update((draft) => ({ ...draft, version: '2.0' }));
+    await waitFor(() => expect(hasDraftsToLose('/workflows')).toBe(true));
+  });
+
+  it('preserves managed changes and their protection when the replacement version cannot be read', async () => {
+    const { rerender } = render(WorkflowBuilder, { props: { managedSelection: SELECTION } });
+    await screen.findByTestId('workflow-yaml-only');
+    workflowDraft.update((draft) => ({ ...draft, version: '1.1' }));
+    await waitFor(() => expect(isDirty('/workflows')).toBe(true));
+    mocks.fetchWorkflowVersionById.mockResolvedValue({ workflowVersion: null });
+    await rerender({ managedSelection: { ...SELECTION, versionId: 'missing-v2', versionNumber: 2 } });
+    const dialog = await screen.findByRole('alertdialog');
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
+
+    await screen.findByText('Workflow version not found in the selected definition');
+    expect(get(workflowDraft).version).toBe('1.1');
+    expect(hasDraftsToLose('/workflows')).toBe(true);
+  });
+
+  it('clears only its own dirty source on save and unmount', async () => {
+    mocks.saveWorkflowVersion.mockResolvedValue({ saveWorkflowVersion: { ...VERSION, id: 'v2', versionNumber: 2 } });
+    const { unmount } = render(WorkflowBuilder, { props: { managedSelection: SELECTION } });
+    await screen.findByTestId('workflow-yaml-only');
+    workflowDraft.update((draft) => ({ ...draft, version: '1.1' }));
+    await waitFor(() => expect(hasDraftsToLose('/workflows')).toBe(true));
+    await fireEvent.click(screen.getByTestId('workflow-save-version'));
+    await waitFor(() => expect(hasDraftsToLose('/workflows')).toBe(false));
+
+    workflowDraft.update((draft) => ({ ...draft, version: '1.2' }));
+    await waitFor(() => expect(hasDraftsToLose('/workflows')).toBe(true));
+    setDraftState('/workflows', 'other-editor', true);
+    unmount();
+    expect(hasDraftsToLose('/workflows')).toBe(true);
+    clearDraftState('/workflows', 'other-editor');
+    expect(hasDraftsToLose('/workflows')).toBe(false);
+  });
+
+
+  it('asks again if managed edits arrive while a replacement is loading', async () => {
+    const { rerender } = render(WorkflowBuilder, { props: { managedSelection: SELECTION } });
+    await screen.findByTestId('workflow-yaml-only');
+    let release: () => void = () => {};
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    mocks.fetchWorkflowVersionById.mockImplementationOnce(async () => {
+      await pending;
+      return { workflowVersion: { ...VERSION, id: 'v2', versionNumber: 2 } };
+    });
+    await rerender({ managedSelection: { ...SELECTION, versionId: 'v2', versionNumber: 2 } });
+    await waitFor(() => expect(mocks.fetchWorkflowVersionById).toHaveBeenCalledWith('v2'));
+    workflowDraft.update((draft) => ({ ...draft, version: '1.2' }));
+    await waitFor(() => expect(isDirty('/workflows')).toBe(true));
+    release();
+
+    const dialog = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(get(workflowDraft).version).toBe('1.2');
+    expect(hasDraftsToLose('/workflows')).toBe(true);
+  });
+
 });

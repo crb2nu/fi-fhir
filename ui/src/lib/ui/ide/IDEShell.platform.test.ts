@@ -17,7 +17,7 @@ const platform = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/stores', () => ({ page: pageStore }));
-vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+vi.mock('$app/navigation', () => ({ goto: vi.fn(), beforeNavigate: vi.fn() }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 vi.mock('$lib/platform', async () => {
   const { writable: storeOf } = await import('svelte/store');

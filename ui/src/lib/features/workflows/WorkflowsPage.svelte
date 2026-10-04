@@ -67,10 +67,14 @@
     role="tabpanel"
     aria-label={activeLabel}
   >
+    <div hidden={activeTab !== 'builder'}>
+      <WorkflowBuilder
+        managedSelection={builderSelection}
+        on:managedSelectionChange={(event) => (builderSelection = event.detail)}
+      />
+    </div>
     {#if activeTab === 'list'}
       <WorkflowList on:openBuilder={handleOpenBuilder} on:openMonitor={handleOpenMonitor} />
-    {:else if activeTab === 'builder'}
-      <WorkflowBuilder managedSelection={builderSelection} />
     {:else if activeTab === 'monitor'}
       <WorkflowMonitor initialWorkflowName={monitorWorkflowSelection} />
     {/if}

@@ -19,6 +19,7 @@
   import ServerOff from '@lucide/svelte/icons/server-off';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import { accessCapabilities } from '$lib/graphql/accessCapabilities';
+  import { clearDraftState, setDraftState } from '$lib/ui/ide/ideStore';
   import { EmptyState, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
   import ConnectionCatalog from './ConnectionCatalog.svelte';
   import DefinitionsView from './DefinitionsView.svelte';
@@ -60,6 +61,11 @@
   });
   let definitionTarget = $state<{ definitionId: string; revisionId: string } | null>(null);
   let newRequest = $state<Record<'source' | 'destination', number>>({ source: 0, destination: 0 });
+  let editorDirty = $state({ sources: false, destinations: false, definitions: false });
+  $effect(() => {
+    setDraftState('/connections', 'connections-editors', Object.values(editorDirty).some(Boolean));
+  });
+  onDestroy(() => clearDraftState('/connections', 'connections-editors'));
 
   const catalog = $derived(catalogPreflight($accessCapabilities));
   const read = $derived(readPreflight($accessCapabilities));
@@ -150,7 +156,12 @@
         {#if catalog?.reason === 'not-configured'}
           {@render notConfigured(catalog.keys)}
         {:else}
-          <ConnectionCatalog direction="source" {writeBlocked} newRequest={newRequest.source} />
+          <ConnectionCatalog
+            direction="source"
+            {writeBlocked}
+            newRequest={newRequest.source}
+            ondirtychange={(dirty) => (editorDirty.sources = dirty)}
+          />
         {/if}
       </div>
     {/if}
@@ -165,7 +176,12 @@
         {#if catalog?.reason === 'not-configured'}
           {@render notConfigured(catalog.keys)}
         {:else}
-          <ConnectionCatalog direction="destination" {writeBlocked} newRequest={newRequest.destination} />
+          <ConnectionCatalog
+            direction="destination"
+            {writeBlocked}
+            newRequest={newRequest.destination}
+            ondirtychange={(dirty) => (editorDirty.destinations = dirty)}
+          />
         {/if}
       </div>
     {/if}
@@ -223,6 +239,7 @@
           <DefinitionsView
             writeBlocked={definitions?.reason === 'read-only' ? definitions.missingRoles : null}
             initial={definitionTarget}
+            ondirtychange={(dirty) => (editorDirty.definitions = dirty)}
           />
         {/if}
       </div>

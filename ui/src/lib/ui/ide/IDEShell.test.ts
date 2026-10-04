@@ -2,21 +2,37 @@
  * Tests for the merged IDE shell workspace behavior.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
+import type { BeforeNavigate } from '@sveltejs/kit';
 import { get, writable } from 'svelte/store';
-import { ideState, markDirty, resetIDEState, setSidebarOpen } from './ideStore';
+import { ideState, markDirty, setDraftState, resetIDEState, setSidebarOpen } from './ideStore';
 import { registerCommands, resetCommandRegistry } from './commandRegistry';
 import { takeConnectionsIntent } from '$lib/features/connections/connectionsIntent';
 
 const pageStore = writable({ url: new URL('http://localhost/hl7') });
 
-const gotoMock = vi.fn(async (href: string) => {
-  pageStore.set({ url: new URL(href, 'http://localhost') });
-});
+let navigationHook: ((navigation: BeforeNavigate) => void) | undefined;
+
+function attemptNavigation(href: string, type: BeforeNavigate['type'] = 'goto', delta?: number): boolean {
+  const url = new URL(href, 'http://localhost');
+  let cancelled = false;
+  navigationHook?.({
+    type, delta, from: { url: get(pageStore).url }, to: { url },
+    willUnload: type === 'leave', complete: Promise.resolve(),
+    cancel: () => { cancelled = true; },
+  } as BeforeNavigate);
+  if (!cancelled && type !== 'leave') pageStore.set({ url });
+  return !cancelled;
+}
+
+const gotoMock = vi.fn(async (href: string) => { attemptNavigation(href); });
 
 vi.mock('$app/stores', () => ({ page: pageStore }));
-vi.mock('$app/navigation', () => ({ goto: gotoMock }));
+vi.mock('$app/navigation', () => ({
+  goto: gotoMock,
+  beforeNavigate: (callback: (navigation: BeforeNavigate) => void) => { navigationHook = callback; },
+}));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 
 const refreshJourneyEvidence = vi.fn(async () => {});
@@ -32,11 +48,13 @@ Element.prototype.scrollIntoView ??= function scrollIntoView() {};
 
 describe('IDEShell workspace', () => {
   beforeEach(() => {
-    gotoMock.mockClear();
+    gotoMock.mockReset().mockImplementation(async (href: string) => { attemptNavigation(href); });
+    navigationHook = undefined;
     refreshJourneyEvidence.mockClear();
     localStorage.clear();
     resetIDEState();
     resetCommandRegistry();
+    takeConnectionsIntent();
     pageStore.set({ url: new URL('http://localhost/hl7') });
   });
 
@@ -96,6 +114,7 @@ describe('IDEShell workspace', () => {
     await tick();
 
     await fireEvent.click(screen.getByLabelText('Close Workflows'));
+    await tick();
 
     expect(gotoMock).toHaveBeenCalledWith('/hl7');
     expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toHaveAttribute('aria-selected', 'true');
@@ -210,8 +229,139 @@ describe('IDEShell workspace', () => {
 
     await fireEvent.click(screen.getByLabelText('Close Workflows'));
     await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
-    expect(get(ideState).documents.map((doc) => doc.id)).not.toContain('/workflows');
+    await tick();
+    await tick();
+    await waitFor(() => expect(get(ideState).documents.map((doc) => doc.id)).not.toContain('/workflows'));
     expect(gotoMock).toHaveBeenCalledWith('/hl7');
+  });
+
+  it.each(['tab', 'activity', 'explorer', 'command', 'link'])(
+    'keeps the current URL, tab and inventory when %s navigation is cancelled', async (method) => {
+      render(IDEShell);
+      pageStore.set({ url: new URL('http://localhost/connections') });
+      await tick();
+      setDraftState('/connections', 'catalog', true);
+      const before = get(ideState).documents.map((doc) => doc.id);
+      const connectionsTab = screen.getByRole('tab', { name: 'Connections' });
+      const intakeTab = screen.getByRole('tab', { name: 'HL7 / Intake' });
+      if (method === 'tab') {
+        await fireEvent.click(screen.getByRole('tab', { name: 'HL7 / Intake' }));
+      } else if (method === 'activity') {
+        await fireEvent.click(screen.getByRole('button', { name: 'HL7 / Intake' }));
+      } else if (method === 'explorer') {
+        await fireEvent.click(screen.getByRole('button', { name: 'Show explorer' }));
+        await fireEvent.click(within(screen.getByRole('complementary', { name: 'Explorer' })).getByRole('link', { name: 'HL7 / Intake' }));
+      } else if (method === 'command') {
+        await fireEvent.click(screen.getByRole('button', { name: 'Open commands' }));
+        await fireEvent.click(await screen.findByRole('option', { name: /Go to HL7/ }));
+      } else {
+        expect(attemptNavigation('/hl7', 'link')).toBe(false);
+      }
+      const dialog = await screen.findByRole('dialog', { name: 'Leave Connections?' });
+      expect(get(pageStore).url.pathname).toBe('/connections');
+      expect(connectionsTab).toHaveAttribute('aria-selected', 'true');
+      expect(intakeTab).toHaveAttribute('aria-selected', 'false');
+      await fireEvent.click(within(dialog).getByRole('button', { name: 'Stay here' }));
+      expect(get(ideState).documents.map((doc) => doc.id)).toEqual(before);
+      expect(get(ideState).activeTabId).toBe('/connections');
+    }
+  );
+
+  it('permits only the confirmed transition and asks again after a failed navigation', async () => {
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    render(IDEShell);
+    setDraftState('/connections', 'catalog', true);
+    expect(attemptNavigation('/hl7', 'link')).toBe(false);
+    await fireEvent.click(await screen.findByRole('button', { name: 'Leave view' }));
+    await tick();
+    expect(get(pageStore).url.pathname).toBe('/hl7');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    await tick();
+    expect(attemptNavigation('/hl7')).toBe(false);
+    gotoMock.mockRejectedValueOnce(new Error('network unavailable'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Leave view' }));
+    await tick();
+    expect(get(pageStore).url.pathname).toBe('/connections');
+    expect(attemptNavigation('/hl7')).toBe(false);
+    expect(await screen.findByRole('dialog', { name: 'Leave Connections?' })).toBeInTheDocument();
+  });
+
+  it('keeps an active dirty tab until confirmed navigation completes, without a second prompt', async () => {
+    render(IDEShell);
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    await tick();
+    setDraftState('/connections', 'catalog', true);
+    let finish: (() => void) | undefined;
+    gotoMock.mockImplementationOnce((href: string) => new Promise<void>((resolveGoto) => {
+      finish = () => { attemptNavigation(href); resolveGoto(); };
+    }));
+    await fireEvent.click(screen.getByLabelText('Close Connections'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    expect(get(ideState).documents.some((doc) => doc.id === '/connections')).toBe(true);
+    expect(get(ideState).activeTabId).toBe('/connections');
+    finish?.();
+    await tick();
+    await tick();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(get(ideState).documents.some((doc) => doc.id === '/connections')).toBe(false));
+    expect(get(ideState).activeTabId).toBe('/hl7');
+  });
+
+  it('keeps a tab after failed close navigation and asks before the next attempt', async () => {
+    render(IDEShell);
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    await tick();
+    setDraftState('/connections', 'catalog', true);
+    await fireEvent.click(screen.getByLabelText('Close Connections'));
+    gotoMock.mockRejectedValueOnce(new Error('load failed'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    await tick();
+    expect(get(ideState).documents.some((doc) => doc.id === '/connections')).toBe(true);
+    expect(get(ideState).activeTabId).toBe('/connections');
+    expect(attemptNavigation('/hl7')).toBe(false);
+    expect(await screen.findByRole('dialog', { name: 'Leave Connections?' })).toBeInTheDocument();
+  });
+
+  it('allows retained same-route buffers and shared drafts, but protects native unload', async () => {
+    pageStore.set({ url: new URL('http://localhost/connections') });
+    render(IDEShell);
+    setDraftState('/connections', 'catalog', true);
+    expect(attemptNavigation('/connections?connection=another')).toBe(true);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    setDraftState('/connections', 'catalog', false);
+    setDraftState('/profiles', 'in-memory-builder', true, false);
+    expect(attemptNavigation('/profiles')).toBe(true);
+    await tick();
+    expect(attemptNavigation('/hl7')).toBe(true);
+    await tick();
+    expect(attemptNavigation('/hl7', 'leave')).toBe(false);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    setDraftState('/profiles', 'in-memory-builder', false);
+    expect(attemptNavigation('/hl7', 'leave')).toBe(true);
+  });
+
+  it('resumes Back with its original history delta rather than pushing a new entry', async () => {
+    window.history.replaceState({}, '', '/connections');
+    pageStore.set({ url: new URL(window.location.href) });
+    render(IDEShell);
+    await tick();
+    setDraftState('/connections', 'catalog', true);
+    const historyGo = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    try {
+      expect(attemptNavigation('/hl7', 'popstate', -2)).toBe(false);
+      await fireEvent.click(await screen.findByRole('button', { name: 'Leave view' }));
+      await tick();
+      expect(historyGo).toHaveBeenCalledWith(-2);
+      expect(gotoMock).not.toHaveBeenCalled();
+      expect(attemptNavigation('/hl7', 'popstate', -2)).toBe(true);
+      await tick();
+      expect(get(ideState).activeTabId).toBe('/hl7');
+    } finally {
+      historyGo.mockRestore();
+      window.history.replaceState({}, '', '/');
+    }
   });
 
   it('opens one palette on /hl7 with Cmd/Ctrl+K and the header button, listing route commands first', async () => {
@@ -334,7 +484,34 @@ describe('IDEShell workspace', () => {
 
     await fireEvent.click(screen.getByRole('option', { name: /Engine properties/ }));
     expect(gotoMock).toHaveBeenCalledWith('/connections');
+    await tick();
     expect(takeConnectionsIntent()).toEqual({ view: 'engine' });
+  });
+
+  it.each(['cancel', 'failure', 'accept'])('publishes a Connections command only after accepted arrival: %s', async (outcome) => {
+    pageStore.set({ url: new URL('http://localhost/profiles') });
+    render(IDEShell);
+    setDraftState('/profiles', 'yaml-test', true);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open commands' }));
+    await fireEvent.click(await screen.findByRole('option', { name: /Engine properties/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Leave Profiles?' });
+    expect(takeConnectionsIntent()).toBeNull();
+    if (outcome === 'cancel') {
+      await fireEvent.click(within(dialog).getByRole('button', { name: 'Stay here' }));
+    } else {
+      if (outcome === 'failure') gotoMock.mockRejectedValueOnce(new Error('load failed'));
+      await fireEvent.click(within(dialog).getByRole('button', { name: 'Leave view' }));
+      await tick();
+      await tick();
+    }
+    if (outcome === 'accept') {
+      expect(get(pageStore).url.pathname).toBe('/connections');
+      expect(takeConnectionsIntent()).toEqual({ view: 'engine' });
+    } else {
+      setDraftState('/profiles', 'yaml-test', false);
+      expect(attemptNavigation('/connections')).toBe(true);
+      expect(takeConnectionsIntent()).toBeNull();
+    }
   });
 
   it('opens a Connections tab titled Connections, outside the five stages', async () => {
