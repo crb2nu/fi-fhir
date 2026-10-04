@@ -134,9 +134,14 @@
 
   $effect(() => {
     const id = attemptId;
+    attempt = null;
+    audit = [];
+    auditCursor = null;
+    auditHasNext = false;
     auditCursors = [];
     void loadAttempt(id);
     void loadAudit(id, null);
+    return () => { seq += 1; auditSeq += 1; };
   });
 
   function nextAuditPage(): void {

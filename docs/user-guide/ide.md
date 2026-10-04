@@ -51,6 +51,10 @@ succeeds. Reloading or closing the browser uses the browser's own warning.
 
 Within Connections, switching rows or Sources, Destinations or Definitions keeps
 each unfinished form. Saving or discarding one does not clear another's dot.
+An unfinished new definition remains available through **Continue draft** while
+you inspect other definitions. Connection and definition selections have
+bookmarkable URLs; archived connection links open read-only. Missing records
+show an explanation instead of a previously selected editor.
 Workflow Design also stays intact while you inspect Inventory or Verification;
 opening a different managed workflow asks before replacing edited content.
 Shared profile-builder drafts and local workflow drafts survive ordinary page
@@ -71,6 +75,12 @@ changes, so those changes do not need a discard warning.
   open/closed preference and section choices survive a reload. Opening the
   explorer focuses its filter; clearing the filter keeps focus there. Restoring
   an already-open explorer does not take focus from your work.
+- **Sources and Destinations** in the explorer: real connections from this
+  deployment, grouped by direction. Select one to open its editor. Filter by
+  name, ID or kind; each group shows up to eight matches and keeps the current
+  connection visible. Refresh reads the catalog again. The explorer identifies
+  unavailable access and failed reads, and says when the catalog exceeds its
+  500-record limit.
 - **Recent sessions** in the explorer: up to eight sessions ordered by latest
   update, with the last run status. Select one to reopen it in HL7 intake;
   filter by name or session ID. The current session is highlighted. Switching

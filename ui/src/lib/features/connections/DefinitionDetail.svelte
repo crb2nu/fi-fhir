@@ -6,7 +6,7 @@
   re-decide". Deploy is an operator act and lives on the Operator page.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { resolve } from '$app/paths';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -53,6 +53,10 @@
     { id: 'history', label: 'History', testid: 'definition-tab-history' }
   ];
 
+  let loadSeq = 0;
+  let disposed = false;
+  onDestroy(() => { disposed = true; loadSeq += 1; });
+
   let detail = $state<DefinitionDetail | null>(null);
   let loading = $state(true);
   let missing = $state(false);
@@ -73,18 +77,20 @@
   const validation = $derived(definition ? validationLabel(definition, now) : 'none');
 
   async function load(): Promise<void> {
+    const seq = ++loadSeq;
     loading = true;
     error = null;
     try {
       const loaded = await fetchDefinition(definitionId, revisionId);
+      if (seq !== loadSeq) return;
       detail = loaded;
       missing = loaded === null;
       now = new Date();
       if (loaded && !loaded.realValidationAvailable && mode === 'REAL') mode = 'STATIC';
     } catch (err) {
-      error = describeDefinitionFailure(err).message;
+      if (seq === loadSeq) error = describeDefinitionFailure(err).message;
     } finally {
-      loading = false;
+      if (seq === loadSeq) loading = false;
     }
   }
 
@@ -121,7 +127,7 @@
       else next = await publishDefinition(command);
       detail = next;
       now = new Date();
-      onchanged(next);
+      if (!disposed) onchanged(next);
       if (action === 'validate') tab = 'validation';
       action = null;
     } catch (err) {
@@ -136,7 +142,7 @@
   async function reload(): Promise<void> {
     action = null;
     await load();
-    if (detail) onchanged(detail);
+    if (detail && !disposed) onchanged(detail);
   }
 
   const DIALOG = {
@@ -160,7 +166,7 @@
   }
 </script>
 
-<div class="details" data-testid="definition-details" data-state={definition?.state ?? ''}>
+<div class="details" data-testid="definition-details" data-definition-id={definitionId} data-revision-id={revisionId} data-state={definition?.state ?? ''}>
   {#if loading && !detail}
     <EmptyState message="Loading definition" aria-busy="true" />
   {:else if error && !detail}

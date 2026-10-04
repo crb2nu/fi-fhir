@@ -5,7 +5,11 @@ import { createWorkspaceTab, openTab, resetIDEState } from './ideStore';
 
 const capability = vi.hoisted(() => ({ value: true }));
 const sessionsCapability = writable<boolean | null>(true);
-vi.mock('$lib/graphql/accessCapabilities', () => ({ integrationSessionsCapability: sessionsCapability }));
+vi.mock('$lib/graphql/accessCapabilities', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('$lib/graphql/accessCapabilities')>()),
+  integrationSessionsCapability: sessionsCapability,
+}));
+vi.mock('$lib/features/connections/connectionsApi', () => ({ fetchConnections: vi.fn(async () => []) }));
 vi.mock('$lib/features/integration-session/api', () => ({ isIntegrationSessionBuildEnabled: () => capability.value }));
 const fetchSessions = vi.fn();
 vi.mock('$lib/features/dashboard/dashboardApi', () => ({ fetchRecentSessions: (...args: unknown[]) => fetchSessions(...args) }));
@@ -69,7 +73,7 @@ describe('Explorer', () => {
     await fireEvent.input(filter, { target: { value: 'session/1' } });
     expect(screen.getByRole('link', { name: /ADT intake/ })).toBeInTheDocument();
     await fireEvent.input(filter, { target: { value: 'missing' } });
-    expect(screen.getByRole('status')).toHaveTextContent('No matching views or recent sessions.');
+    expect(screen.getByRole('status')).toHaveTextContent('No matching views, connections, or recent sessions.');
   });
 
   it('marks only the current intake session, and clears the mark in other views', async () => {
@@ -93,7 +97,7 @@ describe('Explorer', () => {
     let reject!: (error: Error) => void;
     fetchSessions.mockReturnValueOnce(new Promise((_, no) => { reject = no; }));
     render(Sidebar, { props });
-    expect(screen.getByRole('status')).toHaveTextContent('Loading sessions');
+    expect(screen.getByText('Loading sessions…')).toHaveAttribute('role', 'status');
     reject(new Error('offline'));
     expect(await screen.findByText(/Could not load sessions/)).toBeInTheDocument();
     fetchSessions.mockResolvedValueOnce([]);

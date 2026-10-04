@@ -6,7 +6,7 @@
   there.
 -->
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import FileStack from '@lucide/svelte/icons/file-stack';
   import Plus from '@lucide/svelte/icons/plus';
@@ -24,12 +24,14 @@
   interface Props {
     /** Roles this identity lacks to author, or null when it may. */
     writeBlocked: string[] | null;
-    /** A deep link's target (`?definition=&revision=`), selected on mount. */
-    initial?: { definitionId: string; revisionId: string } | null | undefined;
+    /** The current URL's record, including same-route navigation. */
+    resetRequest?: number | undefined;
+    target?: { definitionId: string; revisionId: string } | null | undefined;
+    onselectionchange?: ((record: { definitionId: string; revisionId: string } | null, replace?: boolean) => void) | undefined;
     ondirtychange?: ((dirty: boolean) => void) | undefined;
   }
 
-  let { writeBlocked, initial = null, ondirtychange }: Props = $props();
+  let { writeBlocked, target = null, resetRequest = 0, onselectionchange, ondirtychange }: Props = $props();
 
   let rows = $state<DefinitionRow[]>([]);
   let loading = $state(true);
@@ -38,10 +40,14 @@
   let includeRetired = $state(false);
   let selected = $state<{ definitionId: string; revisionId: string } | null>(null);
   let creating = $state(false);
+  let hasDraft = $state(false);
+  let draftGeneration = $state(0);
   let draftDirty = $state(false);
   let pendingDiscard = $state<(() => void) | null>(null);
   let now = $state(new Date());
   let loadSeq = 0;
+  let disposed = false;
+  onDestroy(() => { disposed = true; });
   $effect(() => {
     ondirtychange?.(draftDirty);
   });
@@ -80,11 +86,31 @@
     }
   }
 
+  $effect(() => {
+    const requested = target;
+    if (requested) untrack(() => {
+      pendingDiscard = null;
+      selected = { ...requested };
+      creating = false;
+    });
+  });
+
+  let handledReset = 0;
+  $effect(() => {
+    if (resetRequest > handledReset) {
+      handledReset = resetRequest;
+      if (!target) {
+        selected = null;
+        creating = false;
+        pendingDiscard = null;
+      }
+    }
+  });
+
   onMount(() => {
-    if (initial) selected = { ...initial };
     void load();
     const timer = setInterval(() => (now = new Date()), 15000);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); loadSeq += 1; };
   });
 
   function isSelected(row: DefinitionRow): boolean {
@@ -92,14 +118,27 @@
   }
 
   function select(row: DefinitionRow): void {
-    leaveDraft(() => {
-      creating = false;
-      selected = { definitionId: row.definitionId, revisionId: row.revisionId };
-    });
+    creating = false;
+    selected = { definitionId: row.definitionId, revisionId: row.revisionId };
+    onselectionchange?.(selected);
   }
 
-  function leaveDraft(apply: () => void): void {
-    if (creating && draftDirty) pendingDiscard = apply;
+  function openDraft(): void {
+    if (!hasDraft) {
+      hasDraft = true;
+      draftGeneration += 1;
+    }
+    creating = true;
+    onselectionchange?.(null);
+  }
+
+  function cancelDraft(): void {
+    const apply = () => {
+      hasDraft = false;
+      creating = false;
+      onselectionchange?.(selected, true);
+    };
+    if (draftDirty) pendingDiscard = apply;
     else apply();
   }
 
@@ -109,14 +148,21 @@
     apply?.();
   }
 
-  function changed(detail: Detail): void {
+  function changed(detail: Detail, createdGeneration?: number): void {
+    if (disposed) return;
     const next = detail.definition;
     const others = rows.filter((row) => !(row.definitionId === next.definitionId && row.revisionId === next.revisionId));
     rows = [...others, next].sort((left, right) =>
       `${left.definitionId}/${left.revisionId}`.localeCompare(`${right.definitionId}/${right.revisionId}`)
     );
-    creating = false;
-    selected = { definitionId: next.definitionId, revisionId: next.revisionId };
+    if (createdGeneration !== undefined && createdGeneration === draftGeneration) {
+      hasDraft = false;
+      if (creating) {
+        creating = false;
+        selected = { definitionId: next.definitionId, revisionId: next.revisionId };
+        onselectionchange?.(selected, true);
+      }
+    }
     now = new Date();
   }
 
@@ -153,11 +199,11 @@
       <Button
         icon={Plus}
         disabled={writeReason !== undefined}
-        title={writeReason ?? 'New definition'}
+        title={writeReason ?? (hasDraft ? 'Continue draft' : 'New definition')}
         data-testid="definitions-new"
-        onclick={() => (creating = true)}
+        onclick={openDraft}
       >
-        New definition
+        {hasDraft ? 'Continue draft' : 'New definition'}
       </Button>
     </div>
 
@@ -212,14 +258,18 @@
   </div>
 
   <aside class="detail-pane" aria-label="Definition details">
-    {#if creating}
-      <NewDefinitionForm
-        {writeBlocked}
-        oncreated={changed}
-        oncancel={() => leaveDraft(() => (creating = false))}
-        ondirtychange={(dirty) => (draftDirty = dirty)}
-      />
-    {:else if selected}
+    {#if hasDraft}
+      {@const generation = draftGeneration}
+      <div hidden={!creating}>
+        <NewDefinitionForm
+          {writeBlocked}
+          oncreated={(detail) => changed(detail, generation)}
+          oncancel={cancelDraft}
+          ondirtychange={(dirty) => (draftDirty = dirty)}
+        />
+      </div>
+    {/if}
+    {#if !creating && selected}
       {#key `${selected.definitionId}/${selected.revisionId}`}
         <DefinitionDetail
           definitionId={selected.definitionId}
@@ -228,7 +278,7 @@
           onchanged={changed}
         />
       {/key}
-    {:else}
+    {:else if !creating}
       <EmptyState message="No definition selected." />
     {/if}
   </aside>

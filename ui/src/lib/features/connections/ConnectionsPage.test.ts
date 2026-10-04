@@ -6,6 +6,20 @@ import { requestConnectionsView } from './connectionsIntent';
 import { clearDraftState, isDirty, resetIDEState, setDraftState } from '$lib/ui/ide/ideStore';
 import type { ConnectionRevisionRow, ConnectionRow, EngineRuntimeView } from './connectionsApi';
 
+const navigation = vi.hoisted(() => ({
+  callback: null as ((navigation: { to: { url: URL } }) => void) | null,
+  goto: vi.fn()
+}));
+vi.mock('$app/navigation', () => ({
+  afterNavigate: (callback: typeof navigation.callback) => { navigation.callback = callback; },
+  goto: navigation.goto
+}));
+
+function navigate(path: string): void {
+  window.history.pushState(null, '', path);
+  navigation.callback?.({ to: { url: new URL(window.location.href) } });
+}
+
 // The catalog and runtime boundary is mocked so the page renders deterministically.
 const api = vi.hoisted(() => ({
   fetchConnections: vi.fn(),
@@ -221,9 +235,17 @@ async function confirmReason(confirm: string, reason = 'synthetic change for the
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/connections');
+  navigation.callback = null;
+  navigation.goto.mockImplementation(async (path: string, options?: { replaceState?: boolean }) => {
+    if (options?.replaceState) window.history.replaceState(null, '', path);
+    else window.history.pushState(null, '', path);
+    navigation.callback?.({ to: { url: new URL(window.location.href) } });
+  });
   resetIDEState();
   vi.clearAllMocks();
   api.fetchConnections.mockResolvedValue([]);
+  api.fetchConnection.mockResolvedValue(null);
   api.fetchEngineRuntime.mockResolvedValue(runtime());
   api.validateConnectionSpec.mockResolvedValue([]);
   api.fetchConnectionRevisions.mockResolvedValue([]);
@@ -537,6 +559,7 @@ describe('Connections — the catalog table and details', () => {
     await waitFor(() => expect(screen.queryByTestId('connection-reason-dialog')).not.toBeInTheDocument());
     const table = screen.getByTestId('connections-table');
     expect(table.querySelector('[data-row="e2e-mllp-east"]')).not.toBeNull();
+    expect(window.location.search).toBe('?connection=e2e-mllp-east');
   });
 
   it('lands every refused path of a save on its field and keeps the dialog open', async () => {
@@ -714,5 +737,179 @@ describe('Connections — Engine', () => {
 
     expect(screen.getByRole('tab', { name: 'Engine' })).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByTestId('engine-runtime')).toBeInTheDocument();
+  });
+});
+
+describe('Connections — record navigation', () => {
+  function visibleDetails(): HTMLElement {
+    return within(screen.getByRole('tabpanel', { name: /^(Sources|Destinations)$/ })).getByTestId('connection-details');
+  }
+
+  async function expectSelected(id: string): Promise<HTMLElement> {
+    await waitFor(() => expect(visibleDetails()).toHaveAttribute('data-connection-id', id));
+    return visibleDetails();
+  }
+
+  function nameField(details: HTMLElement): HTMLInputElement {
+    return details.querySelector('[data-path="name"] input') as HTMLInputElement;
+  }
+
+  it('opens copied URLs and preserves dirty A through same-route B and destination navigation', async () => {
+    setAccessStatus(status());
+    const a = mllpRow();
+    const b = mllpRow({ id: 'adt-west', name: 'ADT west' });
+    const destination = mllpRow({ id: 'fhir', name: 'FHIR', direction: 'DESTINATION', kind: 'FHIR', spec: {} });
+    const rows = [a, b, destination];
+    api.fetchConnections.mockImplementation(async (direction: string) => rows.filter((row) => row.direction === direction));
+    api.fetchConnection.mockImplementation(async (id: string) => rows.find((row) => row.id === id) ?? null);
+    window.history.replaceState(null, '', '/connections?connection=adt-east-mllp');
+    render(ConnectionsPage);
+    const first = await expectSelected(a.id);
+    await fireEvent.input(nameField(first), { target: { value: 'Unsaved east' } });
+    navigate('/connections?connection=adt-west');
+    await expectSelected(b.id);
+    navigate('/connections?connection=fhir');
+    await expectSelected(destination.id);
+    expect(screen.getByRole('tab', { name: 'Destinations' })).toHaveAttribute('aria-selected', 'true');
+    navigate('/connections?connection=adt-east-mllp');
+    expect(nameField(await expectSelected(a.id))).toHaveValue('Unsaved east');
+    expect(isDirty('/connections')).toBe(true);
+    expect(api.updateConnection).not.toHaveBeenCalled();
+    expect(api.createConnection).not.toHaveBeenCalled();
+  });
+
+  it('keeps the latest selector when an older read finishes and hides previous details while loading', async () => {
+    setAccessStatus(status());
+    let finishOld!: (row: ConnectionRow) => void;
+    api.fetchConnections.mockResolvedValue([mllpRow()]);
+    api.fetchConnection.mockImplementation(async (id: string) => id === 'slow'
+      ? new Promise<ConnectionRow>((resolve) => { finishOld = resolve; })
+      : mllpRow({ id, name: id }));
+    render(ConnectionsPage);
+    await selectRow('ADT east');
+    const previous = await expectSelected('adt-east-mllp');
+    navigate('/connections?connection=slow');
+    expect(await screen.findByTestId('connection-target-state')).toHaveTextContent('Loading connection slow');
+    expect(previous).not.toBeVisible();
+    navigate('/connections?connection=latest');
+    await expectSelected('latest');
+    finishOld(mllpRow({ id: 'slow', name: 'Slow result' }));
+    await Promise.resolve();
+    expect(visibleDetails()).toHaveAttribute('data-connection-id', 'latest');
+    expect(window.location.search).toBe('?connection=latest');
+  });
+
+  it('opens an archived target absent from list results and keeps it selected through refresh', async () => {
+    setAccessStatus(status());
+    const archived = mllpRow({ id: 'archived-feed', archived: true });
+    api.fetchConnection.mockResolvedValue(archived);
+    window.history.replaceState(null, '', '/connections?connection=archived-feed');
+    render(ConnectionsPage);
+    const details = await expectSelected(archived.id);
+    expect(nameField(details)).toHaveAttribute('readonly');
+    expect(within(details).getByText(/Archived: this connection accepts no change/)).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('button', { name: 'Refresh connections' }));
+    await waitFor(() => expect(api.fetchConnections).toHaveBeenCalledTimes(2));
+    expect(visibleDetails()).toHaveAttribute('data-connection-id', archived.id);
+    expect(window.location.search).toBe('?connection=archived-feed');
+  });
+
+  it('reports missing and denied targets without showing the previous record, and can retry', async () => {
+    setAccessStatus(status());
+    api.fetchConnections.mockResolvedValue([mllpRow()]);
+    render(ConnectionsPage);
+    await selectRow('ADT east');
+    const previous = await expectSelected('adt-east-mllp');
+    navigate('/connections?connection=missing');
+    expect(await screen.findByTestId('connection-target-state')).toHaveTextContent('Connection missing is unavailable in this catalog.');
+    expect(previous).not.toBeVisible();
+    api.fetchConnection.mockRejectedValueOnce(new Error('forbidden'));
+    navigate('/connections?connection=denied');
+    await waitFor(() => expect(screen.getByTestId('connection-target-state')).toHaveTextContent(/roles do not admit/));
+    expect(previous).not.toBeVisible();
+    api.fetchConnection.mockResolvedValue(mllpRow({ id: 'denied' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await expectSelected('denied');
+  });
+
+  it('preflights direct reads when known capabilities deny catalog access', async () => {
+    setAccessStatus(status({ connectionsRead: false }));
+    window.history.replaceState(null, '', '/connections?connection=secret');
+    render(ConnectionsPage);
+    expect(await screen.findByTestId('connections-preflight')).toHaveAttribute('data-reason', 'missing-role');
+    expect(api.fetchConnection).not.toHaveBeenCalled();
+    expect(api.fetchConnections).not.toHaveBeenCalled();
+  });
+
+  it('writes canonical row URLs and reacts to history traversal without remounting buffers', async () => {
+    setAccessStatus(status());
+    const a = mllpRow();
+    const b = mllpRow({ id: 'west', name: 'West' });
+    api.fetchConnections.mockResolvedValue([a, b]);
+    api.fetchConnection.mockImplementation(async (id: string) => id === a.id ? a : b);
+    render(ConnectionsPage);
+    await selectRow(a.name);
+    expect(window.location.search).toBe('?connection=adt-east-mllp');
+    await selectRow(b.name);
+    expect(window.location.search).toBe('?connection=west');
+    window.history.replaceState(null, '', '/connections?connection=adt-east-mllp');
+    navigation.callback?.({ to: { url: new URL(window.location.href) } });
+    await expectSelected(a.id);
+    expect(api.fetchConnections).toHaveBeenCalledTimes(1);
+    await fireEvent.click(screen.getByRole('tab', { name: 'Engine' }));
+    expect(window.location.search).toBe('');
+    await fireEvent.click(screen.getByRole('tab', { name: 'Sources' }));
+    expect(window.location.search).toBe('?connection=adt-east-mllp');
+    await expectSelected(a.id);
+  });
+
+  it('clears the visible selection on a bare URL while retaining the edited buffer', async () => {
+    setAccessStatus(status());
+    const a = mllpRow();
+    api.fetchConnections.mockResolvedValue([a]);
+    api.fetchConnection.mockResolvedValue(a);
+    render(ConnectionsPage);
+    await selectRow(a.name);
+    await fireEvent.input(nameField(await expectSelected(a.id)), { target: { value: 'Retained draft' } });
+    navigate('/connections');
+    await screen.findByText('No connection selected.');
+    expect(screen.queryByTestId('connection-details')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('');
+    expect(isDirty('/connections')).toBe(true);
+    navigate('/connections?connection=adt-east-mllp');
+    expect(nameField(await expectSelected(a.id))).toHaveValue('Retained draft');
+  });
+
+  it('invalidates selected data and pending reads when the reported identity changes', async () => {
+    setAccessStatus(status());
+    let finishOld!: (row: ConnectionRow) => void;
+    api.fetchConnection.mockReturnValueOnce(new Promise<ConnectionRow>((resolve) => { finishOld = resolve; }))
+      .mockResolvedValue(mllpRow({ name: 'New identity result' }));
+    window.history.replaceState(null, '', '/connections?connection=adt-east-mllp');
+    render(ConnectionsPage);
+    await waitFor(() => expect(api.fetchConnection).toHaveBeenCalledTimes(1));
+    setAccessStatus({ ...status(), principal: 'another-identity' });
+    expect(nameField(await expectSelected('adt-east-mllp'))).toHaveValue('New identity result');
+    finishOld(mllpRow({ name: 'Old identity result' }));
+    await Promise.resolve();
+    expect(nameField(visibleDetails())).toHaveValue('New identity result');
+    expect(api.fetchConnection).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a missing callback from an old detail after another record is selected', async () => {
+    setAccessStatus(status());
+    const a = mllpRow();
+    const b = mllpRow({ id: 'west', name: 'West' });
+    let finishReload!: (row: ConnectionRow | null) => void;
+    api.fetchConnections.mockResolvedValue([a, b]);
+    api.fetchConnection.mockReturnValueOnce(new Promise<ConnectionRow | null>((resolve) => { finishReload = resolve; }));
+    render(ConnectionsPage);
+    await selectRow(a.name);
+    await fireEvent.click(within(await expectSelected(a.id)).getByRole('button', { name: 'Reload connection' }));
+    await selectRow(b.name);
+    finishReload(null);
+    await Promise.resolve();
+    await expectSelected(b.id);
+    expect(window.location.search).toBe('?connection=west');
   });
 });

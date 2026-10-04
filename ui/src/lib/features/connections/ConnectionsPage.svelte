@@ -10,12 +10,15 @@
     - no connectionsWrite → every form is read only, with one status line.
   The Definitions tab (.loom/42 E-1) pre-flights definitionAuthoring in the
   same precedence (definitionsAccess.ts) and reads `?definition=&revision=`
-  on mount.
+  as the URL changes.
   Unknown capabilities never block: the page queries and renders any failure
   inline.
 -->
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
+  import { afterNavigate, goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import type { IDEAppRoute } from '$lib/ui/ide/types';
   import ServerOff from '@lucide/svelte/icons/server-off';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
   import { accessCapabilities } from '$lib/graphql/accessCapabilities';
@@ -24,7 +27,9 @@
   import ConnectionCatalog from './ConnectionCatalog.svelte';
   import DefinitionsView from './DefinitionsView.svelte';
   import { definitionsPreflight } from './definitionsAccess';
-  import { definitionFromQuery } from './definitionDraft';
+  import { connectionLocation, connectionSelection, definitionLocation } from './connectionLocation';
+  import { fetchConnection, type ConnectionRow } from './connectionsApi';
+  import { describeConnectionFailure } from './connectionsErrors';
   import EngineRuntimePanel from './EngineRuntimePanel.svelte';
   import { catalogPreflight, readPreflight, writeBlockedRoles } from './connectionsAccess';
   import { connectionsIntent, takeConnectionsIntent, type ConnectionsView } from './connectionsIntent';
@@ -60,6 +65,14 @@
     engine: false
   });
   let definitionTarget = $state<{ definitionId: string; revisionId: string } | null>(null);
+  type ConnectionTarget = { row: ConnectionRow; request: number; identity: string };
+  let connectionTargets = $state<{ source: ConnectionTarget | null; destination: ConnectionTarget | null }>({ source: null, destination: null });
+  let viewLocations = $state<Record<ConnectionsView, string>>({ sources: '/connections', destinations: '/connections', definitions: '/connections', engine: '/connections' });
+  let selectionReset = $state(0);
+  let targetNotice = $state<{ loading: boolean; message: string } | null>(null);
+  let selectorSearch: string | null = null;
+  let selectorSeq = 0;
+  let disposed = false;
   let newRequest = $state<Record<'source' | 'destination', number>>({ source: 0, destination: 0 });
   let editorDirty = $state({ sources: false, destinations: false, definitions: false });
   $effect(() => {
@@ -74,19 +87,104 @@
   const pagePreflight = $derived(read !== null && catalog?.reason !== 'not-configured' ? read : null);
   const definitions = $derived(definitionsPreflight($accessCapabilities));
 
-  // `/connections?definition=<id>&revision=<id>` opens that definition.
-  onMount(() => {
-    const target = typeof window === 'undefined' ? null : definitionFromQuery(window.location.search);
-    if (target) {
-      definitionTarget = target;
-      show('definitions');
-    }
+  // Catalog data and drafts belong to the identity that read them. Only an identity
+  // change remounts those editors; record and query changes keep every buffer.
+  const identity = $derived($accessCapabilities.state === 'known'
+    ? JSON.stringify([$accessCapabilities.authVia, $accessCapabilities.principal]) : 'unknown');
+  const accessKey = $derived(JSON.stringify([identity, catalog, definitions, writeBlocked]));
+  let previousAccessKey: string | undefined;
+  $effect(() => {
+    const key = accessKey;
+    untrack(() => {
+      if (previousAccessKey === key) return;
+      const changed = previousAccessKey !== undefined;
+      previousAccessKey = key;
+      if (changed) {
+        connectionTargets = { source: null, destination: null };
+        void readSelector(new URL(window.location.href), true);
+      }
+    });
   });
+
+  function activate(target: ConnectionsView): void {
+    view = target;
+    visited[target] = true;
+  }
+
+  async function readSelector(url: URL, force = false): Promise<void> {
+    if (!force && selectorSearch === url.search) return;
+    selectorSearch = url.search;
+    const seq = ++selectorSeq;
+    const requestIdentity = identity;
+    targetNotice = null;
+    const target = connectionSelection(url.search);
+    if (!target) {
+      connectionTargets = { source: null, destination: null };
+      definitionTarget = null;
+      selectionReset += 1;
+      viewLocations = { sources: '/connections', destinations: '/connections', definitions: '/connections', engine: '/connections' };
+      activate('sources');
+      return;
+    }
+    if (target.kind === 'invalid') {
+      targetNotice = { loading: false, message: target.message };
+      return;
+    }
+    if (target.kind === 'definition') {
+      definitionTarget = { definitionId: target.definitionId, revisionId: target.revisionId };
+      viewLocations.definitions = definitionLocation(target.definitionId, target.revisionId);
+      activate('definitions');
+      return;
+    }
+    if (catalog) {
+      activate('sources');
+      return;
+    }
+    targetNotice = { loading: true, message: `Loading connection ${target.id}…` };
+    try {
+      const row = await fetchConnection(target.id);
+      if (disposed || seq !== selectorSeq || requestIdentity !== identity) return;
+      if (!row) {
+        targetNotice = { loading: false, message: `Connection ${target.id} is unavailable in this catalog.` };
+        return;
+      }
+      const direction = row.direction === 'SOURCE' ? 'source' : 'destination';
+      const next = direction === 'source' ? 'sources' : 'destinations';
+      connectionTargets[direction] = { row, request: seq, identity: requestIdentity };
+      viewLocations[next] = connectionLocation(row.id);
+      activate(next);
+      targetNotice = null;
+    } catch (err) {
+      if (disposed || seq !== selectorSeq || requestIdentity !== identity) return;
+      targetNotice = { loading: false, message: describeConnectionFailure(err).message };
+    }
+  }
+
+  onMount(() => { void readSelector(new URL(window.location.href)); });
+  afterNavigate(({ to }) => {
+    if (to?.url.pathname === resolve('/connections')) void readSelector(to.url);
+  });
+  onDestroy(() => { disposed = true; selectorSeq += 1; });
+
+  function writeLocation(path: string, replace = false): void {
+    if (typeof window === 'undefined') return;
+    selectorSeq += 1;
+    targetNotice = null;
+    const search = new URL(path, window.location.origin).search;
+    selectorSearch = search;
+    if (window.location.search === search) return;
+    void goto(resolve(path as IDEAppRoute), { replaceState: replace, noScroll: true, keepFocus: true });
+  }
+
+  function selected(next: ConnectionsView, path: string, replace = false): void {
+    viewLocations[next] = path;
+    if (view === next) writeLocation(path, replace);
+  }
 
   function show(next: string): void {
     const target = next as ConnectionsView;
-    view = target;
-    visited[target] = true;
+    activate(target);
+    writeLocation(viewLocations[target]);
   }
 
   const unsubscribe = connectionsIntent.subscribe((intent) => {
@@ -151,17 +249,34 @@
       {/snippet}
     </Toolbar>
 
+    {#if targetNotice}
+      <div class="preflight-wrap" data-testid="connection-target-state">
+        <EmptyState
+          message={targetNotice.message}
+          aria-busy={targetNotice.loading}
+          role={targetNotice.loading ? 'status' : 'alert'}
+          actionLabel={targetNotice.loading ? undefined : 'Retry'}
+          onaction={() => readSelector(new URL(window.location.href), true)}
+        />
+      </div>
+    {/if}
+
     {#if visited.sources}
-      <div class="view" id="connections-view-sources" role="tabpanel" aria-label="Sources" hidden={view !== 'sources'}>
+      <div class="view" id="connections-view-sources" role="tabpanel" aria-label="Sources" hidden={view !== 'sources' || targetNotice !== null}>
         {#if catalog?.reason === 'not-configured'}
           {@render notConfigured(catalog.keys)}
         {:else}
+          {#key identity}
           <ConnectionCatalog
             direction="source"
+            target={connectionTargets.source?.identity === identity ? connectionTargets.source : null}
+            resetRequest={selectionReset}
+            onselectionchange={(row, replace) => selected('sources', row ? connectionLocation(row.id) : '/connections', replace)}
             {writeBlocked}
             newRequest={newRequest.source}
             ondirtychange={(dirty) => (editorDirty.sources = dirty)}
           />
+          {/key}
         {/if}
       </div>
     {/if}
@@ -171,17 +286,22 @@
         id="connections-view-destinations"
         role="tabpanel"
         aria-label="Destinations"
-        hidden={view !== 'destinations'}
+        hidden={view !== 'destinations' || targetNotice !== null}
       >
         {#if catalog?.reason === 'not-configured'}
           {@render notConfigured(catalog.keys)}
         {:else}
+          {#key identity}
           <ConnectionCatalog
             direction="destination"
+            target={connectionTargets.destination?.identity === identity ? connectionTargets.destination : null}
+            resetRequest={selectionReset}
+            onselectionchange={(row, replace) => selected('destinations', row ? connectionLocation(row.id) : '/connections', replace)}
             {writeBlocked}
             newRequest={newRequest.destination}
             ondirtychange={(dirty) => (editorDirty.destinations = dirty)}
           />
+          {/key}
         {/if}
       </div>
     {/if}
@@ -191,7 +311,7 @@
         id="connections-view-definitions"
         role="tabpanel"
         aria-label="Definitions"
-        hidden={view !== 'definitions'}
+        hidden={view !== 'definitions' || targetNotice !== null}
       >
         {#if definitions?.reason === 'not-configured'}
           <div class="preflight-wrap">
@@ -236,16 +356,20 @@
               so definitions cannot be created, validated, approved or published here.
             </p>
           {/if}
+          {#key identity}
           <DefinitionsView
             writeBlocked={definitions?.reason === 'read-only' ? definitions.missingRoles : null}
-            initial={definitionTarget}
+            target={definitionTarget}
+            resetRequest={selectionReset}
+            onselectionchange={(record, replace) => selected('definitions', record ? definitionLocation(record.definitionId, record.revisionId) : '/connections', replace)}
             ondirtychange={(dirty) => (editorDirty.definitions = dirty)}
           />
+          {/key}
         {/if}
       </div>
     {/if}
     {#if visited.engine}
-      <div class="view" id="connections-view-engine" role="tabpanel" aria-label="Engine" hidden={view !== 'engine'}>
+      <div class="view" id="connections-view-engine" role="tabpanel" aria-label="Engine" hidden={view !== 'engine' || targetNotice !== null}>
         {#if read}
           <div class="preflight-wrap">
             <EmptyState

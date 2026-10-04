@@ -11,7 +11,7 @@
   field paths and JSON kinds — never a value.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import ChevronLeft from '@lucide/svelte/icons/chevron-left';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
@@ -38,11 +38,13 @@
   import { connectionHref, definitionHref, operatorReceiptHref } from './verificationLinks';
 
   interface Props {
-    /** A `/events?receipt=` deep link: the receipt filter to open with. */
-    initialReceiptId?: string | null;
+    /** A `/events?receipt=` deep link; other filter inputs remain local. */
+    receiptId?: string | null;
+    onreceiptchange?: (receiptId: string | null) => void;
   }
 
-  let { initialReceiptId = null }: Props = $props();
+  let { receiptId = null, onreceiptchange }: Props = $props();
+  let linkedReceiptId: string | null | undefined;
 
   const PAGE_SIZE = 25;
 
@@ -152,6 +154,8 @@
   function apply(event?: Event): void {
     event?.preventDefault();
     if (!snapshot()) return;
+    linkedReceiptId = applied.receiptId;
+    onreceiptchange?.(applied.receiptId);
     cursors = [];
     void load(null);
   }
@@ -185,11 +189,23 @@
     void load(previous.at(-1) ?? null);
   }
 
-  onMount(() => {
-    if (initialReceiptId) receipt = initialReceiptId;
-    snapshot();
-    void load(null);
+  $effect(() => {
+    const id = receiptId;
+    untrack(() => {
+      if (id === linkedReceiptId) return;
+      linkedReceiptId = id;
+      receipt = id ?? '';
+      // A new record link replaces only its filter, without applying half-typed inputs.
+      applied = { ...applied, receiptId: id };
+      admissions = [];
+      selectedId = null;
+      cursors = [];
+      cursor = null;
+      hasNextPage = false;
+      void load(null);
+    });
   });
+  onDestroy(() => { seq += 1; });
 
   function retentionLabel(row: Admission): string | null {
     if (row.purgedAt) return 'tombstoned';

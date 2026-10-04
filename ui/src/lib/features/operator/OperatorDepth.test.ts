@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import AttemptInspector from './AttemptInspector.svelte';
 import AttemptSearch from './AttemptSearch.svelte';
 import DeploymentControls from './DeploymentControls.svelte';
@@ -13,6 +14,40 @@ import MessageTrace from './MessageTrace.svelte';
 import OperatorPage from './OperatorPage.svelte';
 import { VALIDATION_REQUIRED_REASON } from './attemptPresentation';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
+
+const navigation = vi.hoisted(() => ({
+  callback: null as ((navigation: { to: { url: URL } }) => void) | null,
+  goto: vi.fn()
+}));
+vi.mock('$app/navigation', () => ({
+  afterNavigate: (callback: typeof navigation.callback) => { navigation.callback = callback; },
+  goto: navigation.goto
+}));
+
+async function navigate(path: string): Promise<void> {
+  history.pushState(null, '', path);
+  navigation.callback?.({ to: { url: new URL(window.location.href) } });
+  await tick();
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function messageTrace(receiptId: string) {
+  return {
+    receipt: {
+      tenantId: 'tenant-a', receiptId, status: 'accepted', recordedAt: '2026-09-29T04:00:00Z',
+      correlationId: `correlation-${receiptId}`, rawRetentionMode: 'ephemeral',
+      integrationRevision: { artifactId: 'integration-adt', revisionId: 'r1', digest: 'sha256:0' },
+      principal: { id: 'sender', kind: 'service', authMethod: 'bearer', roles: [] },
+      reason: '', eventCount: 0, attemptCount: 0, failedAttemptCount: 0, deadLetterCount: 0
+    },
+    events: [], lineage: [], attempts: [], audit: []
+  };
+}
 
 const api = vi.hoisted(() => ({
   fetchReceipts: vi.fn(),
@@ -104,6 +139,12 @@ function status(capabilities: Record<string, unknown>, roles: string[] = ['graph
 
 beforeEach(() => {
   vi.clearAllMocks();
+  navigation.callback = null;
+  navigation.goto.mockImplementation(async (url: URL) => {
+    await Promise.resolve();
+    history.replaceState(null, '', url);
+    navigation.callback?.({ to: { url: new URL(window.location.href) } });
+  });
   resetAccessCapabilities();
   api.fetchReceipts.mockResolvedValue(page([]));
   api.fetchAttempts.mockResolvedValue(page([]));
@@ -333,6 +374,129 @@ describe('MessageTrace depth', () => {
 });
 
 describe('OperatorPage deep links and pre-flight', () => {
+  it('replaces a same-route receipt without remounting filters, and ignores an older completion', async () => {
+    setAccessStatus(status({ controlPlane: true }));
+    const older = deferred<ReturnType<typeof messageTrace>>();
+    api.fetchMessageTrace.mockImplementation((id: string) => id === 'receipt-b' ? older.promise : Promise.resolve(messageTrace(id)));
+    window.history.replaceState(null, '', '/operator?receipt=receipt-a');
+    render(OperatorPage);
+    expect(await screen.findByTestId('trace-events-link')).toHaveAttribute('href', '/events?receipt=receipt-a');
+    const filter = screen.getByRole('textbox', { name: 'Correlation ID' });
+    await fireEvent.input(filter, { target: { value: 'unfinished-filter' } });
+
+    await navigate('/operator?receipt=receipt-b');
+    expect(screen.queryByTestId('trace-events-link')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Correlation ID' })).toBe(filter);
+    expect(filter).toHaveValue('unfinished-filter');
+    await navigate('/operator?receipt=receipt-c');
+    expect(await screen.findByTestId('trace-events-link')).toHaveAttribute('href', '/events?receipt=receipt-c');
+    older.resolve(messageTrace('receipt-b'));
+    await tick();
+    expect(screen.getByTestId('trace-events-link')).toHaveAttribute('href', '/events?receipt=receipt-c');
+    await navigate('/operator?receipt=receipt-c&unrelated=value');
+    expect(api.fetchMessageTrace).toHaveBeenCalledTimes(3);
+  });
+
+  it('clears a pending receipt on base navigation and does not restore its late result', async () => {
+    setAccessStatus(status({ controlPlane: true }));
+    const pending = deferred<ReturnType<typeof messageTrace>>();
+    api.fetchMessageTrace.mockReturnValue(pending.promise);
+    window.history.replaceState(null, '', '/operator?receipt=receipt-a');
+    render(OperatorPage);
+    await waitFor(() => expect(api.fetchMessageTrace).toHaveBeenCalledWith('receipt-a'));
+    await navigate('/operator');
+    expect(screen.getByText('No message selected.')).toBeInTheDocument();
+    pending.resolve(messageTrace('receipt-a'));
+    await tick();
+    expect(screen.queryByTestId('trace-events-link')).toBeNull();
+    expect(screen.getByText('No message selected.')).toBeInTheDocument();
+  });
+
+  it('shows an unavailable receipt honestly after another receipt was open', async () => {
+    setAccessStatus(status({ controlPlane: true }));
+    api.fetchMessageTrace.mockResolvedValueOnce(messageTrace('receipt-a')).mockResolvedValueOnce(null);
+    window.history.replaceState(null, '', '/operator?receipt=receipt-a');
+    render(OperatorPage);
+    await screen.findByTestId('trace-events-link');
+    await navigate('/operator?receipt=missing');
+    expect(await screen.findByText('This receipt is not available in your tenant.')).toBeInTheDocument();
+    expect(screen.queryByTestId('trace-events-link')).toBeNull();
+  });
+
+  it('switches attempt and audit targets in place, clears old details, and ignores stale reads', async () => {
+    setAccessStatus(status({ controlPlane: true }));
+    const oldAttempt = deferred<ReturnType<typeof attempt>>();
+    const oldAudit = deferred<ReturnType<typeof page>>();
+    api.fetchAttempt.mockImplementation((id: string) => id === 'attempt-b' ? oldAttempt.promise : Promise.resolve(attempt(id, { receiptId: `receipt-${id}` })));
+    api.fetchAttemptAudit.mockImplementation((id: string) => id === 'attempt-b' ? oldAudit.promise : Promise.resolve(page([audit(id, `audit-${id}`)])));
+    window.history.replaceState(null, '', '/operator?attempt=attempt-a');
+    render(OperatorPage);
+    await screen.findByRole('button', { name: 'receipt-attempt-a' });
+    const filter = screen.getByRole('textbox', { name: 'Destination' });
+    await fireEvent.input(filter, { target: { value: 'unfinished-destination' } });
+    await navigate('/operator?attempt=attempt-b');
+    expect(screen.queryByRole('button', { name: 'receipt-attempt-a' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Destination' })).toBe(filter);
+    expect(filter).toHaveValue('unfinished-destination');
+    await navigate('/operator?attempt=attempt-c');
+    await screen.findByRole('button', { name: 'receipt-attempt-c' });
+    oldAttempt.resolve(attempt('attempt-b', { receiptId: 'stale-receipt' }));
+    oldAudit.resolve(page([audit('stale-audit', 'stale-audit')]));
+    await tick();
+    expect(screen.queryByRole('button', { name: 'stale-receipt' })).toBeNull();
+    expect(screen.queryByText('stale-audit')).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Close attempt' }));
+    expect(window.location.search).toBe('');
+    expect(screen.getByRole('tab', { name: 'Delivery' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('attempt-inspector')).toBeNull();
+  });
+
+  it('switches deployment history for same-route links and removes old history for missing or cleared selectors', async () => {
+    setAccessStatus(status({ controlPlane: true }));
+    api.fetchDeployments.mockResolvedValue([
+      deployment(),
+      deployment({ definitionRevision: { artifactId: 'second', revisionId: 'v2', digest: 'sha256:2' } })
+    ]);
+    window.history.replaceState(null, '', '/operator?definition=e2e-batch-adt&revision=v1');
+    render(OperatorPage);
+    expect(await screen.findByTestId('deployment-history')).toHaveAttribute('data-definition-id', 'e2e-batch-adt');
+    await navigate('/operator?definition=second&revision=v2');
+    await waitFor(() => expect(screen.getAllByTestId('deployment-history')).toHaveLength(1));
+    expect(screen.getByTestId('deployment-history')).toHaveAttribute('data-definition-id', 'second');
+    expect(api.fetchDeployments).toHaveBeenCalledTimes(1);
+    await navigate('/operator?definition=missing&revision=v9');
+    expect(await screen.findByTestId('deployment-focus-missing')).toHaveTextContent('missing@v9');
+    expect(screen.queryByTestId('deployment-history')).toBeNull();
+    await navigate('/operator');
+    expect(screen.getByRole('tab', { name: 'Messages' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('No message selected.')).toBeInTheDocument();
+  });
+
+  it('keeps the URL aligned with internal receipt and deployment selections', async () => {
+    setAccessStatus(status({ controlPlane: true }));
+    api.fetchAttempt.mockResolvedValue(attempt('attempt-a'));
+    api.fetchMessageTrace.mockResolvedValue(messageTrace('receipt-a'));
+    api.fetchDeployments.mockResolvedValue([deployment()]);
+    window.history.replaceState(null, '', '/operator?attempt=attempt-a');
+    render(OperatorPage);
+    await fireEvent.click(await screen.findByRole('button', { name: 'receipt-a' }));
+    expect(window.location.search).toBe('?receipt=receipt-a');
+    expect(navigation.goto).toHaveBeenLastCalledWith(
+      new URL('/operator?receipt=receipt-a', window.location.origin),
+      { replaceState: true, noScroll: true, keepFocus: true }
+    );
+    await screen.findByTestId('trace-events-link');
+    await navigate('/operator?receipt=receipt-a');
+    expect(api.fetchMessageTrace).toHaveBeenCalledTimes(1);
+    await fireEvent.click(screen.getByRole('tab', { name: 'Deployments' }));
+    expect(window.location.search).toBe('');
+    await fireEvent.click(await screen.findByRole('button', { name: 'Show lifecycle history' }));
+    expect(window.location.search).toBe('?definition=e2e-batch-adt&revision=v1');
+    await fireEvent.click(screen.getByRole('button', { name: 'Hide lifecycle history' }));
+    expect(window.location.search).toBe('');
+    expect(screen.queryByTestId('deployment-history')).toBeNull();
+  });
+
   it('opens the attempt inspector on Delivery for ?attempt=', async () => {
     setAccessStatus(status({ controlPlane: true }));
     api.fetchAttempt.mockResolvedValue(attempt('attempt-z'));
