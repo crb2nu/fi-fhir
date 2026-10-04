@@ -96,6 +96,24 @@ describe('EditorTabs', () => {
   });
 
   describe('keyboard and primitive', () => {
+    it('forwards focus methods without selecting a tab or mistaking a close button for a tab', async () => {
+      const selectFn = vi.fn();
+      const view = render(EditorTabs, {
+        props: { tabs: defaultTabs, activeTabId: 'tab-1' },
+        events: { select: selectFn },
+      });
+      expect(view.component.focusTab('tab-3')).toBe(true);
+      expect(view.component.focusedTabId()).toBe('tab-3');
+      expect(screen.getByRole('tab', { name: 'Event Log' })).toHaveFocus();
+      expect(screen.getByRole('tab', { name: 'HL7 Message' })).toHaveAttribute('aria-selected', 'true');
+      expect(selectFn).not.toHaveBeenCalled();
+      screen.getByRole('button', { name: 'Close Event Log' }).focus();
+      expect(view.component.focusedTabId()).toBeNull();
+      await view.rerender({ tabs: [] });
+      expect(view.component.focusedTabId()).toBeNull();
+      expect(view.component.focusTab('tab-3')).toBe(false);
+    });
+
     it('is the Tabs primitive: one tab stop on the active tab', () => {
       render(EditorTabs, { props: { tabs: defaultTabs, activeTabId: 'tab-3' } });
 

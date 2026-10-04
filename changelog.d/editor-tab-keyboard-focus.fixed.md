@@ -1,0 +1,1 @@
+Closing an editor with Delete keeps keyboard focus on the neighboring tab without changing an unrelated active page. Cancelling a draft warning or a failed navigation retains the original tab; closing the final editor returns focus to Home.

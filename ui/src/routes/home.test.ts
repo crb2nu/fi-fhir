@@ -4,7 +4,7 @@ import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCap
 
 vi.mock('$lib/features/integration-session/api', () => ({ isIntegrationSessionBuildEnabled: () => true }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
-vi.mock('$app/navigation', () => ({ goto: vi.fn(), beforeNavigate: vi.fn() }));
+vi.mock('$app/navigation', () => ({ goto: vi.fn(), beforeNavigate: vi.fn(), afterNavigate: vi.fn() }));
 
 // Every panel's data boundary is mocked so the page renders deterministically.
 const { fetchDeploymentsMock, fetchRecentSessionsMock, graphqlFetchMock } = vi.hoisted(() => ({
