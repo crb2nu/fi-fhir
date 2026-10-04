@@ -305,8 +305,8 @@ test('E4-6. explorer switches the session content without discarding text and re
   const first = await createSession('Explorer first session');
   const second = await createSession('Explorer second session');
   await openIDE(page, `/hl7?session=${encodeURIComponent(first.id)}`);
-  const rail = page.getByTestId('hl7-session-sidebar');
-  const shownRun = page.getByTestId('hl7-session-selected-run');
+  const rail = page.getByTestId('hl7-session-location');
+  const shownRun = page.getByRole('region', { name: 'Results', exact: true });
   await expect(rail).toHaveAttribute('data-session-id', first.id);
   await expect(shownRun).toHaveAttribute('data-run-id', first.runId);
   await page.getByRole('button', { name: 'Show explorer' }).click();
@@ -338,4 +338,92 @@ test('E4-6. explorer switches the session content without discarding text and re
   await expect(page.getByRole('tab', { name: 'Operator', exact: true })).toBeVisible();
   await explorer.getByRole('link', { name: 'Home', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Home', exact: true })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('E4-7. intake keeps both work panes usable and session details accessible as space changes', async ({ page, request }, testInfo) => {
+  const created = await graphqlData<{ createIntegrationSession: { id: string } }>(request,
+    'mutation Create($input: CreateIntegrationSessionInput!) { createIntegrationSession(input: $input) { id } }',
+    { input: { name: 'Intake layout without runs' } });
+  await page.addInitScript(() => {
+    localStorage.setItem('fi-fhir-hl7-intake-split', '1200');
+    localStorage.setItem('fi-fhir-ide-sidebar-open', '1');
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openIDE(page, `/hl7?session=${encodeURIComponent(created.createIntegrationSession.id)}`);
+  const location = page.getByTestId('hl7-session-location');
+  const results = page.getByRole('region', { name: 'Results', exact: true });
+  const input = page.getByRole('region', { name: 'HL7 input. Drag and drop HL7 files to import.' });
+  const toggle = page.getByTestId('hl7-session-toggle');
+  const rail = page.getByTestId('hl7-session-rail');
+  await expect(location).toContainText('Intake layout without runs');
+  await expect(rail).toBeVisible();
+
+  for (const width of [1440, 1280, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(async () => (await input.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(359);
+    await expect.poll(async () => (await results.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(359);
+    await expect.poll(async () => {
+      const bounds = await results.boundingBox();
+      return bounds ? bounds.x + bounds.width : Infinity;
+    }).toBeLessThanOrEqual(width);
+    await expect(page.getByRole('dialog', { name: 'Session details' })).toHaveCount(0);
+    await expect(location).toContainText('Intake layout without runs');
+    expect(await page.evaluate(() => localStorage.getItem('fi-fhir-hl7-intake-split'))).toBe('1200');
+    await page.screenshot({ path: testInfo.outputPath(`intake-${width}.png`) });
+  }
+
+  await expect(rail).toHaveCount(0);
+  await toggle.click();
+  const drawer = page.getByRole('dialog', { name: 'Session details' });
+  await expect(drawer).toBeVisible();
+  expect(await drawer.locator('..').boundingBox()).toEqual({ x: 0, y: 0, width: 1024, height: 900 });
+  await expect(drawer.getByRole('button', { name: 'Close session sidebar' })).toBeFocused();
+  await drawer.getByTestId('hl7-session-export').click();
+  const exportDialog = page.getByTestId('hl7-session-export-dialog');
+  expect(await exportDialog.locator('..').boundingBox()).toEqual({ x: 0, y: 0, width: 1024, height: 900 });
+  await exportDialog.getByRole('textbox').fill('Keep this reason through resizing');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(drawer).toBeVisible();
+  await expect(exportDialog.getByRole('textbox')).toHaveValue('Keep this reason through resizing');
+  expect(await exportDialog.locator('..').boundingBox()).toEqual({ x: 0, y: 0, width: 1440, height: 900 });
+  await page.keyboard.press('Escape');
+  await expect(exportDialog).toHaveCount(0);
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByTestId('hl7-session-export')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+
+  // A docked action form also survives losing the space needed by its rail.
+  await toggle.click();
+  await expect(rail).toBeVisible();
+  await rail.getByTestId('hl7-session-export').click();
+  await exportDialog.getByRole('textbox').fill('Keep the docked export reason');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(exportDialog.getByRole('textbox')).toHaveValue('Keep the docked export reason');
+  await expect(drawer).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(exportDialog).toHaveCount(0);
+  await expect(rail).toHaveCount(0);
+  await expect(toggle).toBeFocused();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(location).toContainText('Intake layout without runs');
+  await expect.poll(async () => (await input.boundingBox())?.width ?? 0).toBeGreaterThan(300);
+  await expect.poll(async () => (await results.boundingBox())?.width ?? 0).toBeGreaterThan(300);
+  await expect.poll(async () => {
+    const editor = await input.boundingBox();
+    const result = await results.boundingBox();
+    return !!editor && !!result && result.y >= editor.y + editor.height;
+  }).toBe(true);
+  await results.getByRole('tab', { name: 'Warnings', exact: true }).scrollIntoViewIfNeeded();
+  await expect(results.getByRole('tab', { name: 'Warnings', exact: true })).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('intake-stacked.png') });
+  await toggle.click();
+  await expect(drawer).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('session-drawer.png') });
+  await page.keyboard.press('Escape');
+  await expect(toggle).toBeFocused();
+  await expect(location).toContainText('Intake layout without runs');
 });

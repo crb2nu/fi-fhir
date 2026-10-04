@@ -17,7 +17,7 @@
   import { createHL7SampleStore } from '$lib/features/hl7/samples/sampleStore';
   import { rememberRecentSource } from '$lib/features/hl7/samples/recentSources';
   import type { HL7Sample } from '$lib/features/hl7/samples/types';
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import ProfileDraftPanel from '$lib/features/hl7/components/ProfileDraftPanel.svelte';
   import { suggestFixes } from '$lib/features/hl7/profile/fixes';
   import { profileStore, selectedProfile } from '$lib/features/hl7/profile/profileStore';
@@ -165,6 +165,44 @@
   // one. The toolbar's Session button makes it an explicit choice.
   let sessionRailChoice: boolean | null = null;
   $: sessionRailOpen = sessionRailChoice ?? $workspaceState.status.kind !== 'idle';
+  let workspaceWidth = 0;
+  let sessionDrawer = false;
+  let sessionDrawerOpen = false;
+  let sessionActionOpen = false;
+  // 360 px for each work pane, a 4 px divider and the 280 px session rail.
+  $: updateSessionPresentation(workspaceWidth, sessionDrawerOpen || sessionActionOpen);
+  $: sessionLocation = $workspaceState.status.kind === 'idle'
+    ? null
+    : { id: $workspaceState.status.sessionId, name: $workspaceState.session?.name ?? `Session ${$workspaceState.status.sessionId}` };
+  $: sessionLocationStatus = {
+    idle: '', ready: '', loading: 'Loading…', absent: 'Not found',
+    forbidden: 'Access denied', unavailable: 'Unavailable', error: 'Could not load'
+  }[$workspaceState.status.kind];
+
+  function updateSessionPresentation(width: number, locked: boolean): void {
+    if (!width || locked) return;
+    const compact = width < 1004;
+    if (compact === sessionDrawer) return;
+    const restoreFocus = compact && document.activeElement?.closest('[data-testid="hl7-session-rail"]');
+    sessionDrawer = compact;
+    if (restoreFocus) void tick().then(() => document.getElementById('hl7-session-toggle')?.focus());
+  }
+
+  function toggleSession(): void {
+    if (sessionDrawer) sessionDrawerOpen = !sessionDrawerOpen;
+    else sessionRailChoice = !sessionRailOpen;
+  }
+
+  function closeSession(): void {
+    if (sessionDrawer) {
+      sessionDrawerOpen = false;
+      if (workspaceWidth >= 1004) sessionRailChoice = false;
+    }
+    else {
+      sessionRailChoice = false;
+      document.getElementById('hl7-session-toggle')?.focus();
+    }
+  }
   let shownRunId: string | null = null;
   const sessionStream = streamStatus('integrationSessionEvents');
 
@@ -388,7 +426,8 @@
     }
   }
 
-  $: showSessionRail = sessionRailOpen && (sessionEngineEnabled || $workspaceState.status.kind !== 'idle');
+  $: sessionSurfaceAvailable = sessionEngineEnabled || $workspaceState.status.kind !== 'idle';
+  $: showSessionRail = sessionSurfaceAvailable && (sessionDrawer ? sessionDrawerOpen : sessionRailOpen);
 
   // Sample intake from connections (.loom/38 C-3). The controller lives here,
   // not in the Samples tab, so a capture keeps arriving while another tab is open.
@@ -1371,7 +1410,7 @@
 </script>
 
 
-<div class="intake">
+<div class="intake" class:compact={workspaceWidth > 0 && workspaceWidth <= 760}>
   <Toolbar title="HL7 intake">
     {#snippet actions()}
       <span class="redaction-select">
@@ -1399,10 +1438,11 @@
         <Button
           variant="ghost"
           icon={History}
-          aria-pressed={sessionRailOpen}
-          title={sessionRailOpen ? 'Hide the session sidebar' : 'Show the session sidebar: runs, diagnostics, export'}
+          aria-pressed={showSessionRail}
+          title={showSessionRail ? 'Hide session details' : 'Show session details: runs, diagnostics, export'}
+          id="hl7-session-toggle"
           data-testid="hl7-session-toggle"
-          onclick={() => (sessionRailChoice = !sessionRailOpen)}
+          onclick={toggleSession}
         >
           Session
         </Button>
@@ -1438,17 +1478,30 @@
     {/snippet}
   </Toolbar>
 
+  {#if sessionLocation}
+    <div class="session-location" data-testid="hl7-session-location" data-session-id={sessionLocation.id}>
+      <Icon icon={History} size={14} />
+      <button type="button" class="session-name" title={`${sessionLocation.name} · ${sessionLocation.id}`} on:click={toggleSession}>
+        {sessionLocation.name}
+      </button>
+      {#if sessionLocationStatus}<span role="status">{sessionLocationStatus}</span>{/if}
+      {#if $workspaceState.session?.archived}<Badge tone="neutral">Archived</Badge>{/if}
+    </div>
+  {/if}
+
   <div class="pipeline-row">
     <PipelineChips steps={pipelineSteps} onselect={(stage) => (activeTab = PIPELINE_TAB[stage])} />
   </div>
 
-  <div class="workspace">
+  <div class="workspace" bind:clientWidth={workspaceWidth}>
     <div class="split-host">
     <SplitPane
       orientation="horizontal"
       initialSize={600}
       minSize={360}
       maxSize={1200}
+      minSecondarySize={360}
+      stackWhenNarrow
       storageKey="fi-fhir-hl7-intake-split"
     >
       <div
@@ -1550,7 +1603,7 @@
         </div>
       </div>
 
-      <div slot="secondary" class="results-pane" aria-label="Results" role="region">
+      <div slot="secondary" class="results-pane" aria-label="Results" role="region" data-session-id={$state.session?.id ?? undefined} data-run-id={$state.session?.runId ?? undefined}>
         <div class="status-line">
           {#if sessionEngineEnabled && $state.session}
             <div class="session-status">
@@ -1866,8 +1919,11 @@
       </div>
     </SplitPane>
     </div>
-    {#if showSessionRail}
+    {#if sessionSurfaceAvailable}
       <SessionSidebar
+        open={showSessionRail}
+        drawer={sessionDrawer}
+        onactionchange={(open) => (sessionActionOpen = open)}
         {workspace}
         view={$workspaceState}
         {phiExport}
@@ -1876,7 +1932,7 @@
         onshowrun={(runId) => void showRun(runId)}
         oninspectpath={inspectPath}
         onaccepted={markDiagnosticAccepted}
-        onclose={() => (sessionRailChoice = false)}
+        onclose={closeSession}
       />
     {/if}
   </div>
@@ -1888,6 +1944,7 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    min-width: 0;
   }
 
   .redaction-select {
@@ -1897,6 +1954,41 @@
 
   .file-input {
     display: none;
+  }
+
+  .session-location {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: 28px;
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+  }
+
+  .session-location .session-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-text-primary);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .session-location .session-name:hover {
+    text-decoration: underline;
+  }
+
+  .session-location .session-name:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
   }
 
   .pipeline-row {
@@ -1913,6 +2005,7 @@
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
+    min-width: 0;
   }
 
   .split-host {
@@ -2004,6 +2097,7 @@
     align-items: center;
     gap: var(--space-2);
     margin-left: auto;
+    flex-wrap: wrap;
   }
 
   .check {
@@ -2049,10 +2143,11 @@
 
   .editor-foot {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-4);
     flex: 0 0 auto;
-    height: 24px;
+    min-height: 24px;
+    gap: var(--space-1) var(--space-4);
     padding: 0 var(--space-3);
     border-top: 1px solid var(--color-border-subtle);
     font-size: var(--text-xs);
@@ -2274,5 +2369,29 @@
   .mono {
     font-family: var(--font-mono);
     font-size: var(--text-mono);
+  }
+
+  .intake.compact :global(.ui-toolbar) {
+    height: auto;
+    min-height: var(--toolbar-height);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+
+  .intake.compact :global(.ui-toolbar-actions) {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .compact .pipeline-row {
+    height: auto;
+    min-height: 36px;
+    padding-block: var(--space-1);
+  }
+
+  .compact .pipeline-row :global(.pipeline-list) {
+    flex-wrap: wrap;
   }
 </style>

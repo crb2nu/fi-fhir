@@ -1,0 +1,1 @@
+Keep the HL7 editor and results readable as the explorer and session panels change the available space. The split preserves its preferred width, stacks on narrow screens, and opens compact session details in a drawer. The current session name remains visible with both side panels closed, and resizing preserves open export/archive forms.
