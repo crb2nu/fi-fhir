@@ -172,6 +172,27 @@ its matching PEM PKIX public key. Partial or mismatched configuration fails
 startup. When all settings are absent, authoring and simulation remain available
 but publish/approve/deploy return unavailable.
 
+## Browsing saved sessions
+
+For inventory browsing, use `integrationSessionSummaries(input: ...)` instead of
+expanding `integrationSessions`. It returns session metadata and at most one
+latest-run summary per row, without samples, artifacts, diagnostics or run
+payloads. Home, the explorer and Browse sessions use this query.
+
+The optional input accepts literal case-insensitive name/ID `search`,
+`includeArchived` (default false), nullable `hasRuns`, `limit` (default 25,
+range 1–100), and `offset` (default 0, range 0–10,000). Search is trimmed and
+limited to 256 bytes without NUL. Results sort by session update time and ID,
+both descending. Updates to runs do not change a session's update time.
+The page returns `nodes`, `hasMore`, and `nextOffset`; when `hasMore` is true
+but `nextOffset` is null, narrow the search before continuing. Search applies
+across the tenant before paging. Offset pages can move when session metadata
+changes, so clients should deduplicate appended IDs or refresh their search.
+
+The response is bounded, but the existing schema still requires a scan/sort of
+matching tenant metadata for update-time ordering. This query does not add an
+index or migrate session records.
+
 ## Streaming diagnostics and lineage
 
 When both feature gates are enabled, Mapping Studio creates or reuses a durable

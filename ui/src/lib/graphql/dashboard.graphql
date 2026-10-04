@@ -1,13 +1,19 @@
-# Home → Recent: the tenant's integration sessions with their latest activity.
-# The API lists sessions by creation time; the home panel sorts by updatedAt.
-query HomeRecentSessions {
-  integrationSessions {
-    id
-    name
-    updatedAt
-    runs {
+# Bounded metadata for Home, Explorer, and the shared session browser.
+query IntegrationSessionSummaries($input: IntegrationSessionSummaryInput) {
+  integrationSessionSummaries(input: $input) {
+    nodes {
       id
-      status
+      name
+      archived
+      createdAt
+      updatedAt
+      latestRun {
+        id
+        status
+        createdAt
+      }
     }
+    hasMore
+    nextOffset
   }
 }

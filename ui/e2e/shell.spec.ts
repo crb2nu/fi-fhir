@@ -117,7 +117,7 @@ test('E4-1. journey stages equal the evidence the operator-bundle stack holds; a
   // Complete by evidence while not behind the current route: /operator is
   // outside the stages, so nothing is "earlier" here.
   await expect(stage(page, 'source-intake').locator('.stage-check')).toHaveCount(1);
-  await expect(stage(page, 'source-intake')).toHaveAttribute('title', /integration sessions? with a run\./);
+  await expect(stage(page, 'source-intake')).toHaveAttribute('title', /An integration session has a run\.$/);
   // The bundle holds every role: nothing is unknown for want of one.
   for (const id of STAGES) {
     await expect(stage(page, id)).not.toHaveAttribute('title', /which this identity does not hold/);
@@ -228,8 +228,10 @@ test('E4-4. switching views and closing a tab returns to the linked receipt', as
 });
 
 test('E4-5. explorer resumes sessions, remembers collapsed sections and becomes a keyboard-safe drawer', async ({ page, request }, testInfo) => {
-  const data = await graphqlData<{ integrationSessions: { id: string; name: string }[] }>(request, '{ integrationSessions { id name } }');
-  const session = data.integrationSessions[0];
+  const data = await graphqlData<{ integrationSessionSummaries: { nodes: { id: string; name: string }[] } }>(
+    request, '{ integrationSessionSummaries(input: { limit: 1 }) { nodes { id name } } }'
+  );
+  const session = data.integrationSessionSummaries.nodes[0];
   expect(session, 'the fixture has a saved session').toBeTruthy();
   await openIDE(page, '/hl7');
   await page.getByRole('button', { name: 'Show explorer' }).click();

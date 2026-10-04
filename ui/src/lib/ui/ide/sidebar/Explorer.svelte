@@ -12,6 +12,7 @@
   import { describeConnectionFailure } from '$lib/features/connections/connectionsErrors';
   import { connectionLocation, connectionSelection } from '$lib/features/connections/connectionLocation';
   import { isIntegrationSessionBuildEnabled } from '$lib/features/integration-session/api';
+  import SessionBrowser from '$lib/features/integration-session/SessionBrowser.svelte';
   import { fetchRecentSessions, type RecentSession } from '$lib/features/dashboard/dashboardApi';
   import { ideState } from '../ideStore';
   import type { IDEView, IDEAppRoute } from '../types';
@@ -50,6 +51,7 @@
   let loading = $state(false);
   let error = $state(false);
   let refresh = $state(0);
+  let browseOpen = $state(false);
   let connections = $state<ConnectionRow[]>([]);
   let connectionsLoading = $state(false);
   let connectionsError = $state<string | null>(null);
@@ -108,13 +110,13 @@
 
   $effect(() => {
     void refresh;
+    void $accessCapabilities;
     sessions = [];
     error = false;
     loading = sessionsAvailable;
     if (!sessionsAvailable) return;
     let current = true;
-    // Reuse Home's recent-session read. The API has no pagination yet; only
-    // eight recent rows are displayed. Read on open/refresh, never on a timer.
+    // Keep this quick list compact; the browser searches beyond these eight rows.
     void fetchRecentSessions(8).then((rows) => {
       if (current) sessions = rows;
     }).catch(() => {
@@ -252,7 +254,7 @@
           {:else}
             {#each filteredSessions as session (session.id)}
               {@const path = `/hl7?session=${encodeURIComponent(session.id)}`}
-              {@const lastRun = session.runs[session.runs.length - 1]}
+              {@const lastRun = session.latestRun}
               <a class="row session" class:active={activeSession === session.id} aria-current={activeSession === session.id ? 'page' : undefined} href={resolve(path as IDEAppRoute)} title={session.name + ' · ' + session.id} onclick={(event) => follow(event, path)}>
                 <Icon icon={VIEW_ICONS.hl7} size={14} />
                 <span class="session-text"><span class="session-name">{session.name}</span><span class="session-status">{lastRun?.status ?? 'No runs'} · {new Date(session.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span></span>
@@ -261,10 +263,15 @@
           {/if}
         </div>
       {/if}
+      {#if sessionsAvailable}
+        <div class="note"><button class="text-action" onclick={() => (browseOpen = true)}>Browse sessions</button></div>
+      {/if}
     </section>
     {#if noMatches}<p class="note" role="status">No matching views, connections, or recent sessions.</p>{/if}
   </div>
 </div>
+
+<SessionBrowser open={browseOpen} onclose={() => (browseOpen = false)} currentSessionId={activeSession} {onnavigate} />
 
 <style>
   .explorer {

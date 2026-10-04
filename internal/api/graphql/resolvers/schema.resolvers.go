@@ -2396,6 +2396,14 @@ func (r *queryResolver) IntegrationSessions(ctx context.Context, includeArchived
 	return r.integrationSessions.listSessions(archived)
 }
 
+// IntegrationSessionSummaries is the resolver for the integrationSessionSummaries field.
+func (r *queryResolver) IntegrationSessionSummaries(ctx context.Context, input *model.IntegrationSessionSummaryInput) (*model.IntegrationSessionSummaryPage, error) {
+	if !r.sessionWorkspaceEnabled() {
+		return nil, ErrLegacyExecutionUnavailable
+	}
+	return r.integrationSessions.listSessionSummaries(ctx, input)
+}
+
 // SessionSamples is the resolver for the sessionSamples field.
 func (r *queryResolver) SessionSamples(ctx context.Context, sessionID string) ([]model.SessionSample, error) {
 	if !r.sessionWorkspaceEnabled() {

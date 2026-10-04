@@ -811,6 +811,41 @@ type IntegrationSecretReferenceInput struct {
 	Version  *string `json:"version,omitempty"`
 }
 
+type IntegrationSessionRunSummary struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type IntegrationSessionSummary struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Archived  bool      `json:"archived"`
+	CreatedAt time.Time `json:"createdAt"`
+	// Session metadata update time; adding a run does not change this timestamp.
+	UpdatedAt time.Time                     `json:"updatedAt"`
+	LatestRun *IntegrationSessionRunSummary `json:"latestRun,omitempty"`
+}
+
+type IntegrationSessionSummaryInput struct {
+	// Literal, case-insensitive name or ID substring; trimmed, at most 256 bytes, without NUL.
+	Search          *string `json:"search,omitempty"`
+	IncludeArchived bool    `json:"includeArchived"`
+	// Omitted includes all sessions; true requires a run, false requires no runs.
+	HasRuns *bool `json:"hasRuns,omitempty"`
+	// Page size from 1 through 100.
+	Limit int `json:"limit"`
+	// Offset from 0 through 10000. Search applies to the entire tenant before paging.
+	Offset int `json:"offset"`
+}
+
+// A bounded session browse page. A null nextOffset with hasMore means refine the search.
+type IntegrationSessionSummaryPage struct {
+	Nodes      []IntegrationSessionSummary `json:"nodes"`
+	HasMore    bool                        `json:"hasMore"`
+	NextOffset *int                        `json:"nextOffset,omitempty"`
+}
+
 type LLMCapability struct {
 	Enabled             bool                   `json:"enabled"`
 	Configured          bool                   `json:"configured"`

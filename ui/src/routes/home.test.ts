@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 
+vi.mock('$lib/features/integration-session/api', () => ({ isIntegrationSessionBuildEnabled: () => true }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 vi.mock('$app/navigation', () => ({ goto: vi.fn(), beforeNavigate: vi.fn() }));
 
@@ -16,7 +17,8 @@ vi.mock('$lib/features/operator/operatorApi', () => ({
   fetchDeployments: (...args: unknown[]) => fetchDeploymentsMock(...args)
 }));
 vi.mock('$lib/features/dashboard/dashboardApi', () => ({
-  fetchRecentSessions: (...args: unknown[]) => fetchRecentSessionsMock(...args)
+  fetchRecentSessions: (...args: unknown[]) => fetchRecentSessionsMock(...args),
+  fetchSessionSummaries: vi.fn()
 }));
 vi.mock('$lib/graphql/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('$lib/graphql/client')>();
@@ -114,7 +116,7 @@ describe('home (operational overview)', () => {
         id: 'sess_synthetic_0001',
         name: 'HL7 source profile workspace',
         updatedAt: new Date().toISOString(),
-        runs: [{ id: 'run_1', status: 'completed' }]
+        archived: false, createdAt: '2026-10-03T12:00:00Z', latestRun: { id: 'run_1', status: 'completed', createdAt: '2026-10-03T12:00:00Z' }
       }
     ]);
     render(HomePage);
