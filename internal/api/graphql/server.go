@@ -704,6 +704,7 @@ func catalogSafeErrorPresenter(ctx context.Context, err error) *gqlerror.Error {
 		"integration preview unavailable",
 		"integration preview forbidden",
 		"invalid integration preview request",
+		"invalid integration session summary request",
 		"integration preview payload too large",
 		"integration preview failed",
 		// Operator control-plane outcomes are deliberately catalog-safe: they

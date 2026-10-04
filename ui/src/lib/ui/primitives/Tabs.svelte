@@ -51,6 +51,19 @@
   // tracked binding (a plain object triggers binding_property_non_reactive).
   const buttons: Record<string, HTMLButtonElement | null> = $state({});
 
+  export function focusedTabId(): string | null {
+    if (typeof document === 'undefined') return null;
+    return items.find((item) => buttons[item.id] === document.activeElement)?.id ?? null;
+  }
+
+  /** Focus without activation, including in a manually activated tablist. */
+  export function focusTab(id: string): boolean {
+    const button = buttons[id];
+    if (!button?.isConnected || button.disabled || !items.some((item) => item.id === id && !item.disabled)) return false;
+    button.focus();
+    return document.activeElement === button;
+  }
+
   // The tab stop is the selected tab, or the first enabled tab when the value
   // matches nothing enabled.
   const tabStop = $derived.by(() => {

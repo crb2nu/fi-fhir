@@ -143,7 +143,7 @@ batch-ingestion:
 # Uses testcontainers locally and POSTGRES_TEST_URL in CI.
 integration-session:
 	go test -tags=integration -race -count=1 -timeout=180s \
-		-run '^TestPostgresSessionWorkspace_RestartExactProfilesAndRawPolicy$$' \
+		-run '^TestPostgresSession(Workspace_RestartExactProfilesAndRawPolicy|Summaries)$$' \
 		./internal/integration/session
 
 # Slice 4.1c-a: destination-scoped delivery identity. Proves the durable path

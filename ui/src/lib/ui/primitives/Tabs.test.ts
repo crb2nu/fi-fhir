@@ -93,6 +93,25 @@ describe('Tabs', () => {
     expect(onchange).toHaveBeenCalledWith('live');
   });
 
+  it('exposes focus without selection and refuses disabled, missing, or removed targets', async () => {
+    const onselect = vi.fn();
+    const onchange = vi.fn();
+    const view = render(Tabs, { props: { items, value: 'browse', activation: 'manual', onselect, onchange } });
+    expect(view.component.focusedTabId()).toBeNull();
+    expect(view.component.focusTab('stats')).toBe(true);
+    expect(screen.getByRole('tab', { name: 'Statistics' })).toHaveFocus();
+    expect(view.component.focusedTabId()).toBe('stats');
+    expect(screen.getByRole('tab', { name: 'Browse' })).toHaveAttribute('aria-selected', 'true');
+    expect(onselect).not.toHaveBeenCalled();
+    expect(onchange).not.toHaveBeenCalled();
+    expect(view.component.focusTab('timeline')).toBe(false);
+    expect(view.component.focusTab('missing')).toBe(false);
+    expect(view.component.focusedTabId()).toBe('stats');
+    await view.rerender({ items: items.filter((item) => item.id !== 'stats') });
+    expect(view.component.focusTab('stats')).toBe(false);
+    expect(view.component.focusedTabId()).toBeNull();
+  });
+
   it('renders a toned badge with its own label and test id, in place of count', () => {
     const withBadge: TabItem[] = [
       { id: 'output', label: 'Output' },

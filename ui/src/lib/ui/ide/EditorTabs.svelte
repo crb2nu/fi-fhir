@@ -16,6 +16,16 @@
   export let tabs: WorkspaceDocument[] = [];
   export let activeTabId: string | null = null;
 
+  let tabList: { focusedTabId(): string | null; focusTab(id: string): boolean } | undefined;
+
+  export function focusedTabId(): string | null {
+    return tabList?.focusedTabId() ?? null;
+  }
+
+  export function focusTab(id: string): boolean {
+    return tabList?.focusTab(id) ?? false;
+  }
+
   const dispatch = createEventDispatcher<{
     select: string;
     close: string;
@@ -35,6 +45,7 @@
 <div class="editor-tabs">
   {#if items.length > 0}
     <Tabs
+      bind:this={tabList}
       class="editor-tab-list"
       label="Open editors"
       activation="manual"

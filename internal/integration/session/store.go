@@ -32,6 +32,7 @@ type Store interface {
 	ArchiveSession(context.Context, string) (*Session, error)
 	GetSession(context.Context, string) (*Session, error)
 	ListSessions(context.Context, ListSessionsOptions) ([]Session, error)
+	ListSessionSummaries(context.Context, SessionSummaryOptions) (SessionSummaryPage, error)
 	AddSample(context.Context, string, AddSampleRequest) (*Sample, error)
 	GetSample(context.Context, string, string) (*Sample, error)
 	ListSamples(context.Context, string) ([]Sample, error)

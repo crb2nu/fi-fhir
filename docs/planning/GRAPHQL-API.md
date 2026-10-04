@@ -193,7 +193,7 @@ not mapped to them either.
 
 `graphql:operator` is a **named compatibility grant** that expands to all 131
 root fields. A token holding it behaves exactly as it did before the narrowing.
-It is deprecated, not removed: the remaining 105 root fields — the legacy
+It is deprecated, not removed: the remaining 106 root fields — the legacy
 workflow catalog, FHIR subscriptions, the integration session workspace,
 profiles, LLM, terminology and autoroute review, Temporal, the debugger, and
 all seven subscriptions — have no shipped

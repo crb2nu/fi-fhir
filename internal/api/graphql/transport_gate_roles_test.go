@@ -62,7 +62,7 @@ func operatorDeploymentOperations() []controlPlaneOperation {
 	}
 }
 
-// compatibilityBucketOperations samples the 105 root fields that no shipped
+// compatibilityBucketOperations samples the 106 root fields that no shipped
 // fine-grained role describes. They must stay reachable under the compatibility
 // grant and unreachable without it.
 func compatibilityBucketOperations() []controlPlaneOperation {
@@ -70,6 +70,7 @@ func compatibilityBucketOperations() []controlPlaneOperation {
 		{field: "health", document: `query Op { health { status } }`},
 		{field: "workflowDefinitions", document: `query Op { workflowDefinitions { id } }`},
 		{field: "integrationSessions", document: `query Op { integrationSessions { id } }`},
+		{field: "integrationSessionSummaries", document: `query Op { integrationSessionSummaries { nodes { id } hasMore nextOffset } }`},
 		{field: "createIntegrationSession", document: `mutation Op { createIntegrationSession(input: {name: "gate"}) { id } }`},
 		{field: "exportIntegrationBundle", document: `mutation Op { exportIntegrationBundle(input: {sessionId: "s-1", reason: "gate"}) { sessionId } }`},
 	}
@@ -112,6 +113,7 @@ func TestTransportGate_ClinicalReadRoleIsLimitedToPHIQueries(t *testing.T) {
 	for _, operation := range []controlPlaneOperation{
 		{field: "createIntegrationSession", document: `mutation Op { createIntegrationSession(input: {name: "gate"}) { id } }`},
 		{field: "integrationSessions", document: `query Op { integrationSessions { id } }`},
+		{field: "integrationSessionSummaries", document: `query Op { integrationSessionSummaries { nodes { id } hasMore nextOffset } }`},
 	} {
 		t.Run("refused/"+operation.field, func(t *testing.T) {
 			assertGateRefused(t, postTransportGate(t, handler, path, token, operation.document), operation.field)

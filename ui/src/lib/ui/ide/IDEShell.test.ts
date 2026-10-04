@@ -4,25 +4,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import type { BeforeNavigate } from '@sveltejs/kit';
+import type { AfterNavigate, BeforeNavigate } from '@sveltejs/kit';
 import { get, writable } from 'svelte/store';
-import { ideState, markDirty, setDraftState, resetIDEState, setSidebarOpen } from './ideStore';
+import { ideState, markDirty, setDraftState, resetIDEState, setSidebarOpen, closeTab } from './ideStore';
 import { registerCommands, resetCommandRegistry } from './commandRegistry';
 import { takeConnectionsIntent } from '$lib/features/connections/connectionsIntent';
 
 const pageStore = writable({ url: new URL('http://localhost/hl7') });
 
 let navigationHook: ((navigation: BeforeNavigate) => void) | undefined;
+let arrivalHook: ((navigation: AfterNavigate) => void) | undefined;
 
 function attemptNavigation(href: string, type: BeforeNavigate['type'] = 'goto', delta?: number): boolean {
   const url = new URL(href, 'http://localhost');
+  const from = get(pageStore).url;
   let cancelled = false;
   navigationHook?.({
-    type, delta, from: { url: get(pageStore).url }, to: { url },
+    type, delta, from: { url: from }, to: { url },
     willUnload: type === 'leave', complete: Promise.resolve(),
     cancel: () => { cancelled = true; },
   } as BeforeNavigate);
-  if (!cancelled && type !== 'leave') pageStore.set({ url });
+  if (!cancelled && type !== 'leave') {
+    pageStore.set({ url });
+    arrivalHook?.({ from: { url: from }, to: { url }, type, delta } as AfterNavigate);
+  }
   return !cancelled;
 }
 
@@ -32,6 +37,7 @@ vi.mock('$app/stores', () => ({ page: pageStore }));
 vi.mock('$app/navigation', () => ({
   goto: gotoMock,
   beforeNavigate: (callback: (navigation: BeforeNavigate) => void) => { navigationHook = callback; },
+  afterNavigate: (callback: (navigation: AfterNavigate) => void) => { arrivalHook = callback; },
 }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 
@@ -50,6 +56,7 @@ describe('IDEShell workspace', () => {
   beforeEach(() => {
     gotoMock.mockReset().mockImplementation(async (href: string) => { attemptNavigation(href); });
     navigationHook = undefined;
+    arrivalHook = undefined;
     refreshJourneyEvidence.mockClear();
     localStorage.clear();
     resetIDEState();
@@ -119,6 +126,200 @@ describe('IDEShell workspace', () => {
     expect(gotoMock).toHaveBeenCalledWith('/hl7');
     expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toHaveAttribute('aria-selected', 'true');
     expect(get(ideState).activeTabId).toBe('/hl7');
+  });
+
+  it.each([false, true])('focuses the adjacent editor after active Delete navigation completes (dirty=%s)', async (dirty) => {
+    render(IDEShell);
+    for (const path of ['/operator', '/events', '/operator']) {
+      pageStore.set({ url: new URL(`http://localhost${path}`) });
+      await tick();
+    }
+    markDirty('/operator', dirty);
+    await tick();
+    const original = screen.getByRole('tab', { name: /^Operator/ });
+    original.focus();
+    let finish!: () => Promise<void>;
+    gotoMock.mockImplementationOnce((href: string) => new Promise<void>((resolveGoto) => {
+      finish = async () => {
+        attemptNavigation(href);
+        await tick();
+        original.blur(); // The router finishes resetting focus before goto resolves.
+        resolveGoto();
+      };
+    }));
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    if (dirty) await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    await waitFor(() => expect(gotoMock).toHaveBeenCalledWith('/events'));
+    expect(original).toHaveFocus();
+    expect(original).toBeInTheDocument();
+    expect(get(ideState).activeDocumentId).toBe('/operator');
+    await finish();
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Verification' })).toHaveFocus());
+    expect(screen.queryByRole('tab', { name: /^Operator/ })).not.toBeInTheDocument();
+    expect(get(ideState).activeDocumentId).toBe('/events');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['Operator', 'Verification', 'ArrowRight'],
+    ['Verification', 'Operator', 'End'],
+  ])('moves focus from inactive %s to %s without activating it', async (closing, neighbor, key) => {
+    render(IDEShell);
+    for (const path of ['/operator', '/events', '/hl7']) {
+      pageStore.set({ url: new URL(`http://localhost${path}`) });
+      await tick();
+    }
+    const active = screen.getByRole('tab', { name: 'HL7 / Intake' });
+    active.focus();
+    await fireEvent.keyDown(active, { key });
+    const original = screen.getByRole('tab', { name: closing });
+    expect(original).toHaveFocus();
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    await waitFor(() => expect(screen.getByRole('tab', { name: neighbor })).toHaveFocus());
+    expect(original).not.toBeInTheDocument();
+    expect(active).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: neighbor })).toHaveAttribute('aria-selected', 'false');
+    expect(get(pageStore).url.pathname).toBe('/hl7');
+    expect(gotoMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['/hl7', '/'])('focuses Home when deleting the sole editor at %s', async (path) => {
+    pageStore.set({ url: new URL(`http://localhost${path}`) });
+    render(IDEShell);
+    await tick();
+    const original = within(screen.getByRole('tablist', { name: 'Open editors' })).getByRole('tab');
+    original.focus();
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Home' })).toHaveFocus());
+    expect(get(pageStore).url.pathname).toBe('/');
+    expect(get(ideState).documents.map((doc) => doc.id)).toEqual(['/']);
+  });
+
+  it.each(['Keep open', 'Escape'])('returns focus after dirty-close %s and permits a fresh keyboard retry', async (cancel) => {
+    render(IDEShell);
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    markDirty('/operator');
+    await tick();
+    const original = screen.getByRole('tab', { name: /^Operator/ });
+    original.focus();
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    const dialog = await screen.findByRole('dialog', { name: 'Close Operator?' });
+    if (cancel === 'Escape') await fireEvent.keyDown(dialog, { key: 'Escape' });
+    else await fireEvent.click(within(dialog).getByRole('button', { name: 'Keep open' }));
+    await waitFor(() => expect(original).toHaveFocus());
+    expect(get(pageStore).url.pathname).toBe('/operator');
+    expect(gotoMock).not.toHaveBeenCalled();
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toHaveFocus());
+    expect(original).not.toBeInTheDocument();
+  });
+
+  it.each(['reject', 'cancel'])('restores the original focused tab when close navigation ends with %s', async (outcome) => {
+    render(IDEShell);
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    markDirty('/operator');
+    await tick();
+    const original = screen.getByRole('tab', { name: /^Operator/ });
+    original.focus();
+    gotoMock.mockImplementationOnce(async () => {
+      original.blur();
+      if (outcome === 'reject') throw new Error('load failed');
+    });
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    await waitFor(() => expect(original).toHaveFocus());
+    expect(original).toHaveAttribute('aria-selected', 'true');
+    expect(get(pageStore).url.pathname).toBe('/operator');
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    expect(await screen.findByRole('dialog', { name: 'Close Operator?' })).toBeInTheDocument();
+  });
+
+  it('does not reuse canceled keyboard focus for a later close-button request', async () => {
+    render(IDEShell);
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    markDirty('/operator');
+    await tick();
+    const original = screen.getByRole('tab', { name: /^Operator/ });
+    original.focus();
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    await fireEvent.click(await screen.findByRole('button', { name: 'Keep open' }));
+    await waitFor(() => expect(original).toHaveFocus());
+    const closeButton = screen.getByRole('button', { name: 'Close Operator' });
+    closeButton.focus();
+    await fireEvent.click(closeButton);
+    await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
+    await waitFor(() => expect(original).not.toBeInTheDocument());
+    expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).not.toHaveFocus();
+  });
+
+  it.each([
+    ['/hl7', 'goto', false],
+    ['/operator', 'goto', true],
+    ['/events', 'goto', true],
+    ['/events', 'goto', false],
+    ['/operator', 'link', true],
+    ['/events', 'link', true],
+    ['/events', 'link', false],
+    ['/operator', 'popstate', true],
+    ['/events', 'popstate', true],
+    ['/events', 'popstate', false],
+  ] as const)('leaves newer page focus alone after a superseded close ends at %s by %s (via HL7=%s)', async (finalPath, navigationType, viaHL7) => {
+    render(IDEShell);
+    for (const path of ['/operator', '/events', '/operator']) {
+      pageStore.set({ url: new URL(`http://localhost${path}`) });
+      await tick();
+    }
+    const original = screen.getByRole('tab', { name: 'Operator' });
+    original.focus();
+    let finish!: () => void;
+    gotoMock.mockImplementationOnce(() => new Promise<void>((resolveGoto) => { finish = resolveGoto; }));
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    expect(gotoMock).toHaveBeenCalledWith('/events');
+    async function navigate(path: string): Promise<void> {
+      if (navigationType === 'goto') {
+        const title = path === '/hl7' ? 'HL7 / Intake' : path === '/operator' ? 'Operator' : 'Verification';
+        await fireEvent.click(screen.getByRole('tab', { name: title }));
+      } else {
+        attemptNavigation(path, navigationType, navigationType === 'popstate' ? -1 : undefined);
+        await tick();
+      }
+      expect(get(pageStore).url.pathname).toBe(path);
+    }
+    if (viaHL7) await navigate('/hl7');
+    await navigate(finalPath);
+
+    const editor = document.createElement('textarea');
+    document.body.append(editor);
+    editor.focus();
+    try {
+      finish();
+      // Let both goto completion and the close handler's render tick finish.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(editor).toHaveFocus();
+      expect(original).toBeInTheDocument();
+      expect(original).toHaveAttribute('aria-selected', String(finalPath === '/operator'));
+      expect(get(ideState).activeDocumentId).toBe(finalPath);
+    } finally {
+      editor.remove();
+    }
+  });
+
+  it('does not navigate or hand off focus when a confirmed tab has already disappeared', async () => {
+    render(IDEShell);
+    pageStore.set({ url: new URL('http://localhost/operator') });
+    markDirty('/operator');
+    await tick();
+    const original = screen.getByRole('tab', { name: /^Operator/ });
+    original.focus();
+    await fireEvent.keyDown(original, { key: 'Delete' });
+    const confirm = await screen.findByRole('button', { name: 'Close tab' });
+    closeTab('/operator');
+    await tick();
+    await fireEvent.click(confirm);
+    expect(gotoMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).not.toHaveFocus();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('returns to the latest session from editor tabs, the activity bar and commands', async () => {

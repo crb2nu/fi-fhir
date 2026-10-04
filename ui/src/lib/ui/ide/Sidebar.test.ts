@@ -12,14 +12,18 @@ vi.mock('$lib/graphql/accessCapabilities', async (importOriginal) => ({
 vi.mock('$lib/features/connections/connectionsApi', () => ({ fetchConnections: vi.fn(async () => []) }));
 vi.mock('$lib/features/integration-session/api', () => ({ isIntegrationSessionBuildEnabled: () => capability.value }));
 const fetchSessions = vi.fn();
-vi.mock('$lib/features/dashboard/dashboardApi', () => ({ fetchRecentSessions: (...args: unknown[]) => fetchSessions(...args) }));
+const fetchSummaries = vi.fn();
+vi.mock('$lib/features/dashboard/dashboardApi', () => ({
+  fetchRecentSessions: (...args: unknown[]) => fetchSessions(...args),
+  fetchSessionSummaries: (...args: unknown[]) => fetchSummaries(...args)
+}));
 
 const { default: Sidebar } = await import('./Sidebar.svelte');
 
 const onclose = vi.fn();
 const onnavigate = vi.fn();
 const props = { open: true, onclose, onnavigate };
-const session = { id: 'session/1', name: 'ADT intake', updatedAt: '2026-10-03T12:00:00Z', runs: [{ id: 'run-1', status: 'completed' }] };
+const session = { id: 'session/1', name: 'ADT intake', updatedAt: '2026-10-03T12:00:00Z', archived: false, createdAt: '2026-10-03T12:00:00Z', latestRun: { id: 'run-1', status: 'completed', createdAt: '2026-10-03T12:00:00Z' } };
 
 beforeEach(() => {
   localStorage.clear();
@@ -28,9 +32,24 @@ beforeEach(() => {
   capability.value = true;
   sessionsCapability.set(true);
   fetchSessions.mockResolvedValue([session]);
+  fetchSummaries.mockResolvedValue({ nodes: [], hasMore: false, nextOffset: null });
 });
 
 describe('Explorer', () => {
+  it('opens older sessions through the shared browser and uses the shell navigation path', async () => {
+    const older = { ...session, id: 'older/1', name: 'Older intake' };
+    fetchSummaries.mockResolvedValue({ nodes: [older], hasMore: false, nextOffset: null });
+    render(Sidebar, { props });
+    await fireEvent.click(screen.getByRole('button', { name: 'Browse sessions' }));
+    expect(screen.getByRole('dialog', { name: 'Browse sessions' })).toBeInTheDocument();
+    const row = await screen.findByRole('link', { name: /Older intake/ });
+    expect(row).toHaveAttribute('href', '/hl7?session=older%2F1');
+    await fireEvent.click(row);
+    expect(screen.queryByRole('dialog', { name: 'Browse sessions' })).toBeNull();
+    expect(onnavigate).toHaveBeenLastCalledWith('/hl7?session=older%2F1');
+    expect(fetchSummaries).toHaveBeenCalledWith({ search: '', includeArchived: false, limit: 25, offset: 0 });
+  });
+
   it('resumes remembered records and shows real recent sessions', async () => {
     openTab(createWorkspaceTab('/operator', 'operator', '?receipt=receipt-1'));
     render(Sidebar, { props });

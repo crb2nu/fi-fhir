@@ -1,0 +1,1 @@
+Home and the Explorer can search and page through saved sessions, including archived work. Session lists and journey evidence now use bounded metadata queries instead of expanding every session and its runs.

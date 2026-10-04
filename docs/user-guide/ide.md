@@ -49,6 +49,12 @@ The same protection applies to explorer links, commands, stage links and
 Back/Forward. Closing a dirty tab asks once and removes it only after navigation
 succeeds. Reloading or closing the browser uses the browser's own warning.
 
+With an editor tab focused, arrow keys move between tabs without switching the
+page; Enter or Space opens the focused tab. Delete closes it and puts focus on
+the next tab, or the previous tab if it was last. Closing an inactive tab keeps
+the current page open. Cancelling a draft warning returns focus to that tab;
+closing the final editor leaves Home available and focused.
+
 Within Connections, switching rows or Sources, Destinations or Definitions keeps
 each unfinished form. Saving or discarding one does not clear another's dot.
 An unfinished new definition remains available through **Continue draft** while
@@ -89,6 +95,13 @@ changes, so those changes do not need a discard warning.
   refreshes on request. It loads only when this UI build and your API access
   support sessions; failures offer a refresh. Session data is not saved to
   browser storage by the explorer.
+- **Browse sessions**, available from Home's Recent panel and the explorer,
+  searches saved sessions by name or ID beyond the recent eight. Results arrive
+  in pages of 25; **Load more** keeps the earlier results visible. **Include
+  archived** also finds archived work. Each result shows its ID, latest run
+  status and update time; selecting it reopens that session and its recorded
+  results. Update time reflects saved session metadata, including archive
+  status, rather than the time of its latest run.
 - **Compact navigation**: collapsing the explorer restores the icon activity
   bar on desktop. At 960 px and below, the explorer becomes a drawer over the
   workspace. Escape, the backdrop, its close button, or selecting a link

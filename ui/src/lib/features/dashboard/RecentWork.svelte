@@ -8,14 +8,15 @@
   With neither, it says so and offers HL7 intake.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import FileInput from '@lucide/svelte/icons/file-input';
-  import { Badge, EmptyState, Panel, Table, Td, Th, Tr, type BadgeTone } from '$lib/ui/primitives';
+  import { Badge, Button, EmptyState, Panel, Table, Td, Th, Tr, type BadgeTone } from '$lib/ui/primitives';
   import { ideState, setActiveTab } from '$lib/ui/ide/ideStore';
   import type { IDEAppRoute, WorkspaceDocument } from '$lib/ui/ide/types';
-  import { integrationSessionsCapability } from '$lib/graphql/accessCapabilities';
+  import { accessCapabilities, integrationSessionsCapability } from '$lib/graphql/accessCapabilities';
+  import { isIntegrationSessionBuildEnabled } from '$lib/features/integration-session/api';
+  import SessionBrowser from '$lib/features/integration-session/SessionBrowser.svelte';
   import { fetchRecentSessions, type RecentSession } from './dashboardApi';
 
   interface Row {
@@ -31,12 +32,16 @@
   let sessions = $state<RecentSession[]>([]);
   let sessionError = $state<string | null>(null);
   let sessionsLoaded = $state(false);
+  let browseOpen = $state(false);
+  const sessionsAvailable = $derived(isIntegrationSessionBuildEnabled() && $integrationSessionsCapability === true);
+  const currentSessionId = $derived(documentSessionId($ideState.documents.find((doc) => doc.id === $ideState.activeDocumentId)));
 
   function documentRoute(doc: WorkspaceDocument): string | undefined {
     return doc.path ?? doc.route;
   }
 
-  function documentSessionId(doc: WorkspaceDocument): string | null {
+  function documentSessionId(doc: WorkspaceDocument | undefined): string | null {
+    if (!doc) return null;
     const [route, query] = (documentRoute(doc) ?? '').split('?');
     return route === '/hl7' ? new URLSearchParams(query).get('session') : null;
   }
@@ -55,7 +60,7 @@
   }
 
   function runStatus(session: RecentSession): Row['status'] {
-    const last = session.runs[session.runs.length - 1];
+    const last = session.latestRun;
     if (!last) return { label: 'no runs', tone: 'neutral' };
     const tone: BadgeTone =
       last.status === 'completed'
@@ -98,7 +103,7 @@
   );
 
   const rows = $derived([...documentRows, ...sessionRows]);
-  const settled = $derived(sessionsLoaded || $integrationSessionsCapability !== true);
+  const settled = $derived(sessionsLoaded || !sessionsAvailable);
 
   function relative(iso: string | null): string | undefined {
     if (!iso) return undefined;
@@ -110,25 +115,30 @@
     return `${Math.floor(diff / 86_400_000)}d ago`;
   }
 
-  async function loadSessions(): Promise<void> {
-    if ($integrationSessionsCapability !== true) return;
-    try {
-      sessions = await fetchRecentSessions();
+  $effect(() => {
+    void $accessCapabilities;
+    sessions = [];
+    sessionsLoaded = false;
+    sessionError = null;
+    if (!sessionsAvailable) return;
+    let current = true;
+    void fetchRecentSessions(8).then((rows) => {
+      if (!current) return;
+      sessions = rows;
       sessionError = null;
-    } catch (err) {
+    }).catch((err: unknown) => {
+      if (!current) return;
       sessions = [];
       sessionError = err instanceof Error ? err.message : 'Sessions could not be loaded';
-    } finally {
-      sessionsLoaded = true;
-    }
-  }
-
-  onMount(() => {
-    void loadSessions();
+    }).finally(() => { if (current) sessionsLoaded = true; });
+    return () => { current = false; };
   });
 </script>
 
 <Panel title="Recent" flush data-testid="recent-panel">
+  {#snippet actions()}
+    {#if sessionsAvailable}<Button variant="ghost" onclick={() => (browseOpen = true)}>Browse sessions</Button>{/if}
+  {/snippet}
   {#if rows.length === 0 && settled}
     <EmptyState
       icon={FileInput}
@@ -171,6 +181,8 @@
     <p class="note" role="status">Integration sessions could not be loaded: {sessionError}</p>
   {/if}
 </Panel>
+
+<SessionBrowser open={browseOpen} onclose={() => (browseOpen = false)} {currentSessionId} onnavigate={(path) => void goto(resolve(path as IDEAppRoute))} />
 
 <style>
   .note {

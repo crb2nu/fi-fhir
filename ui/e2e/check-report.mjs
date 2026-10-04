@@ -30,6 +30,8 @@ for (const [project, prefix] of laneChecks) (required[project] ??= []).push(pref
 required['operator-bundle'].push('E4-1.', 'E4-2.', 'E4-3.', 'E4-4.', 'E4-5.'); // Shell evidence, commands and record navigation (shell.spec.ts)
 required['operator-bundle'].push('E1-1.'); required['preview-only'].push('E1-2.'); // .loom/42 E-1 definition authoring
 required['operator-bundle'].push('R1.', 'R2.', 'R3.', 'R4.', 'R5.'); // Resource links and same-route selection
+required['operator-bundle'].push('S1.', 'S2.'); // Older session search, paging and archived work
+required['operator-bundle'].push('K1.', 'K2.'); // Keyboard editor closure and draft-guard focus
 
 const [reportPath] = process.argv.slice(2);
 if (!reportPath) {

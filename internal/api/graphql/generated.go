@@ -873,6 +873,27 @@ type ComplexityRoot struct {
 		Type      func(childComplexity int) int
 	}
 
+	IntegrationSessionRunSummary struct {
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Status    func(childComplexity int) int
+	}
+
+	IntegrationSessionSummary struct {
+		Archived  func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		LatestRun func(childComplexity int) int
+		Name      func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
+	IntegrationSessionSummaryPage struct {
+		HasMore    func(childComplexity int) int
+		NextOffset func(childComplexity int) int
+		Nodes      func(childComplexity int) int
+	}
+
 	LLMCapability struct {
 		Configured          func(childComplexity int) int
 		DefaultModel        func(childComplexity int) int
@@ -1529,6 +1550,7 @@ type ComplexityRoot struct {
 		IntegrationDefinitions       func(childComplexity int, includeRetired *bool) int
 		IntegrationRegistryArtifacts func(childComplexity int) int
 		IntegrationSession           func(childComplexity int, id string) int
+		IntegrationSessionSummaries  func(childComplexity int, input *model.IntegrationSessionSummaryInput) int
 		IntegrationSessions          func(childComplexity int, includeArchived *bool) int
 		ListMappings                 func(childComplexity int, input *model.ListMappingsInput) int
 		ListPendingAutoroutes        func(childComplexity int, input *model.ListPendingAutoroutesInput) int
@@ -2120,6 +2142,7 @@ type QueryResolver interface {
 	ParsePreview(ctx context.Context, format model.SourceFormat, data string, source *string) (*model.ParseResult, error)
 	IntegrationSession(ctx context.Context, id string) (*model.IntegrationSession, error)
 	IntegrationSessions(ctx context.Context, includeArchived *bool) ([]model.IntegrationSession, error)
+	IntegrationSessionSummaries(ctx context.Context, input *model.IntegrationSessionSummaryInput) (*model.IntegrationSessionSummaryPage, error)
 	SessionSamples(ctx context.Context, sessionID string) ([]model.SessionSample, error)
 	SessionArtifacts(ctx context.Context, sessionID string) ([]model.SessionArtifact, error)
 	SessionRuns(ctx context.Context, sessionID string) ([]model.SessionRun, error)
@@ -5653,6 +5676,81 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.IntegrationSessionEvent.Type(childComplexity), true
 
+	case "IntegrationSessionRunSummary.createdAt":
+		if e.complexity.IntegrationSessionRunSummary.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionRunSummary.CreatedAt(childComplexity), true
+	case "IntegrationSessionRunSummary.id":
+		if e.complexity.IntegrationSessionRunSummary.ID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionRunSummary.ID(childComplexity), true
+	case "IntegrationSessionRunSummary.status":
+		if e.complexity.IntegrationSessionRunSummary.Status == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionRunSummary.Status(childComplexity), true
+
+	case "IntegrationSessionSummary.archived":
+		if e.complexity.IntegrationSessionSummary.Archived == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummary.Archived(childComplexity), true
+	case "IntegrationSessionSummary.createdAt":
+		if e.complexity.IntegrationSessionSummary.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummary.CreatedAt(childComplexity), true
+	case "IntegrationSessionSummary.id":
+		if e.complexity.IntegrationSessionSummary.ID == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummary.ID(childComplexity), true
+	case "IntegrationSessionSummary.latestRun":
+		if e.complexity.IntegrationSessionSummary.LatestRun == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummary.LatestRun(childComplexity), true
+	case "IntegrationSessionSummary.name":
+		if e.complexity.IntegrationSessionSummary.Name == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummary.Name(childComplexity), true
+	case "IntegrationSessionSummary.updatedAt":
+		if e.complexity.IntegrationSessionSummary.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummary.UpdatedAt(childComplexity), true
+
+	case "IntegrationSessionSummaryPage.hasMore":
+		if e.complexity.IntegrationSessionSummaryPage.HasMore == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummaryPage.HasMore(childComplexity), true
+	case "IntegrationSessionSummaryPage.nextOffset":
+		if e.complexity.IntegrationSessionSummaryPage.NextOffset == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummaryPage.NextOffset(childComplexity), true
+	case "IntegrationSessionSummaryPage.nodes":
+		if e.complexity.IntegrationSessionSummaryPage.Nodes == nil {
+			break
+		}
+
+		return e.complexity.IntegrationSessionSummaryPage.Nodes(childComplexity), true
+
 	case "LLMCapability.configured":
 		if e.complexity.LLMCapability.Configured == nil {
 			break
@@ -9060,6 +9158,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.IntegrationSession(childComplexity, args["id"].(string)), true
+	case "Query.integrationSessionSummaries":
+		if e.complexity.Query.IntegrationSessionSummaries == nil {
+			break
+		}
+
+		args, err := ec.field_Query_integrationSessionSummaries_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.IntegrationSessionSummaries(childComplexity, args["input"].(*model.IntegrationSessionSummaryInput)), true
 	case "Query.integrationSessions":
 		if e.complexity.Query.IntegrationSessions == nil {
 			break
@@ -11523,6 +11632,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputIntegrationDeploymentPolicyInput,
 		ec.unmarshalInputIntegrationRawRetentionInput,
 		ec.unmarshalInputIntegrationSecretReferenceInput,
+		ec.unmarshalInputIntegrationSessionSummaryInput,
 		ec.unmarshalInputListMappingsInput,
 		ec.unmarshalInputListPendingAutoroutesInput,
 		ec.unmarshalInputLiveParseInput,
@@ -12857,6 +12967,17 @@ func (ec *executionContext) field_Query_integrationDefinitions_args(ctx context.
 		return nil, err
 	}
 	args["includeRetired"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_integrationSessionSummaries_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalOIntegrationSessionSummaryInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummaryInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -31624,6 +31745,376 @@ func (ec *executionContext) fieldContext_IntegrationSessionEvent_run(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _IntegrationSessionRunSummary_id(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionRunSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionRunSummary_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionRunSummary_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionRunSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionRunSummary_status(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionRunSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionRunSummary_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionRunSummary_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionRunSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionRunSummary_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionRunSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionRunSummary_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionRunSummary_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionRunSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummary_id(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummary_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummary_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummary_name(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummary_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummary_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummary_archived(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummary_archived,
+		func(ctx context.Context) (any, error) {
+			return obj.Archived, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummary_archived(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummary_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummary_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummary_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummary_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummary_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNDateTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummary_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummary_latestRun(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummary_latestRun,
+		func(ctx context.Context) (any, error) {
+			return obj.LatestRun, nil
+		},
+		nil,
+		ec.marshalOIntegrationSessionRunSummary2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionRunSummary,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummary_latestRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummary",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSessionRunSummary_id(ctx, field)
+			case "status":
+				return ec.fieldContext_IntegrationSessionRunSummary_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSessionRunSummary_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSessionRunSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummaryPage_nodes(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummaryPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummaryPage_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNIntegrationSessionSummary2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummaryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummaryPage_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummaryPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_IntegrationSessionSummary_id(ctx, field)
+			case "name":
+				return ec.fieldContext_IntegrationSessionSummary_name(ctx, field)
+			case "archived":
+				return ec.fieldContext_IntegrationSessionSummary_archived(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_IntegrationSessionSummary_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_IntegrationSessionSummary_updatedAt(ctx, field)
+			case "latestRun":
+				return ec.fieldContext_IntegrationSessionSummary_latestRun(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSessionSummary", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummaryPage_hasMore(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummaryPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummaryPage_hasMore,
+		func(ctx context.Context) (any, error) {
+			return obj.HasMore, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummaryPage_hasMore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummaryPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IntegrationSessionSummaryPage_nextOffset(ctx context.Context, field graphql.CollectedField, obj *model.IntegrationSessionSummaryPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_IntegrationSessionSummaryPage_nextOffset,
+		func(ctx context.Context) (any, error) {
+			return obj.NextOffset, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_IntegrationSessionSummaryPage_nextOffset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IntegrationSessionSummaryPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _LLMCapability_enabled(ctx context.Context, field graphql.CollectedField, obj *model.LLMCapability) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -48712,6 +49203,55 @@ func (ec *executionContext) fieldContext_Query_integrationSessions(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_integrationSessionSummaries(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_integrationSessionSummaries,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().IntegrationSessionSummaries(ctx, fc.Args["input"].(*model.IntegrationSessionSummaryInput))
+		},
+		nil,
+		ec.marshalNIntegrationSessionSummaryPage2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummaryPage,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_integrationSessionSummaries(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "nodes":
+				return ec.fieldContext_IntegrationSessionSummaryPage_nodes(ctx, field)
+			case "hasMore":
+				return ec.fieldContext_IntegrationSessionSummaryPage_hasMore(ctx, field)
+			case "nextOffset":
+				return ec.fieldContext_IntegrationSessionSummaryPage_nextOffset(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IntegrationSessionSummaryPage", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_integrationSessionSummaries_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_sessionSamples(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -65149,6 +65689,71 @@ func (ec *executionContext) unmarshalInputIntegrationSecretReferenceInput(ctx co
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputIntegrationSessionSummaryInput(ctx context.Context, obj any) (model.IntegrationSessionSummaryInput, error) {
+	var it model.IntegrationSessionSummaryInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["includeArchived"]; !present {
+		asMap["includeArchived"] = false
+	}
+	if _, present := asMap["limit"]; !present {
+		asMap["limit"] = 25
+	}
+	if _, present := asMap["offset"]; !present {
+		asMap["offset"] = 0
+	}
+
+	fieldsInOrder := [...]string{"search", "includeArchived", "hasRuns", "limit", "offset"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "search":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("search"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Search = data
+		case "includeArchived":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeArchived"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeArchived = data
+		case "hasRuns":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasRuns"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HasRuns = data
+		case "limit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Limit = data
+		case "offset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Offset = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputListMappingsInput(ctx context.Context, obj any) (model.ListMappingsInput, error) {
 	var it model.ListMappingsInput
 	asMap := map[string]any{}
@@ -73245,6 +73850,162 @@ func (ec *executionContext) _IntegrationSessionEvent(ctx context.Context, sel as
 	return out
 }
 
+var integrationSessionRunSummaryImplementors = []string{"IntegrationSessionRunSummary"}
+
+func (ec *executionContext) _IntegrationSessionRunSummary(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationSessionRunSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSessionRunSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSessionRunSummary")
+		case "id":
+			out.Values[i] = ec._IntegrationSessionRunSummary_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._IntegrationSessionRunSummary_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._IntegrationSessionRunSummary_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationSessionSummaryImplementors = []string{"IntegrationSessionSummary"}
+
+func (ec *executionContext) _IntegrationSessionSummary(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationSessionSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSessionSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSessionSummary")
+		case "id":
+			out.Values[i] = ec._IntegrationSessionSummary_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._IntegrationSessionSummary_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archived":
+			out.Values[i] = ec._IntegrationSessionSummary_archived(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._IntegrationSessionSummary_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._IntegrationSessionSummary_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "latestRun":
+			out.Values[i] = ec._IntegrationSessionSummary_latestRun(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var integrationSessionSummaryPageImplementors = []string{"IntegrationSessionSummaryPage"}
+
+func (ec *executionContext) _IntegrationSessionSummaryPage(ctx context.Context, sel ast.SelectionSet, obj *model.IntegrationSessionSummaryPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, integrationSessionSummaryPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IntegrationSessionSummaryPage")
+		case "nodes":
+			out.Values[i] = ec._IntegrationSessionSummaryPage_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasMore":
+			out.Values[i] = ec._IntegrationSessionSummaryPage_hasMore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextOffset":
+			out.Values[i] = ec._IntegrationSessionSummaryPage_nextOffset(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var lLMCapabilityImplementors = []string{"LLMCapability"}
 
 func (ec *executionContext) _LLMCapability(ctx context.Context, sel ast.SelectionSet, obj *model.LLMCapability) graphql.Marshaler {
@@ -77750,6 +78511,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_integrationSessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "integrationSessionSummaries":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_integrationSessionSummaries(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -85126,6 +85909,68 @@ func (ec *executionContext) marshalNIntegrationSessionEvent2ᚖgitlabᚗflexinfe
 	return ec._IntegrationSessionEvent(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNIntegrationSessionSummary2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummary(ctx context.Context, sel ast.SelectionSet, v model.IntegrationSessionSummary) graphql.Marshaler {
+	return ec._IntegrationSessionSummary(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationSessionSummary2ᚕgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []model.IntegrationSessionSummary) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNIntegrationSessionSummary2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummary(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIntegrationSessionSummaryPage2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummaryPage(ctx context.Context, sel ast.SelectionSet, v model.IntegrationSessionSummaryPage) graphql.Marshaler {
+	return ec._IntegrationSessionSummaryPage(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIntegrationSessionSummaryPage2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummaryPage(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSessionSummaryPage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IntegrationSessionSummaryPage(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNIntegrationValidationMode2gitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationValidationMode(ctx context.Context, v any) (model.IntegrationValidationMode, error) {
 	var res model.IntegrationValidationMode
 	err := res.UnmarshalGQL(v)
@@ -89456,6 +90301,21 @@ func (ec *executionContext) marshalOIntegrationSession2ᚖgitlabᚗflexinferᚗa
 		return graphql.Null
 	}
 	return ec._IntegrationSession(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOIntegrationSessionRunSummary2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionRunSummary(ctx context.Context, sel ast.SelectionSet, v *model.IntegrationSessionRunSummary) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IntegrationSessionRunSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOIntegrationSessionSummaryInput2ᚖgitlabᚗflexinferᚗaiᚋlibsᚋfiᚑfhirᚋinternalᚋapiᚋgraphqlᚋmodelᚐIntegrationSessionSummaryInput(ctx context.Context, v any) (*model.IntegrationSessionSummaryInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputIntegrationSessionSummaryInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOJSON2map(ctx context.Context, v any) (map[string]any, error) {

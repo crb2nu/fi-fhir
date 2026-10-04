@@ -3,7 +3,7 @@
  *
  * | stage          | complete when                                        | read through            |
  * |----------------|------------------------------------------------------|-------------------------|
- * | Source Intake  | an integration session has at least one run          | fetchRecentSessions     |
+ * | Source Intake  | an integration session has at least one run          | fetchSessionSummaries    |
  * | Normalization  | at least one published (active) source profile       | ListProfiles            |
  * | Translation    | a terminology mapping, or an approved autoroute      | ListMappings, PendingAutorouteStats |
  * | Delivery       | a workflow definition has a published version        | ListWorkflowDefinitions |
@@ -39,14 +39,14 @@ import {
   type AccessCapabilityState
 } from '$lib/graphql/accessCapabilities';
 import { compatibilityGrantPreflight } from '$lib/features/access/rolePreflight';
-import { fetchRecentSessions } from '$lib/features/dashboard/dashboardApi';
+import { fetchSessionSummaries } from '$lib/features/dashboard/dashboardApi';
 import { fetchReceipts } from '$lib/features/operator/operatorApi';
 import type { JourneyEvidence, JourneyStageId, StageEvidence } from './journey';
 
 /** The reads each stage needs; swapped in tests. */
 export interface JourneyEvidenceApi {
-  /** Number of integration sessions that have at least one run. */
-  sessionsWithRuns(): Promise<number>;
+  /** Whether an integration session has at least one run. */
+  hasSessionWithRun(): Promise<boolean>;
   /** Number of active (published) source profiles. */
   publishedProfiles(): Promise<number>;
   /** Total terminology mappings. */
@@ -69,9 +69,9 @@ function hasPublishedVersion(byEnv: unknown): boolean {
 }
 
 export const defaultJourneyEvidenceApi: JourneyEvidenceApi = {
-  async sessionsWithRuns() {
-    const sessions = await fetchRecentSessions(Number.MAX_SAFE_INTEGER);
-    return sessions.filter((session) => session.runs.length > 0).length;
+  async hasSessionWithRun() {
+    const page = await fetchSessionSummaries({ hasRuns: true, limit: 1 });
+    return page.nodes.length > 0;
   },
   async publishedProfiles() {
     const result = await graphqlFetch(ListProfilesDocument, { activeOnly: true }, INLINE);
@@ -170,10 +170,10 @@ async function intake(access: AccessCapabilityState, api: JourneyEvidenceApi): P
         : 'Integration sessions are not enabled on this deployment.'
     );
   }
-  const read = await settle(() => api.sessionsWithRuns());
+  const read = await settle(() => api.hasSessionWithRun());
   if (!read.ok) return unknown(failureSentence('integration sessions', read.error));
-  return read.value > 0
-    ? { state: 'complete', reason: `${plural(read.value, 'integration session')} with a run.` }
+  return read.value
+    ? { state: 'complete', reason: 'An integration session has a run.' }
     : { state: 'incomplete', reason: 'No integration session has a run yet.' };
 }
 

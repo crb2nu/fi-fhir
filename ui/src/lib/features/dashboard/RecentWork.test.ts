@@ -7,15 +7,18 @@ import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 import { createWorkspaceTab, markDirty, openDocument, resetIDEState } from '$lib/ui/ide/ideStore';
 
-const { gotoMock, fetchRecentSessionsMock } = vi.hoisted(() => ({
+const { gotoMock, fetchRecentSessionsMock, fetchSessionSummariesMock } = vi.hoisted(() => ({
   gotoMock: vi.fn(),
-  fetchRecentSessionsMock: vi.fn()
+  fetchRecentSessionsMock: vi.fn(),
+  fetchSessionSummariesMock: vi.fn()
 }));
 
+vi.mock('$lib/features/integration-session/api', () => ({ isIntegrationSessionBuildEnabled: () => true }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 vi.mock('$app/navigation', () => ({ goto: gotoMock }));
 vi.mock('./dashboardApi', () => ({
-  fetchRecentSessions: (...args: unknown[]) => fetchRecentSessionsMock(...args)
+  fetchRecentSessions: (...args: unknown[]) => fetchRecentSessionsMock(...args),
+  fetchSessionSummaries: (...args: unknown[]) => fetchSessionSummariesMock(...args)
 }));
 
 const { default: RecentWork } = await import('./RecentWork.svelte');
@@ -23,6 +26,8 @@ const { default: RecentWork } = await import('./RecentWork.svelte');
 beforeEach(() => {
   localStorage.clear();
   resetIDEState();
+  fetchRecentSessionsMock.mockResolvedValue([]);
+  fetchSessionSummariesMock.mockResolvedValue({ nodes: [], hasMore: false, nextOffset: null });
   setAccessStatus({
     authenticated: true,
     authVia: 'network',
@@ -36,6 +41,29 @@ afterEach(() => {
 });
 
 describe('RecentWork session rows', () => {
+  it('opens the shared browser beyond Recent and preserves it when dismissed', async () => {
+    fetchSessionSummariesMock.mockResolvedValue({
+      nodes: [{ id: 'older-session', name: 'Older intake', archived: false, createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-01T10:00:00Z', latestRun: null }],
+      hasMore: false, nextOffset: null
+    });
+    render(RecentWork);
+    const browse = screen.getByRole('button', { name: 'Browse sessions' });
+    browse.focus();
+    await fireEvent.click(browse);
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Search sessions' }), { target: { value: 'older' } });
+    await screen.findByRole('link', { name: /Older intake/ });
+    await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(browse).toHaveFocus();
+    await fireEvent.click(browse);
+    expect(screen.getByRole('textbox', { name: 'Search sessions' })).toHaveValue('older');
+    await fireEvent.click(screen.getByRole('link', { name: /Older intake/ }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(gotoMock).toHaveBeenLastCalledWith('/hl7?session=older-session');
+    expect(fetchRecentSessionsMock).toHaveBeenCalledWith(8);
+    expect(fetchSessionSummariesMock).toHaveBeenCalledTimes(1);
+  });
+
   it('open /hl7?session=<id>, with the id encoded', async () => {
     setAccessStatus({
       authenticated: true,
@@ -47,7 +75,7 @@ describe('RecentWork session rows', () => {
         id: 'sess synthetic/0001',
         name: 'HL7 source profile workspace',
         updatedAt: new Date().toISOString(),
-        runs: [{ id: 'run_1', status: 'completed' }]
+        archived: false, createdAt: '2026-10-03T12:00:00Z', latestRun: { id: 'run_1', status: 'completed', createdAt: '2026-10-03T12:00:00Z' }
       }
     ]);
     render(RecentWork);
@@ -67,7 +95,7 @@ describe('RecentWork session rows', () => {
         id: 'sess/1',
         name: 'Saved intake session',
         updatedAt: new Date().toISOString(),
-        runs: [{ id: 'run_1', status: 'completed' }]
+        archived: false, createdAt: '2026-10-03T12:00:00Z', latestRun: { id: 'run_1', status: 'completed', createdAt: '2026-10-03T12:00:00Z' }
       }
     ]);
     render(RecentWork);

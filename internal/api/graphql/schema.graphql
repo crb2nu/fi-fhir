@@ -897,6 +897,41 @@ type Subscription {
 # Integration Session Engine
 # =============================================================================
 
+"""A bounded session browse page. A null nextOffset with hasMore means refine the search."""
+type IntegrationSessionSummaryPage {
+  nodes: [IntegrationSessionSummary!]!
+  hasMore: Boolean!
+  nextOffset: Int
+}
+
+type IntegrationSessionSummary {
+  id: ID!
+  name: String!
+  archived: Boolean!
+  createdAt: DateTime!
+  """Session metadata update time; adding a run does not change this timestamp."""
+  updatedAt: DateTime!
+  latestRun: IntegrationSessionRunSummary
+}
+
+type IntegrationSessionRunSummary {
+  id: ID!
+  status: String!
+  createdAt: DateTime!
+}
+
+input IntegrationSessionSummaryInput {
+  """Literal, case-insensitive name or ID substring; trimmed, at most 256 bytes, without NUL."""
+  search: String
+  includeArchived: Boolean! = false
+  """Omitted includes all sessions; true requires a run, false requires no runs."""
+  hasRuns: Boolean
+  """Page size from 1 through 100."""
+  limit: Int! = 25
+  """Offset from 0 through 10000. Search applies to the entire tenant before paging."""
+  offset: Int! = 0
+}
+
 type IntegrationSession {
   id: ID!
   name: String!
@@ -1174,6 +1209,8 @@ input PromoteSessionPublicationInput {
 extend type Query {
   integrationSession(id: ID!): IntegrationSession
   integrationSessions(includeArchived: Boolean): [IntegrationSession!]!
+  """Session metadata, newest updatedAt then ID first, without loading session children."""
+  integrationSessionSummaries(input: IntegrationSessionSummaryInput): IntegrationSessionSummaryPage!
   sessionSamples(sessionId: ID!): [SessionSample!]!
   sessionArtifacts(sessionId: ID!): [SessionArtifact!]!
   sessionRuns(sessionId: ID!): [SessionRun!]!

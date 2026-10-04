@@ -3,12 +3,29 @@ import { get } from 'svelte/store';
 import { parseAuthStatus, type AccessCapabilityState } from '$lib/graphql/accessCapabilities';
 import { GraphQLResponseError } from '$lib/graphql/client';
 import {
+  defaultJourneyEvidenceApi,
   journeyEvidence,
   loadJourneyEvidence,
   refreshJourneyEvidence,
   resetJourneyEvidence,
   type JourneyEvidenceApi
 } from './journeyState';
+
+const summaries = vi.hoisted(() => vi.fn());
+vi.mock('$lib/features/dashboard/dashboardApi', () => ({ fetchSessionSummaries: summaries }));
+
+describe('default intake evidence', () => {
+  it('asks only for one session with a run instead of reading the inventory and its run arrays', async () => {
+    summaries.mockResolvedValueOnce({ nodes: [{ id: 'session-with-run' }], hasMore: true, nextOffset: 1 });
+    expect(await defaultJourneyEvidenceApi.hasSessionWithRun()).toBe(true);
+    expect(summaries).toHaveBeenLastCalledWith({ hasRuns: true, limit: 1 });
+  });
+
+  it('does not claim evidence when the bounded query returns no matching session', async () => {
+    summaries.mockResolvedValueOnce({ nodes: [], hasMore: false, nextOffset: null });
+    expect(await defaultJourneyEvidenceApi.hasSessionWithRun()).toBe(false);
+  });
+});
 
 const OPERATOR_BUNDLE = [
   'integration:preview',
@@ -56,7 +73,7 @@ const previewOnly = access(
 
 function api(overrides: Partial<JourneyEvidenceApi> = {}): JourneyEvidenceApi & Record<string, ReturnType<typeof vi.fn>> {
   return {
-    sessionsWithRuns: vi.fn(async () => 0),
+    hasSessionWithRun: vi.fn(async () => false),
     publishedProfiles: vi.fn(async () => 0),
     mappings: vi.fn(async () => 0),
     approvedAutoroutes: vi.fn(async () => 0),
@@ -83,14 +100,14 @@ describe('loadJourneyEvidence', () => {
     const evidence = await loadJourneyEvidence(
       bundle,
       api({
-        sessionsWithRuns: vi.fn(async () => 2),
+        hasSessionWithRun: vi.fn(async () => true),
         publishedProfiles: vi.fn(async () => 1),
         approvedAutoroutes: vi.fn(async () => 3),
         publishedWorkflows: vi.fn(async () => 1),
         hasAcceptedReceipt: vi.fn(async () => true)
       })
     );
-    expect(evidence['source-intake']).toEqual({ state: 'complete', reason: '2 integration sessions with a run.' });
+    expect(evidence['source-intake']).toEqual({ state: 'complete', reason: 'An integration session has a run.' });
     expect(evidence.normalization).toEqual({ state: 'complete', reason: '1 published profile.' });
     expect(evidence.translation).toEqual({ state: 'complete', reason: '3 approved autoroutes.' });
     expect(evidence.delivery).toEqual({ state: 'complete', reason: '1 workflow with a published version.' });
@@ -164,7 +181,7 @@ describe('loadJourneyEvidence', () => {
       reason: 'Reading receipts needs integration.operator, which this identity does not hold.'
     });
     expect(reads.hasAcceptedReceipt).not.toHaveBeenCalled();
-    expect(reads.sessionsWithRuns).toHaveBeenCalled();
+    expect(reads.hasSessionWithRun).toHaveBeenCalled();
   });
 
   it('says sessions are off when the capability is false with no missing role', async () => {

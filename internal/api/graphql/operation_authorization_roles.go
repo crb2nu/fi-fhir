@@ -39,7 +39,7 @@ import (
 // (.loom/32-sprint4-execution-specs.md:100), so removing it would take the
 // control plane away from every existing install.
 //
-// # Why 105 fields are still in the compatibility bucket
+// # Why 106 fields are still in the compatibility bucket
 //
 // .loom/32-sprint4-execution-specs.md:469 named the lane's riskiest assumption
 // — that the shipped fine-grained roles could already express every operation —
@@ -161,15 +161,16 @@ var rootFieldRoles = map[ast.Operation]map[string][]string{
 		// TODO(S5-session-workspace-roles): integration session workspace
 		// (Slices 3.1-3.4). Session authorization exists in the service layer
 		// but is not expressed as a transport role.
-		"integrationSession":         legacyCompatibility,
-		"integrationSessions":        legacyCompatibility,
-		"sessionSamples":             legacyCompatibility,
-		"sessionArtifacts":           legacyCompatibility,
-		"sessionRuns":                legacyCompatibility,
-		"sessionWorkflowSimulations": legacyCompatibility,
-		"sessionPublications":        legacyCompatibility,
-		"sessionRun":                 legacyCompatibility,
-		"sessionDiagnostics":         legacyCompatibility,
+		"integrationSession":          legacyCompatibility,
+		"integrationSessions":         legacyCompatibility,
+		"integrationSessionSummaries": legacyCompatibility,
+		"sessionSamples":              legacyCompatibility,
+		"sessionArtifacts":            legacyCompatibility,
+		"sessionRuns":                 legacyCompatibility,
+		"sessionWorkflowSimulations":  legacyCompatibility,
+		"sessionPublications":         legacyCompatibility,
+		"sessionRun":                  legacyCompatibility,
+		"sessionDiagnostics":          legacyCompatibility,
 
 		// TODO(S5-profile-roles): profile management (.loom/29).
 		"profiles":         legacyCompatibility,

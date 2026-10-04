@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { resolve } from '$app/paths';
-  import { beforeNavigate, goto } from '$app/navigation';
-  import type { BeforeNavigate } from '@sveltejs/kit';
+  import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
+  import type { AfterNavigate, BeforeNavigate } from '@sveltejs/kit';
   import { toasts } from '$lib/ui/toastStore';
   import { page } from '$app/stores';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -92,13 +92,22 @@
     willUnload: boolean;
     connectionsIntent?: ConnectionsIntent | undefined;
   };
-  type PendingAction = PendingNavigation | { kind: 'close'; id: string; title: string };
+  type PendingAction = PendingNavigation | { kind: 'close'; id: string; title: string; restoreTabFocus: boolean };
   let pendingAction: PendingAction | null = null;
   let navigationPermit: { from: string; to: string; type: BeforeNavigate['type']; delta?: number | undefined } | null = null;
   let permitTimer: ReturnType<typeof setTimeout> | undefined;
   let cancelHistoryWait: (() => void) | undefined;
   let closingTab: string | null = null;
+  let editorTabs: EditorTabs | undefined;
+  let navigationArrival = 0;
+  let navigationSequence = 0;
+  let lastNavigation: AfterNavigate | undefined;
   let navigationRequest: { from: string; to: string; intent: ConnectionsIntent } | null = null;
+
+  afterNavigate((navigation) => {
+    navigationArrival += 1;
+    lastNavigation = navigation;
+  });
 
   function clearNavigationPermit(): void {
     navigationPermit = null;
@@ -214,6 +223,7 @@
 
   /** Navigate to a resolved path, bypassing SvelteKit typed route constraints. */
   async function navigateTo(path: string, intent?: ConnectionsIntent): Promise<boolean> {
+    const sequence = ++navigationSequence;
     let request: typeof navigationRequest = null;
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- paths are validated workspace routes with optional selectors
@@ -225,7 +235,7 @@
       await goto(destination);
       await tick();
       // SvelteKit resolves goto after a cancelled transition too.
-      const arrived = $page.url.href === target.href;
+      const arrived = sequence === navigationSequence && $page.url.href === target.href;
       if (arrived && intent) requestConnectionsView(intent);
       return arrived;
     } catch {
@@ -325,11 +335,13 @@
   function requestCloseTab(closingTabId: string): void {
     if (pendingAction || closingTab) return;
     const doc = $ideState.documents.find((entry) => entry.id === closingTabId);
-    if (doc?.dirty) {
-      pendingAction = { kind: 'close', id: doc.id, title: doc.title };
+    if (!doc) return;
+    const restoreTabFocus = editorTabs?.focusedTabId() === closingTabId;
+    if (doc.dirty) {
+      pendingAction = { kind: 'close', id: doc.id, title: doc.title, restoreTabFocus };
       return;
     }
-    void closeTabById(closingTabId);
+    void closeTabById(closingTabId, false, restoreTabFocus);
   }
 
   function waitForHistoryRestore(from: string): Promise<boolean> {
@@ -356,7 +368,7 @@
     await tick();
     if (!target) return;
     if (target.kind === 'close') {
-      await closeTabById(target.id, true);
+      await closeTabById(target.id, true, target.restoreTabFocus);
       return;
     }
     if ($page.url.href !== target.from) return;
@@ -385,24 +397,57 @@
     }
   }
 
-  async function closeTabById(closingTabId: string, approved = false): Promise<void> {
-    const nextTabId = resolveNextWorkspaceTabId($ideState.documents, $ideState.activeDocumentId, closingTabId);
-    const nextDoc = nextTabId ? $ideState.documents.find((d) => d.id === nextTabId) ?? null : null;
-    if (closingTabId !== $ideState.activeDocumentId) {
-      closeTabAction(closingTabId);
-      return;
-    }
-
-    const destination = nextDoc?.path ?? nextDoc?.route ?? '/';
+  async function closeTabById(closingTabId: string, approved = false, restoreTabFocus = false): Promise<void> {
+    const documents = $ideState.documents;
+    const index = documents.findIndex((doc) => doc.id === closingTabId);
+    if (index < 0) return;
+    const sourceLocation = $page.url.href;
+    const sourceArrival = navigationArrival;
+    // Focus follows the removed tab's neighbor; closing an inactive tab must
+    // leave the active route alone, even when that is a different survivor.
+    const neighbors = [documents[index + 1]?.id, documents[index - 1]?.id];
     closingTab = closingTabId;
-    if (approved) permitNavigation(new URL(destination, $page.url).href, 'goto');
-    const opened = await navigateTo(destination);
-    if (opened) {
+    try {
+      if (closingTabId === $ideState.activeDocumentId) {
+        const nextTabId = resolveNextWorkspaceTabId(documents, $ideState.activeDocumentId, closingTabId);
+        const nextDoc = documents.find((doc) => doc.id === nextTabId);
+        const destination = nextDoc?.path ?? nextDoc?.route ?? '/';
+        if (approved) permitNavigation(new URL(destination, $page.url).href, 'goto');
+        const navigation = navigateTo(destination);
+        const closeNavigation = navigationSequence;
+        const opened = await navigation;
+        // URL equality alone cannot identify the close's arrival: a newer link,
+        // history entry, or shell request may have reached the same destination.
+        const ownsArrival = navigationSequence === closeNavigation
+          && navigationArrival === sourceArrival + 1
+          && lastNavigation?.type === 'goto'
+          && lastNavigation.from?.url.href === sourceLocation
+          && lastNavigation.to?.url.href === $page.url.href;
+        if (!opened || !ownsArrival) {
+          if (restoreTabFocus) {
+            await tick();
+            // A newer navigation can supersede this close while goto waits.
+            // Its page and focus now belong to that later user action.
+            if (navigationSequence === closeNavigation && navigationArrival === sourceArrival && $ideState.activeDocumentId === closingTabId && $page.url.href === sourceLocation) {
+              editorTabs?.focusTab(closingTabId);
+            }
+          }
+          return;
+        }
+      }
+      if (!$ideState.documents.some((doc) => doc.id === closingTabId)) return;
       closeTabAction(closingTabId);
       // Home remains the fallback when the final editor is closed.
       if (!$ideState.documents.length) openTabAction(createWorkspaceTab('/', 'system'));
+      await tick();
+      if (restoreTabFocus) {
+        const target = neighbors.find((id) => $ideState.documents.some((doc) => doc.id === id))
+          ?? $ideState.activeDocumentId;
+        if (target) editorTabs?.focusTab(target);
+      }
+    } finally {
+      closingTab = null;
     }
-    closingTab = null;
   }
 
   function onTabClose(e: CustomEvent<string>): void {
@@ -578,6 +623,7 @@
     <div class="ide-main">
       {#if $ideState.documents.length > 0}
         <EditorTabs
+          bind:this={editorTabs}
           tabs={$ideState.documents}
           activeTabId={$ideState.activeDocumentId}
           on:select={onTabSelect}
