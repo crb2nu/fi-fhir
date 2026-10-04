@@ -4,6 +4,20 @@ import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCap
 import { isDirty, resetIDEState } from '$lib/ui/ide/ideStore';
 import type { ConnectionChoice, DefinitionDetail, RegistryArtifact } from './definitionsApi';
 
+const navigation = vi.hoisted(() => ({
+  callback: null as ((navigation: { to: { url: URL } }) => void) | null,
+  goto: vi.fn()
+}));
+vi.mock('$app/navigation', () => ({
+  afterNavigate: (callback: typeof navigation.callback) => { navigation.callback = callback; },
+  goto: navigation.goto
+}));
+
+function navigate(path: string): void {
+  window.history.pushState(null, '', path);
+  navigation.callback?.({ to: { url: new URL(window.location.href) } });
+}
+
 // Every GraphQL boundary the Connections page touches is mocked.
 const connections = vi.hoisted(() => ({
   fetchConnections: vi.fn(),
@@ -163,6 +177,13 @@ function detail(state: string, version: number, overrides: Partial<DefinitionDet
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/connections');
+  navigation.callback = null;
+  navigation.goto.mockImplementation(async (path: string, options?: { replaceState?: boolean }) => {
+    if (options?.replaceState) window.history.replaceState(null, '', path);
+    else window.history.pushState(null, '', path);
+    navigation.callback?.({ to: { url: new URL(window.location.href) } });
+  });
   resetIDEState();
   resetAccessCapabilities();
   connections.fetchConnections.mockResolvedValue([]);
@@ -211,7 +232,7 @@ describe('Connections › Definitions', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('retains a definition across page tabs and asks before selecting a row replaces it', async () => {
+  it('retains a definition across page tabs and record browsing, with Continue draft', async () => {
     setAccessStatus(status());
     const saved = detail('draft', 1);
     definitions.fetchDefinitions.mockResolvedValue([saved.definition]);
@@ -227,16 +248,20 @@ describe('Connections › Definitions', () => {
     expect(revision).toHaveValue('v3');
     const table = screen.getByTestId('definitions-table');
     await fireEvent.click(within(table).getByText('adt-east-mllp', { exact: true }));
-    let dialog = await screen.findByRole('dialog', { name: 'Discard definition changes?' });
-    expect(definitions.fetchDefinition).not.toHaveBeenCalled();
-    await fireEvent.keyDown(dialog, { key: 'Escape' });
-    expect(revision).toHaveValue('v3');
-    await fireEvent.click(within(table).getByText('adt-east-mllp', { exact: true }));
-    dialog = await screen.findByRole('dialog', { name: 'Discard definition changes?' });
-    await fireEvent.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
     await waitFor(() => expect(definitions.fetchDefinition).toHaveBeenCalledWith('adt-east-mllp', 'v1'));
-    expect(screen.queryByTestId('definition-new')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('?definition=adt-east-mllp&revision=v1');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(revision).not.toBeVisible();
+    expect(isDirty('/connections')).toBe(true);
+    await fireEvent.click(screen.getByRole('button', { name: 'Continue draft' }));
+    expect(revision).toBeVisible();
+    expect(revision).toHaveValue('v3');
+    expect(window.location.search).toBe('');
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel new definition' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Discard definition changes?' });
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Discard changes' }));
     await waitFor(() => expect(isDirty('/connections')).toBe(false));
+    expect(window.location.search).toBe('?definition=adt-east-mllp&revision=v1');
   });
 
   it('discarding a definition leaves a hidden new source draft protected', async () => {
@@ -343,6 +368,7 @@ describe('Connections › Definitions', () => {
 
     const details = await screen.findByTestId('definition-details');
     await waitFor(() => expect(details).toHaveAttribute('data-state', 'draft'));
+    expect(window.location.search).toBe('?definition=adt-east-mllp&revision=v1');
     await fireEvent.click(within(details).getByTestId('definition-validate'));
     const validateDialog = await screen.findByTestId('connection-reason-dialog');
     await fireEvent.input(within(validateDialog).getByRole('textbox'), {
@@ -392,6 +418,7 @@ describe('Connections › Definitions', () => {
     render(ConnectionsPage);
     const details = await screen.findByTestId('definition-details');
     await waitFor(() => expect(details).toHaveAttribute('data-state', 'draft'));
+    expect(window.location.search).toBe('?definition=adt-east-mllp&revision=v1');
     await fireEvent.click(within(details).getByTestId('definition-mode-skip'));
     await fireEvent.click(within(details).getByTestId('definition-validate'));
     const dialog = await screen.findByTestId('connection-reason-dialog');
@@ -399,5 +426,64 @@ describe('Connections › Definitions', () => {
     await fireEvent.click(within(dialog).getByRole('button', { name: 'Record validation' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('at least 16 characters');
     expect(definitions.validateDefinition).not.toHaveBeenCalled();
+  });
+});
+
+describe('Definitions — same-route selectors', () => {
+  it('keeps the new form mounted through URL-selected revisions and continues its draft', async () => {
+    setAccessStatus(status());
+    definitions.fetchDefinition.mockImplementation(async (id: string, revisionId: string) => {
+      const next = detail('draft', 1);
+      return { ...next, definition: { ...next.definition, definitionId: id, revisionId } };
+    });
+    render(ConnectionsPage);
+    await openDefinitions();
+    await fireEvent.click(screen.getByTestId('definitions-new'));
+    const revision = await screen.findByTestId('definition-new-revision');
+    await fireEvent.input(revision, { target: { value: 'unsaved-r3' } });
+    navigate('/connections?definition=other&revision=r1');
+    await waitFor(() => expect(screen.getByTestId('definition-details')).toHaveAttribute('data-definition-id', 'other'));
+    expect(revision).not.toBeVisible();
+    navigate('/connections?definition=other&revision=r2');
+    await waitFor(() => expect(definitions.fetchDefinition).toHaveBeenCalledWith('other', 'r2'));
+    expect(screen.getByTestId('definition-details')).toHaveAttribute('data-revision-id', 'r2');
+    expect(isDirty('/connections')).toBe(true);
+    await fireEvent.click(screen.getByRole('button', { name: 'Continue draft' }));
+    expect(revision).toBeVisible();
+    expect(revision).toHaveValue('unsaved-r3');
+    expect(window.location.search).toBe('');
+    expect(definitions.createDraft).not.toHaveBeenCalled();
+    expect(definitions.fetchDefaultMaxAge).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a late definition read from replacing the newer URL selection', async () => {
+    setAccessStatus(status());
+    let finishOld!: (value: DefinitionDetail) => void;
+    const newer = detail('published', 5);
+    newer.definition = { ...newer.definition, definitionId: 'newer', revisionId: 'r2' };
+    definitions.fetchDefinition.mockImplementation(async (id: string) => id === 'old'
+      ? new Promise<DefinitionDetail>((resolve) => { finishOld = resolve; })
+      : newer);
+    window.history.replaceState(null, '', '/connections?definition=old&revision=r1');
+    render(ConnectionsPage);
+    await waitFor(() => expect(definitions.fetchDefinition).toHaveBeenCalledWith('old', 'r1'));
+    navigate('/connections?definition=newer&revision=r2');
+    await waitFor(() => expect(screen.getByTestId('definition-details')).toHaveAttribute('data-state', 'published'));
+    finishOld(detail('draft', 1));
+    await Promise.resolve();
+    expect(screen.getByTestId('definition-details')).toHaveAttribute('data-definition-id', 'newer');
+    expect(screen.getByTestId('definition-details')).toHaveAttribute('data-state', 'published');
+    expect(window.location.search).toBe('?definition=newer&revision=r2');
+  });
+
+  it('shows a missing selected revision without carrying the previous definition into it', async () => {
+    setAccessStatus(status());
+    definitions.fetchDefinition.mockResolvedValueOnce(detail('published', 5)).mockResolvedValueOnce(null);
+    window.history.replaceState(null, '', '/connections?definition=adt-east-mllp&revision=v1');
+    render(ConnectionsPage);
+    await screen.findByTestId('definition-deploy-link');
+    navigate('/connections?definition=gone&revision=missing');
+    expect(await screen.findByTestId('definition-missing')).toHaveTextContent('Definition gone/missing');
+    expect(screen.queryByTestId('definition-deploy-link')).not.toBeInTheDocument();
   });
 });

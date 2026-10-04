@@ -4,8 +4,30 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import VerificationPage from './VerificationPage.svelte';
 import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
+
+const navigation = vi.hoisted(() => ({
+  callback: null as ((navigation: { to: { url: URL } }) => void) | null,
+  goto: vi.fn()
+}));
+vi.mock('$app/navigation', () => ({
+  afterNavigate: (callback: typeof navigation.callback) => { navigation.callback = callback; },
+  goto: navigation.goto
+}));
+
+async function navigate(path: string): Promise<void> {
+  history.pushState(null, '', path);
+  navigation.callback?.({ to: { url: new URL(window.location.href) } });
+  await tick();
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 const api = vi.hoisted(() => ({
   fetchAdmissions: vi.fn(),
@@ -90,6 +112,12 @@ function statistics(extra: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  navigation.callback = null;
+  navigation.goto.mockImplementation(async (url: URL) => {
+    await Promise.resolve();
+    history.replaceState(null, '', url);
+    navigation.callback?.({ to: { url: new URL(window.location.href) } });
+  });
   resetAccessCapabilities();
   api.fetchAdmissions.mockResolvedValue(page([]));
   api.fetchAdmissionStatistics.mockResolvedValue(statistics());
@@ -124,6 +152,97 @@ describe('VerificationPage pre-flight', () => {
 });
 
 describe('VerificationPage admissions', () => {
+  it('changes linked receipts in place, retaining applied filters and unfinished inputs but resetting paging and details', async () => {
+    setAccessStatus(status({}));
+    api.fetchAdmissions.mockImplementation((filter: { receiptId: string }) => Promise.resolve(page([admission(filter.receiptId)], true, 'next-page')));
+    window.history.replaceState(null, '', '/events?receipt=receipt-a');
+    render(VerificationPage);
+    await screen.findByTestId('admission-row');
+    const eventFilter = screen.getByRole('textbox', { name: 'Event type' });
+    await fireEvent.input(eventFilter, { target: { value: 'lab_result' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(2));
+    await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(3));
+    await fireEvent.click(screen.getByTestId('admission-row'));
+    expect(screen.getByTestId('admission-detail')).toBeInTheDocument();
+    await fireEvent.input(eventFilter, { target: { value: 'unfinished-type' } });
+
+    const next = deferred<ReturnType<typeof page>>();
+    api.fetchAdmissions.mockReturnValueOnce(next.promise);
+    await navigate('/events?receipt=receipt-b');
+    expect(screen.queryByTestId('admission-row')).toBeNull();
+    expect(screen.queryByTestId('admission-detail')).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Event type' })).toBe(eventFilter);
+    expect(eventFilter).toHaveValue('unfinished-type');
+    expect(screen.getByRole('textbox', { name: 'Receipt' })).toHaveValue('receipt-b');
+    expect(api.fetchAdmissions).toHaveBeenLastCalledWith(expect.objectContaining({ eventType: 'lab_result', receiptId: 'receipt-b' }), { first: 25, after: null });
+    next.resolve(page([admission('receipt-b')]));
+    expect(await screen.findByTestId('admission-row')).toHaveAttribute('data-receipt-id', 'receipt-b');
+    expect(screen.getByText('Page 1')).toBeInTheDocument();
+    await navigate('/events?receipt=receipt-b&unrelated=value');
+    expect(api.fetchAdmissions).toHaveBeenCalledTimes(4);
+  });
+
+  it('ignores an older receipt response and clears receipt scope honestly without applying unfinished filters', async () => {
+    setAccessStatus(status({}));
+    const older = deferred<ReturnType<typeof page>>();
+    api.fetchAdmissions.mockReturnValueOnce(older.promise).mockResolvedValue(page([admission('receipt-b')]));
+    window.history.replaceState(null, '', '/events?receipt=receipt-a');
+    render(VerificationPage);
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(1));
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Definition' }), { target: { value: 'unfinished-definition' } });
+    await navigate('/events?receipt=receipt-b');
+    expect(await screen.findByTestId('admission-row')).toHaveAttribute('data-receipt-id', 'receipt-b');
+    older.resolve(page([admission('receipt-a')]));
+    await tick();
+    expect(screen.getByTestId('admission-row')).toHaveAttribute('data-receipt-id', 'receipt-b');
+
+    api.fetchAdmissions.mockResolvedValue(page([]));
+    await navigate('/events?receipt=missing');
+    expect(await screen.findByTestId('admissions-empty')).toHaveTextContent('No admissions match these filters.');
+    expect(screen.queryByTestId('admission-row')).toBeNull();
+    await navigate('/events');
+    expect(screen.getByRole('textbox', { name: 'Receipt' })).toHaveValue('');
+    expect(screen.getByRole('textbox', { name: 'Definition' })).toHaveValue('unfinished-definition');
+    expect(api.fetchAdmissions).toHaveBeenLastCalledWith(expect.objectContaining({ receiptId: null, definitionId: null }), { first: 25, after: null });
+    expect(await screen.findByTestId('admissions-empty')).toHaveTextContent('No admissions yet.');
+  });
+
+  it.each(['receipt-a', 'receipt-b'])('returns to Admissions when %s arrives from another local view', async (receiptId) => {
+    setAccessStatus(status({}));
+    window.history.replaceState(null, '', '/events?receipt=receipt-a');
+    render(VerificationPage);
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(1));
+    await fireEvent.click(screen.getByRole('tab', { name: 'Statistics' }));
+    await navigate(`/events?receipt=${receiptId}`);
+    expect(screen.getByRole('tab', { name: 'Admissions' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('textbox', { name: 'Receipt' })).toHaveValue(receiptId);
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenLastCalledWith(expect.objectContaining({ receiptId }), expect.anything()));
+  });
+
+  it('updates the receipt URL on Apply and Clear without resetting its own filter inputs', async () => {
+    setAccessStatus(status({}));
+    window.history.replaceState(null, '', '/events');
+    render(VerificationPage);
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(1));
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Receipt' }), { target: { value: 'receipt-applied' } });
+    await fireEvent.input(screen.getByRole('textbox', { name: 'Event type' }), { target: { value: 'lab_result' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(window.location.search).toBe('?receipt=receipt-applied');
+    expect(navigation.goto).toHaveBeenLastCalledWith(
+      new URL('/events?receipt=receipt-applied', window.location.origin),
+      { replaceState: true, noScroll: true, keepFocus: true }
+    );
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(2));
+    await navigate('/events?receipt=receipt-applied');
+    expect(api.fetchAdmissions).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('textbox', { name: 'Event type' })).toHaveValue('lab_result');
+    await fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(window.location.search).toBe('');
+    await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(3));
+  });
+
   it('lists admissions with links to the trace, the definition and the source, and says why there is no live tab or timeline', async () => {
     setAccessStatus(status({}));
     api.fetchAdmissions.mockResolvedValueOnce(page([admission('receipt-1'), admission('receipt-2', { source: null })]));

@@ -12,6 +12,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { accessCapabilities } from '$lib/graphql/accessCapabilities';
   import { Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
@@ -35,10 +36,36 @@
   let ready = $state(false);
   let receiptLink = $state<string | null>(null);
   let windowChoice = $state<WindowChoice>(defaultWindowChoice());
+  let selector: string | null | undefined;
+
+  function syncSelector(url: URL): void {
+    const receiptId = parseVerificationDeepLink(url.search)?.receiptId ?? null;
+    if (selector === receiptId) {
+      if (receiptId) view = 'admissions';
+      return;
+    }
+    selector = receiptId;
+    receiptLink = receiptId;
+    view = 'admissions';
+  }
+
+  function rememberReceipt(receiptId: string | null): void {
+    selector = receiptId;
+    receiptLink = receiptId;
+    const url = new URL(window.location.href);
+    if (receiptId) url.searchParams.set('receipt', receiptId);
+    else url.searchParams.delete('receipt');
+    // Complete a Kit navigation so the shell remembers this receipt's URL.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- only changes the receipt on the already-resolved current URL
+    void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+  }
 
   onMount(() => {
-    receiptLink = parseVerificationDeepLink(window.location.search)?.receiptId ?? null;
+    syncSelector(new URL(window.location.href));
     ready = true;
+  });
+  afterNavigate(({ to }) => {
+    if (to) syncSelector(to.url);
   });
 </script>
 
@@ -76,7 +103,7 @@
     >
       {#if ready}
         {#if view === 'admissions'}
-          <AdmissionsBrowser initialReceiptId={receiptLink} />
+          <AdmissionsBrowser receiptId={receiptLink} onreceiptchange={rememberReceipt} />
         {:else if view === 'statistics'}
           <StatisticsView bind:choice={windowChoice} />
         {:else}

@@ -16,7 +16,8 @@
    * inspector on Delivery, `?definition=&revision=` a deployment's history.
    */
 
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
+  import { afterNavigate, goto } from '$app/navigation';
   import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
   import ServerOff from '@lucide/svelte/icons/server-off';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
@@ -43,7 +44,7 @@
     type OperatorMessageTrace
   } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
-  import { parseOperatorDeepLink } from './operatorLinks';
+  import { parseOperatorDeepLink, type OperatorDeepLink } from './operatorLinks';
   import {
     OPERATOR_ROLE_BUNDLE,
     ROLE_GRANT_LOCATIONS,
@@ -83,30 +84,80 @@
   let inspectedAttemptId: string | null = null;
   /** A deep-linked deployment whose history opens on Deployments. */
   let deploymentFocus: { definitionId: string; revisionId: string } | null = null;
+  let selectorKey: string | undefined;
+
+  function rememberSelector(link: OperatorDeepLink | null): void {
+    selectorKey = JSON.stringify(link);
+    const url = new URL(window.location.href);
+    for (const key of ['receipt', 'attempt', 'definition', 'revision']) url.searchParams.delete(key);
+    if (link?.tab === 'messages') url.searchParams.set('receipt', link.receiptId);
+    else if (link?.tab === 'delivery') url.searchParams.set('attempt', link.attemptId);
+    else if (link?.tab === 'deployments') {
+      url.searchParams.set('definition', link.definitionId);
+      url.searchParams.set('revision', link.revisionId);
+    }
+    // Complete a Kit navigation so the shell remembers this record's URL.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- only changes selectors on the already-resolved current URL
+    void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+  }
 
   function inspectAttempt(attemptId: string) {
     activeTab = 'delivery';
     inspectedAttemptId = attemptId;
+    rememberSelector({ tab: 'delivery', attemptId });
   }
 
   function openTrace(receiptId: string) {
     activeTab = 'messages';
+    rememberSelector({ tab: 'messages', receiptId });
     void loadTrace(receiptId);
   }
 
-  onMount(() => {
+  function syncSelector(url: URL): void {
     if (preflight) return;
-    const link = parseOperatorDeepLink(window.location.search);
-    if (!link) return;
-    if (link.tab === 'messages') {
-      openTrace(link.receiptId);
-    } else if (link.tab === 'delivery') {
-      inspectAttempt(link.attemptId);
-    } else {
-      activeTab = 'deployments';
+    const link = parseOperatorDeepLink(url.search);
+    const key = JSON.stringify(link);
+    if (key === selectorKey) return;
+    selectorKey = key;
+    traceRequest += 1;
+    selectedReceiptId = null;
+    trace = null;
+    traceLoading = false;
+    traceError = null;
+    inspectedAttemptId = null;
+    deploymentFocus = null;
+    activeTab = link?.tab ?? 'messages';
+    if (link?.tab === 'messages') {
+      void loadTrace(link.receiptId);
+    } else if (link?.tab === 'delivery') {
+      inspectedAttemptId = link.attemptId;
+    } else if (link?.tab === 'deployments') {
       deploymentFocus = { definitionId: link.definitionId, revisionId: link.revisionId };
     }
+  }
+
+  function rememberTab(tab: string): void {
+    if (tab === 'messages' && selectedReceiptId) rememberSelector({ tab, receiptId: selectedReceiptId });
+    else if (tab === 'delivery' && inspectedAttemptId) rememberSelector({ tab, attemptId: inspectedAttemptId });
+    else if (tab === 'deployments' && deploymentFocus) rememberSelector({ tab, ...deploymentFocus });
+    else rememberSelector(null);
+  }
+
+  function closeAttempt(): void {
+    inspectedAttemptId = null;
+    rememberSelector(null);
+  }
+
+  function selectDeployment(focus: typeof deploymentFocus): void {
+    deploymentFocus = focus;
+    rememberSelector(focus ? { tab: 'deployments', ...focus } : null);
+  }
+
+  afterNavigate(({ to }) => {
+    if (to) syncSelector(to.url);
   });
+  onMount(() => syncSelector(new URL(window.location.href)));
+  onDestroy(() => { traceRequest += 1; });
 
   type PendingDelivery = { kind: 'delivery'; action: DeliveryAction; attemptId: string };
   type PendingDeployment = {
@@ -124,6 +175,7 @@
   async function loadTrace(receiptId: string) {
     const request = ++traceRequest;
     selectedReceiptId = receiptId;
+    trace = null;
     traceLoading = true;
     traceError = null;
     try {
@@ -329,7 +381,7 @@
   {:else}
     <Toolbar title="Operator">
       {#snippet tabs()}
-        <Tabs label="Operator views" items={views} bind:value={activeTab} />
+        <Tabs label="Operator views" items={views} bind:value={activeTab} onchange={rememberTab} />
       {/snippet}
     </Toolbar>
 
@@ -344,7 +396,7 @@
           <div class="split-main">
             <MessageBrowser
               {selectedReceiptId}
-              on:select={(event) => loadTrace(event.detail.receiptId)}
+              on:select={(event) => openTrace(event.detail.receiptId)}
             />
           </div>
           <div class="split-pane">
@@ -383,7 +435,7 @@
                 ontrace={openTrace}
                 oninspect={inspectAttempt}
                 oncontrol={(action, attemptId) => openDeliveryDialog(action, attemptId)}
-                onclose={() => (inspectedAttemptId = null)}
+                onclose={closeAttempt}
               />
             {:else}
               <EmptyState
@@ -399,6 +451,7 @@
           <DeploymentControls
             bind:this={deploymentControls}
             focus={deploymentFocus}
+            on:focus={(event) => selectDeployment(event.detail)}
             on:command={(event) =>
               openDeploymentDialog(event.detail.action, event.detail.deployment)}
           />

@@ -5,7 +5,7 @@
   moving between rows keeps them; a row with unsaved edits says so.
 -->
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import Plus from '@lucide/svelte/icons/plus';
@@ -47,10 +47,13 @@
     writeBlocked: string[] | null;
     /** Incremented by the page to open the New menu (command palette). */
     newRequest?: number | undefined;
+    resetRequest?: number | undefined;
+    target?: { row: ConnectionRow; request: number } | null | undefined;
+    onselectionchange?: ((row: ConnectionRow | null, replace?: boolean) => void) | undefined;
     ondirtychange?: ((dirty: boolean) => void) | undefined;
   }
 
-  let { direction, writeBlocked, newRequest = 0, ondirtychange }: Props = $props();
+  let { direction, writeBlocked, newRequest = 0, resetRequest = 0, target = null, onselectionchange, ondirtychange }: Props = $props();
 
   const NEW_KEY = '\u0000new';
   const noun = $derived(direction === 'source' ? 'source' : 'destination');
@@ -68,8 +71,11 @@
   let newMenuOpen = $state(false);
   let pendingDiscard = $state<(() => void) | null>(null);
   let loadSeq = 0;
+  let disposed = false;
+  onDestroy(() => { disposed = true; });
+  let directRow = $state<ConnectionRow | null>(null);
 
-  const selectedRow = $derived(rows.find((row) => row.id === selectedKey) ?? null);
+  const selectedRow = $derived(rows.find((row) => row.id === selectedKey) ?? (directRow?.id === selectedKey ? directRow : null));
 
   const visibleRows = $derived.by(() => {
     const needle = filter.trim().toLowerCase();
@@ -95,6 +101,30 @@
   });
   onDestroy(() => ondirtychange?.(false));
 
+  $effect(() => {
+    const requested = target;
+    if (requested) untrack(() => {
+      pendingDiscard = null;
+      const known = rows.find((row) => row.id === requested.row.id) ?? (directRow?.id === requested.row.id ? directRow : null);
+      const row = known && known.version > requested.row.version ? known : requested.row;
+      directRow = row;
+      rows = rows.map((current) => current.id === row.id ? row : current);
+      edits[row.id] = reconcileBuffer(edits[row.id], row);
+      selectedKey = row.id;
+    });
+  });
+
+  let handledReset = 0;
+  $effect(() => {
+    if (resetRequest > handledReset) {
+      handledReset = resetRequest;
+      if (!target) {
+        selectedKey = null;
+        pendingDiscard = null;
+      }
+    }
+  });
+
   async function load(): Promise<void> {
     const seq = ++loadSeq;
     loading = true;
@@ -102,12 +132,17 @@
     try {
       const list = await fetchConnections(direction === 'source' ? 'SOURCE' : 'DESTINATION', showArchived);
       if (seq !== loadSeq) return;
-      rows = list;
-      for (const row of list) {
+      rows = list.map((row) => {
+        const known = rows.find((current) => current.id === row.id) ?? (directRow?.id === row.id ? directRow : null);
+        return known && known.version > row.version ? known : row;
+      });
+      if (directRow) directRow = rows.find((row) => row.id === directRow?.id) ?? directRow;
+      for (const row of rows) {
         if (edits[row.id]) edits[row.id] = reconcileBuffer(edits[row.id], row);
       }
-      if (selectedKey !== null && selectedKey !== NEW_KEY && !list.some((row) => row.id === selectedKey)) {
+      if (selectedKey !== null && selectedKey !== NEW_KEY && !rows.some((row) => row.id === selectedKey) && directRow?.id !== selectedKey) {
         selectedKey = null;
+        onselectionchange?.(null, true);
       }
     } catch (err) {
       if (seq !== loadSeq) return;
@@ -120,6 +155,7 @@
 
   onMount(() => {
     void load();
+    return () => { loadSeq += 1; };
   });
 
   // The command palette's "New … connection" opens this view's New menu.
@@ -139,6 +175,13 @@
   function select(row: ConnectionRow): void {
     edits[row.id] ??= bufferFromConnection(row);
     selectedKey = row.id;
+    directRow = row;
+    onselectionchange?.(row);
+  }
+
+  function selectNew(): void {
+    selectedKey = NEW_KEY;
+    onselectionchange?.(null);
   }
 
   function startCreate(kind: SpecKind): void {
@@ -152,35 +195,41 @@
 
   function createBuffer(kind: SpecKind): void {
     creating = newBuffer(kind);
-    selectedKey = NEW_KEY;
+    selectNew();
   }
 
-  function upsert(row: ConnectionRow): void {
-    const others = rows.filter((candidate) => candidate.id !== row.id);
+  function changed(row: ConnectionRow, originKey: string, draft?: EditBuffer): void {
+    if (disposed) return;
+    const known = rows.find((current) => current.id === row.id) ?? (directRow?.id === row.id ? directRow : null);
+    if (known && known.version > row.version) return;
     const hidden = row.archived && !showArchived;
-    rows = hidden ? others : [...others, row].sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+    const others = rows.filter((current) => current.id !== row.id);
+    rows = hidden ? others : [...others, row].sort((left, right) => left.id.localeCompare(right.id));
     edits[row.id] = bufferFromConnection(row);
-    if (hidden) {
-      delete edits[row.id];
-      if (selectedKey === row.id) selectedKey = null;
-    }
-  }
-
-  function changed(row: ConnectionRow): void {
-    const wasCreating = selectedKey === NEW_KEY;
-    upsert(row);
-    if (wasCreating) {
+    if (directRow?.id === row.id) directRow = row;
+    if (originKey === NEW_KEY && creating === draft) {
       creating = null;
-      selectedKey = row.archived && !showArchived ? null : row.id;
+      if (selectedKey === NEW_KEY) {
+        directRow = row;
+        selectedKey = row.id;
+        onselectionchange?.(row, true);
+      }
+    } else if (selectedKey === originKey) {
+      directRow = row;
+      onselectionchange?.(row, true);
     }
   }
 
-  function missing(): void {
-    if (selectedKey && selectedKey !== NEW_KEY) {
-      rows = rows.filter((row) => row.id !== selectedKey);
-      delete edits[selectedKey];
+  function missing(key: string): void {
+    if (disposed) return;
+    rows = rows.filter((row) => row.id !== key);
+    // An unavailable saved row must not erase the local draft.
+    if (!edits[key] || !isDirty(edits[key])) delete edits[key];
+    if (directRow?.id === key) directRow = null;
+    if (selectedKey === key) {
+      selectedKey = null;
+      onselectionchange?.(null, true);
     }
-    selectedKey = null;
   }
 
   function discard(): void {
@@ -191,6 +240,7 @@
       if (key === NEW_KEY) {
         creating = null;
         selectedKey = null;
+        onselectionchange?.(null, true);
       } else if (row) {
         edits[row.id] = bufferFromConnection(row);
       }
@@ -307,7 +357,7 @@
         {/snippet}
         {#if creating}
           {@const schema = kindSchema(creating.kind)}
-          <Tr selectable selected={selectedKey === NEW_KEY} onselect={() => (selectedKey = NEW_KEY)} data-row="new">
+          <Tr selectable selected={selectedKey === NEW_KEY} onselect={selectNew} data-row="new">
             <Td truncate value={creating.name.trim() || `New ${schema?.label ?? ''} ${noun}`} />
             <Td value={schema?.label ?? creating.kind} />
             <Td mono truncate value={creating.id.trim() || '—'} />
@@ -354,8 +404,8 @@
         bind:buffer={() => creating as EditBuffer, (value) => (creating = value)}
         row={null}
         {writeBlocked}
-        onchanged={changed}
-        onmissing={missing}
+        onchanged={(row, origin) => changed(row, NEW_KEY, origin)}
+        onmissing={() => {}}
         ondiscard={discard}
       />
     {:else if selectedRow && edits[selectedRow.id]}
@@ -365,7 +415,7 @@
           bind:buffer={() => edits[current.id] as EditBuffer, (value) => (edits[current.id] = value)}
           row={current}
           {writeBlocked}
-          onchanged={changed}
+          onchanged={(row) => changed(row, row.id)}
           onmissing={missing}
           ondiscard={discard}
         />

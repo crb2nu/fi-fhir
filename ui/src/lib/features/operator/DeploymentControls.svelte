@@ -13,7 +13,7 @@
    * it; Deploy and Resume say why they are disabled when it is not current.
    */
 
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onDestroy, onMount } from 'svelte';
   import Archive from '@lucide/svelte/icons/archive';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -52,6 +52,7 @@
 
   const dispatch = createEventDispatcher<{
     command: { action: DeploymentAction; deployment: OperatorDeployment };
+    focus: { definitionId: string; revisionId: string } | null;
   }>();
 
   /** A deep-linked revision whose history opens once the inventory loads. */
@@ -62,7 +63,8 @@
   let error: string | null = null;
   let expanded: Record<string, boolean> = {};
   let focusMissing: string | null = null;
-  let focusApplied = false;
+  let appliedFocusKey: string | null = null;
+  let request = 0;
 
   function rowKey(deployment: OperatorDeployment): string {
     return `${deployment.definitionRevision.artifactId}@${deployment.definitionRevision.revisionId}`;
@@ -71,15 +73,21 @@
   function toggleHistory(deployment: OperatorDeployment) {
     const key = rowKey(deployment);
     expanded = { ...expanded, [key]: !expanded[key] };
+    dispatch('focus', expanded[key] ? {
+      definitionId: deployment.definitionRevision.artifactId,
+      revisionId: deployment.definitionRevision.revisionId
+    } : null);
   }
 
-  function applyFocus() {
-    if (!focus || focusApplied) return;
-    focusApplied = true;
-    const key = `${focus.definitionId}@${focus.revisionId}`;
-    if (deployments.some((deployment) => rowKey(deployment) === key)) {
+  function applyFocus(target: typeof focus, rows: OperatorDeployment[], force = false) {
+    const key = target ? `${target.definitionId}@${target.revisionId}` : null;
+    if (key === appliedFocusKey && !force) return;
+    if (appliedFocusKey && appliedFocusKey !== key) expanded = { ...expanded, [appliedFocusKey]: false };
+    appliedFocusKey = key;
+    focusMissing = null;
+    if (!key) return;
+    if (rows.some((deployment) => rowKey(deployment) === key)) {
       expanded = { ...expanded, [key]: true };
-      focusMissing = null;
     } else {
       focusMissing = `Revision ${key} is not in this tenant's lifecycle catalog, so it has no history to show.`;
     }
@@ -94,16 +102,20 @@
   };
 
   export async function reload() {
+    const current = ++request;
     loading = true;
     error = null;
     try {
-      deployments = await fetchDeployments();
-      applyFocus();
+      const rows = await fetchDeployments();
+      if (current !== request) return;
+      deployments = rows;
+      applyFocus(focus, rows, true);
     } catch (err) {
+      if (current !== request) return;
       error = describeOperatorFailure(err).message;
       deployments = [];
     } finally {
-      loading = false;
+      if (current === request) loading = false;
     }
   }
 
@@ -120,6 +132,8 @@
   onMount(() => {
     void reload();
   });
+  onDestroy(() => { request += 1; });
+  $: if (!loading && !error) applyFocus(focus, deployments);
 </script>
 
 <Panel title="Deployments and channels" flush>

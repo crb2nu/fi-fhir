@@ -60,9 +60,9 @@
     /** Roles this identity lacks to change connections, or null. */
     writeBlocked: string[] | null;
     /** A write succeeded (or a reload answered): the catalog's current row. */
-    onchanged: (row: ConnectionRow) => void;
+    onchanged: (row: ConnectionRow, origin: EditBuffer) => void;
     /** Reload found nothing: the connection is gone from this tenant. */
-    onmissing: () => void;
+    onmissing: (id: string) => void;
     /** Discard the edits (or cancel the creation). */
     ondiscard: () => void;
   }
@@ -330,6 +330,7 @@
   async function confirm(reason: string): Promise<void> {
     const action = dialogAction;
     if (!action) return;
+    const origin = buffer;
     dialogBusy = true;
     dialogError = null;
     dialogStale = false;
@@ -346,7 +347,7 @@
           reason
         });
         dialogAction = null;
-        onchanged(created);
+        onchanged(created, origin);
       } else if (action === 'save' && row) {
         const saved = await updateConnection({
           id: row.id,
@@ -358,13 +359,13 @@
           reason
         });
         dialogAction = null;
-        onchanged(saved);
+        onchanged(saved, origin);
       } else if (action === 'compile' && row) {
         const result = await compileConnection({ id: row.id, expectedVersion: row.version, reason });
         if (result.revision) {
           dialogAction = null;
           toasts.success(`Compiled ${row.id} r${result.revision.revisionId}`);
-          onchanged(result.connection);
+          onchanged(result.connection, origin);
           tab = 'revisions';
         } else {
           buffer.problems = result.problems;
@@ -376,7 +377,7 @@
       } else if (action === 'archive' && row) {
         const archivedRow = await archiveConnection({ id: row.id, expectedVersion: row.version, reason });
         dialogAction = null;
-        onchanged(archivedRow);
+        onchanged(archivedRow, origin);
       }
     } catch (err) {
       failed(err);
@@ -387,12 +388,14 @@
 
   async function reload(): Promise<void> {
     if (!row) return;
+    const id = row.id;
+    const origin = buffer;
     reloading = true;
     try {
-      const current = await fetchConnection(row.id);
+      const current = await fetchConnection(id);
       dialogAction = null;
-      if (current) onchanged(current);
-      else onmissing();
+      if (current) onchanged(current, origin);
+      else onmissing(id);
     } catch (err) {
       dialogError = describeConnectionFailure(err).message;
     } finally {
@@ -401,7 +404,7 @@
   }
 </script>
 
-<div class="details" data-testid="connection-details" data-mode={creating ? 'create' : 'edit'}>
+<div class="details" data-testid="connection-details" data-connection-id={row?.id} data-mode={creating ? 'create' : 'edit'}>
   <header class="details-head">
     <div class="head-line">
       <h2 class="details-title" title={title}>{title}</h2>
