@@ -13,7 +13,7 @@
   import X from '@lucide/svelte/icons/x';
   import { Badge, Button, EmptyState, Field, IconButton, Input, Select } from '$lib/ui/primitives';
   import { toasts } from '$lib/ui/toastStore';
-  import { clearDirty, markDirty } from '$lib/ui/ide/ideStore';
+  import { canonicalJson } from './editBuffer';
   import ConnectionReasonDialog from './ConnectionReasonDialog.svelte';
   import {
     checkDraft,
@@ -34,9 +34,10 @@
     writeBlocked: string[] | null;
     oncreated: (detail: DefinitionDetail) => void;
     oncancel: () => void;
+    ondirtychange?: ((dirty: boolean) => void) | undefined;
   }
 
-  let { writeBlocked, oncreated, oncancel }: Props = $props();
+  let { writeBlocked, oncreated, oncancel, ondirtychange }: Props = $props();
 
   const PROVIDERS = ['env', 'file', 'vault', 'aws-ssm', 'k8s'].map((value) => ({ value, label: value }));
 
@@ -47,6 +48,7 @@
   let loading = $state(true);
   let loadError = $state<string | null>(null);
   let form = $state<DraftForm>(newDraftForm(null));
+  let baseline = $state(canonicalJson(newDraftForm(null)));
   let problems = $state<DefinitionProblem[] | null>(null);
   let checkedKey = $state<string | null>(null);
   let checking = $state(false);
@@ -80,6 +82,7 @@
       artifacts = artifactList;
       maxAge = defaultMaxAge;
       form.policy.validationMaxAgeSeconds = defaultMaxAge ?? 300;
+      baseline = canonicalJson(form);
     } catch (err) {
       loadError = describeDefinitionFailure(err).message;
     } finally {
@@ -87,21 +90,11 @@
     }
   });
 
-  // The /connections tab shows unsaved work while a draft is being composed
-  // (E-4's dirty tabs); creating or leaving the form clears it.
-  const DIRTY_TAB = '/connections';
-  const dirty = $derived(
-    form.definitionId.trim() !== '' ||
-      form.sourceId !== '' ||
-      form.destinationIds.length > 0 ||
-      form.integrationId !== '' ||
-      form.customPolicy ||
-      form.retention.mode !== 'ephemeral'
-  );
+  const dirty = $derived(!loading && canonicalJson(form) !== baseline);
   $effect(() => {
-    markDirty(DIRTY_TAB, dirty);
+    ondirtychange?.(dirty);
   });
-  onDestroy(() => clearDirty(DIRTY_TAB));
+  onDestroy(() => ondirtychange?.(false));
 
   // Re-derive the binding rows whenever the chosen revisions change, keeping edits.
   $effect(() => {
@@ -145,7 +138,7 @@
       }
       toasts.success(`Created draft ${result.definition.definition.definitionId}/${result.definition.definition.revisionId}`);
       dialogOpen = false;
-      clearDirty(DIRTY_TAB);
+      baseline = canonicalJson(form);
       oncreated(result.definition);
     } catch (err) {
       submitError = describeDefinitionFailure(err).message;

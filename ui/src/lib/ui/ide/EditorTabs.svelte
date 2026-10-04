@@ -38,6 +38,7 @@
       class="editor-tab-list"
       label="Open editors"
       activation="manual"
+      controlled
       {items}
       value={activeTabId ?? undefined}
       onselect={(id) => dispatch('select', id)}

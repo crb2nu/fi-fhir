@@ -30,6 +30,8 @@
     /** Accessible name of the tablist. */
     label?: string | undefined;
     activation?: 'auto' | 'manual';
+    /** Let the caller commit selection after navigation succeeds. */
+    controlled?: boolean;
   }
 
   let {
@@ -40,6 +42,7 @@
     onclose,
     label,
     activation = 'auto',
+    controlled = false,
     class: className,
     ...rest
   }: Props = $props();
@@ -58,7 +61,7 @@
   function select(id: string): void {
     onselect?.(id);
     if (id === value) return;
-    value = id;
+    if (!controlled) value = id;
     onchange?.(id);
   }
 

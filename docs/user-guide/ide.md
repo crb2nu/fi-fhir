@@ -42,6 +42,20 @@ record location, not an unsaved form or filter state.
 Escape returns focus to where you were working. Other open dialogs keep their
 own keyboard focus.
 
+A dot on an editor tab means it holds unsaved work. Leaving a page asks before
+losing connection forms, profile YAML edits, or managed workflow changes.
+**Stay here** keeps the current page, tab and edits; **Leave view** continues.
+The same protection applies to explorer links, commands, stage links and
+Back/Forward. Closing a dirty tab asks once and removes it only after navigation
+succeeds. Reloading or closing the browser uses the browser's own warning.
+
+Within Connections, switching rows or Sources, Destinations or Definitions keeps
+each unfinished form. Saving or discarding one does not clear another's dot.
+Workflow Design also stays intact while you inspect Inventory or Verification;
+opening a different managed workflow asks before replacing edited content.
+Shared profile-builder drafts and local workflow drafts survive ordinary page
+changes, so those changes do not need a discard warning.
+
 - **Header**: the fi-fhir mark (Home), the five **stages**, a breadcrumb,
   **Commands** (⌘K / Ctrl+K) and the theme toggle (system, light, dark).
 - **Stages**: 1 Source Intake (`/hl7`) → 2 Normalization (`/profiles`) →

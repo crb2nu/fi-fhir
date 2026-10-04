@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { resolve } from '$app/paths';
-  import { goto } from '$app/navigation';
+  import { beforeNavigate, goto } from '$app/navigation';
+  import type { BeforeNavigate } from '@sveltejs/kit';
+  import { toasts } from '$lib/ui/toastStore';
   import { page } from '$app/stores';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import Search from '@lucide/svelte/icons/search';
@@ -35,10 +37,11 @@
     setActiveView,
     openTab as openTabAction,
     closeTab as closeTabAction,
-    setActiveTab,
     toggleBottomPanel,
     openPanelTab,
-    markDirty,
+    setDraftState,
+    clearDraftState,
+    hasDraftsToLose,
     createWorkspaceTab,
     resolveNextWorkspaceTabId,
   } from './ideStore';
@@ -68,7 +71,7 @@
    * It owns the one command palette (commandRegistry.ts: the shell's commands
    * plus whatever the current route registers), reads the journey evidence on
    * mount and on every route change (journeyState.ts), and asks before closing
-   * a tab that holds unsaved changes (ideStore.markDirty).
+   * leaving a view that would lose edits, or closing a dirty tab.
    */
 
   export let connectionState: ConnectionState = 'disconnected';
@@ -79,8 +82,67 @@
 
   let cleanupShortcuts: (() => void) | null = null;
   let cleanupCommands: (() => void) | null = null;
-  /** The dirty tab a close is waiting on (the confirmation dialog's subject). */
-  let pendingClose: { id: string; title: string } | null = null;
+  type PendingNavigation = {
+    kind: 'navigate';
+    title: string;
+    from: string;
+    to: string;
+    type: BeforeNavigate['type'];
+    delta?: number | undefined;
+    willUnload: boolean;
+    connectionsIntent?: ConnectionsIntent | undefined;
+  };
+  type PendingAction = PendingNavigation | { kind: 'close'; id: string; title: string };
+  let pendingAction: PendingAction | null = null;
+  let navigationPermit: { from: string; to: string; type: BeforeNavigate['type']; delta?: number | undefined } | null = null;
+  let permitTimer: ReturnType<typeof setTimeout> | undefined;
+  let cancelHistoryWait: (() => void) | undefined;
+  let closingTab: string | null = null;
+  let navigationRequest: { from: string; to: string; intent: ConnectionsIntent } | null = null;
+
+  function clearNavigationPermit(): void {
+    navigationPermit = null;
+    clearTimeout(permitTimer);
+  }
+
+  function permitNavigation(to: string, type: BeforeNavigate['type'], delta?: number): void {
+    clearNavigationPermit();
+    navigationPermit = { from: $page.url.href, to, type, delta };
+    // A history traversal can be ignored by the browser. Never leave approval
+    // armed for an unrelated future attempt, even when no hook fires.
+    permitTimer = setTimeout(clearNavigationPermit, 3000);
+  }
+
+  beforeNavigate((navigation) => {
+    if (navigation.type === 'leave') {
+      if (hasDraftsToLose(currentWorkspaceTab.id, true)) navigation.cancel();
+      return;
+    }
+    if (!navigation.to) return;
+    const approved = navigationPermit
+      && navigationPermit.from === navigation.from?.url.href
+      && navigationPermit.to === navigation.to.url.href
+      && navigationPermit.type === navigation.type
+      && navigationPermit.delta === navigation.delta;
+    clearNavigationPermit();
+    if (approved) return;
+    if (pendingAction) {
+      navigation.cancel();
+      return;
+    }
+    if (!navigation.willUnload && normalizeRoute(navigation.to.url.pathname) === currentPath) return;
+    if (!hasDraftsToLose(currentWorkspaceTab.id, navigation.willUnload)) return;
+
+    navigation.cancel();
+    pendingAction = {
+      kind: 'navigate', title: currentWorkspaceTab.title,
+      from: navigation.from?.url.href ?? $page.url.href,
+      to: navigation.to.url.href, type: navigation.type,
+      delta: navigation.delta, willUnload: navigation.willUnload,
+      connectionsIntent: navigationRequest?.from === navigation.from?.url.href && navigationRequest?.to === navigation.to.url.href
+        ? navigationRequest.intent : undefined,
+    };
+  });
   type WorkspaceTab = ReturnType<typeof createWorkspaceTab>;
   let narrowScreen = false;
   let drawerOpen = false;
@@ -145,16 +207,34 @@
     '/': 'system',
   };
 
-  /** Records what the Connections page should open, then goes there. */
+  /** Publish commands only after arrival; cancelled navigation has no side effects. */
   function openConnections(intent: ConnectionsIntent): void {
-    requestConnectionsView(intent);
-    void goto(resolve('/connections'));
+    void navigateTo('/connections', intent);
   }
 
   /** Navigate to a resolved path, bypassing SvelteKit typed route constraints. */
-  function navigateTo(path: string): void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, svelte/no-navigation-without-resolve -- resolve() is called inside
-    void (goto as any)((resolve as any)(path));
+  async function navigateTo(path: string, intent?: ConnectionsIntent): Promise<boolean> {
+    let request: typeof navigationRequest = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- paths are validated workspace routes with optional selectors
+      const destination = (resolve as any)(path) as string;
+      const target = new URL(destination, $page.url);
+      request = intent ? { from: $page.url.href, to: target.href, intent } : null;
+      navigationRequest = request;
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved above
+      await goto(destination);
+      await tick();
+      // SvelteKit resolves goto after a cancelled transition too.
+      const arrived = $page.url.href === target.href;
+      if (arrived && intent) requestConnectionsView(intent);
+      return arrived;
+    } catch {
+      toasts.error('Could not open that view. Your current work is still open.');
+      return false;
+    } finally {
+      if (navigationRequest === request) navigationRequest = null;
+      clearNavigationPermit();
+    }
   }
 
   // ── Shell commands (the palette also lists the current route's) ──
@@ -229,7 +309,7 @@
   // Unsaved drafts the shell can see without the feature's help: the source
   // profile draft (shared by Profiles and HL7 intake's Profile draft tab) is
   // published from Profiles, so that tab carries the mark.
-  $: markDirty('/profiles', $profileDraftDirty);
+  $: setDraftState('/profiles', 'profile-builder', $profileDraftDirty, false);
 
   function onViewChange(e: CustomEvent<IDEView>): void {
     openView(e.detail);
@@ -238,41 +318,91 @@
   function onTabSelect(e: CustomEvent<string>): void {
     const doc = $ideState.documents.find((entry) => entry.id === e.detail);
     if (!doc) return;
-    setActiveTab(doc.id);
     navigateTo(doc.path ?? doc.route ?? getWorkspaceTabRoute(doc.view ?? 'system'));
   }
 
-  /** Closes a tab, asking first when it holds unsaved changes. */
+  /** Closing and route departure share one confirmation, before tab mutation. */
   function requestCloseTab(closingTabId: string): void {
+    if (pendingAction || closingTab) return;
     const doc = $ideState.documents.find((entry) => entry.id === closingTabId);
     if (doc?.dirty) {
-      pendingClose = { id: doc.id, title: doc.title };
+      pendingAction = { kind: 'close', id: doc.id, title: doc.title };
       return;
     }
-    closeTabById(closingTabId);
+    void closeTabById(closingTabId);
   }
 
-  function confirmPendingClose(): void {
-    const target = pendingClose;
-    pendingClose = null;
-    if (target) closeTabById(target.id);
+  function waitForHistoryRestore(from: string): Promise<boolean> {
+    if (window.location.href === from) return Promise.resolve(true);
+    return new Promise((resolveWait) => {
+      const finish = (restored: boolean) => {
+        clearTimeout(timeout);
+        window.removeEventListener('popstate', onPop);
+        cancelHistoryWait = undefined;
+        resolveWait(restored);
+      };
+      const onPop = () => {
+        if (window.location.href === from) finish(true);
+      };
+      const timeout = setTimeout(() => finish(false), 1000);
+      cancelHistoryWait = () => finish(false);
+      window.addEventListener('popstate', onPop);
+    });
   }
 
-  function closeTabById(closingTabId: string): void {
+  async function confirmPendingAction(): Promise<void> {
+    const target = pendingAction;
+    pendingAction = null;
+    await tick();
+    if (!target) return;
+    if (target.kind === 'close') {
+      await closeTabById(target.id, true);
+      return;
+    }
+    if ($page.url.href !== target.from) return;
+    if (target.type === 'popstate' && target.delta !== undefined) {
+      // SvelteKit first rolls the cancelled traversal back. Resume the same
+      // history delta, preserving Forward and existing entry state.
+      if (!await waitForHistoryRestore(target.from)) {
+        toasts.error('Navigation did not complete. Your edits are still open.');
+        return;
+      }
+      permitNavigation(target.to, 'popstate', target.delta);
+      window.history.go(target.delta);
+    } else if (target.willUnload) {
+      // Let SvelteKit handle the confirmed link so its native-unload path
+      // does not ask a second time.
+      permitNavigation(target.to, 'link');
+      const link = document.createElement('a');
+      link.href = target.to;
+      document.body.append(link);
+      link.click();
+      link.remove();
+    } else {
+      permitNavigation(target.to, 'goto');
+      const url = new URL(target.to);
+      await navigateTo(url.pathname + url.search + url.hash, target.connectionsIntent);
+    }
+  }
+
+  async function closeTabById(closingTabId: string, approved = false): Promise<void> {
     const nextTabId = resolveNextWorkspaceTabId($ideState.documents, $ideState.activeDocumentId, closingTabId);
     const nextDoc = nextTabId ? $ideState.documents.find((d) => d.id === nextTabId) ?? null : null;
-    const closingWasActive = closingTabId === $ideState.activeDocumentId;
-
-    closeTabAction(closingTabId);
-
-    if (!closingWasActive) return;
-
-    if (nextDoc) {
-      navigateTo(nextDoc.path ?? nextDoc.route ?? getWorkspaceTabRoute(nextDoc.view ?? 'system'));
+    if (closingTabId !== $ideState.activeDocumentId) {
+      closeTabAction(closingTabId);
       return;
     }
 
-    navigateTo('/');
+    const destination = nextDoc?.path ?? nextDoc?.route ?? '/';
+    closingTab = closingTabId;
+    if (approved) permitNavigation(new URL(destination, $page.url).href, 'goto');
+    const opened = await navigateTo(destination);
+    if (opened) {
+      closeTabAction(closingTabId);
+      // Home remains the fallback when the final editor is closed.
+      if (!$ideState.documents.length) openTabAction(createWorkspaceTab('/', 'system'));
+    }
+    closingTab = null;
   }
 
   function onTabClose(e: CustomEvent<string>): void {
@@ -353,6 +483,9 @@
   });
 
   onDestroy(() => {
+    clearNavigationPermit();
+    cancelHistoryWait?.();
+    clearDraftState('/profiles', 'profile-builder');
     if (cleanupShortcuts) cleanupShortcuts();
     if (cleanupCommands) cleanupCommands();
     if (PLATFORM_CONFIG.enabled) {
@@ -364,18 +497,20 @@
 <CommandPalette />
 
 <Dialog
-  open={pendingClose !== null}
-  title={pendingClose ? `Close ${pendingClose.title}?` : 'Close tab?'}
-  description={pendingClose
-    ? `${pendingClose.title} has changes that are not published yet.`
+  open={pendingAction !== null}
+  title={pendingAction ? `${pendingAction.kind === 'close' ? 'Close' : 'Leave'} ${pendingAction.title}?` : 'Unsaved changes'}
+  description={pendingAction
+    ? pendingAction.kind === 'close'
+      ? `${pendingAction.title} has changes that are not published yet.`
+      : 'Leaving this view will discard its unsaved edits.'
     : undefined}
   size="sm"
-  onclose={() => (pendingClose = null)}
-  data-testid="close-dirty-tab-dialog"
+  onclose={() => (pendingAction = null)}
+  data-testid="draft-navigation-dialog"
 >
   {#snippet footer()}
-    <Button variant="ghost" size="md" onclick={() => (pendingClose = null)}>Keep open</Button>
-    <Button size="md" onclick={confirmPendingClose}>Close tab</Button>
+    <Button variant="ghost" size="md" onclick={() => (pendingAction = null)}>{pendingAction?.kind === 'close' ? 'Keep open' : 'Stay here'}</Button>
+    <Button size="md" onclick={confirmPendingAction}>{pendingAction?.kind === 'close' ? 'Close tab' : 'Leave view'}</Button>
   {/snippet}
 </Dialog>
 

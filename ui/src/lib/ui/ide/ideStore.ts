@@ -4,12 +4,9 @@
  * Tabs are route documents (WorkspaceDocument). The editor-less artifact
  * document types were removed; `loadLayout` drops any a stored layout holds.
  *
- * Unsaved state: a feature with a draft that is not on the server calls
- * `markDirty(tabId)` (the tab id is the route, e.g. '/profiles') and
- * `clearDirty(tabId)` once it is saved or discarded. The editor tab shows a
- * dot and closing it asks first. Dirty marks are kept for routes whose tab is
- * not open, are never persisted, and a reload starts clean (in-memory drafts
- * do not survive one).
+ * Draft owners report independent dirty state. Badges aggregate by route, while
+ * navigation guards distinguish component-local drafts from shared state that
+ * survives route changes. Draft flags are never persisted.
  */
 import { writable, derived, get } from 'svelte/store';
 import type {
@@ -252,8 +249,7 @@ interface InternalIDEState {
   activeView: IDEView;
   documents: WorkspaceDocument[];
   activeDocumentId: string | null;
-  /** Tab ids with unsaved changes (see markDirty). */
-  dirtyIds: string[];
+  drafts: DraftState[];
   bottomPanelOpen: boolean;
   bottomPanelHeight: number;
   activePanelTab: PanelTab;
@@ -266,7 +262,7 @@ function createInitialState(saved: PersistedLayout | null = null): InternalIDESt
     activeView: saved?.activeView ?? 'hl7',
     documents: saved?.openTabs ?? [],
     activeDocumentId: saved?.activeTabId ?? null,
-    dirtyIds: [],
+    drafts: [],
     bottomPanelOpen: saved?.bottomPanelOpen ?? false,
     bottomPanelHeight: loadNumber(BOTTOM_PANEL_HEIGHT_KEY, 200),
     activePanelTab: saved?.activePanelTab ?? 'output',
@@ -284,9 +280,9 @@ const _store = writable<InternalIDEState>(createInitialState(savedLayout));
  * including backward-compat aliases (openTabs, activeTabId).
  */
 export const ideState = derived(_store, ($s): IDEState => {
-  const { dirtyIds, ...rest } = $s;
+  const { drafts, ...rest } = $s;
   const documents = $s.documents.map((doc) => {
-    const dirty = dirtyIds.includes(doc.id);
+    const dirty = drafts.some((draft) => draft.route === doc.id);
     return doc.dirty === dirty ? doc : { ...doc, dirty };
   });
   return {
@@ -384,28 +380,44 @@ export function closeTab(tabId: string): void {
   closeDocument(tabId);
 }
 
-/**
- * Marks a tab (by id, i.e. its route: '/profiles') as holding changes that are
- * not saved on the server; `markDirty(id, false)` is `clearDirty(id)`.
- */
+interface DraftState {
+  route: string;
+  owner: string;
+  lostOnLeave: boolean;
+}
+
+/** Report one editor's state without clearing other editors on the same route. */
+export function setDraftState(route: string, owner: string, dirty: boolean, lostOnLeave = true): void {
+  _store.update((s) => {
+    const current = s.drafts.find((draft) => draft.route === route && draft.owner === owner);
+    if ((!dirty && !current) || (dirty && current?.lostOnLeave === lostOnLeave)) return s;
+    const drafts = s.drafts.filter((draft) => draft.route !== route || draft.owner !== owner);
+    if (dirty) drafts.push({ route, owner, lostOnLeave });
+    return { ...s, drafts };
+  });
+}
+
+/** Saving, discarding or unmounting an editor releases only its own mark. */
+export function clearDraftState(route: string, owner: string): void {
+  setDraftState(route, owner, false);
+}
+
+/** Legacy single-owner API. New editors should use an explicit owner. */
 export function markDirty(id: string, dirty = true): void {
-  if (!dirty) {
-    clearDirty(id);
-    return;
-  }
-  _store.update((s) => (s.dirtyIds.includes(id) ? s : { ...s, dirtyIds: [...s.dirtyIds, id] }));
+  setDraftState(id, 'legacy', dirty);
 }
 
-/** The tab's changes were saved or discarded. */
 export function clearDirty(id: string): void {
-  _store.update((s) =>
-    s.dirtyIds.includes(id) ? { ...s, dirtyIds: s.dirtyIds.filter((entry) => entry !== id) } : s
-  );
+  clearDraftState(id, 'legacy');
 }
 
-/** Whether a tab id currently holds unsaved changes. */
 export function isDirty(id: string): boolean {
-  return get(_store).dirtyIds.includes(id);
+  return get(_store).drafts.some((draft) => draft.route === id);
+}
+
+/** Reload/unload loses shared drafts too, even if their editor isn't open. */
+export function hasDraftsToLose(route: string, leavingApp = false): boolean {
+  return get(_store).drafts.some((draft) => leavingApp || (draft.route === route && draft.lostOnLeave));
 }
 
 export function setActiveTab(tabId: string): void {

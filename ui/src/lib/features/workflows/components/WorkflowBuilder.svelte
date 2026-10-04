@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { createEventDispatcher, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import Check from '@lucide/svelte/icons/check';
   import Circle from '@lucide/svelte/icons/circle';
@@ -63,7 +63,7 @@
   import type { GetWorkflowVersionsQuery, ListWorkflowApprovalRequestsQuery, DryRunResult } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
   import { isErrorToasted } from '$lib/graphql/client';
-  import { clearDirty, markDirty } from '$lib/ui/ide/ideStore';
+  import { clearDraftState, setDraftState } from '$lib/ui/ide/ideStore';
 
   // Opening the builder no longer makes the draft "live": the untouched
   // default draft is nobody's work, so it shows no errors here and puts
@@ -94,6 +94,10 @@
   };
 
   export let managedSelection: ManagedSelection | null = null;
+  type LinkedSelection = ManagedSelection & { status: string | null };
+  const dispatch = createEventDispatcher<{ managedSelectionChange: LinkedSelection | null }>();
+  let appliedManagedSelection: LinkedSelection | null = null;
+  let managedSelectionGeneration = 0;
 
   let showPreview = false;
   let showDryRun = false;
@@ -219,15 +223,24 @@
         const currentYaml = draftToYaml($workflowDraft);
         hasUnsavedManagedChanges = currentYaml !== managedBaselineYaml;
       } catch {
-        hasUnsavedManagedChanges = false;
+        hasUnsavedManagedChanges = true;
       }
     }
   }
 
-  // The Workflows tab shows unsaved managed changes (and closing it asks) while
-  // the builder holds them; the baseline lives here, so leaving clears it.
-  $: markDirty('/workflows', hasUnsavedManagedChanges);
-  onDestroy(() => clearDirty('/workflows'));
+  // The YAML is persisted locally, but its managed baseline and definition
+  // binding live in this component. Reloading a selected version loses edits.
+  $: setDraftState('/workflows', 'managed-workflow', hasUnsavedManagedChanges);
+  onDestroy(() => {
+    managedSelectionGeneration += 1;
+    settleConfirm(false);
+    clearDraftState('/workflows', 'managed-workflow');
+  });
+
+  function reportManagedSelection(selection: ManagedSelection | null): void {
+    appliedManagedSelection = selection ? { ...selection, status: selection.status ?? null } : null;
+    dispatch('managedSelectionChange', appliedManagedSelection);
+  }
 
   function getSelectedVersionRecord(): WorkflowVersionItem | null {
     return versionHistory.find((version) => version.id === selectedVersionId) ?? null;
@@ -386,22 +399,74 @@
   }
 
   async function syncFromManagedSelection(selection: ManagedSelection) {
-    linkedWorkflowId = selection.workflowId;
-    linkedWorkflowName = selection.name;
-    linkedDescription = selection.description ?? '';
-    linkedStatus = selection.status ?? null;
-    lifecycleError = null;
-    publishEnvironment = 'staging';
-    loadedVersionNumber = selection.versionNumber ?? null;
-    compareLines = [];
-    compareError = null;
-    managedBaselineYaml = null;
-
-    await loadVersionHistory(selection.workflowId, selection.versionId ?? undefined);
-    if (selection.versionId) {
-      await loadVersionIntoBuilder(selection.versionId);
+    if (appliedManagedSelection?.workflowId === selection.workflowId &&
+        appliedManagedSelection.versionId === selection.versionId) return;
+    const generation = ++managedSelectionGeneration;
+    const confirmed = await shouldProceedWithManagedDiscard('open a different managed workflow');
+    if (generation !== managedSelectionGeneration) return;
+    if (!confirmed) {
+      dispatch('managedSelectionChange', appliedManagedSelection);
+      return;
     }
-    await refreshApprovalStateIfNeeded();
+
+    loadingVersionHistory = true;
+    loadingVersion = Boolean(selection.versionId);
+    loadingVersionId = selection.versionId ?? '';
+    lifecycleError = null;
+    try {
+      const draftBeforeRead = draftToYaml(get(workflowDraft));
+      const [history, loaded] = await Promise.all([
+        fetchWorkflowVersions(selection.workflowId, { limit: 100, offset: 0 }),
+        selection.versionId ? fetchWorkflowVersionById(selection.versionId) : null
+      ]);
+      if (generation !== managedSelectionGeneration) return;
+      const version = loaded?.workflowVersion;
+      if (selection.versionId && (!version || version.workflowId !== selection.workflowId)) {
+        throw new Error('Workflow version not found in the selected definition');
+      }
+      // Parse before changing linkage or baseline. A failed read leaves the
+      // existing managed draft and its discard protection intact.
+      const parsedDraft = version ? yamlToDraft(version.yaml) : null;
+      if (draftToYaml(get(workflowDraft)) !== draftBeforeRead) {
+        const confirmed = await shouldProceedWithManagedDiscard('open a different managed workflow');
+        if (generation !== managedSelectionGeneration) return;
+        if (!confirmed) {
+          dispatch('managedSelectionChange', appliedManagedSelection);
+          return;
+        }
+      }
+      linkedWorkflowId = selection.workflowId;
+      linkedWorkflowName = selection.name;
+      linkedDescription = selection.description ?? '';
+      linkedStatus = selection.status ?? null;
+      publishEnvironment = 'staging';
+      loadedVersionNumber = version?.versionNumber ?? null;
+      versionHistory = history.workflowVersions;
+      selectedVersionId = version?.id ?? history.workflowVersions[0]?.id ?? '';
+      versionNotes = '';
+      compareFromVersionId = '';
+      compareToVersionId = '';
+      compareLines = [];
+      compareError = null;
+      approvalStateByVersion = [];
+      approvalStateError = null;
+      lastDryRunResult = null;
+      if (parsedDraft) workflowDraft.loadDraft(parsedDraft);
+      managedBaselineYaml = parsedDraft ? draftToYaml(parsedDraft) : null;
+      setDefaultCompareVersions();
+      reportManagedSelection({ ...selection, versionNumber: loadedVersionNumber });
+    } catch (err) {
+      if (generation !== managedSelectionGeneration) return;
+      lifecycleError = err instanceof Error ? err.message : 'Failed to open managed workflow';
+      dispatch('managedSelectionChange', appliedManagedSelection);
+      if (!isErrorToasted(err)) toasts.error(lifecycleError);
+    } finally {
+      if (generation === managedSelectionGeneration) {
+        loadingVersionHistory = false;
+        loadingVersion = false;
+        loadingVersionId = '';
+      }
+    }
   }
 
   async function applyTemplate() {
@@ -423,7 +488,6 @@
       if (!linkedWorkflowId) {
         linkedWorkflowName = draft.name;
       }
-      managedBaselineYaml = null;
     } catch (err) {
       // The builder shows the new draft on success; a failure stays beside
       // the Template field until the next attempt.
@@ -508,6 +572,10 @@
       managedBaselineYaml = null;
       compareLines = [];
       compareError = null;
+      reportManagedSelection({
+        workflowId: linkedWorkflowId, name: linkedWorkflowName, description: linkedDescription || null,
+        status: linkedStatus, versionId: null, versionNumber: null
+      });
       toasts.success(`Created managed workflow: ${linkedWorkflowName}`);
     } catch (err) {
       lifecycleError = err instanceof Error ? err.message : 'Failed to create workflow definition';
@@ -539,6 +607,10 @@
       loadedVersionNumber = version.versionNumber;
       versionNotes = '';
       managedBaselineYaml = yaml;
+      reportManagedSelection({
+        workflowId: linkedWorkflowId, name: linkedWorkflowName, description: linkedDescription || null,
+        status: linkedStatus, versionId: version.id, versionNumber: version.versionNumber
+      });
       await loadVersionHistory(linkedWorkflowId, version.id);
       toasts.success(`Saved workflow version v${version.versionNumber}`);
     } catch (err) {
@@ -553,35 +625,48 @@
 
   async function loadVersionIntoBuilder(versionId: string) {
     if (!versionId) return;
-    if (!(await shouldProceedWithManagedDiscard('load a different managed version'))) {
-      return;
-    }
+    const generation = ++managedSelectionGeneration;
+    const confirmed = await shouldProceedWithManagedDiscard('load a different managed version');
+    if (generation !== managedSelectionGeneration || !confirmed) return;
     loadingVersion = true;
     loadingVersionId = versionId;
     lifecycleError = null;
 
     try {
+      const draftBeforeRead = draftToYaml(get(workflowDraft));
       const data = await fetchWorkflowVersionById(versionId);
+      if (generation !== managedSelectionGeneration) return;
       if (!data.workflowVersion) {
         throw new Error('Workflow version not found');
       }
 
       const parsedDraft = yamlToDraft(data.workflowVersion.yaml);
+      if (draftToYaml(get(workflowDraft)) !== draftBeforeRead) {
+        const confirmed = await shouldProceedWithManagedDiscard('load a different managed version');
+        if (generation !== managedSelectionGeneration || !confirmed) return;
+      }
       workflowDraft.loadDraft(parsedDraft);
       selectedVersionId = data.workflowVersion.id;
       loadedVersionNumber = data.workflowVersion.versionNumber;
       linkedWorkflowId = data.workflowVersion.workflowId;
       managedBaselineYaml = draftToYaml(parsedDraft);
+      reportManagedSelection({
+        workflowId: linkedWorkflowId, name: linkedWorkflowName, description: linkedDescription || null,
+        status: linkedStatus, versionId: selectedVersionId, versionNumber: loadedVersionNumber
+      });
       await refreshApprovalStateIfNeeded();
       toasts.success(`Loaded v${data.workflowVersion.versionNumber} into builder`);
     } catch (err) {
+      if (generation !== managedSelectionGeneration) return;
       lifecycleError = err instanceof Error ? err.message : 'Failed to load workflow version';
       if (!isErrorToasted(err)) {
         toasts.error(lifecycleError);
       }
     } finally {
-      loadingVersion = false;
-      loadingVersionId = '';
+      if (generation === managedSelectionGeneration) {
+        loadingVersion = false;
+        loadingVersionId = '';
+      }
     }
   }
 
@@ -646,7 +731,6 @@
       return;
     }
     workflowDraft.reset();
-    managedBaselineYaml = null;
   }
 
   async function promoteSnapshotToServer(event: CustomEvent<{ snapshotId: string }>) {
@@ -734,7 +818,7 @@
     compareLines = [];
     compareError = null;
     lifecycleError = null;
-    selectionSyncKey = '';
+    reportManagedSelection(null);
     approvalStateByVersion = [];
     approvalStateError = null;
   }

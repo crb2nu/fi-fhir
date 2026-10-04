@@ -6,7 +6,7 @@
   there.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
   import FileStack from '@lucide/svelte/icons/file-stack';
   import Plus from '@lucide/svelte/icons/plus';
@@ -14,6 +14,7 @@
   import { Badge, Button, EmptyState, IconButton, Input, Table, Td, Th, Tr } from '$lib/ui/primitives';
   import DefinitionDetail from './DefinitionDetail.svelte';
   import NewDefinitionForm from './NewDefinitionForm.svelte';
+  import ConfirmModal from '$lib/ui/ConfirmModal.svelte';
   import { fetchDefinitions, type DefinitionDetail as Detail, type DefinitionRow } from './definitionsApi';
   import { describeDefinitionFailure } from './definitionsErrors';
   import { validationLabel } from './definitionDraft';
@@ -25,9 +26,10 @@
     writeBlocked: string[] | null;
     /** A deep link's target (`?definition=&revision=`), selected on mount. */
     initial?: { definitionId: string; revisionId: string } | null | undefined;
+    ondirtychange?: ((dirty: boolean) => void) | undefined;
   }
 
-  let { writeBlocked, initial = null }: Props = $props();
+  let { writeBlocked, initial = null, ondirtychange }: Props = $props();
 
   let rows = $state<DefinitionRow[]>([]);
   let loading = $state(true);
@@ -36,8 +38,14 @@
   let includeRetired = $state(false);
   let selected = $state<{ definitionId: string; revisionId: string } | null>(null);
   let creating = $state(false);
+  let draftDirty = $state(false);
+  let pendingDiscard = $state<(() => void) | null>(null);
   let now = $state(new Date());
   let loadSeq = 0;
+  $effect(() => {
+    ondirtychange?.(draftDirty);
+  });
+  onDestroy(() => ondirtychange?.(false));
 
   const writeReason = $derived(
     writeBlocked ? `Read only: this identity does not hold ${writeBlocked.join(', ')}.` : undefined
@@ -84,8 +92,21 @@
   }
 
   function select(row: DefinitionRow): void {
-    creating = false;
-    selected = { definitionId: row.definitionId, revisionId: row.revisionId };
+    leaveDraft(() => {
+      creating = false;
+      selected = { definitionId: row.definitionId, revisionId: row.revisionId };
+    });
+  }
+
+  function leaveDraft(apply: () => void): void {
+    if (creating && draftDirty) pendingDiscard = apply;
+    else apply();
+  }
+
+  function confirmDiscard(): void {
+    const apply = pendingDiscard;
+    pendingDiscard = null;
+    apply?.();
   }
 
   function changed(detail: Detail): void {
@@ -104,6 +125,19 @@
     void load();
   }
 </script>
+
+{#if pendingDiscard}
+  <ConfirmModal
+    open
+    title="Discard definition changes?"
+    message="This definition has not been created. Continuing discards its unsaved changes."
+    confirmText="Discard changes"
+    cancelText="Keep editing"
+    variant="danger"
+    on:confirm={confirmDiscard}
+    on:cancel={() => (pendingDiscard = null)}
+  />
+{/if}
 
 <div class="definitions">
   <div class="list">
@@ -179,7 +213,12 @@
 
   <aside class="detail-pane" aria-label="Definition details">
     {#if creating}
-      <NewDefinitionForm {writeBlocked} oncreated={changed} oncancel={() => (creating = false)} />
+      <NewDefinitionForm
+        {writeBlocked}
+        oncreated={changed}
+        oncancel={() => leaveDraft(() => (creating = false))}
+        ondirtychange={(dirty) => (draftDirty = dirty)}
+      />
     {:else if selected}
       {#key `${selected.definitionId}/${selected.revisionId}`}
         <DefinitionDetail
