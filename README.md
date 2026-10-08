@@ -24,7 +24,7 @@ outbox with retry and circuit breaking.
 
 ## 60-second demo
 
-With Go 1.26.6 or newer, parse a sample ADT admit from this repo into a semantic event:
+With Go 1.26.9 or newer, parse a sample ADT admit from this repo into a semantic event:
 
 ```bash
 git clone https://github.com/crb2nu/fi-fhir.git && cd fi-fhir
@@ -140,7 +140,7 @@ files before they are transmitted.
 
 ### CLI
 
-Requires Go 1.26.6 or newer (see [go.mod](go.mod)).
+Requires Go 1.26.9 or newer (see [go.mod](go.mod)).
 
 ```bash
 # Build from the GitHub mirror

@@ -49,7 +49,7 @@
 GOLANGCI_LINT_VERSION := v2.12.2
 GOVULNCHECK_VERSION := v1.6.0
 GOSEC_VERSION := v2.27.1
-GO_MIN_VERSION := 1.26.5
+GO_MIN_VERSION := 1.26.9
 NPM_VERSION := 10.9.3
 
 # Build the CLI
@@ -648,7 +648,7 @@ dev-setup: check-deps setup-hooks tidy
 # Check development dependencies
 check-deps:
 	@echo "Checking Go version..."
-	@go env GOVERSION | grep -Eq '^go1\.(26\.([5-9]|[1-9][0-9]+)|2[7-9](\.|$$)|[3-9][0-9](\.|$$))' || { \
+	@go env GOVERSION | grep -Eq '^go1\.(26\.(9|[1-9][0-9]+)|2[7-9](\.|$$)|[3-9][0-9](\.|$$))' || { \
 		echo "❌ Go $(GO_MIN_VERSION)+ required. Current: $$(go version)"; \
 		exit 1; \
 	}

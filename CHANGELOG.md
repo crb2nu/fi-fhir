@@ -49,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Go security baseline** — require Go 1.26.9 in the module, CI, and Docker
+  builds and update `golang.org/x/net` to v0.60.0 to address the October 8
+  standard-library and HTTP/2 advisories found by the blocking vulnerability gate.
+
 - Add the `clinical:read` GraphQL transport role for the ten PHI-reading event, patient, and projection queries while preserving the `graphql:operator` compatibility grant.
 
 ### Added

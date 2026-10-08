@@ -1,5 +1,5 @@
 # Build stage
-ARG GO_IMAGE=golang:1.26.6-alpine
+ARG GO_IMAGE=golang:1.26.9-alpine
 FROM ${GO_IMAGE} AS builder
 
 # Install git for go mod download and ca-certificates for HTTPS
