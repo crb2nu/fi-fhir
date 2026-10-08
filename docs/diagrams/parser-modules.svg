@@ -1,285 +1,145 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3320 660">
-  <defs>
-    <marker id="arrow" viewBox="0 0 10.0 10.0" refX="10.0" refY="5.0" markerWidth="10.0" markerHeight="10.0" orient="auto-start-reverse"><path d="M 0 0 L 10.0 5.0 L 0 10.0 Z" fill="#334155"/></marker>
-    <filter id="glass_shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="8" stdDeviation="16" flood-opacity="0.4"/></filter>
-  </defs>
-<script type="text/javascript"><![CDATA[
-// Interactive SVG logic for pan, zoom, and highlighting
-
-(function() {
-    let svg = document.querySelector('svg');
-    if (!svg) return;
-
-    // Pan and Zoom state
-    let state = {
-        panning: false,
-        pointX: 0,
-        pointY: 0,
-        scale: 1,
-        viewBox: { x: 0, y: 0, w: 0, h: 0 }
-    };
-
-    // Initialize viewBox
-    const vb = svg.viewBox.baseVal;
-    state.viewBox = { x: vb.x, y: vb.y, w: vb.width, h: vb.height };
-
-    // Mouse events for Panning
-    svg.addEventListener('mousedown', (e) => {
-        state.panning = true;
-        state.pointX = e.clientX;
-        state.pointY = e.clientY;
-        svg.style.cursor = 'grabbing';
-    });
-
-    window.addEventListener('mouseup', () => {
-        state.panning = false;
-        svg.style.cursor = 'grab';
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if (!state.panning) return;
-        e.preventDefault();
-        
-        const dx = (e.clientX - state.pointX) / state.scale;
-        const dy = (e.clientY - state.pointY) / state.scale;
-        
-        state.viewBox.x -= dx;
-        state.viewBox.y -= dy;
-        
-        state.pointX = e.clientX;
-        state.pointY = e.clientY;
-        
-        updateViewBox();
-    });
-
-    // Wheel event for Zooming
-    svg.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        
-        const zoomSpeed = 0.1;
-        const delta = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-        
-        // Zoom centered on mouse
-        // Need to convert screen coords to SVG coords
-        // Approximate for now: zoom center of viewbox
-        
-        const w = state.viewBox.w;
-        const h = state.viewBox.h;
-        
-        state.viewBox.w *= delta;
-        state.viewBox.h *= delta;
-        
-        // Adjust x/y to keep center stable
-        state.viewBox.x += (w - state.viewBox.w) / 2;
-        state.viewBox.y += (h - state.viewBox.h) / 2;
-        
-        state.scale /= delta;
-        
-        updateViewBox();
-    });
-
-    function updateViewBox() {
-        svg.setAttribute('viewBox', `${state.viewBox.x} ${state.viewBox.y} ${state.viewBox.w} ${state.viewBox.h}`);
-    }
-
-    // Highlighting Logic
-    // Assumes nodes have IDs and edges connect them
-    // This requires structure in the SVG that we need to ensure the renderer produces
-    // For now, let's just make nodes clickable to log their ID
-    
-    const nodes = document.querySelectorAll('g[id^="node-"]');
-    nodes.forEach(node => {
-        node.style.cursor = 'pointer';
-        node.addEventListener('mouseenter', () => {
-            node.style.opacity = '0.8';
-        });
-        node.addEventListener('mouseleave', () => {
-            node.style.opacity = '1.0';
-        });
-        node.addEventListener('click', (e) => {
-            console.log('Clicked node:', node.id);
-            e.stopPropagation();
-        });
-    });
-
-})();
-
-]]></script>
-  <g id="bg">
-    <rect x="0" y="0" width="3320.0" height="660.0"  fill="#0B1220"/>
-  </g>
-  <g id="edges">
-    <path d="M 1930.0 170.0 L 1930.0 330.0 L 985.0 330.0 L 985.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1930.0 170.0 L 1930.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1930.0 170.0 L 1930.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1930.0 170.0 L 1930.0 250.0 L 1525.0 250.0 L 1525.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1930.0 170.0 L 1930.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1930.0 170.0 L 1930.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 715.0 330.0 L 715.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 985.0 330.0 L 985.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 985.0 250.0 L 985.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 2065.0 330.0 L 2065.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 1525.0 330.0 L 1525.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 2605.0 250.0 L 2605.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 2335.0 250.0 L 2335.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 2875.0 250.0 L 2875.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 1795.0 250.0 L 1795.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 2605.0 330.0 L 2605.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 985.0 250.0 L 985.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 715.0 330.0 L 715.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 985.0 330.0 L 985.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1390.0 170.0 L 1390.0 250.0 L 985.0 250.0 L 985.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 850.0 170.0 L 850.0 250.0 L 445.0 250.0 L 445.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 850.0 170.0 L 850.0 250.0 L 445.0 250.0 L 445.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 850.0 170.0 L 850.0 250.0 L 445.0 250.0 L 445.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 250.0 L 1525.0 250.0 L 1525.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 250.0 L 175.0 250.0 L 175.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 330.0 L 985.0 330.0 L 985.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1120.0 170.0 L 1120.0 330.0 L 2335.0 330.0 L 2335.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 250.0 L 715.0 250.0 L 715.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 250.0 L 1255.0 250.0 L 1255.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 250.0 L 2335.0 250.0 L 2335.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 330.0 L 715.0 330.0 L 715.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 250.0 L 1525.0 250.0 L 1525.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1660.0 170.0 L 1660.0 250.0 L 3145.0 250.0 L 3145.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2470.0 170.0 L 2470.0 250.0 L 1255.0 250.0 L 1255.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2470.0 170.0 L 2470.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2470.0 170.0 L 2470.0 330.0 L 1255.0 330.0 L 1255.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2470.0 170.0 L 2470.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2470.0 170.0 L 2470.0 250.0 L 1525.0 250.0 L 1525.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2470.0 170.0 L 2470.0 250.0 L 3145.0 250.0 L 3145.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2470.0 170.0 L 2470.0 330.0 L 2065.0 330.0 L 2065.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2200.0 170.0 L 2200.0 250.0 L 2605.0 250.0 L 2605.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2200.0 170.0 L 2200.0 250.0 L 2065.0 250.0 L 2065.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2200.0 170.0 L 2200.0 330.0 L 1795.0 330.0 L 1795.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2200.0 170.0 L 2200.0 250.0 L 1525.0 250.0 L 1525.0 330.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-  </g>
-  <g id="nodes">
-    <rect x="1855.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1875.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="1940.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">edi</text>
-    <text x="1940.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="910.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="930.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="995.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">strconv</text>
-    <text x="995.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1180.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1200.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="1265.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">strings</text>
-    <text x="1265.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1720.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1740.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="1805.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">time</text>
-    <text x="1805.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1450.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1470.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="1535.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">events</text>
-    <text x="1535.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1990.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2010.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="2075.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">fmt</text>
-    <text x="2075.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1315.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1335.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="1400.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">companion</text>
-    <text x="1400.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="640.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="660.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="725.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">regexp</text>
-    <text x="725.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="910.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="930.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="995.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">edi</text>
-    <text x="995.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1990.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2010.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="2075.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">validate</text>
-    <text x="2075.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1450.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1470.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="1535.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">sync</text>
-    <text x="1535.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2530.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2550.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="2615.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">json</text>
-    <text x="2615.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2260.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2280.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="2345.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">io</text>
-    <text x="2345.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2800.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2820.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="2885.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">os</text>
-    <text x="2885.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1720.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1740.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="1805.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">filepath</text>
-    <text x="1805.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2530.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2550.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="2615.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">yaml.v3</text>
-    <text x="2615.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="775.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="795.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="860.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">builtin</text>
-    <text x="860.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="370.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="390.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="455.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">companion</text>
-    <text x="455.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1045.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1065.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="1130.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">cda</text>
-    <text x="1130.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="100.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="120.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="185.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">bytes</text>
-    <text x="185.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2260.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2280.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="2345.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">xmlquery</text>
-    <text x="2345.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1585.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1605.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="1670.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">csv</text>
-    <text x="1670.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="640.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="660.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="725.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">csv</text>
-    <text x="725.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1180.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1200.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="1265.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">errors</text>
-    <text x="1265.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="3070.0" y="330.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="3090.0" cy="365.0" r="4" fill="#3B82F6"/>
-    <text x="3155.0" y="360.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">profile</text>
-    <text x="3155.0" y="380.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2395.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2415.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="2480.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">hl7v2</text>
-    <text x="2480.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2125.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2145.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="2210.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">fhir</text>
-    <text x="2210.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-  </g>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 15.1.0 (20260618.0150)
+ -->
+<!-- Title: G Pages: 1 -->
+<svg xml:space="preserve" width="740pt" height="294pt"
+ viewBox="0.00 0.00 740.00 294.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(21.6 272.88)">
+<title>G</title>
+<polygon fill="white" stroke="none" points="-21.6,21.6 -21.6,-272.88 718.6,-272.88 718.6,21.6 -21.6,21.6"/>
+<!-- internal_parser_cda -->
+<g id="node1" class="node">
+<title>internal_parser_cda</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M563.62,-153.28C563.62,-153.28 472.62,-153.28 472.62,-153.28 466.62,-153.28 460.62,-147.28 460.62,-141.28 460.62,-141.28 460.62,-129.28 460.62,-129.28 460.62,-123.28 466.62,-117.28 472.62,-117.28 472.62,-117.28 563.62,-117.28 563.62,-117.28 569.62,-117.28 575.62,-123.28 575.62,-129.28 575.62,-129.28 575.62,-141.28 575.62,-141.28 575.62,-147.28 569.62,-153.28 563.62,-153.28"/>
+<text xml:space="preserve" text-anchor="middle" x="518.12" y="-130.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">internal/parser/cda</text>
+</g>
+<!-- pkg_events -->
+<g id="node8" class="node">
+<title>pkg_events</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M681.62,-153.28C681.62,-153.28 631.88,-153.28 631.88,-153.28 625.88,-153.28 619.88,-147.28 619.88,-141.28 619.88,-141.28 619.88,-129.28 619.88,-129.28 619.88,-123.28 625.88,-117.28 631.88,-117.28 631.88,-117.28 681.62,-117.28 681.62,-117.28 687.62,-117.28 693.62,-123.28 693.62,-129.28 693.62,-129.28 693.62,-141.28 693.62,-141.28 693.62,-147.28 687.62,-153.28 681.62,-153.28"/>
+<text xml:space="preserve" text-anchor="middle" x="656.75" y="-130.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/events</text>
+</g>
+<!-- internal_parser_cda&#45;&gt;pkg_events -->
+<g id="edge1" class="edge">
+<title>internal_parser_cda&#45;&gt;pkg_events</title>
+<path fill="none" stroke="#56718b" d="M575.88,-135.28C587.91,-135.28 600.44,-135.28 611.9,-135.28"/>
+<polygon fill="#56718b" stroke="#56718b" points="611.64,-137.55 618.14,-135.28 611.64,-133 611.64,-137.55"/>
+</g>
+<!-- pkg_profile -->
+<g id="node9" class="node">
+<title>pkg_profile</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M680.5,-104.28C680.5,-104.28 633,-104.28 633,-104.28 627,-104.28 621,-98.28 621,-92.28 621,-92.28 621,-80.28 621,-80.28 621,-74.28 627,-68.28 633,-68.28 633,-68.28 680.5,-68.28 680.5,-68.28 686.5,-68.28 692.5,-74.28 692.5,-80.28 692.5,-80.28 692.5,-92.28 692.5,-92.28 692.5,-98.28 686.5,-104.28 680.5,-104.28"/>
+<text xml:space="preserve" text-anchor="middle" x="656.75" y="-81.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/profile</text>
+</g>
+<!-- internal_parser_cda&#45;&gt;pkg_profile -->
+<g id="edge2" class="edge">
+<title>internal_parser_cda&#45;&gt;pkg_profile</title>
+<path fill="none" stroke="#56718b" d="M570.39,-116.89C584.57,-111.81 599.8,-106.34 613.41,-101.46"/>
+<polygon fill="#56718b" stroke="#56718b" points="614.02,-103.66 619.37,-99.33 612.48,-99.38 614.02,-103.66"/>
+</g>
+<!-- internal_parser_csv -->
+<g id="node2" class="node">
+<title>internal_parser_csv</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M562.88,-104.28C562.88,-104.28 473.38,-104.28 473.38,-104.28 467.38,-104.28 461.38,-98.28 461.38,-92.28 461.38,-92.28 461.38,-80.28 461.38,-80.28 461.38,-74.28 467.38,-68.28 473.38,-68.28 473.38,-68.28 562.88,-68.28 562.88,-68.28 568.88,-68.28 574.88,-74.28 574.88,-80.28 574.88,-80.28 574.88,-92.28 574.88,-92.28 574.88,-98.28 568.88,-104.28 562.88,-104.28"/>
+<text xml:space="preserve" text-anchor="middle" x="518.12" y="-81.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">internal/parser/csv</text>
+</g>
+<!-- internal_parser_csv&#45;&gt;pkg_events -->
+<g id="edge3" class="edge">
+<title>internal_parser_csv&#45;&gt;pkg_events</title>
+<path fill="none" stroke="#56718b" d="M570.39,-104.66C584.19,-109.61 598.98,-114.92 612.31,-119.7"/>
+<polygon fill="#56718b" stroke="#56718b" points="611.23,-121.73 618.12,-121.78 612.77,-117.45 611.23,-121.73"/>
+</g>
+<!-- internal_parser_csv&#45;&gt;pkg_profile -->
+<g id="edge4" class="edge">
+<title>internal_parser_csv&#45;&gt;pkg_profile</title>
+<path fill="none" stroke="#56718b" d="M575.09,-86.28C587.78,-86.28 601.07,-86.28 613.11,-86.28"/>
+<polygon fill="#56718b" stroke="#56718b" points="612.81,-88.55 619.31,-86.28 612.81,-84 612.81,-88.55"/>
+</g>
+<!-- internal_parser_edi -->
+<g id="node3" class="node">
+<title>internal_parser_edi</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M562.12,-251.28C562.12,-251.28 474.12,-251.28 474.12,-251.28 468.12,-251.28 462.12,-245.28 462.12,-239.28 462.12,-239.28 462.12,-227.28 462.12,-227.28 462.12,-221.28 468.12,-215.28 474.12,-215.28 474.12,-215.28 562.12,-215.28 562.12,-215.28 568.12,-215.28 574.12,-221.28 574.12,-227.28 574.12,-227.28 574.12,-239.28 574.12,-239.28 574.12,-245.28 568.12,-251.28 562.12,-251.28"/>
+<text xml:space="preserve" text-anchor="middle" x="518.12" y="-228.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">internal/parser/edi</text>
+</g>
+<!-- internal_parser_edi&#45;&gt;pkg_events -->
+<g id="edge5" class="edge">
+<title>internal_parser_edi&#45;&gt;pkg_events</title>
+<path fill="none" stroke="#56718b" d="M570.81,-214.88C574.16,-213.14 577.43,-211.27 580.5,-209.28 601.73,-195.53 621.94,-175.09 636.07,-159.17"/>
+<polygon fill="#56718b" stroke="#56718b" points="637.43,-161.07 639.99,-154.67 634,-158.08 637.43,-161.07"/>
+</g>
+<!-- internal_parser_edi_companion -->
+<g id="node4" class="node">
+<title>internal_parser_edi_companion</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M407.75,-134.28C407.75,-134.28 257.5,-134.28 257.5,-134.28 251.5,-134.28 245.5,-128.28 245.5,-122.28 245.5,-122.28 245.5,-110.28 245.5,-110.28 245.5,-104.28 251.5,-98.28 257.5,-98.28 257.5,-98.28 407.75,-98.28 407.75,-98.28 413.75,-98.28 419.75,-104.28 419.75,-110.28 419.75,-110.28 419.75,-122.28 419.75,-122.28 419.75,-128.28 413.75,-134.28 407.75,-134.28"/>
+<text xml:space="preserve" text-anchor="middle" x="332.62" y="-111.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">internal/parser/edi/companion</text>
+</g>
+<!-- internal_parser_edi_companion&#45;&gt;internal_parser_edi -->
+<g id="edge6" class="edge">
+<title>internal_parser_edi_companion&#45;&gt;internal_parser_edi</title>
+<path fill="none" stroke="#56718b" d="M353.99,-134.65C377.28,-154.94 417.18,-187.61 455.75,-209.28 457.06,-210.01 458.4,-210.74 459.75,-211.45"/>
+<polygon fill="#56718b" stroke="#56718b" points="458.49,-213.36 465.33,-214.21 460.52,-209.29 458.49,-213.36"/>
+</g>
+<!-- pkg_validate -->
+<g id="node10" class="node">
+<title>pkg_validate</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M685,-36.28C685,-36.28 628.5,-36.28 628.5,-36.28 622.5,-36.28 616.5,-30.28 616.5,-24.28 616.5,-24.28 616.5,-12.28 616.5,-12.28 616.5,-6.28 622.5,-0.28 628.5,-0.28 628.5,-0.28 685,-0.28 685,-0.28 691,-0.28 697,-6.28 697,-12.28 697,-12.28 697,-24.28 697,-24.28 697,-30.28 691,-36.28 685,-36.28"/>
+<text xml:space="preserve" text-anchor="middle" x="656.75" y="-13.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/validate</text>
+</g>
+<!-- internal_parser_edi_companion&#45;&gt;pkg_validate -->
+<g id="edge7" class="edge">
+<title>internal_parser_edi_companion&#45;&gt;pkg_validate</title>
+<path fill="none" stroke="#56718b" d="M347.77,-97.97C368.36,-72.99 409.23,-29.4 455.75,-12.28 505.36,5.98 566.67,0.41 608.24,-7.11"/>
+<polygon fill="#56718b" stroke="#56718b" points="607.72,-9.33 614.53,-8.3 608.57,-4.86 607.72,-9.33"/>
+</g>
+<!-- internal_parser_edi_companion_builtin -->
+<g id="node5" class="node">
+<title>internal_parser_edi_companion_builtin</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M197.5,-134.28C197.5,-134.28 12,-134.28 12,-134.28 6,-134.28 0,-128.28 0,-122.28 0,-122.28 0,-110.28 0,-110.28 0,-104.28 6,-98.28 12,-98.28 12,-98.28 197.5,-98.28 197.5,-98.28 203.5,-98.28 209.5,-104.28 209.5,-110.28 209.5,-110.28 209.5,-122.28 209.5,-122.28 209.5,-128.28 203.5,-134.28 197.5,-134.28"/>
+<text xml:space="preserve" text-anchor="middle" x="104.75" y="-111.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">internal/parser/edi/companion/builtin</text>
+</g>
+<!-- internal_parser_edi_companion_builtin&#45;&gt;internal_parser_edi_companion -->
+<g id="edge8" class="edge">
+<title>internal_parser_edi_companion_builtin&#45;&gt;internal_parser_edi_companion</title>
+<path fill="none" stroke="#56718b" d="M209.76,-116.28C218.9,-116.28 228.11,-116.28 237.16,-116.28"/>
+<polygon fill="#56718b" stroke="#56718b" points="237.05,-118.55 243.55,-116.28 237.05,-114 237.05,-118.55"/>
+</g>
+<!-- internal_parser_fhir -->
+<g id="node6" class="node">
+<title>internal_parser_fhir</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M562.12,-202.28C562.12,-202.28 474.12,-202.28 474.12,-202.28 468.12,-202.28 462.12,-196.28 462.12,-190.28 462.12,-190.28 462.12,-178.28 462.12,-178.28 462.12,-172.28 468.12,-166.28 474.12,-166.28 474.12,-166.28 562.12,-166.28 562.12,-166.28 568.12,-166.28 574.12,-172.28 574.12,-178.28 574.12,-178.28 574.12,-190.28 574.12,-190.28 574.12,-196.28 568.12,-202.28 562.12,-202.28"/>
+<text xml:space="preserve" text-anchor="middle" x="518.12" y="-179.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">internal/parser/fhir</text>
+</g>
+<!-- internal_parser_fhir&#45;&gt;pkg_events -->
+<g id="edge9" class="edge">
+<title>internal_parser_fhir&#45;&gt;pkg_events</title>
+<path fill="none" stroke="#56718b" d="M570.39,-165.89C584.19,-160.94 598.98,-155.64 612.31,-150.86"/>
+<polygon fill="#56718b" stroke="#56718b" points="612.77,-153.11 618.12,-148.77 611.23,-148.83 612.77,-153.11"/>
+</g>
+<!-- internal_parser_hl7v2 -->
+<g id="node7" class="node">
+<title>internal_parser_hl7v2</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M568.5,-55.28C568.5,-55.28 467.75,-55.28 467.75,-55.28 461.75,-55.28 455.75,-49.28 455.75,-43.28 455.75,-43.28 455.75,-31.28 455.75,-31.28 455.75,-25.28 461.75,-19.28 467.75,-19.28 467.75,-19.28 568.5,-19.28 568.5,-19.28 574.5,-19.28 580.5,-25.28 580.5,-31.28 580.5,-31.28 580.5,-43.28 580.5,-43.28 580.5,-49.28 574.5,-55.28 568.5,-55.28"/>
+<text xml:space="preserve" text-anchor="middle" x="518.12" y="-32.25" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">internal/parser/hl7v2</text>
+</g>
+<!-- internal_parser_hl7v2&#45;&gt;pkg_events -->
+<g id="edge10" class="edge">
+<title>internal_parser_hl7v2&#45;&gt;pkg_events</title>
+<path fill="none" stroke="#56718b" d="M570.58,-55.65C574.07,-57.67 577.41,-59.87 580.5,-62.28 601.82,-78.89 596.6,-93 616.5,-111.28 616.76,-111.52 617.03,-111.76 617.3,-112"/>
+<polygon fill="#56718b" stroke="#56718b" points="615.65,-113.59 622.13,-115.92 618.52,-110.06 615.65,-113.59"/>
+</g>
+<!-- internal_parser_hl7v2&#45;&gt;pkg_profile -->
+<g id="edge11" class="edge">
+<title>internal_parser_hl7v2&#45;&gt;pkg_profile</title>
+<path fill="none" stroke="#56718b" d="M570.39,-55.66C584.57,-60.75 599.8,-66.21 613.41,-71.1"/>
+<polygon fill="#56718b" stroke="#56718b" points="612.48,-73.18 619.37,-73.23 614.02,-68.9 612.48,-73.18"/>
+</g>
+<!-- internal_parser_hl7v2&#45;&gt;pkg_validate -->
+<g id="edge12" class="edge">
+<title>internal_parser_hl7v2&#45;&gt;pkg_validate</title>
+<path fill="none" stroke="#56718b" d="M580.64,-28.72C589.96,-27.43 599.44,-26.11 608.39,-24.86"/>
+<polygon fill="#56718b" stroke="#56718b" points="608.48,-27.15 614.6,-24 607.85,-22.64 608.48,-27.15"/>
+</g>
+</g>
 </svg>

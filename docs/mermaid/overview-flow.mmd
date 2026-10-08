@@ -1,61 +1,24 @@
 flowchart TB
-  subgraph AUTHOR["Authoring — Mapping Studio IDE"]
-    SAMPLE[Sample messages]
-    SESSION[Integration session<br/>profile draft + workflow draft]
-    PREVIEW[Preview run<br/>diagnostics + lineage, no side effects]
-    SIMULATE[Workflow simulation<br/>baseline vs candidate]
-    SAMPLE --> SESSION --> PREVIEW --> SIMULATE
+  accTitle: fi-fhir authoring and delivery
+  accDescr: Mapping Studio authors immutable definitions. The server admits messages durably before dispatching deliveries and exposes receipts for verification. The CLI also runs independently.
+
+  STUDIO["Mapping Studio<br/>samples · profiles · workflows"]
+  PREVIEW["Session preview + simulation<br/>diagnostics · lineage · recorded runs"]
+  DEFINITION["Integration definition<br/>compiled connections + registry profile/workflow"]
+  RELEASE["Validate → approve → publish<br/>Operator deploys the release"]
+  STUDIO --> PREVIEW --> DEFINITION --> RELEASE
+
+  subgraph SERVER["Integration engine · fi-fhir serve"]
+    INPUT["MLLP · authenticated HTTP · S3/SFTP batch"]
+    KERNEL["Resolve immutable revision<br/>parse → project → plan delivery"]
+    STORE["PostgreSQL transaction<br/>receipt + canonical events + lineage + outbox"]
+    DISPATCH["Delivery worker<br/>retry · circuit breaker · dead letter queue"]
+    OUTPUT["Configured destinations<br/>HTTPS · FHIR · Kafka"]
+    INPUT --> KERNEL --> STORE --> DISPATCH --> OUTPUT
   end
 
-  subgraph LIFECYCLE["Deployment lifecycle — signed, versioned"]
-    LC[draft → validated → approved<br/>→ published → deployed]
-    RETIRE[paused / retired]
-    LC --> RETIRE
-  end
-
-  subgraph INGEST["Ingestion — fi-fhir serve"]
-    MLLP[MLLP listener<br/>mTLS, CIDR allowlist, AA/AE/AR ACK]
-    HTTP[HTTP POST /v1/hl7v2<br/>bearer or HMAC]
-    BATCH[Batch worker<br/>S3 / SFTP, leases + checkpoints]
-  end
-
-  subgraph KERNEL["Message processor — shared kernel"]
-    RESOLVE[Resolve immutable revision<br/>sha256 digest verified]
-    PARSE[Parse + project<br/>HL7v2 ADT^A01]
-    PLAN[Workflow planner<br/>routes + CEL filters, plans only]
-    RESOLVE --> PARSE --> PLAN
-  end
-
-  subgraph DURABLE["Durable submission — single PostgreSQL transaction"]
-    RECEIPT[Receipts, canonical events, lineage]
-    OUTBOX[(Delivery outbox)]
-    RECEIPT --> OUTBOX
-  end
-
-  subgraph DELIVER["Delivery dispatcher"]
-    RETRY[Retry with backoff<br/>per-destination circuit breaker]
-    KAFKA[Kafka]
-    DLQ[(Dead letter queue)]
-    RETRY --> KAFKA
-    RETRY --> DLQ
-  end
-
-  subgraph CLIPLANE["CLI plane — fi-fhir parse / workflow"]
-    FORMATS[HL7v2 · CSV · EDI X12 · CDA]
-    EVENTS[Canonical events + warnings]
-    ENGINE[Workflow engine<br/>routes → transforms → actions]
-    ACTIONS[log · webhook · fhir · email · exec<br/>file · database · queue · event_store]
-    FORMATS --> EVENTS --> ENGINE --> ACTIONS
-  end
-
-  SIMULATE --> LC
-  LC -. gates every message .-> INGEST
-
-  MLLP --> RESOLVE
-  HTTP --> RESOLVE
-  BATCH --> RESOLVE
-  PLAN --> RECEIPT
-  OUTBOX --> RETRY
-  DLQ -. replay / resubmit .-> RETRY
-
-  PREVIEW -. same kernel, preview mode .-> RESOLVE
+  RELEASE -. admission gate .-> KERNEL
+  PREVIEW -. shared kernel in preview mode .-> KERNEL
+  VERIFY["Verification + Operator<br/>admissions · statistics · retention · attempts"]
+  STORE --> VERIFY
+  DISPATCH --> VERIFY

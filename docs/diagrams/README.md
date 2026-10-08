@@ -1,28 +1,51 @@
-# Architecture Diagrams
+# Architecture diagrams
 
-This directory contains **generated** diagrams to help new contributors understand how `fi-fhir` is organized.
+The SVGs in this directory are generated from the current Go source with the
+workspace's `py-diagram-gen`, `py-sprite-kit`, and `py-visual-kit` libraries.
 
-## Diagrams
+| Diagram | Source |
+| --- | --- |
+| [Parser packages](parser-modules.svg) | `internal/parser/`, including HL7v2, CSV, EDI, CDA, and FHIR |
+| [Public packages](pkg-modules.svg) | `pkg/` and its repository imports |
+| [CLI call graph](cli-call-graph.svg) | Static calls from `cmd/fi-fhir`'s `main`, to depth 3 |
 
-- `parser-modules.svg` — Go package dependencies within `internal/parser/` (HL7v2, CSV, EDI, CDA)
-- `pkg-modules.svg` — Go package dependencies within `pkg/` (public API surface)
-- `cli-call-graph.svg` — Call graph starting from `cmd/fi-fhir` `main` (high-level CLI flow)
+These are static-analysis views, not runtime traces. The call graph only shows
+calls the Go analyzer can resolve; dynamic dispatch and calls across files may
+be absent. Package diagrams resolve imports to their repository package paths and omit
+standard-library and third-party dependencies.
 
-## Regenerating
+## Regenerate all diagrams
 
-If you have `diagram-gen` installed:
-
-```bash
-diagram-gen modules ./internal/parser -f svg -o docs/diagrams/parser-modules.svg
-diagram-gen modules ./pkg -f svg -o docs/diagrams/pkg-modules.svg
-diagram-gen calls ./cmd/fi-fhir --lang go --entry main --depth 3 -f svg -o docs/diagrams/cli-call-graph.svg
-```
-
-FlexInfer workspace shortcut (when `../py-diagram-gen` exists):
+From the repository root:
 
 ```bash
-../py-diagram-gen/.venv/bin/diagram-gen modules ./internal/parser -f svg -o docs/diagrams/parser-modules.svg
-../py-diagram-gen/.venv/bin/diagram-gen modules ./pkg -f svg -o docs/diagrams/pkg-modules.svg
-../py-diagram-gen/.venv/bin/diagram-gen calls ./cmd/fi-fhir --lang go --entry main --depth 3 -f svg -o docs/diagrams/cli-call-graph.svg
+make docs-diagrams
 ```
 
+This regenerates these three diagrams and all four conceptual diagrams in
+[`docs/mermaid/`](../mermaid/README.md), including the README illustrations.
+The source of the command is [`scripts/generate-diagrams.py`](../../scripts/generate-diagrams.py).
+It validates that each SVG is nonempty and well-formed. The shared Go analyzer
+and Graphviz renderer produce compact package and call graphs; the Mermaid
+renderer produces the conceptual diagrams.
+
+Prerequisites:
+
+- `uv` and Python 3.11–3.13; `uv` resolves the script's declared dependencies.
+- Node.js and npm; the Makefile pins Mermaid CLI to 11.12.0.
+- Workspace checkouts of `py-diagram-gen`, `py-sprite-kit`, and `py-visual-kit`
+  under `~/workspace/libs`, or set `DIAGRAM_LIBS=/path/to/workspace/libs`.
+- Graphviz (`dot`) for the code diagrams.
+- Chrome for Mermaid rendering. The CLI normally installs its browser. To use
+  an existing browser, set `PUPPETEER_SKIP_DOWNLOAD=true` and
+  `PUPPETEER_EXECUTABLE_PATH` to its executable before running the command.
+
+To regenerate only the code diagrams:
+
+```bash
+uv run scripts/generate-diagrams.py --only code
+```
+
+Review the rendered SVGs and commit them with their source changes. The
+conceptual diagrams are curated descriptions; the package and call graphs are
+rebuilt from code, so refresh both when the architecture changes.

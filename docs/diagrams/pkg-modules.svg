@@ -1,553 +1,259 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3321 980">
-  <defs>
-    <marker id="arrow" viewBox="0 0 10.0 10.0" refX="10.0" refY="5.0" markerWidth="10.0" markerHeight="10.0" orient="auto-start-reverse"><path d="M 0 0 L 10.0 5.0 L 0 10.0 Z" fill="#334155"/></marker>
-    <filter id="glass_shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="8" stdDeviation="16" flood-opacity="0.4"/></filter>
-  </defs>
-<script type="text/javascript"><![CDATA[
-// Interactive SVG logic for pan, zoom, and highlighting
-
-(function() {
-    let svg = document.querySelector('svg');
-    if (!svg) return;
-
-    // Pan and Zoom state
-    let state = {
-        panning: false,
-        pointX: 0,
-        pointY: 0,
-        scale: 1,
-        viewBox: { x: 0, y: 0, w: 0, h: 0 }
-    };
-
-    // Initialize viewBox
-    const vb = svg.viewBox.baseVal;
-    state.viewBox = { x: vb.x, y: vb.y, w: vb.width, h: vb.height };
-
-    // Mouse events for Panning
-    svg.addEventListener('mousedown', (e) => {
-        state.panning = true;
-        state.pointX = e.clientX;
-        state.pointY = e.clientY;
-        svg.style.cursor = 'grabbing';
-    });
-
-    window.addEventListener('mouseup', () => {
-        state.panning = false;
-        svg.style.cursor = 'grab';
-    });
-
-    window.addEventListener('mousemove', (e) => {
-        if (!state.panning) return;
-        e.preventDefault();
-        
-        const dx = (e.clientX - state.pointX) / state.scale;
-        const dy = (e.clientY - state.pointY) / state.scale;
-        
-        state.viewBox.x -= dx;
-        state.viewBox.y -= dy;
-        
-        state.pointX = e.clientX;
-        state.pointY = e.clientY;
-        
-        updateViewBox();
-    });
-
-    // Wheel event for Zooming
-    svg.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        
-        const zoomSpeed = 0.1;
-        const delta = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-        
-        // Zoom centered on mouse
-        // Need to convert screen coords to SVG coords
-        // Approximate for now: zoom center of viewbox
-        
-        const w = state.viewBox.w;
-        const h = state.viewBox.h;
-        
-        state.viewBox.w *= delta;
-        state.viewBox.h *= delta;
-        
-        // Adjust x/y to keep center stable
-        state.viewBox.x += (w - state.viewBox.w) / 2;
-        state.viewBox.y += (h - state.viewBox.h) / 2;
-        
-        state.scale /= delta;
-        
-        updateViewBox();
-    });
-
-    function updateViewBox() {
-        svg.setAttribute('viewBox', `${state.viewBox.x} ${state.viewBox.y} ${state.viewBox.w} ${state.viewBox.h}`);
-    }
-
-    // Highlighting Logic
-    // Assumes nodes have IDs and edges connect them
-    // This requires structure in the SVG that we need to ensure the renderer produces
-    // For now, let's just make nodes clickable to log their ID
-    
-    const nodes = document.querySelectorAll('g[id^="node-"]');
-    nodes.forEach(node => {
-        node.style.cursor = 'pointer';
-        node.addEventListener('mouseenter', () => {
-            node.style.opacity = '0.8';
-        });
-        node.addEventListener('mouseleave', () => {
-            node.style.opacity = '1.0';
-        });
-        node.addEventListener('click', (e) => {
-            console.log('Clicked node:', node.id);
-            e.stopPropagation();
-        });
-    });
-
-})();
-
-]]></script>
-  <g id="bg">
-    <rect x="0" y="0" width="3321.21" height="980.0"  fill="#0B1220"/>
-  </g>
-  <g id="edges">
-    <path d="M 1795.66 170.0 L 1795.66 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 490.0 L 1255.44 490.0 L 1255.44 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 170.0 L 1795.66 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 175.0 330.0 L 175.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 410.0 L 985.33 410.0 L 985.33 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1255.44 170.0 L 1255.44 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.8799999999997 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.8799999999997 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.88 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2335.88 170.0 L 2335.8799999999997 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 330.0 L 1795.66 410.0 L 2876.1000000000004 410.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 330.0 L 1795.66 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1795.66 330.0 L 1795.66 490.0 L 3146.21 490.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 2065.77 490.0 L 2065.77 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 3146.21 490.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 570.0 L 715.22 570.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 570.0 L 1255.44 570.0 L 1255.44 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 410.0 L 985.33 410.0 L 985.33 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 410.0 L 2876.1000000000004 410.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 445.1100000000001 490.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 1255.44 490.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 3146.21 490.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 570.0 L 715.22 570.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 410.0 L 445.1100000000001 410.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 715.22 490.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 410.0 L 2876.1000000000004 410.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 445.1100000000001 490.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 175.0 490.0 L 175.0 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.5500000000002 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 3146.21 490.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 570.0 L 715.22 570.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 570.0 L 985.33 570.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 410.0 L 175.0 410.0 L 175.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 410.0 L 985.33 410.0 L 985.33 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 410.0 L 2876.1000000000004 410.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 445.1100000000001 490.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 1255.44 490.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 490.0 L 3146.21 490.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.55 330.0 L 1525.55 570.0 L 715.22 570.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 175.0 330.0 L 175.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 985.33 330.0 L 985.33 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 1795.66 410.0 L 1795.66 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2605.9900000000002 330.0 L 2605.9900000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 175.0 330.0 L 175.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 3146.21 330.0 L 3146.21 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0 L 1525.5500000000002 490.0 L 1525.5500000000002 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2605.9900000000002 330.0 L 2605.9900000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2605.9900000000002 410.0 L 2605.9900000000002 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2605.9900000000002 330.0 L 2605.9900000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 175.0 330.0 L 175.0 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 985.33 330.0 L 985.33 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 1525.5500000000002 330.0 L 1525.5500000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 2876.1000000000004 410.0 L 2876.1000000000004 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 445.1100000000001 170.0 L 445.1100000000001 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 410.0 L 2876.1000000000004 410.0 L 2876.1000000000004 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 490.0 L 2335.88 490.0 L 2335.88 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 410.0 L 1795.66 410.0 L 1795.66 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 175.0 170.0 L 175.0 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 715.22 170.0 L 715.22 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 715.22 170.0 L 715.22 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 715.22 170.0 L 715.22 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 715.22 170.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 715.22 170.0 L 715.22 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 330.0 L 2605.9900000000002 330.0 L 2605.9900000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 330.0 L 1795.66 330.0 L 1795.66 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 175.0 410.0 L 175.0 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 330.0 L 1795.66 330.0 L 1795.66 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 175.0 410.0 L 175.0 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 490.0 L 1525.5500000000002 490.0 L 1525.5500000000002 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 2065.77 410.0 L 2065.77 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2876.1000000000004 170.0 L 2876.1000000000004 330.0 L 1795.66 330.0 L 1795.66 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.99 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 410.0 L 2335.88 410.0 L 2335.88 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 330.0 L 1255.44 330.0 L 1255.44 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2605.9900000000002 170.0 L 2605.9900000000002 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 490.0 L 1525.5500000000002 490.0 L 1525.5500000000002 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 2605.9900000000002 330.0 L 2605.9900000000002 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 445.1100000000001 330.0 L 445.1100000000001 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 410.0 L 445.1100000000001 410.0 L 445.1100000000001 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 490.0 L 2065.7700000000004 490.0 L 2065.7700000000004 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 3146.21 170.0 L 3146.21 330.0 L 715.22 330.0 L 715.22 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2065.77 170.0 L 2065.77 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2065.77 170.0 L 2065.77 410.0 L 1255.44 410.0 L 1255.44 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2065.77 170.0 L 2065.77 490.0 L 715.22 490.0 L 715.22 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 2065.77 170.0 L 2065.77 490.0 L 2335.88 490.0 L 2335.88 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 985.33 170.0 L 985.33 410.0 L 1525.5500000000002 410.0 L 1525.5500000000002 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 985.33 170.0 L 985.33 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 985.33 170.0 L 985.33 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 985.33 170.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 410.0 L 715.22 410.0 L 715.22 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 330.0 L 2876.1000000000004 330.0 L 2876.1000000000004 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 410.0 L 2876.1000000000004 410.0 L 2876.1000000000004 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 410.0 L 3146.21 410.0 L 3146.21 650.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 490.0 L 985.33 490.0 L 985.33 810.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-    <path d="M 1525.5500000000002 170.0 L 1525.5500000000002 330.0 L 2065.77 330.0 L 2065.77 490.0" fill="none" stroke="#334155" stroke-width="1.5"/>
-  </g>
-  <g id="nodes">
-    <rect x="1720.66" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1740.66" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="1805.66" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">matching</text>
-    <text x="1805.66" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="910.33" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="930.33" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="995.33" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">time</text>
-    <text x="995.33" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="3071.21" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="3091.21" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="3156.21" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">strings</text>
-    <text x="3156.21" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1180.44" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1200.44" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="1265.44" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">unicode</text>
-    <text x="1265.44" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="370.1100000000001" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="390.1100000000001" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="455.1100000000001" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">context</text>
-    <text x="455.1100000000001" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2801.1000000000004" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2821.1000000000004" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="2886.1000000000004" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">fmt</text>
-    <text x="2886.1000000000004" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="640.22" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="660.22" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="725.22" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">sync</text>
-    <text x="725.22" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1720.66" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1740.66" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="1805.66" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">uuid</text>
-    <text x="1805.66" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1180.385" y="100.0" width="150.11" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1200.385" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="1265.44" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">eventsourcing</text>
-    <text x="1265.44" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="640.22" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="660.22" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="725.22" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">json</text>
-    <text x="725.22" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1450.5500000000002" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1470.5500000000002" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="1535.5500000000002" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">errors</text>
-    <text x="1535.5500000000002" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="100.0" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="120.0" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="185.0" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">bufio</text>
-    <text x="185.0" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="370.1100000000001" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="390.1100000000001" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="455.1100000000001" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">io</text>
-    <text x="455.1100000000001" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1180.44" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1200.44" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="1265.44" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">os</text>
-    <text x="1265.44" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2260.88" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2280.88" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="2345.88" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">sql</text>
-    <text x="2345.88" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="910.33" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="930.33" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="995.33" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">log</text>
-    <text x="995.33" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2260.88" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2280.88" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="2345.88" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">projections</text>
-    <text x="2345.88" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2260.825" y="490.0" width="150.11" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2280.825" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="2345.8799999999997" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">eventsourcing</text>
-    <text x="2345.8799999999997" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1720.66" y="260.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1740.66" cy="295.0" r="4" fill="#3B82F6"/>
-    <text x="1805.66" y="290.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">validate</text>
-    <text x="1805.66" y="310.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1720.66" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1740.66" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="1805.66" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">regexp</text>
-    <text x="1805.66" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1450.55" y="260.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1470.55" cy="295.0" r="4" fill="#3B82F6"/>
-    <text x="1535.55" y="290.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">terminology</text>
-    <text x="1535.55" y="310.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1990.77" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2010.77" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="2075.77" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">sort</text>
-    <text x="2075.77" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="910.33" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="930.33" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="995.33" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">csv</text>
-    <text x="995.33" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="100.0" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="120.0" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="185.0" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">http</text>
-    <text x="185.0" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1450.5500000000002" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1470.5500000000002" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="1535.5500000000002" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">url</text>
-    <text x="1535.5500000000002" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="370.1100000000001" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="390.1100000000001" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="455.1100000000001" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">db</text>
-    <text x="455.1100000000001" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2530.9900000000002" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2550.9900000000002" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="2615.9900000000002" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">filepath</text>
-    <text x="2615.9900000000002" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="3071.21" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="3091.21" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="3156.21" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">gzip</text>
-    <text x="3156.21" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2530.9900000000002" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2550.9900000000002" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="2615.9900000000002" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">storage</text>
-    <text x="2615.9900000000002" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2801.1000000000004" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2821.1000000000004" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="2886.1000000000004" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">strconv</text>
-    <text x="2886.1000000000004" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="100.0" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="120.0" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="185.0" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">config</text>
-    <text x="185.0" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2260.88" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2280.88" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="2345.88" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">yaml.v3</text>
-    <text x="2345.88" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="640.22" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="660.22" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="725.22" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">etl</text>
-    <text x="725.22" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2801.1000000000004" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2821.1000000000004" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="2886.1000000000004" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">source</text>
-    <text x="2886.1000000000004" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1720.66" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1740.66" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="1805.66" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">etl</text>
-    <text x="1805.66" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2530.9900000000002" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2550.9900000000002" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="2615.9900000000002" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">sink</text>
-    <text x="2615.9900000000002" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="2530.99" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2550.99" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="2615.99" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">zip</text>
-    <text x="2615.99" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1180.44" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1200.44" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="1265.44" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">db</text>
-    <text x="1265.44" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="3071.21" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="3091.21" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="3156.21" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">storage</text>
-    <text x="3156.21" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1990.7700000000002" y="810.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2010.7700000000002" cy="845.0" r="4" fill="#3B82F6"/>
-    <text x="2075.7700000000004" y="840.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">v7</text>
-    <text x="2075.7700000000004" y="860.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="640.22" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="660.22" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="725.22" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">credentials</text>
-    <text x="725.22" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1990.77" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2010.77" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="2075.77" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">profile</text>
-    <text x="2075.77" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="910.33" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="930.33" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="995.33" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">events</text>
-    <text x="995.33" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1450.5500000000002" y="650.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1470.5500000000002" cy="685.0" r="4" fill="#3B82F6"/>
-    <text x="1535.5500000000002" y="680.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">rand</text>
-    <text x="1535.5500000000002" y="700.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1450.5500000000002" y="100.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="1470.5500000000002" cy="135.0" r="4" fill="#3B82F6"/>
-    <text x="1535.5500000000002" y="130.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">fhir</text>
-    <text x="1535.5500000000002" y="150.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-    <rect x="1990.77" y="490.0" width="150" height="70" rx="8" ry="8" fill="rgba(16, 24, 40, 0.75)" stroke="#3B82F6" stroke-width="1.0" filter="url(#glass_shadow)"/>
-    <circle cx="2010.77" cy="525.0" r="4" fill="#3B82F6"/>
-    <text x="2075.77" y="520.0" font-size="14" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle" font-weight="bold" fill="#E5E7EB">events</text>
-    <text x="2075.77" y="540.0" font-size="10" font-family="sans-serif" text-anchor="middle" dominant-baseline="auto" font-weight="normal" fill="#E5E7EB" opacity="0.7">«package»</text>
-  </g>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 15.1.0 (20260618.0150)
+ -->
+<!-- Title: G Pages: 1 -->
+<svg xml:space="preserve" width="665pt" height="667pt"
+ viewBox="0.00 0.00 665.00 667.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(21.6 645.6)">
+<title>G</title>
+<polygon fill="white" stroke="none" points="-21.6,21.6 -21.6,-645.6 643.6,-645.6 643.6,21.6 -21.6,21.6"/>
+<!-- pkg_config -->
+<g id="node1" class="node">
+<title>pkg_config</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M110.88,-36C110.88,-36 64.12,-36 64.12,-36 58.12,-36 52.12,-30 52.12,-24 52.12,-24 52.12,-12 52.12,-12 52.12,-6 58.12,0 64.12,0 64.12,0 110.88,0 110.88,0 116.88,0 122.88,-6 122.88,-12 122.88,-12 122.88,-24 122.88,-24 122.88,-30 116.88,-36 110.88,-36"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-12.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/config</text>
+</g>
+<!-- pkg_etl -->
+<g id="node2" class="node">
+<title>pkg_etl</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M301.88,-85C301.88,-85 271.88,-85 271.88,-85 265.88,-85 259.88,-79 259.88,-73 259.88,-73 259.88,-61 259.88,-61 259.88,-55 265.88,-49 271.88,-49 271.88,-49 301.88,-49 301.88,-49 307.88,-49 313.88,-55 313.88,-61 313.88,-61 313.88,-73 313.88,-73 313.88,-79 307.88,-85 301.88,-85"/>
+<text xml:space="preserve" text-anchor="middle" x="286.88" y="-61.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/etl</text>
+</g>
+<!-- pkg_etl_sink -->
+<g id="node3" class="node">
+<title>pkg_etl_sink</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M113.5,-183C113.5,-183 61.5,-183 61.5,-183 55.5,-183 49.5,-177 49.5,-171 49.5,-171 49.5,-159 49.5,-159 49.5,-153 55.5,-147 61.5,-147 61.5,-147 113.5,-147 113.5,-147 119.5,-147 125.5,-153 125.5,-159 125.5,-159 125.5,-171 125.5,-171 125.5,-177 119.5,-183 113.5,-183"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-159.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/etl/sink</text>
+</g>
+<!-- pkg_storage -->
+<g id="node17" class="node">
+<title>pkg_storage</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M492.38,-164C492.38,-164 438.12,-164 438.12,-164 432.12,-164 426.12,-158 426.12,-152 426.12,-152 426.12,-140 426.12,-140 426.12,-134 432.12,-128 438.12,-128 438.12,-128 492.38,-128 492.38,-128 498.38,-128 504.38,-134 504.38,-140 504.38,-140 504.38,-152 504.38,-152 504.38,-158 498.38,-164 492.38,-164"/>
+<text xml:space="preserve" text-anchor="middle" x="465.25" y="-140.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/storage</text>
+</g>
+<!-- pkg_etl_sink&#45;&gt;pkg_storage -->
+<g id="edge1" class="edge">
+<title>pkg_etl_sink&#45;&gt;pkg_storage</title>
+<path fill="none" stroke="#56718b" d="M125.9,-163.11C195.04,-159.61 342.62,-152.15 417.94,-148.34"/>
+<polygon fill="#56718b" stroke="#56718b" points="417.99,-150.62 424.37,-148.02 417.76,-146.07 417.99,-150.62"/>
+</g>
+<!-- pkg_terminology_db -->
+<g id="node19" class="node">
+<title>pkg_terminology_db</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M333.5,-145C333.5,-145 240.25,-145 240.25,-145 234.25,-145 228.25,-139 228.25,-133 228.25,-133 228.25,-121 228.25,-121 228.25,-115 234.25,-109 240.25,-109 240.25,-109 333.5,-109 333.5,-109 339.5,-109 345.5,-115 345.5,-121 345.5,-121 345.5,-133 345.5,-133 345.5,-139 339.5,-145 333.5,-145"/>
+<text xml:space="preserve" text-anchor="middle" x="286.88" y="-121.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/terminology/db</text>
+</g>
+<!-- pkg_etl_sink&#45;&gt;pkg_terminology_db -->
+<g id="edge2" class="edge">
+<title>pkg_etl_sink&#45;&gt;pkg_terminology_db</title>
+<path fill="none" stroke="#56718b" d="M125.62,-157.85C152.3,-152.72 188.96,-145.66 220.49,-139.59"/>
+<polygon fill="#56718b" stroke="#56718b" points="220.52,-141.9 226.47,-138.44 219.66,-137.43 220.52,-141.9"/>
+</g>
+<!-- pkg_etl_source -->
+<g id="node4" class="node">
+<title>pkg_etl_source</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M120.62,-85C120.62,-85 54.38,-85 54.38,-85 48.38,-85 42.38,-79 42.38,-73 42.38,-73 42.38,-61 42.38,-61 42.38,-55 48.38,-49 54.38,-49 54.38,-49 120.62,-49 120.62,-49 126.62,-49 132.62,-55 132.62,-61 132.62,-61 132.62,-73 132.62,-73 132.62,-79 126.62,-85 120.62,-85"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-61.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/etl/source</text>
+</g>
+<!-- pkg_etl_source&#45;&gt;pkg_etl -->
+<g id="edge3" class="edge">
+<title>pkg_etl_source&#45;&gt;pkg_etl</title>
+<path fill="none" stroke="#56718b" d="M132.79,-67C168.73,-67 218.67,-67 251.6,-67"/>
+<polygon fill="#56718b" stroke="#56718b" points="251.58,-69.28 258.08,-67 251.58,-64.73 251.58,-69.28"/>
+</g>
+<!-- pkg_eventbus -->
+<g id="node5" class="node">
+<title>pkg_eventbus</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M496.88,-232C496.88,-232 433.62,-232 433.62,-232 427.62,-232 421.62,-226 421.62,-220 421.62,-220 421.62,-208 421.62,-208 421.62,-202 427.62,-196 433.62,-196 433.62,-196 496.88,-196 496.88,-196 502.88,-196 508.88,-202 508.88,-208 508.88,-208 508.88,-220 508.88,-220 508.88,-226 502.88,-232 496.88,-232"/>
+<text xml:space="preserve" text-anchor="middle" x="465.25" y="-208.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/eventbus</text>
+</g>
+<!-- pkg_events -->
+<g id="node6" class="node">
+<title>pkg_events</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M311.75,-286C311.75,-286 262,-286 262,-286 256,-286 250,-280 250,-274 250,-274 250,-262 250,-262 250,-256 256,-250 262,-250 262,-250 311.75,-250 311.75,-250 317.75,-250 323.75,-256 323.75,-262 323.75,-262 323.75,-274 323.75,-274 323.75,-280 317.75,-286 311.75,-286"/>
+<text xml:space="preserve" text-anchor="middle" x="286.88" y="-262.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/events</text>
+</g>
+<!-- pkg_eventsourcing -->
+<g id="node7" class="node">
+<title>pkg_eventsourcing</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M331.62,-232C331.62,-232 242.12,-232 242.12,-232 236.12,-232 230.12,-226 230.12,-220 230.12,-220 230.12,-208 230.12,-208 230.12,-202 236.12,-196 242.12,-196 242.12,-196 331.62,-196 331.62,-196 337.62,-196 343.62,-202 343.62,-208 343.62,-208 343.62,-220 343.62,-220 343.62,-226 337.62,-232 331.62,-232"/>
+<text xml:space="preserve" text-anchor="middle" x="286.88" y="-208.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/eventsourcing</text>
+</g>
+<!-- pkg_eventsourcing&#45;&gt;pkg_eventbus -->
+<g id="edge4" class="edge">
+<title>pkg_eventsourcing&#45;&gt;pkg_eventbus</title>
+<path fill="none" stroke="#56718b" d="M343.68,-214C366.06,-214 391.67,-214 413.52,-214"/>
+<polygon fill="#56718b" stroke="#56718b" points="413.37,-216.28 419.87,-214 413.37,-211.73 413.37,-216.28"/>
+</g>
+<!-- pkg_eventsourcing_projections -->
+<g id="node8" class="node">
+<title>pkg_eventsourcing_projections</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M163,-232C163,-232 12,-232 12,-232 6,-232 0,-226 0,-220 0,-220 0,-208 0,-208 0,-202 6,-196 12,-196 12,-196 163,-196 163,-196 169,-196 175,-202 175,-208 175,-208 175,-220 175,-220 175,-226 169,-232 163,-232"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-208.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/eventsourcing/projections</text>
+</g>
+<!-- pkg_eventsourcing_projections&#45;&gt;pkg_eventsourcing -->
+<g id="edge5" class="edge">
+<title>pkg_eventsourcing_projections&#45;&gt;pkg_eventsourcing</title>
+<path fill="none" stroke="#56718b" d="M175.36,-214C191.04,-214 207.12,-214 221.99,-214"/>
+<polygon fill="#56718b" stroke="#56718b" points="221.63,-216.28 228.13,-214 221.63,-211.73 221.63,-216.28"/>
+</g>
+<!-- pkg_fhir -->
+<g id="node9" class="node">
+<title>pkg_fhir</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M103,-330C103,-330 72,-330 72,-330 66,-330 60,-324 60,-318 60,-318 60,-306 60,-306 60,-300 66,-294 72,-294 72,-294 103,-294 103,-294 109,-294 115,-300 115,-306 115,-306 115,-318 115,-318 115,-324 109,-330 103,-330"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-306.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/fhir</text>
+</g>
+<!-- pkg_fhir&#45;&gt;pkg_events -->
+<g id="edge6" class="edge">
+<title>pkg_fhir&#45;&gt;pkg_events</title>
+<path fill="none" stroke="#56718b" d="M115.12,-306.07C147.67,-298.81 203.23,-286.42 242.11,-277.76"/>
+<polygon fill="#56718b" stroke="#56718b" points="242.32,-280.04 248.17,-276.41 241.33,-275.6 242.32,-280.04"/>
+</g>
+<!-- pkg_integration -->
+<g id="node10" class="node">
+<title>pkg_integration</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M122.88,-281C122.88,-281 52.12,-281 52.12,-281 46.12,-281 40.12,-275 40.12,-269 40.12,-269 40.12,-257 40.12,-257 40.12,-251 46.12,-245 52.12,-245 52.12,-245 122.88,-245 122.88,-245 128.88,-245 134.88,-251 134.88,-257 134.88,-257 134.88,-269 134.88,-269 134.88,-275 128.88,-281 122.88,-281"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-257.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/integration</text>
+</g>
+<!-- pkg_integration&#45;&gt;pkg_events -->
+<g id="edge7" class="edge">
+<title>pkg_integration&#45;&gt;pkg_events</title>
+<path fill="none" stroke="#56718b" d="M135.28,-264.18C167.54,-265 210.15,-266.08 241.81,-266.88"/>
+<polygon fill="#56718b" stroke="#56718b" points="241.54,-269.15 248.1,-267.04 241.66,-264.6 241.54,-269.15"/>
+</g>
+<!-- pkg_llm -->
+<g id="node11" class="node">
+<title>pkg_llm</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M610,-411C610,-411 579.75,-411 579.75,-411 573.75,-411 567.75,-405 567.75,-399 567.75,-399 567.75,-387 567.75,-387 567.75,-381 573.75,-375 579.75,-375 579.75,-375 610,-375 610,-375 616,-375 622,-381 622,-387 622,-387 622,-399 622,-399 622,-405 616,-411 610,-411"/>
+<text xml:space="preserve" text-anchor="middle" x="594.88" y="-387.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/llm</text>
+</g>
+<!-- pkg_llm_copilot -->
+<g id="node12" class="node">
+<title>pkg_llm_copilot</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M499.5,-498C499.5,-498 431,-498 431,-498 425,-498 419,-492 419,-486 419,-486 419,-474 419,-474 419,-468 425,-462 431,-462 431,-462 499.5,-462 499.5,-462 505.5,-462 511.5,-468 511.5,-474 511.5,-474 511.5,-486 511.5,-486 511.5,-492 505.5,-498 499.5,-498"/>
+<text xml:space="preserve" text-anchor="middle" x="465.25" y="-474.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/llm/copilot</text>
+</g>
+<!-- pkg_llm_copilot&#45;&gt;pkg_llm -->
+<g id="edge8" class="edge">
+<title>pkg_llm_copilot&#45;&gt;pkg_llm</title>
+<path fill="none" stroke="#56718b" d="M511.9,-466.25C518.8,-463.34 525.64,-459.93 531.75,-456 547.99,-445.55 563.27,-430.16 574.61,-417.22"/>
+<polygon fill="#56718b" stroke="#56718b" points="576.05,-419.03 578.54,-412.61 572.59,-416.07 576.05,-419.03"/>
+</g>
+<!-- pkg_llm_eval -->
+<g id="node13" class="node">
+<title>pkg_llm_eval</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M493.12,-449C493.12,-449 437.38,-449 437.38,-449 431.38,-449 425.38,-443 425.38,-437 425.38,-437 425.38,-425 425.38,-425 425.38,-419 431.38,-413 437.38,-413 437.38,-413 493.12,-413 493.12,-413 499.12,-413 505.12,-419 505.12,-425 505.12,-425 505.12,-437 505.12,-437 505.12,-443 499.12,-449 493.12,-449"/>
+<text xml:space="preserve" text-anchor="middle" x="465.25" y="-425.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/llm/eval</text>
+</g>
+<!-- pkg_llm_eval&#45;&gt;pkg_llm -->
+<g id="edge9" class="edge">
+<title>pkg_llm_eval&#45;&gt;pkg_llm</title>
+<path fill="none" stroke="#56718b" d="M505.58,-419.29C522.99,-414.11 543.25,-408.07 559.97,-403.09"/>
+<polygon fill="#56718b" stroke="#56718b" points="560.36,-405.35 565.94,-401.32 559.06,-400.99 560.36,-405.35"/>
+</g>
+<!-- pkg_llm_prompts -->
+<g id="node14" class="node">
+<title>pkg_llm_prompts</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M125.5,-428C125.5,-428 49.5,-428 49.5,-428 43.5,-428 37.5,-422 37.5,-416 37.5,-416 37.5,-404 37.5,-404 37.5,-398 43.5,-392 49.5,-392 49.5,-392 125.5,-392 125.5,-392 131.5,-392 137.5,-398 137.5,-404 137.5,-404 137.5,-416 137.5,-416 137.5,-422 131.5,-428 125.5,-428"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-404.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/llm/prompts</text>
+</g>
+<!-- pkg_matching -->
+<g id="node15" class="node">
+<title>pkg_matching</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M119.12,-477C119.12,-477 55.87,-477 55.87,-477 49.88,-477 43.88,-471 43.88,-465 43.88,-465 43.88,-453 43.88,-453 43.88,-447 49.88,-441 55.88,-441 55.88,-441 119.12,-441 119.12,-441 125.12,-441 131.12,-447 131.12,-453 131.12,-453 131.12,-465 131.12,-465 131.12,-471 125.12,-477 119.12,-477"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-453.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/matching</text>
+</g>
+<!-- pkg_profile -->
+<g id="node16" class="node">
+<title>pkg_profile</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M111.25,-526C111.25,-526 63.75,-526 63.75,-526 57.75,-526 51.75,-520 51.75,-514 51.75,-514 51.75,-502 51.75,-502 51.75,-496 57.75,-490 63.75,-490 63.75,-490 111.25,-490 111.25,-490 117.25,-490 123.25,-496 123.25,-502 123.25,-502 123.25,-514 123.25,-514 123.25,-520 117.25,-526 111.25,-526"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-502.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/profile</text>
+</g>
+<!-- pkg_terminology -->
+<g id="node18" class="node">
+<title>pkg_terminology</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M125.88,-575C125.88,-575 49.12,-575 49.12,-575 43.12,-575 37.12,-569 37.12,-563 37.12,-563 37.12,-551 37.12,-551 37.12,-545 43.12,-539 49.12,-539 49.12,-539 125.88,-539 125.88,-539 131.88,-539 137.88,-545 137.88,-551 137.88,-551 137.88,-563 137.88,-563 137.88,-569 131.88,-575 125.88,-575"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-551.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/terminology</text>
+</g>
+<!-- pkg_terminology_db&#45;&gt;pkg_storage -->
+<g id="edge10" class="edge">
+<title>pkg_terminology_db&#45;&gt;pkg_storage</title>
+<path fill="none" stroke="#56718b" d="M345.63,-133.22C369.07,-135.75 395.78,-138.62 417.92,-141.01"/>
+<polygon fill="#56718b" stroke="#56718b" points="417.64,-143.27 424.35,-141.7 418.13,-138.74 417.64,-143.27"/>
+</g>
+<!-- pkg_terminology_index -->
+<g id="node20" class="node">
+<title>pkg_terminology_index</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M519.75,-373C519.75,-373 410.75,-373 410.75,-373 404.75,-373 398.75,-367 398.75,-361 398.75,-361 398.75,-349 398.75,-349 398.75,-343 404.75,-337 410.75,-337 410.75,-337 519.75,-337 519.75,-337 525.75,-337 531.75,-343 531.75,-349 531.75,-349 531.75,-361 531.75,-361 531.75,-367 525.75,-373 519.75,-373"/>
+<text xml:space="preserve" text-anchor="middle" x="465.25" y="-349.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/terminology/index</text>
+</g>
+<!-- pkg_terminology_index&#45;&gt;pkg_llm -->
+<g id="edge11" class="edge">
+<title>pkg_terminology_index&#45;&gt;pkg_llm</title>
+<path fill="none" stroke="#56718b" d="M528.19,-373.44C539.12,-376.7 550.12,-379.97 559.9,-382.89"/>
+<polygon fill="#56718b" stroke="#56718b" points="559.14,-385.03 566.02,-384.71 560.44,-380.67 559.14,-385.03"/>
+</g>
+<!-- pkg_terminology_semantic -->
+<g id="node21" class="node">
+<title>pkg_terminology_semantic</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M350.75,-341C350.75,-341 223,-341 223,-341 217,-341 211,-335 211,-329 211,-329 211,-317 211,-317 211,-311 217,-305 223,-305 223,-305 350.75,-305 350.75,-305 356.75,-305 362.75,-311 362.75,-317 362.75,-317 362.75,-329 362.75,-329 362.75,-335 356.75,-341 350.75,-341"/>
+<text xml:space="preserve" text-anchor="middle" x="286.88" y="-317.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/terminology/semantic</text>
+</g>
+<!-- pkg_terminology_semantic&#45;&gt;pkg_llm -->
+<g id="edge12" class="edge">
+<title>pkg_terminology_semantic&#45;&gt;pkg_llm</title>
+<path fill="none" stroke="#56718b" d="M363,-311.58C412.87,-307.28 478.69,-308.03 531.75,-331 549.94,-338.88 565.68,-354.75 576.77,-368.47"/>
+<polygon fill="#56718b" stroke="#56718b" points="574.81,-369.66 580.6,-373.39 578.4,-366.86 574.81,-369.66"/>
+</g>
+<!-- pkg_terminology_semantic&#45;&gt;pkg_terminology_index -->
+<g id="edge13" class="edge">
+<title>pkg_terminology_semantic&#45;&gt;pkg_terminology_index</title>
+<path fill="none" stroke="#56718b" d="M363.19,-336.66C372.24,-338.31 381.47,-339.98 390.5,-341.62"/>
+<polygon fill="#56718b" stroke="#56718b" points="390.08,-343.86 396.89,-342.78 390.9,-339.38 390.08,-343.86"/>
+</g>
+<!-- pkg_terminology_suggest -->
+<g id="node22" class="node">
+<title>pkg_terminology_suggest</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M148.38,-379C148.38,-379 26.62,-379 26.62,-379 20.63,-379 14.62,-373 14.62,-367 14.62,-367 14.62,-355 14.62,-355 14.62,-349 20.62,-343 26.62,-343 26.62,-343 148.38,-343 148.38,-343 154.38,-343 160.38,-349 160.38,-355 160.38,-355 160.38,-367 160.38,-367 160.38,-373 154.38,-379 148.38,-379"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-355.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/terminology/suggest</text>
+</g>
+<!-- pkg_terminology_suggest&#45;&gt;pkg_llm -->
+<g id="edge14" class="edge">
+<title>pkg_terminology_suggest&#45;&gt;pkg_llm</title>
+<path fill="none" stroke="#56718b" d="M160.64,-365.57C271.12,-372.56 477.97,-385.66 559.54,-390.83"/>
+<polygon fill="#56718b" stroke="#56718b" points="559.36,-393.09 565.99,-391.23 559.64,-388.55 559.36,-393.09"/>
+</g>
+<!-- pkg_terminology_suggest&#45;&gt;pkg_terminology_index -->
+<g id="edge15" class="edge">
+<title>pkg_terminology_suggest&#45;&gt;pkg_terminology_index</title>
+<path fill="none" stroke="#56718b" d="M160.5,-359.85C226.54,-358.8 323.92,-357.24 390.5,-356.18"/>
+<polygon fill="#56718b" stroke="#56718b" points="390.49,-358.45 396.95,-356.07 390.42,-353.9 390.49,-358.45"/>
+</g>
+<!-- pkg_terminology_suggest&#45;&gt;pkg_terminology_semantic -->
+<g id="edge16" class="edge">
+<title>pkg_terminology_suggest&#45;&gt;pkg_terminology_semantic</title>
+<path fill="none" stroke="#56718b" d="M160.87,-347.07C174.52,-344.44 188.89,-341.67 202.83,-338.99"/>
+<polygon fill="#56718b" stroke="#56718b" points="203.09,-341.26 209.04,-337.79 202.23,-336.79 203.09,-341.26"/>
+</g>
+<!-- pkg_terminology_upload -->
+<g id="node23" class="node">
+<title>pkg_terminology_upload</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M145.75,-134C145.75,-134 29.25,-134 29.25,-134 23.25,-134 17.25,-128 17.25,-122 17.25,-122 17.25,-110 17.25,-110 17.25,-104 23.25,-98 29.25,-98 29.25,-98 145.75,-98 145.75,-98 151.75,-98 157.75,-104 157.75,-110 157.75,-110 157.75,-122 157.75,-122 157.75,-128 151.75,-134 145.75,-134"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-110.97" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/terminology/upload</text>
+</g>
+<!-- pkg_terminology_upload&#45;&gt;pkg_terminology_db -->
+<g id="edge17" class="edge">
+<title>pkg_terminology_upload&#45;&gt;pkg_terminology_db</title>
+<path fill="none" stroke="#56718b" d="M158.09,-119.88C178.27,-121 200.24,-122.23 220.18,-123.34"/>
+<polygon fill="#56718b" stroke="#56718b" points="219.87,-125.6 226.49,-123.69 220.13,-121.06 219.87,-125.6"/>
+</g>
+<!-- pkg_validate -->
+<g id="node24" class="node">
+<title>pkg_validate</title>
+<path fill="#e8f1fc" stroke="#5790be" d="M115.75,-624C115.75,-624 59.25,-624 59.25,-624 53.25,-624 47.25,-618 47.25,-612 47.25,-612 47.25,-600 47.25,-600 47.25,-594 53.25,-588 59.25,-588 59.25,-588 115.75,-588 115.75,-588 121.75,-588 127.75,-594 127.75,-600 127.75,-600 127.75,-612 127.75,-612 127.75,-618 121.75,-624 115.75,-624"/>
+<text xml:space="preserve" text-anchor="middle" x="87.5" y="-600.98" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#152f4b">pkg/validate</text>
+</g>
+</g>
 </svg>

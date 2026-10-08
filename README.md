@@ -2,9 +2,10 @@
 
 # fi-fhir
 
-A format-agnostic healthcare integration platform that transforms legacy formats (HL7v2, CSV, EDI X12, CDA) into semantic events and routes them through configurable workflows.
+A healthcare integration platform for turning HL7v2, CSV, EDI X12, and CDA messages into semantic events, building feed-specific Source Profiles, and operating durable delivery workflows.
 
-CI (build, tests, coverage gates) runs on self-hosted GitLab; github.com/crb2nu/fi-fhir mirrors `main`.
+Development and CI run on [GitLab](https://gitlab.flexinfer.ai/libs/fi-fhir).
+[GitHub](https://github.com/crb2nu/fi-fhir) mirrors `main` and release tags.
 
 ## Overview
 
@@ -21,11 +22,9 @@ outbox with retry and circuit breaking.
 
 ![Overview Dataflow](docs/mermaid/overview-flow.svg)
 
-![CLI Dataflow](docs/mermaid/cli-flow.svg)
-
 ## 60-second demo
 
-Parse a sample ADT admit that ships in this repo into a semantic event:
+With Go 1.26.6 or newer, parse a sample ADT admit from this repo into a semantic event:
 
 ```bash
 git clone https://github.com/crb2nu/fi-fhir.git && cd fi-fhir
@@ -55,27 +54,46 @@ make build
 ```
 
 Output trimmed; the full event also carries typed identifiers with assigners,
-demographics, and provenance fields. No `PID.3.1` in sight. Pipe the same
-output into `fi-fhir workflow run` to route it (see Quick Start below).
+demographics, and provenance fields. Omit `--pretty` when piping events into
+`fi-fhir workflow run`: the workflow reader expects one JSON event per line
+(see Quick Start below).
 
 ## Mapping Studio (UI)
 
-The `ui/` app is a SvelteKit 5 "Mapping Studio": a VS Code-style shell with an
-activity bar, editor tabs, and a bottom panel for Output, Problems, Debug,
-Trace, and Copilot. Work is organized as five stages — source intake,
-normalization, translation, delivery, and verification — plus Home,
-Connections (sources, destinations, and the engine properties of the replica
-that answered), and the Operator console. Preview runs in an Integration
-Session (where the deployment enables them) that streams stage events and diagnostics over GraphQL SSE; samples
-can be pasted, loaded from the synthetic examples, or pulled from a source
-connection; and a workflow draft can be simulated and then published,
-approved, and deployed. Every surface reads the deployment's capabilities and
-names what is missing instead of showing simulated data.
+Mapping Studio (`ui/`, SvelteKit) takes a feed through five stages: source
+intake, normalization, translation, delivery, and verification. Its Build and
+Operate explorer, saved record tabs, command palette, and responsive drawers
+keep sessions and connections within reach. Keyboard navigation and unsaved-edit
+prompts protect work while moving between editors.
 
-![Mapping Studio Loop](docs/mermaid/ui-mapping-flow.svg)
+- **Build from samples.** Paste or import messages, load synthetic examples, or
+  capture samples from a source connection. Integration Sessions retain drafts,
+  runs, diagnostics, and lineage; browse saved or archived sessions and reopen
+  them by URL.
+- **Shape and test a workflow.** Edit Source Profiles, map terminology, validate
+  workflow drafts, and simulate changes. The bottom panel brings together
+  Output, Problems, Debug, Trace, and Copilot. Copilot uses the deployment's LLM
+  for explanations, suggestions, workflow generation, and review.
+- **Author a release.** Connections manages sources, destinations, and integration
+  definitions. Build a definition from compiled connections and a resolvable
+  registry profile/workflow pair, then check, validate, approve, and publish it.
+  Operator deploys the release and records its lifecycle history. Mounted
+  adapter configuration still changes through deployment configuration.
+- **Verify delivery.** Browse durable admissions, statistics, and retention;
+  follow receipt traces and inspect delivery attempts. Engine properties show
+  the answering replica's configured services and schema versions.
 
-The [Mapping Studio guide](docs/user-guide/ide.md) walks through it route by
-route; `ui/README.md` has the dev commands.
+Features depend on the deployment's capabilities and your identity's roles.
+Unavailable capabilities are explained in the UI. The hosted demo provides
+stateless HL7 preview; durable sessions and operator views need a configured
+backend.
+
+![Mapping Studio workspace and integration journey](docs/mermaid/ui-mapping-flow.svg)
+
+See the [Mapping Studio guide](docs/user-guide/ide.md),
+[Connections and definitions](docs/user-guide/connections.md#definitions), and
+[Verification guide](docs/user-guide/verification.md). Local UI commands are in
+[ui/README.md](ui/README.md).
 
 ## Documentation
 
@@ -101,15 +119,15 @@ route; `ui/README.md` has the dev commands.
 - **Multi-format parsing**: HL7v2, CSV/flatfiles, EDI X12, CDA/CCDA
 - **Workflow DSL**: YAML-based routing with CEL expression filters
 - **FHIR R4 output**: US Core R4 mapper with 26 exported `Map*` methods, including Patient, Encounter, Observation, Condition, Coverage, Claim, ExplanationOfBenefit, MedicationRequest, AllergyIntolerance, Procedure, Immunization, DocumentReference, Provenance, Practitioner, and Organization; see [`pkg/fhir/mapper.go`](pkg/fhir/mapper.go) and [`docs/STATUS.md`](docs/STATUS.md) for the full list
-- **Multiple actions**: log, webhook, FHIR, email, exec, file, database (PostgreSQL/MySQL/SQLite), message queue (Kafka), event store
+- **Multiple actions**: log, webhook, FHIR, email, exec, file, database (PostgreSQL/MySQL/SQLite), message queue (Kafka, Redis Streams, Google Cloud Pub/Sub), event store
 - **Production ingestion**: MLLP listener with mTLS and ACK semantics, authenticated HTTP endpoint, S3/SFTP batch worker
-- **Deployment lifecycle**: immutable content-addressed revisions, draft → validated → approved → published → deployed
-- **Connections**: named source (MLLP, HTTP, S3, SFTP) and destination (HTTPS, FHIR, Kafka) declarations, validated and compiled into the exact documents `serve` mounts; the catalog authors and labels, GitOps activates ([guide](docs/user-guide/connections.md), [operations](docs/operations/CONNECTION-CATALOG.md))
+- **Deployment lifecycle**: immutable content-addressed revisions, draft → validated → approved → published → deployed; authored in Connections and operated through Operator
+- **Connections**: named source (MLLP, HTTP, S3, SFTP) and destination (HTTPS, FHIR, Kafka) declarations, validated and compiled into the exact documents `serve` mounts; the catalog authors and compiles, deployment configuration activates adapters ([guide](docs/user-guide/connections.md), [operations](docs/operations/CONNECTION-CATALOG.md))
 - **Engine properties**: the IDE's Connections → Engine tab shows what the answering replica composed at startup: identity and access, the control plane, registry integrations, one panel per adapter with the environment key behind each property, and the schema ledgers; secrets show only `set` or `unset` (the `engineRuntime` allowlist)
 - **Sample intake**: pull real messages from a source connection into an Integration Session (stream capture or batch peek) to build a profile against; every message is redacted before it is stored and every capture is an audited row
 - **Browser playground**: the Source Profile compiler, HL7v2 parser and FHIR projection compiled to WebAssembly (`cmd/fi-fhir-wasm`), with a parity test against the IDE's session preview ([playground](docs/user-guide/playground.md))
 - **Reliability**: Retry with backoff, circuit breaker, dead letter queue, rate limiting
-- **Observability**: Prometheus metrics and structured JSON logging; OpenTelemetry tracing is scaffolded at the workflow layer but not wired into `serve` (see "Tracing (OpenTelemetry) — NOT IMPLEMENTED" below)
+- **Observability**: Prometheus metrics and structured JSON logging; OpenTelemetry tracing is scaffolded at the workflow layer but not wired into `serve` (see [Observability](#observability) below)
 - **Production-ready**: Helm chart, CI/CD pipelines, security hardening guide
 
 ### Companion tool
@@ -121,6 +139,8 @@ files before they are transmitted.
 ## Installation
 
 ### CLI
+
+Requires Go 1.26.6 or newer (see [go.mod](go.mod)).
 
 ```bash
 # Build from the GitHub mirror
@@ -145,7 +165,8 @@ docker run --rm registry.gitlab.flexinfer.ai/libs/fi-fhir:latest version
 ```
 
 `fi-fhir serve` fails closed unless the authenticated preview runtime is
-configured. Use `docker-compose up -d` below for a runnable local stack.
+configured. Use the [local development stack](#local-development-stack) below to configure
+a preview identity and start the API and UI.
 
 ### Helm
 
@@ -155,6 +176,8 @@ helm install fi-fhir deploy/helm/fi-fhir/ \
 ```
 
 ## Quick Start
+
+![CLI parsing and workflow commands](docs/mermaid/cli-flow.svg)
 
 ### 1. Parse a Message
 
@@ -194,7 +217,8 @@ EOF
 fi-fhir parse --format hl7v2 message.hl7 | \
   fi-fhir workflow run --config workflow.yaml
 
-# Dry-run mode (no side effects)
+# Dry-run mode (no side effects; keep event JSON on one line)
+fi-fhir parse --format hl7v2 message.hl7 > event.json
 fi-fhir workflow dry-run --config workflow.yaml event.json
 ```
 
@@ -265,16 +289,13 @@ companion guide validation is available via `--edi-companion`; see
 ```yaml
 filter:
   # Match by event type
-  event_type: patient_admit
   event_type: [patient_admit, patient_transfer]
 
   # Match by source system
-  source: epic_adt
   source: [epic_adt, cerner_adt]
 
   # CEL expressions for complex conditions
-  condition: event.patient.age >= 65
-  condition: event.observation.interpretation in ["critical", "HH"]
+  condition: event.encounter.class == "I"
 ```
 
 ### Transforms
@@ -358,7 +379,8 @@ const output = await workflow.run([event]);
 | [Playground Tutorial](docs/user-guide/playground-tutorial.md) | Interactive learning guide |
 | [Browser Playground](docs/user-guide/playground.md) | What runs in the browser, the kernel contract |
 | [Mapping Studio (IDE)](docs/user-guide/ide.md) | The IDE, route by route |
-| [Connections](docs/user-guide/connections.md) | Sources, destinations, sample intake, engine properties |
+| [Connections](docs/user-guide/connections.md) | Sources, destinations, definitions, sample intake, engine properties |
+| [Verification](docs/user-guide/verification.md) | Durable admissions, delivery statistics, retention |
 | **Developer Guide** | |
 | [Architecture](docs/developer-guide/architecture.md) | System architecture overview |
 | [Development Setup](docs/developer-guide/development-setup.md) | Environment setup |
@@ -383,7 +405,7 @@ make build
 # Test
 make test              # Unit tests
 make test-e2e          # E2E tests
-make test-integration  # Integration tests (requires Docker)
+make test-integration  # Live-service E2E; see test/e2e/README.md
 
 # Lint
 make lint
@@ -397,23 +419,45 @@ make docker-build
 
 ### Local Development Stack
 
-```bash
-# Start dependencies (PostgreSQL, Kafka, FHIR server, Jaeger)
-docker-compose up -d
+Set a local bearer token before starting Compose; the API requires it. Keep it
+in your shell and enter it when the UI asks for access.
 
-# Run with local config
-./bin/fi-fhir workflow run --config examples/workflows/adt-to-fhir.yaml
+```bash
+export FI_FHIR_GRAPHQL_BEARER_TOKEN="$(openssl rand -hex 32)"
+make dev-ui
+# UI:      http://localhost:3001
+# API:     http://localhost:8080
+# Metrics: http://localhost:9090/metrics
+
+# Stop the stack
+make dev-ui-down
 ```
+
+Compose must be available as `docker-compose` for these Makefile targets.
+See the [development setup](docs/developer-guide/development-setup.md) for
+configuration and [live-service test setup](test/e2e/README.md) for test
+prerequisites. On a remote Docker context, use the Docker host's address for
+published ports and configure the UI/API origins for that host.
+
+### Regenerate the diagrams
+
+All seven documentation SVGs are generated with the workspace's
+`py-diagram-gen`, `py-sprite-kit`, and `py-visual-kit` libraries:
+
+```bash
+make docs-diagrams
+# Libraries outside ~/workspace/libs:
+make docs-diagrams DIAGRAM_LIBS=/path/to/workspace/libs
+```
+
+See [diagram tooling and prerequisites](docs/diagrams/README.md). Commit the
+source and generated SVG together so both repository hosts show the same images.
 
 ## Deployment
 
-### Docker Compose
-
-```bash
-docker-compose up -d
-# API: http://localhost:8080
-# Metrics: http://localhost:9090/metrics
-```
+The [production hardening guide](docs/operations/PRODUCTION-HARDENING.md) covers
+authentication, secrets, network policy, and deployment configuration. These
+manifests require configuration for your environment.
 
 ### Kubernetes
 
@@ -437,27 +481,37 @@ helm install fi-fhir deploy/helm/fi-fhir/ \
 
 ### Metrics (Prometheus)
 
-Metrics use the `fi_fhir` namespace and `workflow` subsystem:
+The `serve` runtime exposes component health and durable processing metrics,
+including:
 
+```text
+fi_fhir_build_info
+fi_fhir_component_up
+fi_fhir_readiness_up
+fi_fhir_http_ingress_submissions_total
+fi_fhir_mllp_messages_total
+fi_fhir_delivery_attempts_total
+fi_fhir_batch_objects_total
+fi_fhir_session_stream_events_total
 ```
-fi_fhir_workflow_events_processed_total
-fi_fhir_workflow_events_processed_duration_seconds
-fi_fhir_workflow_actions_executed_total
-fi_fhir_workflow_actions_executed_duration_seconds
-fi_fhir_workflow_action_retries_total
-fi_fhir_workflow_circuit_breaker_state_changes_total
-fi_fhir_workflow_dlq_depth
-```
+
+The standalone workflow metrics adapter also exposes `fi_fhir_workflow_*`
+counters and histograms. See the [operations guide](docs/operations/README.md)
+and [runtime metrics](internal/observability/metrics.go) for labels and scope.
+
+### Structured logging
+
+`serve` emits structured operational logs. Configure `FI_FHIR_LOG_LEVEL` and
+`FI_FHIR_LOG_FORMAT` (`json` or `text`).
 
 ### Tracing (OpenTelemetry) — NOT IMPLEMENTED
 
 `FI_FHIR_TRACING_ENABLED`, `FI_FHIR_TRACING_ENDPOINT`, and
 `FI_FHIR_TRACING_SAMPLER` are parsed and validated by `pkg/config`, but nothing
 consumes them: there is no OpenTelemetry exporter in the `serve` path, and
-setting them changes no runtime behaviour. The exporter is slice 4.4d, which
-depends on structured logging landing first.
+setting them changes no runtime behaviour.
 
-Until then, correlation across a message's lifecycle comes from the correlation
+Correlation across a message's lifecycle comes from the correlation
 and trace identifiers already carried on every durable record — receipts,
 canonical events, lineage rows, and delivery attempts — not from spans. See
 [docs/operations/README.md](docs/operations/README.md) "Tracing — not

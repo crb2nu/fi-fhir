@@ -1,19 +1,23 @@
-# Mermaid Diagrams (Pre-rendered)
+# Conceptual diagrams
 
-GitLab's Mermaid renderer is stricter than upstream Mermaid and can reject otherwise-valid diagrams.
-To keep READMEs reliable, `fi-fhir` stores Mermaid sources (`.mmd`) and commits pre-rendered SVGs.
+Mermaid sources (`.mmd`) describe the system and user journeys. Their generated
+SVGs are committed so GitLab and GitHub render the same illustrations.
 
-## Files
+| Source / output | Shows |
+| --- | --- |
+| `overview-flow.mmd` / `.svg` | Authoring, immutable release, durable admission, delivery, and verification |
+| `parsing-phases.mmd` / `.svg` | Profile-driven HL7v2 byte, syntactic, and semantic phases; other adapters use format-specific warning phases |
+| `cli-flow.mmd` / `.svg` | Parse, workflow run/dry-run/simulate, and serve |
+| `ui-mapping-flow.mmd` / `.svg` | Saved sessions, five-stage workspace, connection/definition authoring, Operator, and capability-aware API access |
 
-- `overview-flow.mmd` → `overview-flow.svg`: end-to-end dataflow (inputs → parsing → events → workflow → outputs)
-- `parsing-phases.mmd` → `parsing-phases.svg`: the 3-phase parsing pipeline
-- `cli-flow.mmd` → `cli-flow.svg`: CLI pipe (parse → workflow)
-- `ui-mapping-flow.mmd` → `ui-mapping-flow.svg`: Mapping Studio UI loop (samples → triage → profile/workflow → run)
-
-## Regenerate
-
-Requires Node.js.
+From the repository root:
 
 ```bash
-make docs-mermaid
+make docs-mermaid    # These four diagrams
+make docs-diagrams   # These plus all generated Go architecture diagrams
 ```
+
+See [tooling prerequisites](../diagrams/README.md#regenerate-all-diagrams).
+The shared library's `Diagram.to_svg` renders through the pinned Mermaid CLI;
+`config.json` sets a shared palette, native SVG text, and deterministic IDs.
+Update the `.mmd` source first, then regenerate and inspect the SVG.
