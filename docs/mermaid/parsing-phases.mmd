@@ -1,8 +1,11 @@
 flowchart LR
-  RAW[Raw bytes] --> B[byte<br/>normalization + framing]
-  B --> S[syntactic<br/>segment and field structure]
-  S --> E[semantic<br/>event projection]
-  E --> EV[Canonical events + warnings]
-
-  NOTE[Phase labels carried on HL7v2 warnings.<br/>EDI uses envelope, CSV uses parse,<br/>CDA uses cda and mapping.]
-  NOTE -.-> B
+  accTitle: Profile-driven HL7v2 parsing
+  accDescr: A Source Profile controls byte normalization, syntactic parsing, and semantic extraction. The result includes canonical events and recoverable warnings.
+  RAW["Raw bytes"] --> B["1 · Byte normalization<br/>encoding + framing"]
+  B --> S["2 · Syntactic parse<br/>segments + fields + repetitions"]
+  S --> E["3 · Semantic extraction<br/>identifiers + event classification"]
+  E --> EV["Canonical events<br/>+ parse warnings"]
+  PROFILE["Source Profile<br/>tolerance · validation · mapping"]
+  PROFILE -.-> B
+  PROFILE -.-> S
+  PROFILE -.-> E

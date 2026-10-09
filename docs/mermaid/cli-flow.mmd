@@ -1,4 +1,6 @@
 flowchart TB
+  accTitle: fi-fhir CLI commands
+  accDescr: Parse a message into event JSON, then run a workflow, inspect matches with dry-run, or simulate with mock actions. The serve command starts the integration engine.
   MSG[Input message or stdin] -->|fi-fhir parse<br/>--format hl7v2 / csv / edi / cda| EVT[event JSON<br/>events + parse_warnings]
   PROF[Source Profile<br/>YAML] -.->|--profile| MSG
   CFG[Workflow config<br/>YAML + CEL] -.->|--config| RUN

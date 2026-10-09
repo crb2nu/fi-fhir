@@ -43,12 +43,13 @@
 .PHONY: lifecycle-seed                                                 # lifecycle seed CLI
 .PHONY: verification-reads                                             # .loom/42 — E-2
 .PHONY: definition-authoring                                           # .loom/42 — E-1
+.PHONY: docs-diagrams                                                  # README diagram refresh
 
 # Tool versions (update these when upgrading)
 GOLANGCI_LINT_VERSION := v2.12.2
 GOVULNCHECK_VERSION := v1.6.0
 GOSEC_VERSION := v2.27.1
-GO_MIN_VERSION := 1.26.5
+GO_MIN_VERSION := 1.26.9
 NPM_VERSION := 10.9.3
 
 # Build the CLI
@@ -647,7 +648,7 @@ dev-setup: check-deps setup-hooks tidy
 # Check development dependencies
 check-deps:
 	@echo "Checking Go version..."
-	@go env GOVERSION | grep -Eq '^go1\.(26\.([5-9]|[1-9][0-9]+)|2[7-9](\.|$$)|[3-9][0-9](\.|$$))' || { \
+	@go env GOVERSION | grep -Eq '^go1\.(26\.(9|[1-9][0-9]+)|2[7-9](\.|$$)|[3-9][0-9](\.|$$))' || { \
 		echo "❌ Go $(GO_MIN_VERSION)+ required. Current: $$(go version)"; \
 		exit 1; \
 	}
@@ -927,16 +928,14 @@ deploy-forward:
 # Documentation
 # =============================================================================
 
-# Render Mermaid diagrams to SVG (pre-rendered for GitLab Markdown reliability).
+# Shared workspace renderers; pre-rendered SVGs work on GitLab and GitHub.
+DIAGRAM_LIBS ?= $(HOME)/workspace/libs
+MERMAID_CLI_VERSION := 11.12.0
+docs-diagrams:
+	npm exec --yes --package=@mermaid-js/mermaid-cli@$(MERMAID_CLI_VERSION) -- uv run scripts/generate-diagrams.py --libs "$(DIAGRAM_LIBS)"
+
 docs-mermaid:
-	@command -v node >/dev/null 2>&1 || { echo "❌ node not found (required for mermaid-cli)"; exit 1; }
-	@command -v npx >/dev/null 2>&1 || { echo "❌ npx not found (required for mermaid-cli)"; exit 1; }
-	@echo "Rendering Mermaid diagrams to docs/mermaid/*.svg..."
-	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/overview-flow.mmd -o docs/mermaid/overview-flow.svg -q
-	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/parsing-phases.mmd -o docs/mermaid/parsing-phases.svg -q
-	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/cli-flow.mmd -o docs/mermaid/cli-flow.svg -q
-	@npx -y @mermaid-js/mermaid-cli@latest -c docs/mermaid/config.json -b transparent -i docs/mermaid/ui-mapping-flow.mmd -o docs/mermaid/ui-mapping-flow.svg -q
-	@echo "✓ Done"
+	npm exec --yes --package=@mermaid-js/mermaid-cli@$(MERMAID_CLI_VERSION) -- uv run scripts/generate-diagrams.py --libs "$(DIAGRAM_LIBS)" --only mermaid
 
 # Generate status data from coverage + git (re-runs tests for fresh coverage)
 # Uses merged unit + integration coverage (see test-cover-all) so components
@@ -1006,8 +1005,8 @@ decisions:
 decisions-recent:
 	@bash scripts/decisions.sh render --newest
 
-# Full documentation maintenance (mermaid diagrams + status + validation)
-docs-all: docs-mermaid docs-status docs-validate
+# Full documentation maintenance (all diagrams + status + validation)
+docs-all: docs-diagrams docs-status docs-validate
 	@echo ""
 	@echo "✅ Full documentation maintenance complete!"
 
