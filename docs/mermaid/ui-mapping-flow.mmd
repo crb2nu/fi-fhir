@@ -1,31 +1,21 @@
-flowchart TB
-  accTitle: Mapping Studio workspace
-  accDescr: The workspace supports a five-stage integration journey, saved sessions, connection and definition authoring, deployment and verification, with role and capability checks throughout.
-
-  SHELL["Workspace<br/>Build / Operate explorer · saved record tabs<br/>commands · keyboard navigation · unsaved-edit protection"]
-  SESSIONS["Saved sessions<br/>search · reopen · runs · diagnostics · export · archive"]
-  SHELL --> SESSIONS
-
-  subgraph JOURNEY["Five-stage integration journey"]
-    INTAKE["1 · Source intake<br/>samples + preview"]
-    PROFILE["2 · Normalization<br/>Source Profile draft"]
-    TERMS["3 · Translation<br/>terminology mappings"]
-    FLOW["4 · Delivery<br/>workflow design + simulation"]
-    VERIFY["5 · Verification<br/>admissions · statistics · retention"]
-    INTAKE --> PROFILE --> TERMS --> FLOW --> VERIFY
-  end
-  SESSIONS --> INTAKE
-
-  subgraph OPERATE["Operate · Connections and Operator"]
-    CONNECTION["Source + destination connections<br/>validate → compile"]
-    DEFINITION["Definitions + registry refs<br/>check → draft → validate → approve → publish"]
-    OPERATOR["Operator<br/>deploy · pause · history · delivery attempts"]
-    CONNECTION --> DEFINITION --> OPERATOR
-  end
-  OPERATOR --> VERIFY
-
-  PANEL["Bottom panel<br/>Output · Problems · Debug · Trace · Copilot"]
-  JOURNEY --> PANEL
-  API["Authenticated GraphQL + SSE<br/>deployment capabilities and identity roles"]
-  PANEL --> API
-  OPERATE --> API
+%% Generated from docs/diagrams/narratives.yaml; do not edit.
+flowchart LR
+  accTitle: One workspace, from sample to operation
+  accDescr: Build the integration, publish its definition, and verify what happened in production.
+  intake["01 · Intake<br/>Samples<br/>and preview"]
+  profile["02 · Normalize<br/>Source Profile<br/>draft"]
+  terms["03 · Translate<br/>Terminology<br/>mappings"]
+  workflow["04 · Deliver<br/>Workflow design<br/>and simulation"]
+  verify["05 · Verify<br/>Admissions, statistics<br/>and retention"]
+  connections["Connections<br/>Source + destination<br/>Validate → compile"]
+  definitions["Definitions<br/>Check → draft → validate<br/>Approve → publish"]
+  operator["Operator<br/>Deploy · pause · history<br/>Inspect delivery attempts"]
+  workspace["Workspace<br/>Build / Operate explorer · saved tabs · saved sessions · keyboard navigation"]
+  tools["Shared tools<br/>Output · Problems · Debug · Trace · Copilot"]
+  intake --> profile
+  profile --> terms
+  terms --> workflow
+  workflow --> verify
+  connections --> definitions
+  definitions --> operator
+  operator -.->|Live evidence| verify

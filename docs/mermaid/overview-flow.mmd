@@ -1,24 +1,24 @@
-flowchart TB
-  accTitle: fi-fhir authoring and delivery
-  accDescr: Mapping Studio authors immutable definitions. The server admits messages durably before dispatching deliveries and exposes receipts for verification. The CLI also runs independently.
-
-  STUDIO["Mapping Studio<br/>samples · profiles · workflows"]
-  PREVIEW["Session preview + simulation<br/>diagnostics · lineage · recorded runs"]
-  DEFINITION["Integration definition<br/>compiled connections + registry profile/workflow"]
-  RELEASE["Validate → approve → publish<br/>Operator deploys the release"]
-  STUDIO --> PREVIEW --> DEFINITION --> RELEASE
-
-  subgraph SERVER["Integration engine · fi-fhir serve"]
-    INPUT["MLLP · authenticated HTTP · S3/SFTP batch"]
-    KERNEL["Resolve immutable revision<br/>parse → project → plan delivery"]
-    STORE["PostgreSQL transaction<br/>receipt + canonical events + lineage + outbox"]
-    DISPATCH["Delivery worker<br/>retry · circuit breaker · dead letter queue"]
-    OUTPUT["Configured destinations<br/>HTTPS · FHIR · Kafka"]
-    INPUT --> KERNEL --> STORE --> DISPATCH --> OUTPUT
-  end
-
-  RELEASE -. admission gate .-> KERNEL
-  PREVIEW -. shared kernel in preview mode .-> KERNEL
-  VERIFY["Verification + Operator<br/>admissions · statistics · retention · attempts"]
-  STORE --> VERIFY
-  DISPATCH --> VERIFY
+%% Generated from docs/diagrams/narratives.yaml; do not edit.
+flowchart LR
+  accTitle: From source data to verified delivery
+  accDescr: Author an immutable integration. Commit admissions durably. Trace every delivery.
+  studio["Mapping Studio<br/>Samples, profiles<br/>and workflows"]
+  preview["Preview &amp; simulate<br/>Diagnostics, lineage<br/>and recorded runs"]
+  definition["Integration definition<br/>Compiled connections<br/>and registry references"]
+  release["Publish &amp; deploy<br/>Validate → approve → publish<br/>Operator deploys the release"]
+  input["Ingress<br/>MLLP · HTTP<br/>S3 / SFTP batch"]
+  kernel["Plan<br/>Resolve revision<br/>Parse → project → plan"]
+  commit["Commit<br/>Receipt + events<br/>Lineage + outbox"]
+  dispatch["Dispatch<br/>Retry · circuit breaker<br/>Dead letter queue"]
+  destination["Destinations<br/>HTTPS · FHIR<br/>Kafka"]
+  verification["Verification &amp; Operator<br/>Admissions · statistics · retention · delivery attempts"]
+  studio --> preview
+  preview --> definition
+  definition --> release
+  input --> kernel
+  kernel --> commit
+  commit --> dispatch
+  dispatch --> destination
+  release -.->|Deployed revision| kernel
+  commit --> verification
+  dispatch --> verification

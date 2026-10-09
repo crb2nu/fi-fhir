@@ -1,23 +1,23 @@
 # Conceptual diagrams
 
-Mermaid sources (`.mmd`) describe the system and user journeys. Their generated
-SVGs are committed so GitLab and GitHub render the same illustrations.
+The SVGs are composed with the shared FlexInfer vector tooling from
+[`narratives.yaml`](../diagrams/narratives.yaml). Edit that file to change the
+copy or layout. The `.mmd` files are generated, portable Mermaid fallbacks with
+the same nodes and connections; do not edit them separately.
 
-| Source / output | Shows |
+| Figure | Shows |
 | --- | --- |
-| `overview-flow.mmd` / `.svg` | Authoring, immutable release, durable admission, delivery, and verification |
-| `parsing-phases.mmd` / `.svg` | Profile-driven HL7v2 byte, syntactic, and semantic phases; other adapters use format-specific warning phases |
-| `cli-flow.mmd` / `.svg` | Parse, workflow run/dry-run/simulate, and serve |
-| `ui-mapping-flow.mmd` / `.svg` | Saved sessions, five-stage workspace, connection/definition authoring, Operator, and capability-aware API access |
-
-From the repository root:
+| [Overview](overview-flow.svg) | Authoring and release, durable admission and delivery, then verification |
+| [HL7v2 parsing](parsing-phases.svg) | Source Profile control of byte normalization, syntactic parsing, and semantic extraction |
+| [CLI flows](cli-flow.svg) | Parsing followed by run/dry-run/simulate; the server is a separate runtime |
+| [Mapping Studio](ui-mapping-flow.svg) | Five-stage journey, connection/definition/Operator work, and shared workspace tools |
 
 ```bash
-make docs-mermaid    # These four diagrams
-make docs-diagrams   # These plus all generated Go architecture diagrams
+make docs-mermaid    # These four SVGs plus their Mermaid fallbacks
+make docs-diagrams   # These plus the three generated Go architecture views
 ```
 
-See [tooling prerequisites](../diagrams/README.md#regenerate-all-diagrams).
-The shared library's `Diagram.to_svg` renders through the pinned Mermaid CLI;
-`config.json` sets a shared palette, native SVG text, and deterministic IDs.
-Update the `.mmd` source first, then regenerate and inspect the SVG.
+See [tooling and prerequisites](../diagrams/README.md#regenerate-all-diagrams).
+The renderer uses shared light-theme tokens, fixed diagram geometry, native SVG
+text, and explicit backgrounds. Mermaid auto-layout does not determine the
+committed SVG layout.

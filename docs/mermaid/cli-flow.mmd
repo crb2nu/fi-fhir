@@ -1,16 +1,16 @@
-flowchart TB
-  accTitle: fi-fhir CLI commands
-  accDescr: Parse a message into event JSON, then run a workflow, inspect matches with dry-run, or simulate with mock actions. The serve command starts the integration engine.
-  MSG[Input message or stdin] -->|fi-fhir parse<br/>--format hl7v2 / csv / edi / cda| EVT[event JSON<br/>events + parse_warnings]
-  PROF[Source Profile<br/>YAML] -.->|--profile| MSG
-  CFG[Workflow config<br/>YAML + CEL] -.->|--config| RUN
-
-  EVT --> RUN[fi-fhir workflow]
-
-  RUN --> SUBRUN[run<br/>executes actions]
-  RUN --> SUBDRY[dry-run<br/>shows matches only]
-  RUN --> SUBSIM[simulate<br/>mock actions]
-
-  SUBRUN --> OUT[Side effects<br/>log · webhook · fhir · email · exec<br/>file · database · queue · event_store]
-
-  SERVE[fi-fhir serve] --> NOTE[GraphQL API + HTTP ingress<br/>+ MLLP + batch + delivery worker]
+%% Generated from docs/diagrams/narratives.yaml; do not edit.
+flowchart LR
+  accTitle: Parse once. Choose how to run.
+  accDescr: The CLI turns a message into event JSON, then applies the workflow mode you select.
+  input["Input message<br/>File or stdin<br/>HL7v2 · CSV · EDI · CDA"]
+  parse["fi-fhir parse<br/>--profile source.yaml<br/>Profile-driven extraction"]
+  event["Event JSON<br/>Canonical events<br/>+ parse warnings"]
+  run["workflow run<br/>Execute configured actions<br/>and produce side effects"]
+  dry["workflow dry-run<br/>Inspect matching routes<br/>without executing actions"]
+  simulate["workflow simulate<br/>Exercise the workflow<br/>with mock actions"]
+  serve["fi-fhir serve<br/>GraphQL + HTTP ingress · MLLP · batch · delivery worker"]
+  input --> parse
+  parse --> event
+  event --> run
+  event --> dry
+  event --> simulate

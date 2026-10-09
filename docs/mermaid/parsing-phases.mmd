@@ -1,11 +1,17 @@
+%% Generated from docs/diagrams/narratives.yaml; do not edit.
 flowchart LR
-  accTitle: Profile-driven HL7v2 parsing
-  accDescr: A Source Profile controls byte normalization, syntactic parsing, and semantic extraction. The result includes canonical events and recoverable warnings.
-  RAW["Raw bytes"] --> B["1 · Byte normalization<br/>encoding + framing"]
-  B --> S["2 · Syntactic parse<br/>segments + fields + repetitions"]
-  S --> E["3 · Semantic extraction<br/>identifiers + event classification"]
-  E --> EV["Canonical events<br/>+ parse warnings"]
-  PROFILE["Source Profile<br/>tolerance · validation · mapping"]
-  PROFILE -.-> B
-  PROFILE -.-> S
-  PROFILE -.-> E
+  accTitle: A Source Profile controls every phase
+  accDescr: The HL7v2 pipeline preserves source data while extracting business-level events.
+  raw["Raw bytes"]
+  bytes["01 · Normalize bytes<br/>Encoding<br/>and framing"]
+  syntax["02 · Parse syntax<br/>Segments, fields<br/>and repetitions"]
+  semantic["03 · Extract meaning<br/>Identifiers and<br/>event classification"]
+  result["Canonical events<br/>+ warnings"]
+  source_profile["Source Profile<br/>Tolerance · validation · identifier rules · mapping"]
+  raw --> bytes
+  bytes --> syntax
+  syntax --> semantic
+  semantic --> result
+  source_profile -.-> bytes
+  source_profile -.-> syntax
+  source_profile -.-> semantic

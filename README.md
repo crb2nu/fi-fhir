@@ -112,7 +112,7 @@ See the [Mapping Studio guide](docs/user-guide/ide.md),
 ### Reference
 
 - **[Planning Documents](docs/planning/README.md)** - Technical specifications and design docs
-- **[Architecture Diagrams](docs/diagrams/README.md)** - Generated package and call-graph diagrams
+- **[Architecture Diagrams](docs/diagrams/README.md)** - Generated package dependencies and CLI command dispatch
 
 ## Features
 
@@ -450,8 +450,10 @@ make docs-diagrams
 make docs-diagrams DIAGRAM_LIBS=/path/to/workspace/libs
 ```
 
-See [diagram tooling and prerequisites](docs/diagrams/README.md). Commit the
-source and generated SVG together so both repository hosts show the same images.
+Conceptual figures use a shared vector design and curated
+[layout source](docs/diagrams/narratives.yaml); package imports and CLI dispatch
+are extracted from Go source. See [tooling and prerequisites](docs/diagrams/README.md).
+Commit the sources, SVGs, and generated Mermaid fallbacks together.
 
 ## Deployment
 
