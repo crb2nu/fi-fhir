@@ -930,12 +930,11 @@ deploy-forward:
 
 # Shared workspace renderers; pre-rendered SVGs work on GitLab and GitHub.
 DIAGRAM_LIBS ?= $(HOME)/workspace/libs
-MERMAID_CLI_VERSION := 11.12.0
 docs-diagrams:
-	npm exec --yes --package=@mermaid-js/mermaid-cli@$(MERMAID_CLI_VERSION) -- uv run scripts/generate-diagrams.py --libs "$(DIAGRAM_LIBS)"
+	uv run scripts/generate-diagrams.py --libs "$(DIAGRAM_LIBS)"
 
 docs-mermaid:
-	npm exec --yes --package=@mermaid-js/mermaid-cli@$(MERMAID_CLI_VERSION) -- uv run scripts/generate-diagrams.py --libs "$(DIAGRAM_LIBS)" --only mermaid
+	uv run scripts/generate-diagrams.py --libs "$(DIAGRAM_LIBS)" --only mermaid
 
 # Generate status data from coverage + git (re-runs tests for fresh coverage)
 # Uses merged unit + integration coverage (see test-cover-all) so components

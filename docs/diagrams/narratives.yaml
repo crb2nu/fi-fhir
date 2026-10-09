@@ -1,0 +1,119 @@
+# Curated layout and copy. SVGs and Mermaid fallbacks are generated together.
+overview-flow:
+  title: From source data to verified delivery
+  subtitle: Author an immutable integration. Commit admissions durably. Trace every delivery.
+  height: 646
+  rows:
+    - label: 01 / AUTHOR & RELEASE
+      y: 158
+      height: 112
+      tone: purple
+      connect: true
+      nodes:
+        - {id: studio, title: Mapping Studio, body: ["Samples, profiles", "and workflows"]}
+        - {id: preview, title: Preview & simulate, body: ["Diagnostics, lineage", "and recorded runs"]}
+        - {id: definition, title: Integration definition, body: ["Compiled connections", "and registry references"]}
+        - {id: release, title: Publish & deploy, body: ["Validate → approve → publish", "Operator deploys the release"]}
+    - label: 02 / ADMIT & DELIVER
+      note: Preview and live admission share the same kernel.
+      y: 354
+      height: 122
+      connect: true
+      nodes:
+        - {id: input, title: Ingress, body: ["MLLP · HTTP", "S3 / SFTP batch"]}
+        - {id: kernel, title: Plan, body: ["Resolve revision", "Parse → project → plan"]}
+        - {id: commit, title: Commit, tone: teal, body: ["Receipt + events", "Lineage + outbox"]}
+        - {id: dispatch, title: Dispatch, body: ["Retry · circuit breaker", "Dead letter queue"]}
+        - {id: destination, title: Destinations, body: ["HTTPS · FHIR", "Kafka"]}
+  bands:
+    - {id: verification, y: 532, title: Verification & Operator, body: "Admissions · statistics · retention · delivery attempts", tone: teal}
+  links:
+    - {from: release, to: kernel, via_y: 300, dashed: true, label: Deployed revision, label_x: 800}
+    - {from: commit, to: verification, to_x: 560}
+    - {from: dispatch, to: verification, to_x: 770}
+  footer: PostgreSQL commits the admission before the delivery worker dispatches it.
+
+ui-mapping-flow:
+  title: One workspace, from sample to operation
+  subtitle: Build the integration, publish its definition, and verify what happened in production.
+  height: 724
+  bands:
+    - {id: workspace, y: 126, title: Workspace, body: "Build / Operate explorer · saved tabs · saved sessions · keyboard navigation", tone: purple}
+    - {id: tools, y: 610, title: Shared tools, body: "Output · Problems · Debug · Trace · Copilot", tone: slate}
+  rows:
+    - label: FIVE-STAGE INTEGRATION JOURNEY
+      y: 258
+      height: 126
+      connect: true
+      nodes:
+        - {id: intake, title: "01 · Intake", body: ["Samples", "and preview"]}
+        - {id: profile, title: "02 · Normalize", body: ["Source Profile", "draft"]}
+        - {id: terms, title: "03 · Translate", body: ["Terminology", "mappings"]}
+        - {id: workflow, title: "04 · Deliver", body: ["Workflow design", "and simulation"]}
+        - {id: verify, title: "05 · Verify", tone: teal, body: ["Admissions, statistics", "and retention"]}
+    - label: CONNECTIONS, DEFINITIONS & OPERATOR
+      y: 466
+      height: 106
+      tone: purple
+      connect: true
+      nodes:
+        - {id: connections, title: Connections, body: ["Source + destination", "Validate → compile"]}
+        - {id: definitions, title: Definitions, body: ["Check → draft → validate", "Approve → publish"]}
+        - {id: operator, title: Operator, body: ["Deploy · pause · history", "Inspect delivery attempts"]}
+  links:
+    - {from: operator, from_side: top, to: verify, to_side: bottom, via_y: 414, dashed: true, label: Live evidence, label_x: 895}
+  footer: Authenticated GraphQL + SSE · deployment capabilities · identity roles · unsaved-edit protection
+
+cli-flow:
+  title: Parse once. Choose how to run.
+  subtitle: The CLI turns a message into event JSON, then applies the workflow mode you select.
+  height: 684
+  rows:
+    - label: 01 / PARSE
+      y: 160
+      height: 110
+      connect: true
+      nodes:
+        - {id: input, title: Input message, body: ["File or stdin", "HL7v2 · CSV · EDI · CDA"]}
+        - {id: parse, title: fi-fhir parse, body: ["--profile source.yaml", "Profile-driven extraction"]}
+        - {id: event, title: Event JSON, tone: teal, body: ["Canonical events", "+ parse warnings"]}
+    - label: 02 / CHOOSE A WORKFLOW MODE
+      label_y: 293
+      note: Workflow configuration uses YAML + CEL.
+      note_y: 524
+      y: 368
+      height: 126
+      nodes:
+        - {id: run, title: workflow run, body: ["Execute configured actions", "and produce side effects"]}
+        - {id: dry, title: workflow dry-run, body: ["Inspect matching routes", "without executing actions"]}
+        - {id: simulate, title: workflow simulate, body: ["Exercise the workflow", "with mock actions"]}
+  bands:
+    - {id: serve, y: 552, title: fi-fhir serve, body: "GraphQL + HTTP ingress · MLLP · batch · delivery worker", tone: purple}
+  links:
+    - {from: event, to: run, via_y: 306}
+    - {from: event, to: dry, via_y: 306}
+    - {from: event, to: simulate, via_y: 306}
+  footer: "Actions: log · webhook · FHIR · email · exec · file · database · queue · event store"
+
+parsing-phases:
+  title: A Source Profile controls every phase
+  subtitle: The HL7v2 pipeline preserves source data while extracting business-level events.
+  height: 486
+  bands:
+    - {id: source_profile, y: 126, title: Source Profile, body: "Tolerance · validation · identifier rules · mapping", tone: purple}
+  rows:
+    - y: 266
+      height: 144
+      weights: [0.75, 1.65, 1.65, 1.65, 1.05]
+      connect: true
+      nodes:
+        - {id: raw, title: "Raw\nbytes", tone: slate, body: []}
+        - {id: bytes, title: "01 · Normalize\nbytes", body: ["Encoding", "and framing"]}
+        - {id: syntax, title: "02 · Parse\nsyntax", body: ["Segments, fields", "and repetitions"]}
+        - {id: semantic, title: "03 · Extract\nmeaning", body: ["Identifiers and", "event classification"]}
+        - {id: result, title: "Canonical\nevents", tone: teal, body: ["+ warnings"]}
+  links:
+    - {from: source_profile, from_x: 286, to: bytes, dashed: true}
+    - {from: source_profile, from_x: 540, to: syntax, dashed: true}
+    - {from: source_profile, from_x: 794, to: semantic, dashed: true}
+  footer: Recoverable anomalies become parse warnings; raw payloads remain available for audit.

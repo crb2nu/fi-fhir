@@ -12,12 +12,12 @@
 """Regenerate documentation SVGs with the FlexInfer workspace libraries."""
 
 import argparse
-import json
 import os
-import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+sys.dont_write_bytecode = True
 
 
 def repository_packages(graph):
@@ -54,16 +54,61 @@ def repository_packages(graph):
     )
 
 
-def save_code_diagram(diagram, output):
-    # Graphviz packs large code graphs more tightly than the native card layout.
-    diagram.content = diagram.content.replace(
-        "digraph G {",
-        """digraph G {
-    graph [bgcolor="white", pad=0.3, nodesep=0.18, ranksep=0.5];
-    node [style="rounded,filled", fillcolor="#e8f1fc", color="#5790be", fontcolor="#152f4b", fontsize=12];
-    edge [color="#56718b", arrowsize=0.65];""",
-    ).replace("style=rounded,", 'style="rounded,filled",')
-    diagram.to_svg(output)
+def cli_commands():
+    """Resolve top-level CLI dispatch using a package-wide function symbol table."""
+    from diagram_gen.analyzers.go import GoAnalyzer
+
+    analyzer = GoAnalyzer()
+    functions = {}
+    for path in sorted(Path("cmd/fi-fhir").glob("*.go")):
+        if path.name.endswith("_test.go"):
+            continue
+        tree = analyzer.parser.parse(path.read_bytes())
+        for node in tree.root_node.named_children:
+            if node.type == "function_declaration":
+                name = node.child_by_field_name("name").text.decode()
+                if name in functions:
+                    raise ValueError(f"Ambiguous CLI function: {name}")
+                functions[name] = (node, path)
+
+    def walk(node):
+        yield node
+        for child in node.named_children:
+            yield from walk(child)
+
+    switches = [
+        node
+        for node in walk(functions["main"][0])
+        if node.type == "expression_switch_statement"
+        and (value := node.child_by_field_name("value")) is not None
+        and value.text == b"os.Args[1]"
+    ]
+    if len(switches) != 1:
+        raise ValueError("Expected one main command switch")
+    commands = {}
+    for case in switches[0].named_children:
+        if case.type != "expression_case":
+            continue
+        literals = [
+            node.text.decode().strip('"')
+            for node in case.named_children[0].named_children
+        ]
+        if "help" in literals or "version" in literals:
+            continue
+        calls = {
+            node.child_by_field_name("function").text.decode()
+            for node in walk(case)
+            if node.type == "call_expression"
+            and node.child_by_field_name("function").type == "identifier"
+        }
+        handlers = calls & functions.keys()
+        if len(handlers) != 1:
+            raise ValueError(f"Ambiguous command handler: {literals}: {handlers}")
+        handler = handlers.pop()
+        declaration, path = functions[handler]
+        for command in literals:
+            commands[command] = (handler, path, declaration.start_point[0] + 1)
+    return commands
 
 
 def main():
@@ -79,66 +124,55 @@ def main():
             )
         sys.path.insert(0, str(source))
 
+    import yaml
+    from diagram_artwork import commands, narrative, packages
     from diagram_gen import DiagramGenerator
-    from diagram_gen.models import (
-        Diagram,
-        DiagramConfig,
-        DiagramType,
-        EdgeType,
-        NodeType,
-        OutputFormat,
-    )
 
     root = Path(__file__).resolve().parents[1]
     os.chdir(root)
     outputs = []
     if args.only in ("all", "mermaid"):
-        config = json.loads(Path("docs/mermaid/config.json").read_text())
-        for source in sorted(Path("docs/mermaid").glob("*.mmd")):
-            config["deterministicIDSeed"] = source.stem
-            diagram = Diagram(
-                content="%%{init: " + json.dumps(config) + "}%%\n" + source.read_text(),
-                format=OutputFormat.MERMAID,
-                diagram_type=DiagramType.ARCHITECTURE,
-            )
-            output = source.with_suffix(".svg")
-            diagram.to_svg(output)
-            outputs.append(output)
+        specs = yaml.safe_load(Path("docs/diagrams/narratives.yaml").read_text())
+        for name, spec in specs.items():
+            outputs.append(narrative(name, spec, Path("docs/mermaid")))
 
     if args.only in ("all", "code"):
-        config = DiagramConfig(format=OutputFormat.DOT, direction="LR")
-        for source, name in (
-            ("internal/parser", "parser-modules"),
-            ("pkg", "pkg-modules"),
+        for source, name, title, subtitle in (
+            (
+                "internal/parser",
+                "parser-modules",
+                "Format adapters & shared contracts",
+                "Blue nodes: internal/parser packages. Green nodes: shared pkg packages.",
+            ),
+            (
+                "pkg",
+                "pkg-modules",
+                "Public package dependencies",
+                "Connected components reveal the actual imports. All paths are relative to pkg/.",
+            ),
         ):
-            generator = DiagramGenerator(source, config=config, language="go")
-            diagram = generator.module_diagram(repository_packages(generator.analyze()))
+            graph = repository_packages(
+                DiagramGenerator(source, language="go").analyze()
+            )
             output = Path("docs/diagrams") / f"{name}.svg"
-            save_code_diagram(diagram, output)
+            packages(graph, name, title, subtitle, output)
             outputs.append(output)
-        generator = DiagramGenerator("cmd/fi-fhir", config=config, language="go")
         output = Path("docs/diagrams/cli-call-graph.svg")
-        calls = generator.analyze().filter(
-            node_types=[NodeType.FUNCTION, NodeType.METHOD], edge_types=[EdgeType.CALLS]
-        )
-        save_code_diagram(
-            generator.call_graph(entry="main", depth=3, graph=calls), output
-        )
+        commands(cli_commands(), output)
         outputs.append(output)
 
     for output in outputs:
-        # Repository hosts embed static images; omit the native renderer's pan/zoom script.
-        content = re.sub(
-            r"<script\b[^>]*>.*?</script>", "", output.read_text(), flags=re.S
-        )
-        # Mermaid splits words across tspans; preserve their separating spaces in SVG readers.
-        content = content.replace("<svg ", '<svg xml:space="preserve" ', 1)
-        svg = ET.fromstring(content)
+        svg = ET.parse(output).getroot()
         if not svg.get("viewBox") or len(svg) == 0:
             raise ValueError(f"Empty diagram: {output}")
-        output.write_text(
-            "\n".join(line.rstrip() for line in content.splitlines()) + "\n"
-        )
+        ids = [node.get("id") for node in svg.iter() if node.get("id")]
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"Duplicate SVG identifiers: {output}")
+        if any(
+            node.tag.rsplit("}", 1)[-1] in {"script", "foreignObject"}
+            for node in svg.iter()
+        ):
+            raise ValueError(f"Non-static SVG content: {output}")
         print(f"Generated {output}")
 
 
