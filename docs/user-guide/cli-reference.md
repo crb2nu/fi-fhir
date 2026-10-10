@@ -957,7 +957,9 @@ fi-fhir companion validate --guide bcbs-837p claim.x12
 | `FI_FHIR_LOG_LEVEL` | Log level (debug, info, warn, error) |
 | `FI_FHIR_DATABASE_URL` | Database connection string |
 | `FI_FHIR_FHIR_ENDPOINT` | Default FHIR server endpoint |
-| `FI_FHIR_TRACING_ENABLED` | **NOT IMPLEMENTED** — parsed and validated, but no OpenTelemetry exporter consumes it (slice 4.4d) |
+| `FI_FHIR_TRACING_ENABLED` | Enable OTLP/HTTP tracing in serve (default: false) |
+| `FI_FHIR_TRACING_ENDPOINT` | HTTP(S) collector URL, required when tracing is enabled; default path `/v1/traces` |
+| `FI_FHIR_TRACING_SAMPLER` | Root trace sampling ratio, 0–1 (default: 0.1) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | **NOT IMPLEMENTED** — read by no code in this repository |
 | `LLM_BASE_URL` | LLM API endpoint (OpenAI-compatible) |
 | `LLM_API_KEY` | LLM API authentication key |

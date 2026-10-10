@@ -11,6 +11,10 @@
 # re-proves on every run the reachability correction the day-1 gate found:
 # the legacy queue driver is not on the serve path.
 #
+# The same serve process exports to an in-test OTLP/HTTP collector. The proof
+# requires a durably accepted admission span, its planning child, tenant and
+# receipt lineage shared with the logs, and no PHI or unlisted span attributes.
+#
 # The second half drives the shipped `fi-fhir workflow run` surface with the
 # `log` queue driver and asserts it records sizes rather than the message key
 # and payload.

@@ -40,17 +40,18 @@ const (
 	OutcomeForbidden Outcome = "identity_forbidden"
 )
 
-// DispatchResult reports one bounded dispatcher step.
-//
-// It exists because RunOnce already computes a typed Outcome that Run then
-// discards, so the durable delivery worker was invisible to the process it runs
-// in. The shape mirrors autoroute.SweeperConfig.Observe exactly: a typed result,
-// an optional non-blocking hook, and no metrics dependency inside this package.
+// DispatchResult carries the outcome and server-owned lineage of one worker
+// step. It excludes payloads and raw error text. Duration includes the claim;
+// the operation observer starts after the claim so idle polls need no span.
 type DispatchResult struct {
 	// Outcome is the step's terminal classification.
 	Outcome Outcome
 	// Duration is how long the step took, including the database round trips.
-	Duration time.Duration
+	Duration  time.Duration
+	ReceiptID string
+	TraceID   string
+	AttemptID string
+	Failed    bool
 }
 
 // Dispatcher publishes durable work and records its terminal database outcome.
@@ -63,14 +64,15 @@ type Dispatcher struct {
 	transport DestinationTransport
 
 	mu      sync.RWMutex
-	observe func(DispatchResult, error)
+	observe func(context.Context, DispatchResult) (context.Context, func(DispatchResult))
 }
 
-// SetObserver binds an observation hook. It must not block.
+// SetObserver binds an operation-start hook returning a completion callback.
+// Both callbacks must be non-blocking and preserve the supplied context.
 //
 // Binding is a setter rather than a constructor field so the four existing
 // NewDispatcher call sites — production and tests — keep their signatures.
-func (d *Dispatcher) SetObserver(observe func(DispatchResult, error)) {
+func (d *Dispatcher) SetObserver(observe func(context.Context, DispatchResult) (context.Context, func(DispatchResult))) {
 	if d == nil {
 		return
 	}
@@ -79,17 +81,14 @@ func (d *Dispatcher) SetObserver(observe func(DispatchResult, error)) {
 	d.observe = observe
 }
 
-func (d *Dispatcher) report(result DispatchResult, err error) {
-	if d == nil {
-		return
-	}
+func (d *Dispatcher) beginObservation(ctx context.Context, result DispatchResult) (context.Context, func(DispatchResult)) {
 	d.mu.RLock()
 	observe := d.observe
 	d.mu.RUnlock()
 	if observe == nil {
-		return
+		return ctx, func(DispatchResult) {}
 	}
-	observe(result, err)
+	return observe(ctx, result)
 }
 
 // NewDispatcher validates and constructs one worker without a destination
@@ -143,11 +142,21 @@ func NewDispatcherWithDestination(
 }
 
 // RunOnce claims at most one item, publishes it, and persists the outcome.
-func (d *Dispatcher) RunOnce(ctx context.Context) (Outcome, error) {
+func (d *Dispatcher) RunOnce(ctx context.Context) (outcome Outcome, dispatchErr error) {
 	if d == nil || ctx == nil {
 		return "", errors.New("delivery dispatcher is unavailable")
 	}
+	started := time.Now()
 	item, err := d.store.Claim(ctx, d.workerID, d.config.LeaseDuration)
+	result := DispatchResult{}
+	if item != nil {
+		result.ReceiptID, result.TraceID, result.AttemptID = item.ReceiptID, item.TraceID, item.AttemptID
+	}
+	ctx, finish := d.beginObservation(ctx, result)
+	defer func() {
+		result.Outcome, result.Failed, result.Duration = outcome, dispatchErr != nil, time.Since(started)
+		finish(result)
+	}()
 	if err != nil {
 		return "", err
 	}
@@ -277,9 +286,7 @@ func (d *Dispatcher) Run(ctx context.Context) error {
 		return errors.New("delivery dispatcher is unavailable")
 	}
 	for {
-		started := time.Now()
 		outcome, err := d.RunOnce(ctx)
-		d.report(DispatchResult{Outcome: outcome, Duration: time.Since(started)}, err)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil //nolint:nilerr // Context cancellation is graceful worker shutdown.

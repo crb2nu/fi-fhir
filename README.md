@@ -127,7 +127,7 @@ See the [Mapping Studio guide](docs/user-guide/ide.md),
 - **Sample intake**: pull real messages from a source connection into an Integration Session (stream capture or batch peek) to build a profile against; every message is redacted before it is stored and every capture is an audited row
 - **Browser playground**: the Source Profile compiler, HL7v2 parser and FHIR projection compiled to WebAssembly (`cmd/fi-fhir-wasm`), with a parity test against the IDE's session preview ([playground](docs/user-guide/playground.md))
 - **Reliability**: Retry with backoff, circuit breaker, dead letter queue, rate limiting
-- **Observability**: Prometheus metrics and structured JSON logging; OpenTelemetry tracing is scaffolded at the workflow layer but not wired into `serve` (see [Observability](#observability) below)
+- **Observability**: Prometheus metrics, structured JSON logging, and opt-in OTLP/HTTP tracing in `serve` (see [Observability](#observability) below)
 - **Production-ready**: Helm chart, CI/CD pipelines, security hardening guide
 
 ### Companion tool
@@ -506,18 +506,14 @@ and [runtime metrics](internal/observability/metrics.go) for labels and scope.
 `serve` emits structured operational logs. Configure `FI_FHIR_LOG_LEVEL` and
 `FI_FHIR_LOG_FORMAT` (`json` or `text`).
 
-### Tracing (OpenTelemetry) — NOT IMPLEMENTED
+### Tracing (OpenTelemetry)
 
-`FI_FHIR_TRACING_ENABLED`, `FI_FHIR_TRACING_ENDPOINT`, and
-`FI_FHIR_TRACING_SAMPLER` are parsed and validated by `pkg/config`, but nothing
-consumes them: there is no OpenTelemetry exporter in the `serve` path, and
-setting them changes no runtime behaviour.
-
-Correlation across a message's lifecycle comes from the correlation
-and trace identifiers already carried on every durable record — receipts,
-canonical events, lineage rows, and delivery attempts — not from spans. See
-[docs/operations/README.md](docs/operations/README.md) "Tracing — not
-implemented".
+`serve` supports opt-in OTLP over HTTP. Set `FI_FHIR_TRACING_ENABLED=true`,
+`FI_FHIR_TRACING_ENDPOINT=http://collector:4318/v1/traces`, and optionally
+`FI_FHIR_TRACING_SAMPLER` (0–1, default 0.1). Tracing is disabled by default.
+Admission and workflow planning spans share a trace; asynchronous delivery
+spans join through `receipt_id` and `lineage_trace_id`. See the
+[operations guide](docs/operations/README.md#tracing) for scope and correlation.
 
 ### Health Checks
 

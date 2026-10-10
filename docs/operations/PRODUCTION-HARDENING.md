@@ -578,10 +578,9 @@ config:
     logFormat: json  # json (default) or text; json is the only aggregator-parsable form
 ```
 
-`tracingEnabled` is deliberately absent. The chart carried it until slice 4.4a
-removed the key and 4.4d removed the last snippet that still showed it: it set
-`FI_FHIR_TRACING_ENABLED`, which `pkg/config` parses and validates and which no
-OpenTelemetry exporter consumes. See "Tracing" below.
+Tracing is opt-in: set `config.observability.tracingEnabled: true`,
+`tracingEndpoint` to an OTLP/HTTP collector URL, and `tracingSampler` to a ratio
+between 0 and 1. See [Tracing](README.md#tracing) for export and failure behavior.
 
 `logLevel` and `logFormat` became load-bearing in slice 4.4d. Before that they
 were parsed, validated, and read by nothing, and `serve` wrote unstructured
@@ -616,31 +615,22 @@ logger at startup and is therefore on every line. Everything else is drawn from
 the allowlist; `observability.PermittedLogFields()` enumerates it, and
 `TestEveryPermittedLogFieldIsBounded` fails if the set stops being enumerable.
 
-**Correlation, honestly.** There is no single correlation identifier to filter
-on, by design: `pkg/integration/contracts.go` declares an eight-field lineage
-bundle, and the durable schema follows it —
-`integration_receipts`, `integration_canonical_events`, and
-`integration_message_lineage` carry `correlation_id NOT NULL`, while
-`integration_delivery_attempts` carries `trace_id NOT NULL` and joins back by
-foreign key. So a log line and a submission are joined **through the durable
-records**, not through a field the log line carries.
+**Correlation.** Processor and delivery lines carry the lineage available at
+that stage. Successful durable admissions and claimed deliveries share
+`receipt_id` and `lineage_trace_id`, which join to ledger rows. Planning occurs
+before commit, so planning lines do not claim a durable receipt.
 
-Two consequences an operator should know before writing a query:
+Processor `correlation_id` is `sha256:` followed by the hex SHA-256 of the
+request correlation ID. The HTTP header is caller-controlled, so its raw text
+and the HL7 source-message ID are excluded from the new telemetry. This digest
+supports equality joins; it is pseudonymous metadata, not anonymized data.
+Access and retention controls still apply.
 
-- Lines emitted from the component-observation seam
-  (`cmd/fi-fhir/serve_observability.go`) carry `tenant_id`, `component`,
-  `outcome`, and `duration_ms` and **no** lineage identifier. The four
-  observation callbacks receive `(Result, error)` and no context, and none of
-  the `Result` types carries one. Emitting `correlation_id` from a component
-  line requires widening those types, which is filed rather than done.
-- `trace_id` and `span_id` appear only when a valid OpenTelemetry span context
-  is on the request context. With tracing not exported, that is the GraphQL
-  request path only. A zeroed trace ID is never emitted: a line that looks
-  correlated and is not is worse than a line that admits it is not.
-
-To join a component line to a message, filter by `tenant_id` and `component`,
-take the window from `time`, and resolve the message through
-`operatorMessageTrace` or the ledger tables directly.
+When tracing is enabled, operation logs carry OTel `trace_id` and `span_id`.
+These are distinct from `lineage_trace_id`; asynchronous delivery starts a new
+OTel trace. Sampling can leave a log's trace ID without an exported span.
+Aggregate batch polls and session fanout remain tenant-scoped. Successful
+per-message lines require debug level; retry/rejection/failure lines do not.
 
 ### Kubernetes Audit Policy
 

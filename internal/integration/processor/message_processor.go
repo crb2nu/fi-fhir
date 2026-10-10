@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/parser/hl7v2"
@@ -49,6 +50,8 @@ type MessageProcessor struct {
 	definitions *DefinitionRevisionResolver
 	artifacts   *RevisionResolver
 	submissions *PostgresSubmissionStore
+	observerMu  sync.RWMutex
+	observer    Observer
 }
 
 type durableSubmissionError struct {
@@ -108,7 +111,7 @@ func NewDurableMessageProcessor(
 func (p *MessageProcessor) Process(
 	ctx context.Context,
 	request integration.ProcessRequest,
-) (integration.ProcessResult, error) {
+) (result integration.ProcessResult, processErr error) {
 	if request.Mode == integration.ExecutionModeProduction && (p == nil || p.submissions == nil) {
 		return integration.ProcessResult{}, ErrProductionCommitterRequired
 	}
@@ -124,6 +127,15 @@ func (p *MessageProcessor) Process(
 	if size := request.Envelope.PayloadSizeBytes(); size <= 0 || size > MaxPreviewSourceBytes {
 		return integration.ProcessResult{}, ErrInvalidProcessRequest
 	}
+
+	observation := Observation{Phase: PhaseAdmission, Mode: request.Mode, CorrelationID: request.CorrelationID}
+	ctx, finish := p.beginObservation(ctx, observation)
+	defer func() {
+		observation.Failed = processErr != nil
+		observation.ReceiptID = result.Correlations.ReceiptID
+		observation.TraceID = result.Correlations.TraceID
+		finish(observation)
+	}()
 
 	revision, err := p.definitions.Resolve(ctx, request.Security.TenantID, request.IntegrationRevision)
 	if err != nil {
@@ -182,13 +194,18 @@ func (p *MessageProcessor) Process(
 		return integration.ProcessResult{}, ErrInvalidSourceMessage
 	}
 
+	planObservation := observation
+	planObservation.Phase = PhaseWorkflowPlan
+	_, finishPlan := p.beginObservation(ctx, planObservation)
 	routes, deliveries, workflowDiagnostics, err := planWorkflow(resolved, event, revision, request.Mode)
+	planObservation.Failed = err != nil
+	finishPlan(planObservation)
 	if err != nil {
 		return integration.ProcessResult{}, ErrWorkflowPlanningFailed
 	}
 	security := request.Security
 	security.Principal.Roles = append([]string(nil), request.Security.Principal.Roles...)
-	result := integration.ProcessResult{
+	result = integration.ProcessResult{
 		Mode:                request.Mode,
 		TenantID:            revision.TenantID,
 		IntegrationRevision: revision.Reference(),

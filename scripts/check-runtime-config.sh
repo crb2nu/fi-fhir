@@ -267,74 +267,19 @@ check_required "no deployment artifact selects the legacy observability mode" ba
   fi
 '
 
-check_required "no deployment artifact advertises unimplemented tracing" bash -c '
+check_required "OTLP tracing is opt-in in deployment defaults" bash -c '
   root="'"$ROOT"'"
-  # FI_FHIR_TRACING_* is parsed and validated by pkg/config and consumed by
-  # nothing: there is no OpenTelemetry exporter in the serve path. A deployment
-  # artifact that sets it tells an operator the deployment exports traces, and
-  # the operator finds out otherwise during an incident. Slice 4.4a stripped
-  # every such setting; this keeps them from coming back before the exporter
-  # does (4.4d). Comment lines are fine — the point is the label, not the string.
-  offenders=""
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    text="${line#*:}"   # strip path
-    text="${text#*:}"   # strip line number
-    text="${text#"${text%%[![:space:]]*}"}"
-    case "$text" in
-      "#"* | "--"* | "//"*) continue ;;
-    esac
-    offenders="${offenders}${line}
-"
-  done <<EOF
-$(grep -rn "FI_FHIR_TRACING_" "$root/deploy" "$root/configs" "$root/docker-compose.yaml" 2>/dev/null || true)
-EOF
-  if [ -n "$offenders" ]; then
-    echo "a deployment artifact sets an unimplemented tracing variable:"
-    echo "$offenders"
-    echo "FI_FHIR_TRACING_* is consumed by nothing (see docs/operations/README.md)."
-    echo "Remove it, or land the exporter (slice 4.4d) in the same change."
-    exit 1
-  fi
+  grep -q "tracingEnabled: false" "$root/deploy/helm/fi-fhir/values.yaml" &&
+  grep -q "FI_FHIR_TRACING_ENABLED=false" "$root/configs/full-stack.env" &&
+  grep -q "FI_FHIR_TRACING_ENABLED:-false" "$root/docker-compose.yaml" &&
+  grep -A1 "name: FI_FHIR_TRACING_ENABLED" "$root/deploy/kubernetes/base/deployment.yaml" | grep -q "false"
 '
 
-check_required "no deployment artifact advertises unimplemented tracing in YAML form" bash -c '
+check_required "Helm tracing has endpoint and sampler wiring" bash -c '
   root="'"$ROOT"'"
-  # The env-variable assertion above greps for the literal FI_FHIR_TRACING_ and
-  # is structurally blind to the form that actually shipped:
-  # deploy/kubernetes/base/configmap.yaml set `tracing_enabled: true` and
-  # `tracing_sampler: 0.1` inside a config.yaml block mounted at /app/config —
-  # the exact snake_case keys pkg/config binds (pkg/config/config.go, the
-  # Observability struct). Same false claim, different syntax, invisible to the
-  # gate that existed to catch it. Slice 4.4d closes the hole in both directions.
-  #
-  # Comment lines are fine: the point is the setting, not the string. A key set
-  # to an explicit false is also fine — turning a thing off is not advertising it.
-  offenders=""
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    text="${line#*:}"   # strip path
-    text="${text#*:}"   # strip line number
-    text="${text#"${text%%[![:space:]]*}"}"
-    case "$text" in
-      "#"* | "--"* | "//"*) continue ;;
-    esac
-    case "$text" in
-      *"tracing_enabled"*"false"* | *"tracingEnabled"*"false"*) continue ;;
-    esac
-    offenders="${offenders}${line}
-"
-  done <<EOF
-$(grep -rnE "(tracing_enabled|tracing_sampler|tracing_endpoint|tracingEnabled|tracingSampler|tracingEndpoint)[[:space:]]*:" "$root/deploy" "$root/configs" "$root/docker-compose.yaml" 2>/dev/null || true)
-EOF
-  if [ -n "$offenders" ]; then
-    echo "a deployment artifact configures tracing in YAML, which no exporter consumes:"
-    echo "$offenders"
-    echo "pkg/config binds these snake_case keys, so setting them is the same claim"
-    echo "FI_FHIR_TRACING_* makes. Remove them, or land the exporter (slice 4.4d)"
-    echo "in the same change."
-    exit 1
-  fi
+  grep -q "name: FI_FHIR_TRACING_ENDPOINT" "$root/deploy/helm/fi-fhir/templates/deployment.yaml" &&
+  grep -q "name: FI_FHIR_TRACING_SAMPLER" "$root/deploy/helm/fi-fhir/templates/deployment.yaml" &&
+  grep -q "tracingEndpoint is required" "$root/deploy/helm/fi-fhir/templates/deployment.yaml"
 '
 
 check_required "batch worker identity is not a shared literal" bash -c '

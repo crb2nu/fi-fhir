@@ -56,12 +56,12 @@ package observability_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
 )
@@ -89,6 +89,12 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 			t.Skip("POSTGRES_TEST_URL is required to boot a real fi-fhir serve")
 		}
 
+		collectorURL, awaitSpans := serveTraceCollector(t)
+		t.Setenv("FI_FHIR_TRACING_ENABLED", "true")
+		t.Setenv("FI_FHIR_TRACING_ENDPOINT", collectorURL)
+		t.Setenv("FI_FHIR_TRACING_SAMPLER", "1")
+		t.Setenv("FI_FHIR_LOG_LEVEL", "debug")
+
 		dsn := freshDatabase(t, baseDSN, "fi_fhir_logging_proof")
 		_ = buildRegistryFixture(t, root)
 
@@ -101,7 +107,8 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		if err := r.submitHL7(t); err != nil {
 			t.Fatalf("submit HL7 through the durable ingress: %v", err)
 		}
-		time.Sleep(3 * time.Second)
+		spans := awaitSpans()
+		assertDurableAdmissionSpans(t, spans)
 
 		lines := nonEmptyLines(drainReplicaOutput(t, r))
 		if len(lines) == 0 {
@@ -110,6 +117,7 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		t.Logf("captured %d serve output lines", len(lines))
 
 		var unlistedKeys []string
+		correlatedAdmission := false
 		for _, line := range lines {
 			// --- Assertion 1: every line is JSON carrying the tenant.
 			var entry map[string]any
@@ -122,6 +130,14 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 			}
 			if entry["level"] == nil || entry["msg"] == nil {
 				t.Errorf("line is missing level or msg: %q", line)
+			}
+
+			if entry["operation"] == "admission" && entry["outcome"] == "accepted" && entry["receipt_id"] != nil {
+				for _, span := range spans {
+					if span.Name == "integration.admission" && entry["trace_id"] == fmt.Sprintf("%x", span.TraceId) && entry["receipt_id"] == spanStringField(span, "receipt_id") {
+						correlatedAdmission = true
+					}
+				}
 			}
 
 			// --- Assertion 2: no sentinel in any key or any value.
@@ -147,6 +163,9 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 			if dropped, present := entry["dropped_fields"]; present {
 				t.Errorf("serve tried to write an unlisted field (dropped_fields=%v): %q", dropped, line)
 			}
+		}
+		if !correlatedAdmission {
+			t.Error("no accepted durable admission log joins the exported trace and receipt")
 		}
 		if len(unlistedKeys) > 0 {
 			t.Errorf("serve emitted field keys outside the allowlist: %v", unlistedKeys)

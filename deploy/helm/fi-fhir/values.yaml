@@ -118,11 +118,10 @@ config:
     metricsEndpoint: "/metrics"
     logLevel: "info"
     logFormat: "json"
-    # tracingEnabled and tracingSampler were removed in slice 4.4a. They set
-    # FI_FHIR_TRACING_*, which pkg/config parses and validates but which no
-    # OpenTelemetry exporter consumes in the serve path — so the keys configured
-    # nothing while implying the chart shipped distributed tracing. The exporter
-    # is slice 4.4d; the keys come back with it.
+    # Opt-in OTLP over HTTP. Supply an endpoint before enabling.
+    tracingEnabled: false
+    tracingEndpoint: ""
+    tracingSampler: 0.1
 
   # Database connection (if using database action)
   database:
