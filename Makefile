@@ -339,6 +339,27 @@ structured-logging-negative-control:
 		echo "negative control OK: kill-test fails with the payload print restored"; \
 	fi
 
+# Collector-side negative control for the serve half. The tracingleak tag
+# restores the raw caller X-Correlation-ID on the serve span
+# (cmd/fi-fhir/serve_tracing_correlation_leak.go); the proof submits its message
+# under a sentinel header, so the span PHI assertion must FAIL. Only the serve
+# subtest runs, and the raw header is the only thing the tag changes, so every
+# failure under it — the span scan, and the log line that shares the hashed
+# field — is the leak being caught. The target inverts: a zero exit means the
+# collector-side scan has stopped measuring anything. Requires
+# POSTGRES_TEST_URL — without it the subtest skips, passes, and would read as a
+# failed control, so the target refuses to run.
+tracing-negative-control:
+	@test -n "$$POSTGRES_TEST_URL" || { echo "tracing-negative-control requires POSTGRES_TEST_URL"; exit 1; }
+	@if go test -tags "integration tracingleak" -count=1 -timeout=600s \
+		-run '^TestStructuredLogging_CorrelatedAndPHIFree$$/^serve_emits_structured_phi_free_lines$$' \
+		./internal/observability >/dev/null 2>&1; then \
+		echo "negative control FAILED: the span PHI scan still passes with the raw correlation header restored"; \
+		exit 1; \
+	else \
+		echo "negative control OK: the span PHI scan fails with the raw correlation header restored"; \
+	fi
+
 # Lane S4-E transport-gate kill-test: the real GraphQL handler with real 4.1a
 # OIDC tokens, one case per role combination, plus exhaustiveness of the
 # per-root-field role map against the schema the server executes. No database:

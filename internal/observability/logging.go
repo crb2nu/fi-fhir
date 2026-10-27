@@ -58,6 +58,7 @@ const (
 	// foreign key. Each stage emits the identifier it actually holds.
 	FieldCorrelationID     LogField = "correlation_id"
 	FieldTraceID           LogField = "trace_id"
+	FieldLineageTraceID    LogField = "lineage_trace_id"
 	FieldSpanID            LogField = "span_id"
 	FieldSourceMessageID   LogField = "source_message_id"
 	FieldReceiptID         LogField = "receipt_id"
@@ -104,7 +105,7 @@ const (
 // handler itself and is therefore not a LogField anyone may pass.
 var permittedLogFields = map[LogField]struct{}{
 	FieldComponent: {}, FieldOutcome: {}, FieldTenantID: {},
-	FieldCorrelationID: {}, FieldTraceID: {}, FieldSpanID: {},
+	FieldCorrelationID: {}, FieldTraceID: {}, FieldLineageTraceID: {}, FieldSpanID: {},
 	FieldSourceMessageID: {}, FieldReceiptID: {}, FieldWorkflowRunID: {},
 	FieldDeliveryAttemptID: {},
 	FieldIntegrationID:     {}, FieldDefinitionID: {}, FieldRevisionID: {},

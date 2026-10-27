@@ -27,22 +27,9 @@ import (
 // registry, so it obeys the same rule — the adapters close over `logger`, and
 // no `internal/integration` package imports one.
 //
-// # What these lines can and cannot correlate
-//
-// Every line carries `tenant_id`, because the logger binds it. None of them
-// carries `correlation_id` or `trace_id`, and that is a property of the seam
-// rather than an oversight: the four observation callbacks receive
-// `(Result, error)` and no context, and none of the four Result types carries a
-// lineage identifier — `mllp.SubmitResult` is `{Accepted, Duration}`,
-// `delivery.DispatchResult` is `{Outcome, Duration}`, `batch.PollResult` is
-// `{Objects, Duration}`, and `session.StreamOutcome` is a bare enum. Emitting a
-// correlation identifier from here means widening those structs, which is an
-// `internal/integration/**` edit this slice deliberately does not make.
-//
-// That is consistent with the position `README.md` already takes: correlation
-// comes from the durable identifiers, and a stage line joins to a submission
-// through the ledger rows, not through a value the counter callback happened to
-// carry. See the Slice 4.4d entry in `.loom/40-decisions.md`.
+// Per-message processor and delivery observations carry only the lineage
+// available at those stages. Aggregate batch polls and session fanout remain
+// tenant-scoped. See serve_tracing.go for the span and lineage adapters.
 
 // bindMLLPObservation reports every admitted or rejected frame.
 func bindMLLPObservation(service *mllp.Service, metrics *observability.Metrics, logger *slog.Logger) {
@@ -107,46 +94,54 @@ func bindMLLPRateQuotaObservation(coordinator *mllp.QuotaCoordinator, metrics *o
 
 // bindDeliveryObservation reports the typed Outcome the dispatcher already
 // computes and Run previously discarded.
-func bindDeliveryObservation(dispatcher *integrationdelivery.Dispatcher, metrics *observability.Metrics, logger *slog.Logger) {
+func bindDeliveryObservation(dispatcher *integrationdelivery.Dispatcher, metrics *observability.Metrics, logger *slog.Logger, tracing ...*observability.Tracing) {
 	if dispatcher == nil || metrics == nil {
 		return
 	}
 	if logger == nil {
 		logger = observability.NewDiscardLogger()
 	}
-	dispatcher.SetObserver(func(result integrationdelivery.DispatchResult, err error) {
-		if err != nil {
-			metrics.RecordDeliveryAttempt(observability.OutcomeError)
-			logger.Error("delivery dispatch failed",
-				observability.F(observability.FieldComponent, "delivery-worker"),
-				observability.F(observability.FieldOutcome, string(observability.OutcomeError)),
-				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()),
-				observability.F(observability.FieldError, observability.Errf(err)))
-			return
+	var tracer *observability.Tracing
+	if len(tracing) > 0 {
+		tracer = tracing[0]
+	}
+	dispatcher.SetObserver(func(ctx context.Context, initial integrationdelivery.DispatchResult) (context.Context, func(integrationdelivery.DispatchResult)) {
+		fields := deliveryLogFields(initial)
+		finishSpan := func(bool, ...slog.Attr) {}
+		// Idle polls and failed claims have no delivery to trace.
+		if initial.AttemptID != "" {
+			ctx, finishSpan = tracer.Start(ctx, "integration.delivery.dispatch", fields...)
 		}
-		switch result.Outcome {
-		case integrationdelivery.OutcomePublished:
-			metrics.RecordDeliveryAttempt(observability.OutcomeDelivered)
-			logger.Debug("delivery published",
-				observability.F(observability.FieldComponent, "delivery-worker"),
-				observability.F(observability.FieldOutcome, string(observability.OutcomeDelivered)),
-				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
-		case integrationdelivery.OutcomeRetry:
-			metrics.RecordDeliveryAttempt(observability.OutcomeRetried)
-			logger.Warn("delivery scheduled for retry",
-				observability.F(observability.FieldComponent, "delivery-worker"),
-				observability.F(observability.FieldOutcome, string(observability.OutcomeRetried)),
-				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
-		case integrationdelivery.OutcomeDLQ:
-			metrics.RecordDeliveryAttempt(observability.OutcomeFailed)
-			logger.Error("delivery exhausted its retries and moved to the dead-letter path",
-				observability.F(observability.FieldComponent, "delivery-worker"),
-				observability.F(observability.FieldOutcome, string(observability.OutcomeFailed)),
-				observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
-		default:
-			metrics.RecordDeliveryAttempt(observability.OutcomeIdle)
+		return ctx, func(result integrationdelivery.DispatchResult) {
+			outcome, level, message := deliveryObservationOutcome(result)
+			metrics.RecordDeliveryAttempt(outcome)
+			attrs := append(fields, observability.F(observability.FieldOutcome, string(outcome)), observability.F(observability.FieldDurationMs, result.Duration.Milliseconds()))
+			if outcome != observability.OutcomeIdle {
+				logger.LogAttrs(ctx, level, message, attrs...)
+			}
+			finishSpan(outcome != observability.OutcomeDelivered && outcome != observability.OutcomeIdle, attrs...)
 		}
 	})
+}
+
+func deliveryObservationOutcome(result integrationdelivery.DispatchResult) (observability.Outcome, slog.Level, string) {
+	if result.Failed {
+		return observability.OutcomeError, slog.LevelError, "delivery dispatch failed"
+	}
+	switch result.Outcome {
+	case integrationdelivery.OutcomePublished:
+		return observability.OutcomeDelivered, slog.LevelDebug, "delivery published"
+	case integrationdelivery.OutcomeRetry:
+		return observability.OutcomeRetried, slog.LevelWarn, "delivery scheduled for retry"
+	case integrationdelivery.OutcomeDLQ:
+		return observability.OutcomeFailed, slog.LevelError, "delivery moved to the dead-letter path"
+	case integrationdelivery.OutcomeForbidden:
+		return observability.OutcomeRejected, slog.LevelWarn, "delivery identity forbidden"
+	case integrationdelivery.OutcomeIdle:
+		return observability.OutcomeIdle, slog.LevelDebug, ""
+	default:
+		return observability.OutcomeError, slog.LevelError, "delivery outcome unrecognized"
+	}
 }
 
 // bindBatchObservation reports each batch poll cycle.

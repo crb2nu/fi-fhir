@@ -56,6 +56,7 @@ type previewRuntime struct {
 	allowedOrigins   []string
 	previewService   *integrationpreview.Service
 	messageProcessor *processor.MessageProcessor
+	processors       []*processor.MessageProcessor
 	ingressPath      string
 	ingressHandler   http.Handler
 	mllpServer       *mllp.Server
@@ -152,6 +153,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		return nil, fmt.Errorf("configure artifact resolver: %w", err)
 	}
 
+	var processors []*processor.MessageProcessor
 	var (
 		messageProcessor *processor.MessageProcessor
 		ingressHandler   http.Handler
@@ -289,6 +291,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			if err != nil {
 				return nil, fmt.Errorf("configure durable MLLP message processor: %w", err)
 			}
+			processors = append(processors, mllpProcessor)
 			// Slice 4.4e: the deployed revision's max_messages_per_second is a
 			// deployment-wide budget, not a per-replica one. Each replica leases
 			// a share of it; admission stays in memory and takes no round trip.
@@ -325,6 +328,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			var batch batchFacts
 			batchRunner, batchProvider, batch, err = loadBatchRuntimeFromEnv(
 				ctx, tenantID, batchSourcePath, submissionDB, artifactResolver,
+				func(p *processor.MessageProcessor) { processors = append(processors, p) },
 			)
 			if err != nil {
 				return nil, err
@@ -365,6 +369,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 			return nil, fmt.Errorf("configure message processor: %w", err)
 		}
 	}
+	processors = append(processors, messageProcessor)
 	previewService, err := integrationpreview.NewService(staticRegistry, messageProcessor, func() time.Time {
 		return time.Now().UTC()
 	})
@@ -383,6 +388,7 @@ func loadIntegrationRuntimeFromEnv(ctx context.Context, allowProductionIngress b
 		allowedOrigins:   allowedOrigins,
 		previewService:   previewService,
 		messageProcessor: messageProcessor,
+		processors:       processors,
 		ingressPath:      ingressPath,
 		ingressHandler:   ingressHandler,
 		mllpServer:       mllpServer,

@@ -3004,12 +3004,9 @@ func runConfigEnv(args []string) error {
 		{"observability", "FI_FHIR_METRICS_ENABLED", "Enable Prometheus metrics endpoint", "true"},
 		{"observability", "FI_FHIR_METRICS_ENDPOINT", "Metrics endpoint path", "/metrics"},
 		{"observability", "FI_FHIR_METRICS_PORT", "Metrics server port", "9090"},
-		// Parsed and validated, consumed by nothing: there is no OpenTelemetry
-		// exporter in the serve path (slice 4.4d). Listing them without saying so
-		// told operators the process exports traces.
-		{"observability", "FI_FHIR_TRACING_ENABLED", "NOT IMPLEMENTED - no exporter consumes this", "false"},
-		{"observability", "FI_FHIR_TRACING_ENDPOINT", "NOT IMPLEMENTED - no exporter consumes this", ""},
-		{"observability", "FI_FHIR_TRACING_SAMPLER", "NOT IMPLEMENTED - no exporter consumes this", "0.1"},
+		{"observability", "FI_FHIR_TRACING_ENABLED", "Enable serve OTLP/HTTP tracing", "false"},
+		{"observability", "FI_FHIR_TRACING_ENDPOINT", "OTLP HTTP(S) collector URL (required when enabled)", ""},
+		{"observability", "FI_FHIR_TRACING_SAMPLER", "Trace sampling ratio (0.0-1.0)", "0.1"},
 		{"observability", "FI_FHIR_LOG_LEVEL", "Log level (debug, info, warn, error)", "info"},
 		{"observability", "FI_FHIR_LOG_FORMAT", "Log format (json, text)", "json"},
 
@@ -3196,7 +3193,7 @@ observability:
   metrics_endpoint: /metrics
   metrics_port: 9090
   tracing_enabled: false
-  # tracing_endpoint: http://jaeger:4317
+  # tracing_endpoint: http://jaeger:4318/v1/traces
   tracing_sampler: 0.1
   log_level: info
   log_format: json
@@ -4570,6 +4567,27 @@ func runServe(args []string) error {
 		Format:   runtimeConfig.Observability.LogFormat,
 		TenantID: securePreviewRuntime.tenantID,
 	})
+	serveTracing, err := observability.NewTracing(serveCtx, observability.TraceConfig{
+		Enabled:     runtimeConfig.Observability.TracingEnabled,
+		Endpoint:    runtimeConfig.Observability.TracingEndpoint,
+		SampleRatio: runtimeConfig.Observability.TracingSampler,
+		Version:     version,
+		Logger:      serveLog,
+		TenantID:    securePreviewRuntime.tenantID,
+	})
+	if err != nil {
+		return fmt.Errorf("configure tracing: %w", err)
+	}
+	defer func() {
+		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := serveTracing.Shutdown(flushCtx); err != nil {
+			serveLog.Warn("trace exporter shutdown failed", observability.F(observability.FieldComponent, "tracing"))
+		}
+	}()
+	for _, messageProcessor := range securePreviewRuntime.processors {
+		messageProcessor.SetObserver(processorObservation(serveLog, serveTracing))
+	}
 	for _, notice := range runtimeConfig.DeprecationNotices() {
 		serveLog.Warn(notice)
 	}
@@ -5190,7 +5208,7 @@ func runServe(args []string) error {
 	// Bind the observation seams the four previously blind components now have.
 	bindMLLPObservation(securePreviewRuntime.mllpServer.Service(), serveMetrics, serveLog)
 	bindMLLPRateQuotaObservation(securePreviewRuntime.mllpRateQuota, serveMetrics)
-	bindDeliveryObservation(securePreviewRuntime.deliveryWorker, serveMetrics, serveLog)
+	bindDeliveryObservation(securePreviewRuntime.deliveryWorker, serveMetrics, serveLog, serveTracing)
 	bindBatchObservation(securePreviewRuntime.batchRunner, serveMetrics, serveLog)
 
 	// The metrics listener is the second port every checked-in deployment

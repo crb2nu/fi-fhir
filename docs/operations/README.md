@@ -151,27 +151,56 @@ fi_fhir_build_info{version="dev"} 1
 Assumption: the `version` label value above (`dev`) depends on how the
 binary was built; treat it as illustrative, not a guaranteed value.
 
-### Tracing — not implemented
+### Tracing
 
-`FI_FHIR_TRACING_ENABLED`, `FI_FHIR_TRACING_ENDPOINT`, and
-`FI_FHIR_TRACING_SAMPLER` are parsed and validated
-(`pkg/config/config.go:609-611`, `:759`), but nothing consumes them. There is
-no OpenTelemetry exporter wired into `serve`. Setting these variables changes
-no runtime behavior. They are reserved for a future slice; do not rely on
-trace export today.
-
-### Logging — not implemented
-
-`FI_FHIR_LOG_LEVEL` and `FI_FHIR_LOG_FORMAT` are likewise parsed but nothing
-reads them. There is no structured logger in the serve path, verified with:
+Tracing is disabled by default. To export spans from `fi-fhir serve`:
 
 ```bash
-grep -rn '"log/slog"' internal/ pkg/ cmd/
+export FI_FHIR_TRACING_ENABLED=true
+export FI_FHIR_TRACING_ENDPOINT=http://collector:4318/v1/traces
+export FI_FHIR_TRACING_SAMPLER=0.1
 ```
 
-Expected output: no matches. `serve` writes plain `fmt.Print*`/`fmt.Fprintf`
-lines to stdout/stderr, not JSON, and carries no `trace_id`/`span_id`
-correlation. Reserved for a future slice.
+The endpoint must be an HTTP(S) URL, without credentials, query, or fragment.
+An endpoint with no path uses `/v1/traces`; a custom path is used as supplied.
+This is OTLP/HTTP, typically port 4318, not OTLP/gRPC on 4317. Enabling tracing
+without a valid endpoint or a sampling ratio outside 0–1 fails startup.
+
+The shared processor emits `integration.admission` and its child
+`integration.workflow.plan` for HTTP, MLLP, batch, and preview processing.
+Rejections before the processor (authentication, rate limits, malformed requests)
+remain covered by transport metrics and logs. Each claimed delivery emits
+`integration.delivery.dispatch`, including identity denial, retry, and failure.
+Idle worker polls do not create spans.
+
+The provider is private to this instrumentation. It does not enable legacy
+workflow spans or HTTP header/baggage propagation. Delivery is asynchronous and
+starts a new trace; use `receipt_id` and `lineage_trace_id` to join it to the
+admission. `lineage_trace_id` is the application's durable ledger identifier;
+`trace_id` and `span_id` identify OpenTelemetry spans. No database migration or
+wire protocol change is required.
+
+Root sampling defaults to 10%; 0 samples no new roots and 1 samples every root.
+Child spans inherit their parent’s sampling decision. Disabled
+tracing creates no provider or spans and makes no collector connections. Export
+runs in a bounded background batcher; a collector failure produces a structured
+warning with the lost span count, without its response body or URL. Export
+failure does not fail clinical processing. Shutdown flushes with a five-second
+budget. These are operational diagnostics, not a durable audit trail.
+
+### Logging
+
+`FI_FHIR_LOG_LEVEL` selects `debug`, `info`, `warn`, or `error` (default `info`).
+`FI_FHIR_LOG_FORMAT` selects `json` (default) or `text`. Serve logs carry the
+configured tenant and allowlisted fields. Successful per-message operations
+are debug-level; rejection and delivery retry/failure are warning/error-level.
+
+Processor logs include a SHA-256 hash of the caller's correlation ID, never the
+verbatim header or HL7 source-message ID. Successful durable admission and
+claimed delivery logs carry receipt and ledger trace IDs. With tracing enabled,
+operation logs also carry OpenTelemetry trace/span IDs, including for unsampled
+operations; such IDs need not have exported spans. Aggregate batch polls and
+session fanout remain tenant-scoped.
 
 ### `FI_FHIR_OBSERVABILITY_MODE=legacy` — not a production configuration
 

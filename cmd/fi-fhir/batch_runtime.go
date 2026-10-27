@@ -22,6 +22,7 @@ func loadBatchRuntimeFromEnv(
 	sourcePath string,
 	db *sql.DB,
 	artifactResolver *processor.RevisionResolver,
+	configure ...func(*processor.MessageProcessor),
 ) (*integrationbatch.Runner, integrationbatch.Provider, batchFacts, error) {
 	if ctx == nil || tenantID == "" || sourcePath == "" || db == nil || artifactResolver == nil {
 		return nil, nil, batchFacts{}, fmt.Errorf("configure batch runtime: invalid dependencies")
@@ -98,6 +99,9 @@ func loadBatchRuntimeFromEnv(
 	messageProcessor, err := processor.NewDurableMessageProcessor(definitionResolver, artifactResolver, submissionStore)
 	if err != nil {
 		return nil, nil, batchFacts{}, fmt.Errorf("configure durable batch message processor: %w", err)
+	}
+	for _, bind := range configure {
+		bind(messageProcessor)
 	}
 	runner, err := integrationbatch.NewRunner(integrationbatch.RunnerConfig{
 		TenantID: tenantID, DefinitionID: definitionID, PrincipalID: principalID,
