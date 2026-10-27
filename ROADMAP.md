@@ -72,7 +72,11 @@ across every navigation path, saved-session browsing on bounded queries, and
 keyboard focus that survives closing a tab. The security baseline moved to Go
 1.26.9 and `golang.org/x/net` v0.60.0 for the 2026-10-08 advisories, with the
 UI tooling and transitive dependencies patched the same day (MR !277), and the
-README's diagrams were replaced with composed vector figures (MR !278).
+README's diagrams were replaced with composed vector figures (MR !278). On
+2026-10-27 govulncheck and trivy, which scan every merge request against a
+moving database, refused those pins (GO-2026-6809 in `crypto/x509`,
+GHSA-cg2g-xh64-v4q7 in DOMPurify), so Go 1.26.10 and DOMPurify 3.4.17 rode
+[MR !280](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/280).
 
 This update records repository state through merge `a9be5577a` on 2026-10-09
 (main pipeline 32232, green). The previous record was merge `d996cd610` on

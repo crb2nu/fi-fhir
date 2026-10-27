@@ -11,7 +11,11 @@
   (platform/gitops MR !1005), and this repository's CI gains the
   `$MILLS_MERGE_QUEUE == "1"` proof-profile arm the train pipeline needs
   (MR !280). edilint's ROADMAP got the same treatment with a
-  Go 1.26.9 toolchain move (edilint MR !31).
+  Go 1.26.10 toolchain move (edilint MR !31). Both repositories' first
+  pipelines of the day refused the existing pins — govulncheck with
+  GO-2026-6809 (`crypto/x509`, fixed in Go 1.26.10) and, in fi-fhir, trivy
+  with GHSA-cg2g-xh64-v4q7 (DOMPurify 3.4.16, fixed 3.4.17) — so the fixes
+  ride MR !280 and edilint !31; the docs MR rebases onto main once !280 lands.
 - Why: the roadmap's last record was 2026-09-30 and still listed the public
   demo as planned; nine October commits and three open MRs were unrecorded;
   the merge train had been loom-core-only since 2026-10-03 while both repos
