@@ -1,6 +1,6 @@
 module gitlab.flexinfer.ai/libs/fi-fhir
 
-go 1.26.9
+go 1.26.10
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.7.0
