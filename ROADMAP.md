@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-09-30
+> Last Updated: 2026-10-27
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -58,19 +58,36 @@ and the full trace; `/events` is Verification over the durable admissions;
 Integration Sessions reopen, export and archive; and the shell's journey
 reads evidence instead of route position.
 
-This update records repository state through merge `d996cd610` on 2026-09-30.
-Production answered `v0.1.30316` (merge `aeb009781`, lanes E-4, E-5, E-0 and
-E-3) from the LAN on 2026-09-30; the main pipelines for E-2 and E-1
-(30372/30373 on `d996cd610`) were still running, so their deployment is not
-asserted here. The previous record was merge `b365f9511` on 2026-09-27.
-[Pipeline 29328](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29328)
-built and deployed the redesigned UI (`v0.1.29328`, merge `4480af9ab`);
-[Pipeline 29194](https://gitlab.flexinfer.ai/libs/fi-fhir/-/pipelines/29194)
-is the last `main` pipeline that built the API image, including the browser
-smoke gate, the offline official validator, live HAPI FHIR read-back, Kafka/Redis,
-PostgreSQL/MinIO, and two-replica tests. These are internal GitLab records.
-Production activation and release certification remain separate decisions;
-this documentation update does not assert a new clinical-runtime deployment.
+The public demo program (`.loom/40`, 2026-09-27 → 2026-09-29) compiled the
+slim preview kernel to WebAssembly, put the flexinfer-site playground on that
+kernel, covered the new features in the docs, added the preview-only hosted
+demo identity and stack, and closed the two production findings its survey
+raised (the workflow debugger's caller-supplied actions and
+`createFhirSubscription`'s unrestricted egress).
+
+In October the Studio's daily workflow was reworked (2026-10-03, MRs !271–!276):
+a collapsible explorer with Build and Operate navigation, editor tabs and
+commands that keep their session and record context, unsaved-work protection
+across every navigation path, saved-session browsing on bounded queries, and
+keyboard focus that survives closing a tab. The security baseline moved to Go
+1.26.9 and `golang.org/x/net` v0.60.0 for the 2026-10-08 advisories, with the
+UI tooling and transitive dependencies patched the same day (MR !277), and the
+README's diagrams were replaced with composed vector figures (MR !278). On
+2026-10-27 govulncheck and trivy, which scan every merge request against a
+moving database, refused those pins (GO-2026-6809 in `crypto/x509`,
+GHSA-cg2g-xh64-v4q7 in DOMPurify), so Go 1.26.10 and DOMPurify 3.4.17 rode
+[MR !280](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/280).
+
+This update records repository state through merge `a9be5577a` on 2026-10-09
+(main pipeline 32232, green). The previous record was merge `d996cd610` on
+2026-09-30, when production answered `v0.1.30316` from the LAN; the image
+production runs today was not re-verified for this update. Three merge
+requests are open: !279 (`serve` tracing and lineage logs, 2026-10-10,
+pipeline 32379 green, mergeable, unreviewed), and !246 and !253 (the
+operator-bundle browser gate's response waits, 2026-09-27, mergeable but with
+no pipeline run since). These are internal GitLab records. Production
+activation and release certification remain separate decisions; this
+documentation update does not assert a new clinical-runtime deployment.
 
 ## Delivered — Sprint 6 and clinical delivery (2026-09-20)
 
@@ -358,8 +375,117 @@ admissions".
 - [x] **E-6 close-out (`docs/unlock-6-close-out`)** — this roadmap, the
   decision and worklog entries, the spec's status, `docs/STATUS.md` rows.
 
+## Delivered — Public demo, portfolio links, docs coverage (2026-09-27 → 2026-09-29)
+
+Spec: `.loom/40-public-demo-execution-specs.md`
+([MR !247](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/247)).
+The brief was a public demo like edilint's browser playground, linked from the
+portfolio sites, with the docs covering the new features. The size kill-test
+passed first: the slim preview kernel links at 1.49 MB gzip, and the whole
+processor is 12.5 MB only because `workflow_plan.go` pulls in the workflow
+engine.
+
+- [x] **D-0 WASM kernel** — `cmd/fi-fhir-wasm`: the production Source
+  Profile compiler, HL7v2 parser and conditional FHIR transaction Bundle
+  projection compiled to WebAssembly (2.24 MB gzip) with no filesystem or
+  network, held byte-identical to the Integration Session runner on the six
+  demo samples; `test:wasm` gates the dependency closure and the size budget,
+  and `v*` tags on the GitHub mirror publish `fi_fhir_<version>_wasm.tar.gz`.
+  Merged in `2e7b56927`.
+- [x] **D-4 hardening** — SEC-2026-09-27-1 and -2 closed: the workflow
+  debugger no longer executes caller-supplied actions (`exec` never, the
+  others only when named in `FI_FHIR_WORKFLOW_DEBUG_ACTIONS`), the `exec`
+  action needs the deployment-owned `FI_FHIR_WORKFLOW_EXEC_ALLOWLIST`, and
+  subscription mutations contact only https hosts listed in
+  `FI_FHIR_FHIR_SUBSCRIPTION_ALLOWED_HOSTS`, with bounded session and client
+  maps. Merged in `2bf7145b6`. The fi-fhir NetworkPolicy half is Cody's (see
+  Then).
+- [x] **D-3 preview-only stack** — the hosted demo's identity
+  (`integration:preview` only, no database, no control plane, no sessions, no
+  LLM) as a fourth browser-gate stack that walks every route for its honest
+  state; pages pre-flight the role they need instead of toasting "forbidden";
+  every e2e stack runs `serve --no-introspection`; a `0.0.0.0/0` trusted CIDR
+  is refused unless `FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY=true`. Merged in
+  `0150f156d`; the demo serves at fi-fhir-demo.flexinfer.ai.
+- [x] **D-2 docs coverage** — the Browser Playground and Mapping Studio user
+  guides (the January `ui/docs/USER-GUIDE.md` is a pointer now), with the root
+  README and the user-guide index listing Connections, engine properties,
+  sample intake, the playground and the hosted demo. Merged in `0240983e0`;
+  the end-to-end demo guide, its seed path and sample shape followed on
+  2026-09-29 (`59c345c0a`, `9bc8e8639`, `a6f456c11`).
+- [x] **D-1 playground on the real kernel** — flexinfer-site runs
+  `/playground/fi-fhir` on the WASM kernel and links it from the hub rows and
+  the docs; delivered in the flexinfer-site repository (its MRs !166 and
+  !168).
+
+## Delivered — Workspace navigation, security baseline, diagrams (2026-10-03 → 2026-10-09)
+
+No spec; the brief was the overall navigation and daily workflow after the IDE
+unlock. The worklog entries dated 2026-10-03 carry the evidence per change;
+the six `codex/ux-workspace-navigation` merges are MRs !271–!276
+(`c9eb77e3b` … `25c3ea300`).
+
+- [x] **Workspace explorer and drawer** (`8984674fc`) — a collapsible left
+  explorer with Build and Operate navigation, filtering and recent intake
+  sessions; its desktop and section choices persist, and narrow screens get a
+  keyboard-accessible drawer that closes after navigation.
+- [x] **Navigation keeps its context** (`1bc3e370d`) — editor tabs retain the
+  latest session and record selectors; the activity bar and Go to commands
+  resume the same location; closing a tab returns to its neighbour's record;
+  Cmd/Ctrl+K works from inputs and CodeMirror and returns focus on Escape; at
+  390 px the stage control keeps Commands and Theme in view.
+- [x] **Explorer continuity and intake panes** (`3545b0ede`, `896a72c0f`) —
+  saved tabs and record links restore before preferences are written;
+  switching intake sessions loads the selected session's runs without
+  replacing edited text, and a late response cannot overwrite the new
+  context; the intake panes stay usable as the workspace narrows.
+- [x] **Drafts and records across navigation** (`767eb04cf`, `30e838ac6`) —
+  connection forms, profile YAML and managed workflow edits survive navigation
+  and ask once before leaving; the Explorer opens real source and destination
+  records, and connection, definition, receipt and attempt links stay aligned
+  with the visible record through same-page navigation and browser history,
+  with explicit archived and unavailable states.
+- [x] **Saved-session browser** (`3fab67340`) — Home and the Explorer search
+  and page through saved sessions, archived work included, on bounded
+  metadata queries instead of expanding every session and its runs. The
+  OpenTelemetry SDK moved to v1.45.0 for GO-2026-6505 (`8c986e042`).
+- [x] **Keyboard focus on tab close** (`f09243b4e`) and the combined final UX
+  verification record (`769335f8d`).
+- [x] **Security baseline** ([MR !277](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/277)) —
+  Go 1.26.9 in the module, CI and container builds and `golang.org/x/net`
+  v0.60.0 for the 2026-10-08 standard-library and HTTP/2 advisories
+  (`f828430c8`); Vitest 4.1.11, Busboy and DOMPurify patched, the SvelteKit
+  cookie dependency constrained to 0.7.2, and the proposed braces
+  nesting-depth fix carried in a documented private fork under `ui/vendor/`
+  so the audit passes without suppressions (`0dd43717d`); the README's
+  workspace guide refreshed and its diagrams regenerated (`af193537c`).
+- [x] **Composed diagrams** ([MR !278](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/278)) —
+  the rough auto-layout figures replaced with composed vector figures from
+  `docs/diagrams/narratives.yaml` (`43b3d160a`).
+
 ## Now
 
+- [ ] **Land or close the three open merge requests** —
+  [MR !279](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/279)
+  (opt-in OTLP/HTTP tracing for admission, planning and claimed delivery,
+  joined to the durable receipt and ledger ids, with a private provider and a
+  PHI allowlist proven in the structured-logging job; 34 files, pipeline
+  32379 green, mergeable) needs a review of the exporter lifecycle and the
+  allowlist, then a merge.
+  [MR !246](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/246) and
+  [MR !253](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/253) fix
+  the e2e timing item below and have sat since 2026-09-27; rebase, re-run and
+  land them (!253's helper supersedes !246's inline wait once both are in).
+- [ ] **edilint pins** — `lint:edi` runs edilint v0.3.0 and `lint:edi-fixtures`
+  v0.1.0 (`ci/`, `Makefile`); edilint is at v0.4.1 with v0.5.0 ready to cut
+  (synthetic `gen` fixtures with targeted defects, EDIFACT trailer recounts).
+  Bump both pins to v0.5.0 when it exists, then use `edilint gen` to grow the
+  `testdata/edi` corpus (issue #15).
+- [ ] **Mills merge train for this repository** — see Mills posture below:
+  the lane flips to `merge_ref` once the CI proof-profile arm is on main;
+  watch the first rows' `mergequeue.train_built` events and the
+  `train_tree_mismatch` counter, then decide the watcher scope and the hub
+  queue scope.
 - [ ] **Stale capabilities in an open tab** — a tab reads `/api/auth/status`
   once at load; after a rollback of the streaming flip, or after a bearer is
   entered, it keeps the capabilities it loaded with. Re-probe the status when
@@ -398,7 +524,12 @@ admissions".
 - [ ] **`operator-bundle` e2e timing budget** — check 2's 10 s
   `waitForResponse` starts before `page.goto`, so a slow first load on a
   saturated runner consumes it (one retry on MR !242's pipeline; 15/15 locally).
-  Start the wait after navigation or give navigation its own budget.
+  Fixed in [MR !246](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/246)
+  (each wait armed at the action that issues the request) and
+  [MR !253](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/253)
+  (the stream-open and run budgets separated), both open since 2026-09-27;
+  closes when they merge. Until then the Mills queue retries `test:ui-e2e`
+  once before evicting a row (gitops, 2026-10-27).
 - [x] **Events browser reads the legacy store** — replaced by Verification
   over durable admissions ([MR !269](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/269)): `/events` reads
   `integration_canonical_events` joined to receipts, with Statistics and
@@ -420,15 +551,14 @@ admissions".
   `totalReplicas` (shipped in MR !261); only Operator's fleet views count
   replicas, client-side from `engineRuntime.observations` (`fleet.ts`).
   Select them on `ConnectionUsage` and say "mounted on n of m".
-- [ ] **`?connection=` deep links are read by no page** — Operator's trace and
-  Verification's Admissions emit `/connections?connection=<id>`, but
-  `/connections` reads only `?definition=&revision=`
-  (`definitionFromQuery`). Read it on mount and select the connection, with
-  the honest absent state.
-- [ ] **Connection edit buffer is never marked dirty** — New definition marks
-  the Connections tab (`markDirty('/connections')`), and the workflow builder
-  and profile draft mark theirs, but an edited source or destination draft
-  does not, so closing the tab does not ask.
+- [x] **`?connection=` deep links are read by no page** — closed 2026-10-03
+  (`30e838ac6`): `/connections?connection=<id>` selects the record, stays
+  aligned through same-page navigation and browser history, and shows explicit
+  archived and unavailable states (`ConnectionsPage.test.ts`).
+- [x] **Connection edit buffer is never marked dirty** — closed 2026-10-03
+  (`767eb04cf`): the source, destination and definition editors report
+  `ondirtychange` and the page publishes it through
+  `setDraftState('/connections', …)`, so closing the tab asks once.
 - [ ] **Definition authoring follow-ups** — `integrationRegistryArtifacts`
   silently omits registry entries that do not resolve (needs a schema field
   for the count and reasons); `lifecycle.ListDefinitions` refuses a limit
@@ -444,7 +574,8 @@ admissions".
   the positive path needs a stack that mounts a compiled connection revision
   without breaking checks 8 and 9.
 - [ ] **Workflows: Run event calls a refused mutation** — Inventory's **Run
-  event** still calls `triggerWorkflow`, which shipped builds refuse
+  event** still calls `triggerWorkflow` (`WorkflowList.svelte`, re-checked
+  2026-10-27), which shipped builds refuse
   (`legacyUnsafeExecution`), so `workflowRuns` (and Open trace) is normally
   empty on `serve`. Remove it or route it through a session simulation.
   `markWorkflowBuilderOpened` now has only test callers; retire or rename it.
@@ -453,12 +584,12 @@ admissions".
 - [ ] **Shell accessibility nits (E-4 review 7–11)** — the `Dialog` focus
   fallback when nothing inside is focusable; Escape handled before focus
   enters the dialog; tab close buttons sit inside the `tablist`; the Copilot
-  control dims without saying why; Cmd/Ctrl+K is ignored while focus is in
-  an input or editor.
-- [ ] **Journey evidence reads every session** — `journeyState.ts` calls
-  `fetchRecentSessions(Number.MAX_SAFE_INTEGER)` on shell mount and on route
-  changes between journey routes; Source Intake needs only "one session with
-  a run". Add a bounded read (existence query or limit 1 with a run filter).
+  control dims without saying why. (The fifth nit, Cmd/Ctrl+K ignored while
+  focus is in an input or editor, closed 2026-10-03 in `1bc3e370d`.)
+- [x] **Journey evidence reads every session** — closed 2026-10-03
+  (`3fab67340`): journey evidence and the session lists use bounded metadata
+  queries; `journeyState.ts` no longer calls `fetchRecentSessions` with
+  `MAX_SAFE_INTEGER`.
 - [ ] **Operator deep-link polish (E-0 review N1, N6)** — a deep link is read
   once on mount, before the capability pre-flight has necessarily settled;
   the attempt inspector links the resubmit parent but not its children.
@@ -617,19 +748,62 @@ admissions".
   new digest within 5 s, and a revision whose digest the definition does not
   name is refused by `ValidateAgainst` with the observed digest unchanged.
   If it fails, the catalog stays authoring-only and activation stays a rollout.
-- [ ] **Public demo, portfolio links and docs coverage** — planned in
-  `.loom/40-public-demo-execution-specs.md`
-  ([MR !247](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/247)):
-  a WASM build of the slim preview kernel in the browser (size kill-test
-  passed; parity kill-test first), the flexinfer-site playground on the real
-  kernel, docs coverage of the new features with a docs-sync drift check, a
-  preview-only hosted demo with no database, and a hardening lane for the
-  workflow debugger's caller-supplied actions and `createFhirSubscription`'s
-  unrestricted egress.
+  Step 1 of its Convergence path, per-replica observed runtime status
+  (`integration_runtime_observations`, `EngineRuntime.observations`,
+  `ConnectionRuntimeState.observedReplicas`), landed through Mills on
+  2026-09-29 (`bl-fifhir-config-plane-observed-runtime-status-202609`).
+- [x] **Public demo, portfolio links and docs coverage** — delivered
+  2026-09-27 → 2026-09-29 (see the Delivered section above). Still open from
+  `.loom/40`: the **Tier B hosted demo** (the full IDE on an ephemeral
+  PostgreSQL with a nightly reset and a demo switch; Cody's go), the
+  **fi-fhir NetworkPolicy** in platform/gitops (the namespace is still
+  `open-legacy`; D-4's cluster half), and the docs sync-check token for
+  flexinfer-site.
 - [ ] 5.2 SMART Backend Services and Bulk Data 3.0.0; 5.3 extension and
   compatibility contract.
 - [ ] Phase 6 release evidence: budget 7 on Kubernetes 1.36, all six golden
   journeys on the supported deployment profile, no open P0/P1.
+
+## Mills posture (2026-10-27)
+
+fi-fhir has been admitted to the Mills cross-repo lane since 2026-09-01
+(platform/gitops `k3s/mills/configmap-policy.yaml`; loom-core's HUD
+`SPAWN_PROJECTS`): `cross_repo.demand_projects` and `intake.gitlab.projects`
+list `libs/fi-fhir`, so a GitLab issue labelled `mills-eligible` becomes a
+backlog item, as does a direct `bl-fifhir-*` post or a plan slice. The
+protected paths are the GraphQL operation authorization, request security,
+integration authorization, ingress and workflow OAuth, the ingest auth
+adapter, every `migrations/**` tree, the secrets loaders, `deploy/**`, the
+Dockerfile, `.gitlab-ci.yml` and the global `**/*auth*.go` and
+`**/secret*.yaml` globs (an undeclared touch routes the run to human review);
+the budget overlay is 3 USD per run and 8 runs per day. Nine items have merged
+through the lane since 2026-09-01, the last four on 2026-09-29 (observed
+runtime status, the engine-property allowlist, the `FI_FHIR_FHIR_SERVER_URL`
+alias, `ConnectionRuntimeState.revisionId`).
+
+This update adds the merged-result merge train for the lane
+(`merge_queue.lanes."libs/fi-fhir"`: `proof_mode: merge_ref`,
+`train_window: 1`; [platform/gitops MR !1005](https://gitlab.flexinfer.ai/platform/gitops/-/merge_requests/1005)) and the CI arm it
+needs ([MR !280](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/280)): the queue reads GitLab's merged result for
+the MR, creates a `mills-mq/train-*` ref at it, mints an API pipeline there
+with `MILLS_MERGE_QUEUE=1`, and lands the MR with no rebase and no write to
+its source branch. Every rule in this repository needed a merge-request event,
+a tag or main, so the `$MILLS_MERGE_QUEUE == "1"` arm runs the whole gating
+set on that pipeline (the three manual jobs excluded); the lane must not flip
+before that arm is on main. Window 1 only: a wider window needs an operator
+checkout of this repository, which exists for loom-core alone. The same gitops
+change lets the queue retry `test:observability-replicas` and `test:ui-e2e`
+once before evicting a row as red, since both fail on runner saturation with
+the code unchanged.
+
+Deliberately not changed, each a separate decision: the HUD merge-request
+watcher (`LOOM_MRWATCH_PROJECTS` names loom-core only; adding fi-fhir would
+let the shepherd enqueue every green non-draft MR, including !246, !253 and
+!279, without a review); the hub's `MILLS_MERGE_QUEUE_PROJECTS` (agent merges
+from the hub land directly today; listing fi-fhir routes them through the
+train); the soak-posture budget caps; and main-pipeline dedup of a tree the
+train already proved (loom-core's `validated_tree_skip.sh`; fi-fhir's main
+pipeline runs about 55 minutes per merge).
 
 ## 1.0 standards and release scope
 
@@ -659,3 +833,21 @@ Full backlog: [P1 issues](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/?lab
 [P2](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/?label_name[]=P2) ·
 [P3](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/?label_name[]=P3) ·
 [Milestones](https://gitlab.flexinfer.ai/libs/fi-fhir/-/milestones)
+
+The eleven open issues were triaged on 2026-10-27 against the sections above;
+none had been touched since 2026-07-02 except the Renovate dashboard. The Now
+list is the working backlog; these are the standing placeholders.
+
+| Issue | Title | Status on 2026-10-27 |
+|---|---|---|
+| #19 | Roadmap tracking — fi-fhir 2026-H2 | Open; this file is the plan store it points at. |
+| #9 | M1 backend↔frontend integration parity | Largely delivered by the IDE repair and unlock programs (the `/api/auth/status` contract; the 44 unreached root fields closed). Close with a pointer to `.loom/36` and `.loom/42`, or re-scope to the legacy event fields item in Then. |
+| #10 | M2 flexinfer inference path with timeout/retry contracts | Partly delivered: the Copilot runs on the backend LLM through the in-cluster LiteLLM with a credential (2026-09-30). The timeout and retry envelope is still undocumented; keep open, re-scope. |
+| #11 | M3 mentatlab run orchestration | Not started; nothing has asked for it since July. Candidate to close. |
+| #12 | Additional FHIR IG support (USCDI v3, Bulk Data, SMART) | Open; it is Then 5.2 and 5.3. |
+| #15 | Organize test data and edge-case fixtures | Open; edilint's generator (`gen 837p`, `gen 835`, `--defect`) is the first concrete slice (see the edilint ROADMAP). |
+| #16 | UI accessibility, keyboard shortcuts, bulk operations | Partly delivered (Cmd/Ctrl+K from inputs and editors, focus on tab close); the remaining E-4 review nits are in Now. |
+| #17 | Terminology approval workflow for autoroute suggestions | Open; speclet `.loom/27`. |
+| #18 | Expand storage provider integration tests | Open; speclet `.loom/26`. |
+| #8 | Execute next-wave enhancements backlog | Placeholder superseded by this file. Candidate to close. |
+| #4 | Dependency Dashboard (Renovate) | Renovate's npm updates never refresh the lockfile, so they are unmergeable by construction; the Go updates are fine. |
