@@ -44,10 +44,14 @@ test("2. operator page lists the fixture's Messages, with no pre-flight and no \
   page
 }) => {
   const watch = await watchPage(page);
-  const receipts = page.waitForResponse((response) => selects(response.request(), 'operatorReceipts'), {
-    timeout: 10_000
-  });
 
+  // The page load itself issues operatorReceipts, so the wait is armed right
+  // before the navigation — and with no budget of its own: a timer started
+  // here runs while Chromium still fetches the bundle, and on a cold runner
+  // that alone took 17.9 s (pipeline 29622, job 319957) although the page
+  // rendered correctly. The visible-state assertions below pace this test;
+  // once the list is visible the response has arrived and this resolves.
+  const receipts = page.waitForResponse((response) => selects(response.request(), 'operatorReceipts'));
   await openIDE(page, '/operator');
 
   // Whichever the page settles on — the list or the pre-flight — then fail
@@ -74,19 +78,22 @@ test('3. an Integration Session stream opens; Verification says admissions are n
   page
 }) => {
   const watch = await watchPage(page);
-  const stream = page.waitForResponse(
-    (response) =>
-      isStreamRequest(response.request()) && selects(response.request(), 'integrationSessionEvents'),
-    { timeout: 10_000 }
-  );
 
   // HL7 intake: with the build flag on AND capabilities.integrationSessions,
   // Preview runs on the session engine, which opens the stream before it runs.
   await openIDE(page, '/hl7');
   await enterHL7Message(page, SYNTHETIC_ADT_A01);
-  await hl7PreviewButton(page).click();
 
-  const response = await stream;
+  // Preview is what opens the stream, so the wait is armed with the click:
+  // its 10 s budget is the stream's alone, not the page load's or the paste's.
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        isStreamRequest(response.request()) && selects(response.request(), 'integrationSessionEvents'),
+      { timeout: 10_000 }
+    ),
+    hl7PreviewButton(page).click()
+  ]);
   expect(response.status(), 'SSE POST /graphql for integrationSessionEvents').toBe(200);
   expect(response.headers()['content-type'] ?? '').toMatch(/^text\/event-stream/);
 
@@ -209,12 +216,14 @@ function specField(page: Page, path: string) {
 
 /** Opens the reason dialog with `action`, records `reason`, confirms, and returns the answer. */
 async function confirmWithReason(page: Page, action: string, field: string, reason: string) {
-  const answered = page.waitForResponse((response) => selects(response.request(), field), { timeout: 10_000 });
   await page.getByTestId('connection-details').getByRole('button', { name: action, exact: true }).click();
   const dialog = page.getByTestId('connection-reason-dialog');
   await dialog.getByRole('textbox', { name: /Reason/ }).fill(reason);
-  await dialog.getByRole('button', { name: action, exact: true }).click();
-  const response = await answered;
+  // The confirm click sends the mutation, so the wait is armed with that click.
+  const [response] = await Promise.all([
+    page.waitForResponse((response) => selects(response.request(), field), { timeout: 10_000 }),
+    dialog.getByRole('button', { name: action, exact: true }).click()
+  ]);
   expect(response.status()).toBe(200);
   const body = (await response.json()) as { data?: Record<string, unknown>; errors?: unknown[] };
   expect(body.errors ?? [], `${field} answered without GraphQL errors`).toEqual([]);
