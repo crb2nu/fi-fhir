@@ -4,6 +4,8 @@ package observability_test
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -93,7 +95,15 @@ func assertDurableAdmissionSpans(t *testing.T, spans []*tracepb.Span) {
 			}
 		}
 		for _, attr := range span.Attributes {
-			if !observability.KnownLogField(observability.LogField(attr.Key)) {
+			// dropped_attributes is written by the Tracing itself when a call site
+			// passed something outside the span allowlist: the refusal is correct
+			// behaviour, and the attempt is a defect to fix — the span counterpart
+			// of the proof's dropped_fields assertion.
+			if attr.Key == "dropped_attributes" {
+				t.Errorf("serve tried to write %d unlisted span attribute(s) on %s", attr.Value.GetIntValue(), span.Name)
+				continue
+			}
+			if !observability.KnownSpanAttribute(observability.LogField(attr.Key)) {
 				t.Errorf("unlisted span attribute %s", attr.Key)
 			}
 		}
@@ -115,5 +125,31 @@ func assertDurableAdmissionSpans(t *testing.T, spans []*tracepb.Span) {
 	}
 	if !bytes.Equal(admission.TraceId, plan.TraceId) || !bytes.Equal(admission.SpanId, plan.ParentSpanId) {
 		t.Error("planning span is not a child of admission")
+	}
+}
+
+// assertCallerCorrelationHashed is the collector-side half of negative control
+// (c): the proof submits its HL7 message under an X-Correlation-ID carrying
+// `sentinel`, and only the SHA-256 of that header may reach a span. The positive
+// half — the admission span carries exactly that hash — is what keeps the
+// control honest: a header that never reached the span could not leak under
+// `tracingleak` either, and the control would pass for the wrong reason.
+func assertCallerCorrelationHashed(t *testing.T, spans []*tracepb.Span, sentinel string) {
+	t.Helper()
+	want := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(sentinel)))
+	var admission *tracepb.Span
+	for _, span := range spans {
+		if strings.Contains(span.String(), sentinel) {
+			t.Errorf("the raw caller correlation header reached exported span %s", span.Name)
+		}
+		if span.Name == "integration.admission" {
+			admission = span
+		}
+	}
+	if admission == nil {
+		t.Fatal("missing admission span")
+	}
+	if got := spanStringField(admission, "correlation_id"); got != want {
+		t.Errorf("admission span correlation_id = %q, want the SHA-256 of the caller header, %q", got, want)
 	}
 }

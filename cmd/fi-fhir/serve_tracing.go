@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -24,10 +22,11 @@ func processorObservation(logger *slog.Logger, tracing *observability.Tracing) p
 			observability.F(observability.FieldOperation, string(initial.Phase)),
 			observability.F(observability.FieldMode, string(initial.Mode)),
 		}
-		// X-Correlation-ID can contain arbitrary caller text. Hash it for joining
-		// logs without copying that text (or MSH-10) into telemetry.
+		// X-Correlation-ID can contain arbitrary caller text. spanCorrelationID
+		// hashes it, so logs and spans join on the header without carrying its
+		// text (or MSH-10) into telemetry.
 		if initial.CorrelationID != "" {
-			fields = append(fields, observability.F(observability.FieldCorrelationID, fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(initial.CorrelationID)))))
+			fields = append(fields, observability.F(observability.FieldCorrelationID, spanCorrelationID(initial.CorrelationID)))
 		}
 		ctx, finish := tracing.Start(ctx, name, fields...)
 		return ctx, func(result processor.Observation) {

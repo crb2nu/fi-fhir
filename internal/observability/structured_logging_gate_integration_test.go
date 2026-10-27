@@ -49,12 +49,21 @@
 //	(b) An unlisted field key is planted through the real logger inside
 //	    assertion 4, in the same invocation, so the scanner is proved able to
 //	    fail before it is trusted to pass.
+//	(c) `go test -tags "integration tracingleak"` restores the raw caller
+//	    correlation header on the serve span
+//	    (cmd/fi-fhir/serve_tracing_correlation_leak.go); the collector-side PHI
+//	    assertion must FAIL. `make tracing-negative-control` inverts the exit
+//	    status of the serve subtest alone. The raw header is the only thing
+//	    the tag changes, so every failure under it is the leak being caught:
+//	    assertCallerCorrelationHashed on both spans, and the log line that
+//	    shares the hashed field.
 //
 // A control that passes means the sentinel scan is vacuous, which is exactly the
 // failure 4.2a's negative control caught.
 package observability_test
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -72,6 +81,13 @@ import (
 // wrong reason.
 const queuePayloadSentinel = "MRN4404DGATE"
 
+// correlationSentinel travels in the X-Correlation-ID header of the proof's HL7
+// submission. A caller may put anything there — an MSH-10, a patient identifier
+// — so the shipped serve hashes it before it reaches a span or a log line. It is
+// distinct from phiSentinels and queuePayloadSentinel for the same reason those
+// are distinct from each other.
+const correlationSentinel = "CORRSENTINEL4404"
+
 // slogBuiltinKeys are written by log/slog itself, and `dropped_fields` is
 // written by the bounded handler. Everything else on a line must come from the
 // allowlist.
@@ -81,7 +97,7 @@ var slogBuiltinKeys = map[string]struct{}{
 
 func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 	root := repoRoot(t)
-	binary := buildServeBinary(t, root)
+	binary := serveProofBinary(t, root)
 
 	t.Run("serve_emits_structured_phi_free_lines", func(t *testing.T) {
 		baseDSN := os.Getenv("POSTGRES_TEST_URL")
@@ -101,14 +117,17 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		r := startReplica(t, binary, root, dsnAddress(t, dsn), dsn, "current", "logging-proof")
 
 		// Real work, so the assertions are about a serving process rather than a
-		// process that only printed its banner. submitHL7 posts a message
-		// carrying MRN8675309 / SENTINELPATIENT / SENTINELFAMILY through the
-		// authenticated durable ingress.
-		if err := r.submitHL7(t); err != nil {
+		// process that only printed its banner. The message carries MRN8675309 /
+		// SENTINELPATIENT / SENTINELFAMILY through the authenticated durable
+		// ingress, under a caller correlation header carrying its own sentinel.
+		if err := r.submitHL7Correlated(t, correlationSentinel); err != nil {
 			t.Fatalf("submit HL7 through the durable ingress: %v", err)
 		}
 		spans := awaitSpans()
 		assertDurableAdmissionSpans(t, spans)
+		assertCallerCorrelationHashed(t, spans, correlationSentinel)
+		hashedCorrelation := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(correlationSentinel)))
+		logSentinels := append(append([]string(nil), phiSentinels...), correlationSentinel)
 
 		lines := nonEmptyLines(drainReplicaOutput(t, r))
 		if len(lines) == 0 {
@@ -118,6 +137,7 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 
 		var unlistedKeys []string
 		correlatedAdmission := false
+		hashedCorrelationLogged := false
 		for _, line := range lines {
 			// --- Assertion 1: every line is JSON carrying the tenant.
 			var entry map[string]any
@@ -139,9 +159,13 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 					}
 				}
 			}
+			if entry["correlation_id"] == hashedCorrelation {
+				hashedCorrelationLogged = true
+			}
 
-			// --- Assertion 2: no sentinel in any key or any value.
-			for _, sentinel := range phiSentinels {
+			// --- Assertion 2: no sentinel in any key or any value. The caller
+			// correlation header is a sentinel here too: only its hash may appear.
+			for _, sentinel := range logSentinels {
 				if strings.Contains(line, sentinel) {
 					t.Errorf("PHI sentinel %q reached a log line: %q", sentinel, line)
 				}
@@ -166,6 +190,9 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		}
 		if !correlatedAdmission {
 			t.Error("no accepted durable admission log joins the exported trace and receipt")
+		}
+		if !hashedCorrelationLogged {
+			t.Error("no log line carries the SHA-256 of the caller correlation header, so logs and spans cannot be joined on it")
 		}
 		if len(unlistedKeys) > 0 {
 			t.Errorf("serve emitted field keys outside the allowlist: %v", unlistedKeys)
@@ -266,6 +293,25 @@ func runQueueLogWorkflow(t *testing.T) string {
 	}
 	t.Logf("captured CLI output:\n%s", out)
 	return string(out)
+}
+
+// serveProofBinary builds the `fi-fhir serve` the collector proof drives. Under
+// the `tracingleak` tag it carries that tag, so
+// cmd/fi-fhir/serve_tracing_correlation_leak.go is compiled into the process
+// under test; tracing_tags_off_test.go records why the tag has to be propagated
+// rather than assumed.
+func serveProofBinary(t *testing.T, root string) string {
+	t.Helper()
+	if tracingLeakTags == "" {
+		return buildServeBinary(t, root)
+	}
+	output := filepath.Join(t.TempDir(), "fi-fhir-tracingleak")
+	build := exec.Command("go", "build", "-tags", tracingLeakTags, "-o", output, "./cmd/fi-fhir")
+	build.Dir = root
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build fi-fhir with tags %q: %v\n%s", tracingLeakTags, err, combined)
+	}
+	return output
 }
 
 // taggedBinary builds `fi-fhir` with whatever build tags this test binary was

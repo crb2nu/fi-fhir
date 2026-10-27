@@ -768,6 +768,15 @@ func (r *replica) subscribeSessionEvents(ctx context.Context, sessionID string) 
 // than on a synthetic call.
 func (r *replica) submitHL7(t *testing.T) error {
 	t.Helper()
+	return r.submitHL7Correlated(t, "")
+}
+
+// submitHL7Correlated is submitHL7 under a caller-chosen X-Correlation-ID (none
+// when empty). The structured-logging proof plants a sentinel there, because the
+// header is arbitrary caller text that serve must hash before it reaches a span
+// or a log line.
+func (r *replica) submitHL7Correlated(t *testing.T, correlationID string) error {
+	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, r.baseURL()+ingressPath, strings.NewReader(sentinelHL7()))
 	if err != nil {
 		return err
@@ -775,6 +784,9 @@ func (r *replica) submitHL7(t *testing.T) error {
 	req.Header.Set("Content-Type", "application/hl7-v2+er7")
 	req.Header.Set("Authorization", "Bearer "+ingressBearer)
 	req.Header.Set("X-FI-FHIR-Integration-ID", documentedIntegration)
+	if correlationID != "" {
+		req.Header.Set("X-Correlation-ID", correlationID)
+	}
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
 		return err

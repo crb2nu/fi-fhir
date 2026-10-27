@@ -632,6 +632,19 @@ OTel trace. Sampling can leave a log's trace ID without an exported span.
 Aggregate batch polls and session fanout remain tenant-scoped. Successful
 per-message lines require debug level; retry/rejection/failure lines do not.
 
+**Span attributes.** An exported span carries a closed set narrower than the
+log allowlist: the enumerations (`component`, `operation`, `mode`, `outcome`),
+the durable and operator-chosen identifiers, and computed scalars.
+`observability.PermittedSpanAttributes()` enumerates it. `source_message_id`,
+`error` and `reason` are refused on spans although they are permitted log
+fields, because a collector may be run by someone other than the operator and
+indexes what it receives. Anything a call site passes outside the set is
+dropped and reported on the span as `dropped_attributes`, the span counterpart
+of `dropped_fields`; the structured-logging proof fails on either. That proof
+also submits its message under a sentinel `X-Correlation-ID` and requires only
+the digest above on the admission span, and a `tracingleak` build that restores
+the raw header must make it fail (`make tracing-negative-control`).
+
 ### Kubernetes Audit Policy
 
 ```yaml

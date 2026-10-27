@@ -119,7 +119,11 @@ func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T)
 	for _, span := range spans {
 		evidence += span.String()
 		for _, attr := range span.Attributes {
-			if !observability.KnownLogField(observability.LogField(attr.Key)) {
+			if attr.Key == "dropped_attributes" {
+				t.Errorf("a serve call site passed %d attribute(s) outside the span allowlist on %s", attr.Value.GetIntValue(), span.Name)
+				continue
+			}
+			if !observability.KnownSpanAttribute(observability.LogField(attr.Key)) {
 				t.Errorf("unknown attribute %q", attr.Key)
 			}
 		}
@@ -128,6 +132,11 @@ func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T)
 		if strings.Contains(evidence, sentinel) {
 			t.Errorf("PHI reached telemetry: %s", sentinel)
 		}
+	}
+	// The caller header is joinable without being readable: its hash is on the
+	// admission telemetry even though its text is not.
+	if !strings.Contains(evidence, spanCorrelationID("PHI_HEADER_SENTINEL")) {
+		t.Error("admission telemetry does not carry the hashed caller correlation header")
 	}
 	if !strings.Contains(logs.String(), `"outcome":"rejected"`) || !strings.Contains(logs.String(), `"receipt_id":"receipt-1"`) || !strings.Contains(logs.String(), `"lineage_trace_id":"ledger-trace-1"`) {
 		t.Fatalf("missing denied-delivery lineage: %s", &logs)
