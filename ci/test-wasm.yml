@@ -44,6 +44,7 @@ test:wasm:
     paths:
       - dist/wasm/
   rules:
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - ui/src/lib/features/hl7/samples/demoSamples.ts

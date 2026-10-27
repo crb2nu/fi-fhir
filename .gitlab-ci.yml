@@ -118,9 +118,25 @@ variables:
 #
 # It stays in this file, beside the change set it aliases, so there is exactly
 # one copy of that list. A second copy in ci/_shared.yml would drift.
+#
+# The `$MILLS_MERGE_QUEUE == "1"` arm is the merge-train proof profile. The
+# Mills serial merge queue proves a merge request on a queue-owned
+# `mills-mq/train-*` ref whose commit is main merged with the MR head, by
+# minting an API pipeline on that ref with MILLS_MERGE_QUEUE=1 (loom-core
+# docs/MILLS_MERGE_TRAIN_DESIGN.md; the lane is `merge_queue.lanes` in
+# platform/gitops k3s/mills/configmap-policy.yaml). Every other arm here needs
+# a merge-request event, a tag or main, so without this arm that pipeline
+# would have no jobs and the queue could not mint it. The same arm precedes
+# every automatic merge-request arm in this file and in ci/*.yml; the three
+# manual jobs (`test:benchmark`, `test:performance-profile`,
+# `test:performance-report`) are left out on purpose, and jobs that run only
+# on main or a tag are untouched. `rules:changes` is not evaluated on an API
+# pipeline, so a proof runs the whole gating set, not the subset the MR's
+# diff would select.
 .go-mr-rules:
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -286,6 +302,7 @@ lint:go:
       fi
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -319,6 +336,7 @@ lint:fmt:
       fi
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -334,6 +352,7 @@ lint:vet:
     - go vet ./...
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -351,6 +370,7 @@ lint:gqlgen:
     - git diff --exit-code -- .
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - internal/api/graphql/**/*
@@ -394,6 +414,7 @@ lint:ui:
     - grep -R -F -q 'ci-preview-alias' build/_app/immutable
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *ui-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -416,6 +437,7 @@ lint:sdk-typescript:
     - npm run build
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *sdk-ts-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -445,6 +467,7 @@ lint:helm:
     - kubeconform -v
     - bash scripts/validate-k8s-schema.sh
   rules:
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes:
@@ -480,6 +503,7 @@ lint:docs:
     - bash scripts/ci-job-inventory.sh --check
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - docs/**/*
@@ -537,6 +561,7 @@ lint:contracts:
     expire_in: 7 days
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - pkg/events/events.go
@@ -603,6 +628,7 @@ test:unit:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -625,6 +651,7 @@ test:binary:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *runtime-verification-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -650,6 +677,7 @@ test:sdk-typescript:
     - npm test
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *sdk-ts-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -767,6 +795,7 @@ test:integration:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -818,6 +847,7 @@ test:artifact-revisions:
       ./internal/integration/processor
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -859,6 +889,7 @@ test:durable-submission:
       ./internal/integration/processor
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -904,6 +935,7 @@ test:golden-path-001:
       junit: .tmp/golden-path-001/junit.xml
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -945,6 +977,7 @@ test:deployment-lifecycle:
       ./internal/integration/lifecycle
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -985,6 +1018,7 @@ test:mllp-runtime:
     - make mllp-runtime
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1042,6 +1076,7 @@ test:delivery-reliability:
     - make delivery-reliability
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1097,6 +1132,7 @@ test:batch-ingestion:
     - make batch-ingestion
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1137,6 +1173,7 @@ test:integration-session:
     - make integration-session
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1171,6 +1208,7 @@ test:operator-control-plane:
     - make operator-control-plane
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1233,6 +1271,7 @@ test:delivery-identity:
     - make delivery-identity
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1294,6 +1333,7 @@ test:ui:
       npm run test:run
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - ui/**/*
@@ -1380,6 +1420,7 @@ test:coverage-merge:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1483,6 +1524,7 @@ test:docs-status:
       fi
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - docs/STATUS.md
@@ -1566,6 +1608,7 @@ test:smoke:
       fi
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *runtime-verification-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1593,6 +1636,7 @@ security:govulncheck:
     when: runner_system_failure
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1639,6 +1683,7 @@ security:gosec:
     when: runner_system_failure
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1664,6 +1709,7 @@ security:trivy:
     when: always
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - "**/*"
@@ -1693,6 +1739,7 @@ security:npm-audit-ui:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *ui-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1721,6 +1768,7 @@ security:npm-audit-sdk:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *sdk-ts-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1749,6 +1797,7 @@ security:trivy-image:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1779,6 +1828,7 @@ security:license-check:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1807,6 +1857,7 @@ security:trivy-ui-image:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *ui-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1836,6 +1887,7 @@ build:binary:
     expire_in: 1 week
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1892,6 +1944,7 @@ build:docker:
     expire_in: 1 day
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *go-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -1951,6 +2004,7 @@ build:docker-ui:
     expire_in: 1 day
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: *ui-changes
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
