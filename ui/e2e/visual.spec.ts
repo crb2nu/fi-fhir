@@ -15,7 +15,7 @@
  */
 import path from 'node:path';
 import { expect, test, type Locator, type Page, type Request, type TestInfo } from '@playwright/test';
-import { FORBIDDEN_COPY, expectPreviewComplete, openHL7Samples, openIDE, previewOnSessionStream } from './support';
+import { FORBIDDEN_COPY, expectPreviewComplete, hl7PreviewButton, openHL7Samples, openIDE, previewOnSessionStream } from './support';
 
 const VISUAL_DIR = path.resolve(process.env.E2E_RESULTS_DIR ?? 'e2e-results', 'visual');
 /** The preview-only stack (run.sh), for the hosted demo's captures. */
