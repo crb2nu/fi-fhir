@@ -176,6 +176,7 @@ test:e2e-legacy:
       fi
   rules:
     - if: $CI_COMMIT_TAG
+    - if: '$MILLS_MERGE_QUEUE == "1"'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       # .go-changes, which .integration-proof inherits through .go-mr-rules,
       # does not cover test/**. A change confined to the e2e tree has to run
