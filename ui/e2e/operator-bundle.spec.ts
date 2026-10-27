@@ -10,6 +10,7 @@ import {
   OPERATOR_BUNDLE,
   SYNTHETIC_ADT_A01,
   enterHL7Message,
+  expectPreviewComplete,
   fetchAuthStatus,
   graphqlData,
   hl7PreviewButton,
@@ -76,7 +77,7 @@ test("2. operator page lists the fixture's Messages, with no pre-flight and no \
 
 test('3. an Integration Session stream opens; Verification says admissions are not streamed', async ({
   page
-}) => {
+}, testInfo) => {
   const watch = await watchPage(page);
 
   // HL7 intake: with the build flag on AND capabilities.integrationSessions,
@@ -99,12 +100,10 @@ test('3. an Integration Session stream opens; Verification says admissions are n
 
   // Listening, then done: runStreamingSessionPreview issues the run only after
   // the stream's onOpen, and reports `complete` only when the stream raised no
-  // error — so the panel leaving "connecting" for "complete" within 10 s is the
-  // session panel having listened on an open stream for the whole run.
-  const progress = page.getByRole('region', { name: 'Server preview progression' });
-  await expect(progress).toHaveClass(/state-complete/, { timeout: 10_000 });
-  await expect(progress).toContainText('Preview complete');
-  await expect(progress.locator('.stream-error')).toHaveCount(0);
+  // error — so the stream answered above is the session panel listening, and
+  // `complete`, on the run's own budget rather than a fixed one, is it having
+  // listened on that open stream for the whole run (expectPreviewComplete).
+  await expectPreviewComplete(page, testInfo);
 
   // Verification (/events) has no Live tab since .loom/42 E-2: admissions are
   // read from the durable tables, and the page says in one sentence that they

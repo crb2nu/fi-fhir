@@ -14,8 +14,8 @@
  * request has been answered. Never a fixed delay.
  */
 import path from 'node:path';
-import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
-import { FORBIDDEN_COPY, hl7PreviewButton, openHL7Samples, openIDE } from './support';
+import { expect, test, type Locator, type Page, type Request, type TestInfo } from '@playwright/test';
+import { FORBIDDEN_COPY, expectPreviewComplete, hl7PreviewButton, openHL7Samples, openIDE, previewOnSessionStream } from './support';
 
 const VISUAL_DIR = path.resolve(process.env.E2E_RESULTS_DIR ?? 'e2e-results', 'visual');
 /** The preview-only stack (run.sh), for the hosted demo's captures. */
@@ -26,8 +26,12 @@ interface Capture {
   id: string;
   /** `<route>-<state>`: the PNG is `visual/<name>.png`. */
   name: string;
-  /** Brings a fresh page to the state; resolves once the state's anchor is visible. */
-  reach: (page: Page) => Promise<void>;
+  /**
+   * Brings a fresh page to the state; resolves once the state's anchor is
+   * visible. A state that waits on a server run may extend the test's budget
+   * through `testInfo` by that run's own budget.
+   */
+  reach: (page: Page, testInfo: TestInfo) => Promise<void>;
 }
 
 /** Waits for one of several mutually exclusive terminal states of a region. */
@@ -61,13 +65,13 @@ const CAPTURES: Capture[] = [
   {
     id: 'V3',
     name: 'hl7-preview',
-    reach: async (page) => {
+    reach: async (page, testInfo) => {
       await hl7Idle(page);
       // With sessions on, Preview of the built-in sample runs on the session
-      // engine; `complete` is the stream having stayed open for the whole run.
-      await hl7PreviewButton(page).click();
-      const progress = page.getByRole('region', { name: 'Server preview progression' });
-      await expect(progress).toHaveClass(/state-complete/);
+      // engine; `complete` is the stream having stayed open for the whole run,
+      // waited on the run's lifecycle: the stream open, then the run's own budget.
+      await previewOnSessionStream(page);
+      await expectPreviewComplete(page, testInfo);
       await expect(page.getByText('Preview the message to list parse warnings by phase.')).toHaveCount(0);
     }
   },
@@ -345,9 +349,9 @@ async function expectSettled(page: Page, inflight: () => string[]): Promise<void
 }
 
 for (const capture of CAPTURES) {
-  test(`${capture.id}. ${capture.name}.png: captured once settled, copy register clean`, async ({ page }) => {
+  test(`${capture.id}. ${capture.name}.png: captured once settled, copy register clean`, async ({ page }, testInfo) => {
     const inflight = inflightDataRequests(page);
-    await capture.reach(page);
+    await capture.reach(page, testInfo);
     await expectSettled(page, inflight);
 
     // Evidence first, so a copy-register failure still leaves the PNG to look at.
