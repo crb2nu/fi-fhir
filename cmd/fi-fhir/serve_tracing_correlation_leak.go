@@ -17,4 +17,4 @@ package main
 // seen to fail it.
 //
 // Do not "fix" this file. Its whole job is to leak.
-func spanCorrelationID(raw string) string { return raw }
+func spanCorrelationID(_ []byte, raw string) string { return raw }

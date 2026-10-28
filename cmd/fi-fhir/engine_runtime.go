@@ -191,6 +191,8 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE", secret: true},
 		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE", secret: true},
 
+		{key: envTelemetryCorrelationKey, secret: true},
+
 		{key: "FI_FHIR_DELIVERY_WORKER_ENABLED", defaultValue: "false"},
 		{key: "FI_FHIR_DELIVERY_WORKER_ID"},
 		{key: "FI_FHIR_QUEUE_DRIVER"},

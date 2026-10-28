@@ -65,7 +65,6 @@
 package observability_test
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -144,7 +143,7 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 			t.Errorf("delivery attempt %q is absent from the receipt's ledger rows", attemptID)
 		}
 		assertCallerCorrelationHashed(t, spans, correlationSentinel)
-		hashedCorrelation := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(correlationSentinel)))
+		hashedCorrelation := keyedCorrelationDigest(correlationSentinel)
 		logSentinels := append(append([]string(nil), phiSentinels...), correlationSentinel)
 
 		lines := nonEmptyLines(drainReplicaOutput(t, r))

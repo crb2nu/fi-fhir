@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
@@ -11,7 +14,30 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 )
 
-func processorObservation(logger *slog.Logger, tracing *observability.Tracing) processor.Observer {
+// envTelemetryCorrelationKey names the deployment secret spanCorrelationID keys
+// its digest under. It belongs with the other serve secrets, never beside the
+// collector or log archive whose contents it protects.
+const envTelemetryCorrelationKey = "FI_FHIR_TELEMETRY_CORRELATION_KEY"
+
+// minTelemetryCorrelationKeyBytes is the shortest key accepted: 256 bits of
+// input, the HMAC-SHA256 block's security level.
+const minTelemetryCorrelationKeyBytes = 32
+
+// loadTelemetryCorrelationKey reads the correlation-digest key. Unset returns a
+// nil key, which keeps the unkeyed digest; a key that is set but short is an
+// error, because a misconfigured key should stop serve rather than run weakly.
+func loadTelemetryCorrelationKey() ([]byte, error) {
+	value := strings.TrimSpace(os.Getenv(envTelemetryCorrelationKey))
+	if value == "" {
+		return nil, nil
+	}
+	if len(value) < minTelemetryCorrelationKeyBytes {
+		return nil, fmt.Errorf("%s must be at least %d bytes", envTelemetryCorrelationKey, minTelemetryCorrelationKeyBytes)
+	}
+	return []byte(value), nil
+}
+
+func processorObservation(logger *slog.Logger, tracing *observability.Tracing, correlationKey []byte) processor.Observer {
 	return func(ctx context.Context, initial processor.Observation) (context.Context, func(processor.Observation)) {
 		started := time.Now()
 		name := "integration.admission"
@@ -24,10 +50,10 @@ func processorObservation(logger *slog.Logger, tracing *observability.Tracing) p
 			observability.F(observability.FieldMode, string(initial.Mode)),
 		}
 		// X-Correlation-ID can contain arbitrary caller text. spanCorrelationID
-		// hashes it, so logs and spans join on the header without carrying its
-		// text (or MSH-10) into telemetry.
+		// digests it under the deployment key, so logs and spans join on the
+		// header without carrying its text (or MSH-10) into telemetry.
 		if initial.CorrelationID != "" {
-			fields = append(fields, observability.F(observability.FieldCorrelationID, spanCorrelationID(initial.CorrelationID)))
+			fields = append(fields, observability.F(observability.FieldCorrelationID, spanCorrelationID(correlationKey, initial.CorrelationID)))
 		}
 		ctx, finish := tracing.Start(ctx, name, fields...)
 		return ctx, func(result processor.Observation) {

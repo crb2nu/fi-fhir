@@ -620,11 +620,35 @@ that stage. Successful durable admissions and claimed deliveries share
 `receipt_id` and `lineage_trace_id`, which join to ledger rows. Planning occurs
 before commit, so planning lines do not claim a durable receipt.
 
-Processor `correlation_id` is `sha256:` followed by the hex SHA-256 of the
-request correlation ID. The HTTP header is caller-controlled, so its raw text
-and the HL7 source-message ID are excluded from the new telemetry. This digest
-supports equality joins; it is pseudonymous metadata, not anonymized data.
-Access and retention controls still apply.
+Processor `correlation_id` is a keyed digest of the request correlation ID:
+`hmac-sha256:` followed by the first 128 bits (32 hex characters) of
+HMAC-SHA256 under `FI_FHIR_TELEMETRY_CORRELATION_KEY`. The HTTP header is
+caller-controlled, so its raw text and the HL7 source-message ID are excluded
+from the new telemetry. This digest supports equality joins: every stage that
+sees the same header under the same key renders the same value. It is keyed
+pseudonymous metadata, not anonymized data, and access and retention controls
+still apply.
+
+- **Why keyed.** Callers routinely put an MSH-10 control ID, a sequential request
+  number, or an account identifier in that header. An unkeyed hash of such
+  low-entropy input is reversible by dictionary for anyone holding the collector
+  or the log archive. With the key, reversing it also needs the serve secret.
+- **Where the key lives.** It is a serve secret (32 or more bytes; generate one
+  with `openssl rand -hex 32`). Keep it with the other serve secrets, never
+  alongside the trace collector or the log archive. Wiring it into the
+  Kubernetes and Helm secrets is a pending follow-up, so for now set it in the
+  serve environment directly.
+- **Truncation.** The tag is truncated to 128 bits. That makes accidental
+  collisions negligible at any realistic header volume, halves the indexed value,
+  and makes it obvious the tag is not a plain hash of a known space.
+- **Unset key.** Serve keeps the unkeyed `sha256:<64 hex>` digest it rendered
+  before and logs one startup WARN naming the variable. A key that is set but
+  shorter than 32 bytes is a startup error. The prefix tells a reader which form
+  a line carries during the transition.
+- **Rotation.** Rotating the key changes every digest. Telemetry written under
+  the old key stops joining to telemetry written under the new one, and so do
+  replicas that run different keys during a rollout. Rotate between
+  investigations, and roll the new key to every replica together.
 
 When tracing is enabled, operation logs carry OTel `trace_id` and `span_id`.
 These are distinct from `lineage_trace_id`; asynchronous delivery starts a new
@@ -651,7 +675,7 @@ indexes what it receives. Anything a call site passes outside the set is
 dropped and reported on the span as `dropped_attributes`, the span counterpart
 of `dropped_fields`; the structured-logging proof fails on either. That proof
 also submits its message under a sentinel `X-Correlation-ID` and requires only
-the digest above on the admission span, and a `tracingleak` build that restores
+the keyed digest above, computed with the proof's own key, on the admission span, and a `tracingleak` build that restores
 the raw header must make it fail (`make tracing-negative-control`).
 
 ### Kubernetes Audit Policy
