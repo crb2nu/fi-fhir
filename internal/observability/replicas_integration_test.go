@@ -808,7 +808,7 @@ func sentinelHL7() string {
 	}, "\r")
 }
 
-func startReplica(t *testing.T, binary, root, proxyAddr, dsn, mode, name string) *replica {
+func startReplica(t *testing.T, binary, root, proxyAddr, dsn, mode, name string, extraEnv ...string) *replica {
 	t.Helper()
 
 	host, portText, err := net.SplitHostPort(proxyAddr)
@@ -855,6 +855,7 @@ func startReplica(t *testing.T, binary, root, proxyAddr, dsn, mode, name string)
 		"FI_FHIR_METRICS_ENDPOINT=/metrics",
 		"FI_FHIR_METRICS_ENABLED=true",
 	)
+	cmd.Env = append(cmd.Env, extraEnv...)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start replica %s: %v", name, err)
 	}

@@ -60,6 +60,8 @@
 //
 // A control that passes means the sentinel scan is vacuous, which is exactly the
 // failure 4.2a's negative control caught.
+// The serve proof also requires a claimed delivery on a separate OTel trace,
+// joined to admission and its ledger attempt through durable IDs.
 package observability_test
 
 import (
@@ -105,7 +107,7 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 			t.Skip("POSTGRES_TEST_URL is required to boot a real fi-fhir serve")
 		}
 
-		collectorURL, awaitSpans := serveTraceCollector(t)
+		collectorURL, awaitSpans := serveTraceCollector(t, "integration.admission", "integration.workflow.plan", "integration.delivery.dispatch")
 		t.Setenv("FI_FHIR_TRACING_ENABLED", "true")
 		t.Setenv("FI_FHIR_TRACING_ENDPOINT", collectorURL)
 		t.Setenv("FI_FHIR_TRACING_SAMPLER", "1")
@@ -114,7 +116,14 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		dsn := freshDatabase(t, baseDSN, "fi_fhir_logging_proof")
 		_ = buildRegistryFixture(t, root)
 
-		r := startReplica(t, binary, root, dsnAddress(t, dsn), dsn, "current", "logging-proof")
+		r := startReplica(t, binary, root, dsnAddress(t, dsn), dsn, "current", "logging-proof",
+			"FI_FHIR_DELIVERY_WORKER_ENABLED=true",
+			"FI_FHIR_QUEUE_DRIVER=kafka",
+			fmt.Sprintf("FI_FHIR_QUEUE_BROKERS=127.0.0.1:%d", freeTCPPort(t)),
+			"FI_FHIR_DELIVERY_WORKER_ID=logging-proof-delivery",
+			"FI_FHIR_DELIVERY_LEASE_DURATION=10s",
+			"FI_FHIR_DELIVERY_POLL_INTERVAL=100ms",
+			"FI_FHIR_DELIVERY_PUBLISH_TIMEOUT=500ms")
 
 		// Real work, so the assertions are about a serving process rather than a
 		// process that only printed its banner. The message carries MRN8675309 /
@@ -125,6 +134,15 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		}
 		spans := awaitSpans()
 		assertDurableAdmissionSpans(t, spans)
+		delivery := assertDeliveryJoinsAdmission(t, spans)
+		attemptID := spanStringField(delivery, "delivery_attempt_id")
+		foundAttempt := false
+		for _, id := range deliveryAttemptIDs(t, dsn, spanStringField(delivery, "receipt_id")) {
+			foundAttempt = foundAttempt || id == attemptID
+		}
+		if !foundAttempt {
+			t.Errorf("delivery attempt %q is absent from the receipt's ledger rows", attemptID)
+		}
 		assertCallerCorrelationHashed(t, spans, correlationSentinel)
 		hashedCorrelation := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(correlationSentinel)))
 		logSentinels := append(append([]string(nil), phiSentinels...), correlationSentinel)
@@ -137,6 +155,7 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 
 		var unlistedKeys []string
 		correlatedAdmission := false
+		correlatedDelivery := false
 		hashedCorrelationLogged := false
 		for _, line := range lines {
 			// --- Assertion 1: every line is JSON carrying the tenant.
@@ -158,6 +177,13 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 						correlatedAdmission = true
 					}
 				}
+			}
+			if entry["component"] == "delivery-worker" &&
+				entry["receipt_id"] == spanStringField(delivery, "receipt_id") &&
+				entry["lineage_trace_id"] == spanStringField(delivery, "lineage_trace_id") &&
+				entry["delivery_attempt_id"] == attemptID &&
+				entry["trace_id"] == fmt.Sprintf("%x", delivery.TraceId) {
+				correlatedDelivery = true
 			}
 			if entry["correlation_id"] == hashedCorrelation {
 				hashedCorrelationLogged = true
@@ -187,6 +213,9 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 			if dropped, present := entry["dropped_fields"]; present {
 				t.Errorf("serve tried to write an unlisted field (dropped_fields=%v): %q", dropped, line)
 			}
+		}
+		if !correlatedDelivery {
+			t.Error("no delivery-worker log joins the exported delivery trace and durable IDs")
 		}
 		if !correlatedAdmission {
 			t.Error("no accepted durable admission log joins the exported trace and receipt")
