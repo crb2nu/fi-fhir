@@ -8,6 +8,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 )
 
 func processorObservation(logger *slog.Logger, tracing *observability.Tracing) processor.Observer {
@@ -59,4 +60,16 @@ func deliveryLogFields(result delivery.DispatchResult) []slog.Attr {
 		fields = append(fields, observability.F(observability.FieldDeliveryAttemptID, result.AttemptID))
 	}
 	return fields
+}
+
+// newServeTracing keeps the serve configuration boundary shared with its proof.
+func newServeTracing(ctx context.Context, cfg *config.Config, tenantID string, logger *slog.Logger) (*observability.Tracing, error) {
+	return observability.NewTracing(ctx, observability.TraceConfig{
+		Enabled:     cfg.Observability.TracingEnabled,
+		Endpoint:    cfg.Observability.TracingEndpoint,
+		SampleRatio: cfg.Observability.TracingSampler,
+		Version:     version,
+		Logger:      logger,
+		TenantID:    tenantID,
+	})
 }

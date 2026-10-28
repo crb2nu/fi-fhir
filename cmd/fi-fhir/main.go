@@ -4567,14 +4567,7 @@ func runServe(args []string) error {
 		Format:   runtimeConfig.Observability.LogFormat,
 		TenantID: securePreviewRuntime.tenantID,
 	})
-	serveTracing, err := observability.NewTracing(serveCtx, observability.TraceConfig{
-		Enabled:     runtimeConfig.Observability.TracingEnabled,
-		Endpoint:    runtimeConfig.Observability.TracingEndpoint,
-		SampleRatio: runtimeConfig.Observability.TracingSampler,
-		Version:     version,
-		Logger:      serveLog,
-		TenantID:    securePreviewRuntime.tenantID,
-	})
+	serveTracing, err := newServeTracing(serveCtx, runtimeConfig, securePreviewRuntime.tenantID, serveLog)
 	if err != nil {
 		return fmt.Errorf("configure tracing: %w", err)
 	}

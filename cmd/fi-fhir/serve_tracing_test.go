@@ -5,17 +5,20 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/delivery"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/preview"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/config"
 	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 	collector "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -23,9 +26,26 @@ import (
 )
 
 func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T) {
+	runServeTelemetryProof(t, true, false)
+}
+
+func TestServeTracingDefaultOffExportsNothingAndKeepsLineage(t *testing.T) {
+	for _, endpoint := range []bool{false, true} {
+		name := "without_endpoint"
+		if endpoint {
+			name = "with_endpoint"
+		}
+		t.Run(name, func(t *testing.T) { runServeTelemetryProof(t, false, endpoint) })
+	}
+}
+
+func runServeTelemetryProof(t *testing.T, enabled, endpoint bool) {
+	t.Helper()
+	var connections, requests atomic.Int64
 	var mu sync.Mutex
 	var spans []*tracepb.Span
-	collectorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	collectorServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
 		raw, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
@@ -45,10 +65,47 @@ func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T)
 		}
 		w.Header().Set("Content-Type", "application/x-protobuf")
 	}))
+	collectorServer.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			connections.Add(1)
+		}
+	}
+	collectorServer.Start()
 	defer collectorServer.Close()
 	var logs bytes.Buffer
 	logger := observability.NewLogger(observability.LogConfig{TenantID: "tenant-a", Level: "debug", Output: &logs})
-	tracing, err := observability.NewTracing(context.Background(), observability.TraceConfig{Enabled: true, Endpoint: collectorServer.URL, SampleRatio: 1, TenantID: "tenant-a", Logger: logger})
+	// Clear inherited tracing settings, including future additions to the surface.
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(key, "FI_FHIR_TRACING_") {
+			t.Setenv(key, "")
+			if err := os.Unsetenv(key); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, key := range []string{"FI_FHIR_TRACING_ENABLED", "FI_FHIR_TRACING_ENDPOINT", "FI_FHIR_TRACING_SAMPLER"} {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if enabled {
+		t.Setenv("FI_FHIR_TRACING_ENABLED", "true")
+		t.Setenv("FI_FHIR_TRACING_SAMPLER", "1")
+	}
+	if enabled || endpoint {
+		t.Setenv("FI_FHIR_TRACING_ENDPOINT", collectorServer.URL)
+	}
+	runtimeConfig := config.Default()
+	runtimeConfig.ApplyEnv()
+	if err := runtimeConfig.EnvAliasError(); err != nil {
+		t.Fatal(err)
+	}
+	if runtimeConfig.Observability.TracingEnabled != enabled {
+		t.Fatal("unexpected tracing enablement")
+	}
+	tracing, err := newServeTracing(context.Background(), runtimeConfig, "tenant-a", logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +169,20 @@ func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T)
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(spans) != 3 {
+	if !enabled {
+		time.Sleep(100 * time.Millisecond)
+		if tracing != nil {
+			t.Error("disabled serve constructed tracing provider")
+		}
+		if connections.Load() != 0 || requests.Load() != 0 {
+			t.Errorf("disabled tracing contacted collector: connections=%d requests=%d", connections.Load(), requests.Load())
+		}
+	}
+	expectedSpans := 0
+	if enabled {
+		expectedSpans = 3
+	}
+	if len(spans) != expectedSpans {
 		t.Fatalf("got %d spans; expected admission, plan, denied dispatch, no idle", len(spans))
 	}
 	evidence := logs.String()
@@ -141,6 +211,11 @@ func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T)
 	if !strings.Contains(logs.String(), `"outcome":"rejected"`) || !strings.Contains(logs.String(), `"receipt_id":"receipt-1"`) || !strings.Contains(logs.String(), `"lineage_trace_id":"ledger-trace-1"`) {
 		t.Fatalf("missing denied-delivery lineage: %s", &logs)
 	}
+	for _, key := range []string{"receipt_id", "lineage_trace_id", "delivery_attempt_id"} {
+		if !strings.Contains(logs.String(), "\""+key+"\":") {
+			t.Errorf("missing lineage key %s", key)
+		}
+	}
 	families, err := metrics.Registry().Gather()
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +240,27 @@ func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T)
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			t.Fatal(err)
 		}
-		if record["tenant_id"] != "tenant-a" || record["trace_id"] == nil || record["span_id"] == nil {
+		for key := range record {
+			if key != "time" && key != "level" && key != "msg" && !observability.KnownLogField(observability.LogField(key)) {
+				t.Errorf("unknown log key %q", key)
+			}
+		}
+		if record["component"] == "message-processor" && record["correlation_id"] != spanCorrelationID("PHI_HEADER_SENTINEL") {
+			t.Errorf("processor lost hashed correlation: %s", line)
+		}
+		if record["component"] == "delivery-worker" {
+			if record["receipt_id"] != "receipt-1" || record["lineage_trace_id"] != "ledger-trace-1" || record["delivery_attempt_id"] != "attempt-1" {
+				t.Errorf("delivery lost lineage: %s", line)
+			}
+		}
+		if !enabled {
+			for _, key := range []string{"trace_id", "span_id"} {
+				if _, ok := record[key]; ok {
+					t.Errorf("disabled tracing emitted %s: %s", key, line)
+				}
+			}
+		}
+		if record["tenant_id"] != "tenant-a" || (enabled && (record["trace_id"] == nil || record["span_id"] == nil)) {
 			t.Errorf("missing correlation: %s", line)
 		}
 	}
