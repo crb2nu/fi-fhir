@@ -123,7 +123,7 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 			"FI_FHIR_DELIVERY_WORKER_ID=logging-proof-delivery",
 			"FI_FHIR_DELIVERY_LEASE_DURATION=10s",
 			"FI_FHIR_DELIVERY_POLL_INTERVAL=100ms",
-			"FI_FHIR_DELIVERY_PUBLISH_TIMEOUT=500ms")
+			"FI_FHIR_DELIVERY_PUBLISH_TIMEOUT=2s")
 
 		// Real work, so the assertions are about a serving process rather than a
 		// process that only printed its banner. The message carries MRN8675309 /
