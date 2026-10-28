@@ -1,0 +1,1 @@
+- Keep `FI_FHIR_TELEMETRY_CORRELATION_KEY` secret in serve runtime properties, exposing only whether it is set; verify redaction alongside the HMAC correlation digest tests (`cmd/fi-fhir/engine_runtime.go`, `cmd/fi-fhir/engine_runtime_test.go`, `cmd/fi-fhir/serve_tracing_correlation.go`, `cmd/fi-fhir/serve_tracing_correlation_test.go`).
