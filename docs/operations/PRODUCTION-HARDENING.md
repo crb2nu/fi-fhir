@@ -675,8 +675,9 @@ indexes what it receives. Anything a call site passes outside the set is
 dropped and reported on the span as `dropped_attributes`, the span counterpart
 of `dropped_fields`; the structured-logging proof fails on either. That proof
 also submits its message under a sentinel `X-Correlation-ID` and requires only
-the keyed digest above, computed with the proof's own key, on the admission span, and a `tracingleak` build that restores
-the raw header must make it fail (`make tracing-negative-control`).
+the keyed digest above, computed with the proof's own key, on the admission
+span, and a `tracingleak` build that restores the raw header must make it fail
+(`make tracing-negative-control`).
 
 ### Kubernetes Audit Policy
 
