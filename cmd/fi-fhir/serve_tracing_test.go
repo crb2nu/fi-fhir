@@ -235,6 +235,7 @@ func runServeTelemetryProof(t *testing.T, enabled, endpoint bool) {
 	if !rejected {
 		t.Fatal("identity denial was not counted as rejected")
 	}
+	processorLines, deliveryLines := 0, 0
 	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
 		var record map[string]any
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
@@ -245,10 +246,14 @@ func runServeTelemetryProof(t *testing.T, enabled, endpoint bool) {
 				t.Errorf("unknown log key %q", key)
 			}
 		}
-		if record["component"] == "message-processor" && record["correlation_id"] != spanCorrelationID("PHI_HEADER_SENTINEL") {
-			t.Errorf("processor lost hashed correlation: %s", line)
+		if record["component"] == "message-processor" {
+			processorLines++
+			if record["correlation_id"] != spanCorrelationID("PHI_HEADER_SENTINEL") {
+				t.Errorf("processor lost hashed correlation: %s", line)
+			}
 		}
 		if record["component"] == "delivery-worker" {
+			deliveryLines++
 			if record["receipt_id"] != "receipt-1" || record["lineage_trace_id"] != "ledger-trace-1" || record["delivery_attempt_id"] != "attempt-1" {
 				t.Errorf("delivery lost lineage: %s", line)
 			}
@@ -263,6 +268,9 @@ func runServeTelemetryProof(t *testing.T, enabled, endpoint bool) {
 		if record["tenant_id"] != "tenant-a" || (enabled && (record["trace_id"] == nil || record["span_id"] == nil)) {
 			t.Errorf("missing correlation: %s", line)
 		}
+	}
+	if processorLines == 0 || deliveryLines == 0 {
+		t.Errorf("per-component lineage checks were vacuous: processor=%d delivery=%d", processorLines, deliveryLines)
 	}
 }
 
