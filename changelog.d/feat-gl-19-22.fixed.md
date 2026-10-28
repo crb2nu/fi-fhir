@@ -1,0 +1,1 @@
+- Prove asynchronous delivery joins admission by durable receipt, lineage, and ledger attempt IDs on a separate OTel trace with matching logs in `internal/observability/{tracing_gate,structured_logging_gate,replicas}_integration_test.go`; document the retry proof in `docs/operations/PRODUCTION-HARDENING.md`.
