@@ -24,6 +24,11 @@ import (
 
 func serveTraceCollector(t *testing.T, requiredNames ...string) (string, func() []*tracepb.Span) {
 	t.Helper()
+	// With no required names the await returns immediately, which would make
+	// every span assertion downstream vacuous.
+	if len(requiredNames) == 0 {
+		t.Fatal("serveTraceCollector requires at least one span name to await")
+	}
 	var mu sync.Mutex
 	var spans []*tracepb.Span
 	received := make(chan struct{}, 1)
