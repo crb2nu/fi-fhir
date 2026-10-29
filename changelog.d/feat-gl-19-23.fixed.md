@@ -1,0 +1,1 @@
+- Prove default-off serve tracing exports nothing while retaining PHI-safe lineage logs in cmd/fi-fhir/serve_tracing_test.go, share serve tracing configuration through cmd/fi-fhir/serve_tracing.go and main.go, and reject tracing-enabled deployment defaults in scripts/check-runtime-config.sh.

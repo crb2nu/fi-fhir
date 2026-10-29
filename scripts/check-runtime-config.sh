@@ -275,6 +275,49 @@ check_required "OTLP tracing is opt-in in deployment defaults" bash -c '
   grep -A1 "name: FI_FHIR_TRACING_ENABLED" "$root/deploy/kubernetes/base/deployment.yaml" | grep -q "false"
 '
 
+check_tracing_defaults() {
+  grep -Eq '^[[:space:]]*tracing_enabled:[[:space:]]*false[[:space:]]*$' "$ROOT/deploy/kubernetes/base/configmap.yaml" || return 1
+  grep -Eq '^#[[:space:]]*FI_FHIR_TRACING_ENABLED=false[[:space:]]*$' "$ENV_EXAMPLE" || return 1
+  if grep -Eq '^[[:space:]]*FI_FHIR_TRACING_ENABLED=' "$ENV_EXAMPLE"; then
+    echo ".env.example must keep tracing enablement commented"
+    return 1
+  fi
+  python3 - "$ROOT" <<'PYSCAN'
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(sys.argv[1])
+paths = [root / "docker-compose.yaml", root / ".env.example"]
+for directory in ("deploy", "configs"):
+    paths.extend(p for p in (root / directory).rglob("*") if p.is_file())
+truth = r"""["']?(?:true|1)["']?"""
+direct = re.compile(
+    r"(?:tracing_enabled|tracingEnabled)\s*:\s*" + truth + r"(?=\s|$)"
+    r"|FI_FHIR_TRACING_ENABLED\s*[=:]\s*" + truth + r"(?=\s|$)"
+    r"|FI_FHIR_TRACING_ENABLED\s*:-\s*" + truth + r"(?=\s|}|$)",
+    re.IGNORECASE,
+)
+env_name = re.compile(r"""\bname\s*:\s*["']?FI_FHIR_TRACING_ENABLED["']?\s*$""")
+env_value = re.compile(r"\bvalue\s*:\s*" + truth + r"(?=\s|$)", re.IGNORECASE)
+failures = []
+for path in sorted(paths):
+    pending = False
+    for number, raw in enumerate(path.read_text().splitlines(), 1):
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if direct.search(line) or (pending and env_value.search(line)):
+            failures.append(f"{path.relative_to(root)}:{number}: {raw.strip()}")
+        pending = bool(env_name.search(line))
+if failures:
+    print("Deployment defaults enable tracing:\n" + "\n".join(failures))
+    sys.exit(1)
+PYSCAN
+}
+
+check_required "all deployment tracing settings remain opt-in" check_tracing_defaults
+
 check_required "Helm tracing has endpoint and sampler wiring" bash -c '
   root="'"$ROOT"'"
   grep -q "name: FI_FHIR_TRACING_ENDPOINT" "$root/deploy/helm/fi-fhir/templates/deployment.yaml" &&
