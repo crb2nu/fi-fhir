@@ -1,0 +1,1 @@
+- Fix shared-runner flakes in `internal/workflow/benchmark_util_test.go` by checking QuickBenchmark's positive finite rate, duration, and event processing while leaving throughput floors to the calibrated benchmark job.
