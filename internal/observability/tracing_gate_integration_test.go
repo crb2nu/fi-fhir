@@ -4,7 +4,9 @@ package observability_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,8 +22,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func serveTraceCollector(t *testing.T) (string, func() []*tracepb.Span) {
+func serveTraceCollector(t *testing.T, requiredNames ...string) (string, func() []*tracepb.Span) {
 	t.Helper()
+	// With no required names the await returns immediately, which would make
+	// every span assertion downstream vacuous.
+	if len(requiredNames) == 0 {
+		t.Fatal("serveTraceCollector requires at least one span name to await")
+	}
 	var mu sync.Mutex
 	var spans []*tracepb.Span
 	received := make(chan struct{}, 1)
@@ -59,18 +66,21 @@ func serveTraceCollector(t *testing.T) (string, func() []*tracepb.Span) {
 			mu.Lock()
 			captured := append([]*tracepb.Span(nil), spans...)
 			mu.Unlock()
-			admission, plan := false, false
+			seen := make(map[string]bool)
 			for _, span := range captured {
-				admission = admission || span.Name == "integration.admission"
-				plan = plan || span.Name == "integration.workflow.plan"
+				seen[span.Name] = true
 			}
-			if admission && plan {
+			complete := true
+			for _, name := range requiredNames {
+				complete = complete && seen[name]
+			}
+			if complete {
 				return captured
 			}
 			select {
 			case <-received:
 			case <-deadline.C:
-				t.Fatalf("expected admission and planning spans, received %v", captured)
+				t.Fatalf("expected spans %v, received %v", requiredNames, captured)
 			}
 		}
 	}
@@ -152,4 +162,66 @@ func assertCallerCorrelationHashed(t *testing.T, spans []*tracepb.Span, sentinel
 	if got := spanStringField(admission, "correlation_id"); got != want {
 		t.Errorf("admission span correlation_id = %q, want the SHA-256 of the caller header, %q", got, want)
 	}
+}
+
+// assertDeliveryJoinsAdmission proves that asynchronous work retains durable
+// lineage without inheriting the request's OTel trace.
+func assertDeliveryJoinsAdmission(t *testing.T, spans []*tracepb.Span) *tracepb.Span {
+	t.Helper()
+	var admission, delivery *tracepb.Span
+	for _, span := range spans {
+		switch span.Name {
+		case "integration.admission":
+			admission = span
+		case "integration.delivery.dispatch":
+			delivery = span
+		}
+	}
+	if admission == nil || delivery == nil {
+		t.Fatal("missing admission/delivery spans")
+	}
+	for _, key := range []string{"receipt_id", "lineage_trace_id"} {
+		want := spanStringField(admission, key)
+		if got := spanStringField(delivery, key); want == "" || got != want {
+			t.Errorf("delivery %s = %q, admission = %q", key, got, want)
+		}
+	}
+	if spanStringField(delivery, "delivery_attempt_id") == "" {
+		t.Error("delivery span lacks delivery_attempt_id")
+	}
+	if len(delivery.TraceId) != 16 || bytes.Equal(delivery.TraceId, make([]byte, 16)) || bytes.Equal(delivery.TraceId, admission.TraceId) {
+		t.Error("delivery must have a valid separate OTel trace")
+	}
+	if bytes.Equal(delivery.ParentSpanId, admission.SpanId) {
+		t.Error("delivery must not be parented under admission")
+	}
+	return delivery
+}
+
+func deliveryAttemptIDs(t *testing.T, dsn, receiptID string) []string {
+	t.Helper()
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := db.QueryContext(ctx, `SELECT attempt_id FROM integration_delivery_attempts WHERE tenant_id = $1 AND receipt_id = $2`, documentedTenant, receiptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return ids
 }

@@ -629,6 +629,15 @@ Access and retention controls still apply.
 When tracing is enabled, operation logs carry OTel `trace_id` and `span_id`.
 These are distinct from `lineage_trace_id`; asynchronous delivery starts a new
 OTel trace. Sampling can leave a log's trace ID without an exported span.
+The blocking structured-logging proof waits for `integration.delivery.dispatch`
+alongside admission and planning spans. It requires delivery's `receipt_id` and
+`lineage_trace_id` to match admission, its `delivery_attempt_id` to match a row
+in `integration_delivery_attempts` for that tenant and receipt, and a delivery
+log line to carry all three IDs and the delivery span's OTel trace ID. Delivery
+must use a separate OTel trace and cannot be parented under admission. The proof
+points Kafka at an unreachable local port: it exercises a claimed attempt and
+retry, rather than a successful publish.
+
 Aggregate batch polls and session fanout remain tenant-scoped. Successful
 per-message lines require debug level; retry/rejection/failure lines do not.
 
