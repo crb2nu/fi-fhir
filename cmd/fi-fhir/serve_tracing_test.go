@@ -25,6 +25,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// testCorrelationKey is a fixed 32-byte key for the keyed correlation digest.
+var testCorrelationKey = []byte("0123456789abcdef0123456789abcdef")
+
 func TestServeTelemetryRecordsProcessorAndDeniedDeliveryWithoutPHI(t *testing.T) {
 	runServeTelemetryProof(t, true, false)
 }
@@ -126,7 +129,7 @@ func runServeTelemetryProof(t *testing.T, enabled, endpoint bool) {
 		t.Fatalf("processor wiring: %d", len(runtime.processors))
 	}
 	for _, p := range runtime.processors {
-		p.SetObserver(processorObservation(logger, tracing))
+		p.SetObserver(processorObservation(logger, tracing, testCorrelationKey))
 	}
 	security, err := runtime.authenticator.Authenticate(context.Background(), "Bearer correct-horse-battery-staple")
 	if err != nil {
@@ -203,9 +206,9 @@ func runServeTelemetryProof(t *testing.T, enabled, endpoint bool) {
 			t.Errorf("PHI reached telemetry: %s", sentinel)
 		}
 	}
-	// The caller header is joinable without being readable: its hash is on the
-	// admission telemetry even though its text is not.
-	if !strings.Contains(evidence, spanCorrelationID("PHI_HEADER_SENTINEL")) {
+	// The caller header is joinable without being readable: its keyed digest is
+	// on the admission telemetry even though its text is not.
+	if !strings.Contains(evidence, spanCorrelationID(testCorrelationKey, "PHI_HEADER_SENTINEL")) {
 		t.Error("admission telemetry does not carry the hashed caller correlation header")
 	}
 	if !strings.Contains(logs.String(), `"outcome":"rejected"`) || !strings.Contains(logs.String(), `"receipt_id":"receipt-1"`) || !strings.Contains(logs.String(), `"lineage_trace_id":"ledger-trace-1"`) {
@@ -248,7 +251,7 @@ func runServeTelemetryProof(t *testing.T, enabled, endpoint bool) {
 		}
 		if record["component"] == "message-processor" {
 			processorLines++
-			if record["correlation_id"] != spanCorrelationID("PHI_HEADER_SENTINEL") {
+			if record["correlation_id"] != spanCorrelationID(testCorrelationKey, "PHI_HEADER_SENTINEL") {
 				t.Errorf("processor lost hashed correlation: %s", line)
 			}
 		}

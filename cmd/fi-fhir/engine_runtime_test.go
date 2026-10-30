@@ -122,6 +122,9 @@ func TestDescribeServePropertiesNeverRendersASecretValue(t *testing.T) {
 	if got := byKey["FI_FHIR_GRAPHQL_BEARER_TOKEN"]; got.Value != "set" || !got.Secret || got.Source != "env" {
 		t.Fatalf("bearer token property = %+v", got)
 	}
+	if got := byKey[envTelemetryCorrelationKey]; got.Value != "set" || !got.Secret || got.Source != "env" {
+		t.Fatalf("telemetry correlation key property = %+v", got)
+	}
 	if got := byKey["FI_FHIR_GRAPHQL_AUTH_MODE"]; got.Value != "static" || got.Source != "default" {
 		t.Fatalf("auth mode property = %+v", got)
 	}

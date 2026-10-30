@@ -5,9 +5,10 @@ package observability_test
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -138,15 +139,29 @@ func assertDurableAdmissionSpans(t *testing.T, spans []*tracepb.Span) {
 	}
 }
 
+// telemetryCorrelationKey is the FI_FHIR_TELEMETRY_CORRELATION_KEY every proof
+// replica runs under, so the proof can compute the digest serve must render.
+const telemetryCorrelationKey = "observability-proof-correlation-key-0123456789abcdef"
+
+// keyedCorrelationDigest is serve's rendering of a caller X-Correlation-ID
+// under telemetryCorrelationKey: `hmac-sha256:` and the first 128 bits of the
+// HMAC (cmd/fi-fhir, spanCorrelationID). Spans and log lines both use it, so
+// the proof's span-side and log-side expectations join exactly as serve does.
+func keyedCorrelationDigest(header string) string {
+	mac := hmac.New(sha256.New, []byte(telemetryCorrelationKey))
+	mac.Write([]byte(header))
+	return "hmac-sha256:" + hex.EncodeToString(mac.Sum(nil)[:16])
+}
+
 // assertCallerCorrelationHashed is the collector-side half of negative control
 // (c): the proof submits its HL7 message under an X-Correlation-ID carrying
-// `sentinel`, and only the SHA-256 of that header may reach a span. The positive
+// `sentinel`, and only its keyed digest may reach a span. The positive
 // half — the admission span carries exactly that hash — is what keeps the
 // control honest: a header that never reached the span could not leak under
 // `tracingleak` either, and the control would pass for the wrong reason.
 func assertCallerCorrelationHashed(t *testing.T, spans []*tracepb.Span, sentinel string) {
 	t.Helper()
-	want := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(sentinel)))
+	want := keyedCorrelationDigest(sentinel)
 	var admission *tracepb.Span
 	for _, span := range spans {
 		if strings.Contains(span.String(), sentinel) {

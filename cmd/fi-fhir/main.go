@@ -4578,8 +4578,16 @@ func runServe(args []string) error {
 			serveLog.Warn("trace exporter shutdown failed", observability.F(observability.FieldComponent, "tracing"))
 		}
 	}()
+	correlationKey, err := loadTelemetryCorrelationKey()
+	if err != nil {
+		return fmt.Errorf("configure telemetry correlation: %w", err)
+	}
+	if correlationKey == nil {
+		serveLog.Warn(envTelemetryCorrelationKey+" is unset: correlation_id is an unkeyed sha256 digest, reversible by dictionary for low-entropy headers",
+			observability.F(observability.FieldComponent, "tracing"))
+	}
 	for _, messageProcessor := range securePreviewRuntime.processors {
-		messageProcessor.SetObserver(processorObservation(serveLog, serveTracing))
+		messageProcessor.SetObserver(processorObservation(serveLog, serveTracing, correlationKey))
 	}
 	for _, notice := range runtimeConfig.DeprecationNotices() {
 		serveLog.Warn(notice)
@@ -5726,6 +5734,10 @@ Optional deployed S3/SFTP batch environment:
   FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE[_FILE]
                                        Passphrase source for an encrypted private key
   FI_FHIR_DATABASE_*                   Shared lifecycle/submission/checkpoint store
+
+Optional telemetry environment:
+  FI_FHIR_TELEMETRY_CORRELATION_KEY    Secret (32+ bytes) keying the HMAC digest of
+    X-Correlation-ID on spans and logs; unset keeps an unkeyed sha256 digest and WARNs
 
 Optional durable Kafka delivery environment:
   FI_FHIR_DELIVERY_WORKER_ENABLED      true enables the worker; unset disables
