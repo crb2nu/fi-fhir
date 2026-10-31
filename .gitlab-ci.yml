@@ -37,6 +37,29 @@ include:
   - local: ci/test-lifecycle-seed.yml
   - local: ci/test-verification-reads.yml
   - local: ci/test-definition-authoring.yml
+# Pipeline admission. Until 2026-10-31 this file had no workflow block: every
+# source minted a pipeline, and the Mills merge queue adopted whatever green
+# pipeline it found on a `mills-mq/train-*` ref. On 2026-10-29/30 the first
+# four train rows (MRs !283, !285, !286, !282) were "proven" by push pipelines
+# 35918, 35921, 35971 and 36007 on their train refs, each running one job,
+# lint:helm, because that job's last rule is a bare `changes:` and a push that
+# creates a branch makes every `changes:` true. The queue's own proof is an
+# API pipeline carrying MILLS_MERGE_QUEUE=1, which runs the gating set through
+# the `$MILLS_MERGE_QUEUE == "1"` arm on every gating job (MR !280). Refusing
+# push pipelines on queue-owned refs leaves that API pipeline as the only one
+# the queue can adopt. Decision: 2026-10-31 "Mills train proofs are hollow
+# until the queue mints its own API proof" (.loom/decisions, MR !287).
+workflow:
+  rules:
+    # Queue-owned refs (speculative heads, merge-train commits) are pipelined
+    # explicitly through the API; never let their ref updates mint push
+    # pipelines. Same rule as services/loom-core .gitlab-ci.yml.
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^mills-mq\//'
+      when: never
+    # Every other source keeps the pre-2026-10-31 behaviour (no workflow block
+    # meant every source minted a pipeline), so nothing else changes.
+    - when: always
+
 stages:
   - lint
   - test
