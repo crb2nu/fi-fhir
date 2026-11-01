@@ -553,7 +553,7 @@ lint-fix:
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --fix ./cmd/... ./internal/... ./pkg/... ./scripts/... ./sdk/...
 
 # Lint the X12 fixtures with edilint, as CI does (lint:edi)
-EDILINT_VERSION ?= v0.3.0
+EDILINT_VERSION ?= v0.5.0
 lint-edi:
 	go run github.com/crb2nu/edilint/cmd/edilint@$(EDILINT_VERSION) -v testdata/edi/*.edi
 
@@ -563,7 +563,7 @@ lint-edi:
 # testdata/edi/.edilint.yml. --config is passed explicitly because edilint
 # discovers a config only in the working directory, so a run from the repo
 # root would otherwise never find it.
-EDILINT_FIXTURES_VERSION ?= v0.1.0
+EDILINT_FIXTURES_VERSION ?= v0.5.0
 lint-edi-fixtures:
 	go run github.com/crb2nu/edilint/cmd/edilint@$(EDILINT_FIXTURES_VERSION) -v --config testdata/edi/.edilint.yml testdata/edi/*.edi
 

@@ -1,6 +1,6 @@
 # fi-fhir Roadmap
 
-> Last Updated: 2026-10-31
+> Last Updated: 2026-11-01
 > Tier: 1 (see workspace AGENTS.md "Portfolio Tiers")
 > Tracking issue: https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/19
 > Completion spec: `.loom/20-product-spec-integration-engine-ide-completion.md`
@@ -93,13 +93,16 @@ QuickBenchmark wall-clock floor removed from `test:unit` (!286). Tracing stays
 off in every deployment, and production sets no correlation key, so its
 digests are still the unkeyed `sha256:` form and `serve` warns at startup.
 
-This update records repository state through merge `f9144fef7` on 2026-10-30
-(main pipeline 36008, 60 jobs green in 74 minutes). Production answered
-`v0.1.36008+f9144fef` from the LAN on 2026-10-31, gitops pins that tag for
-production and the demo, and no merge request is open. The four rows that
-merged through the Mills train were proven, on the train ref, by a push
-pipeline that ran only `lint:helm`; the gating evidence for each is its own
-head pipeline plus main (see Now). These are internal GitLab records.
+This update records repository state through merge `6c00720f1` on 2026-11-01
+(main pipeline 36738: 67 jobs green plus the manual `test:benchmark`, 72
+minutes), which landed [MR !288](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/288)'s `workflow:` never-rule for push
+pipelines on `mills-mq/` refs, the repository half of the merge-train repair.
+Production and the demo run `v0.1.36738`, the tag gitops pins for both. The
+four rows that merged through the Mills train on 2026-10-29/30 were proven, on
+the train ref, by a push pipeline that ran only `lint:helm`; the gating
+evidence for each is its own head pipeline plus main, and whether the next
+train ref carries the queue's own `api` pipeline is the open acceptance check
+(see Now). These are internal GitLab records.
 Production activation and release certification remain separate decisions;
 this documentation update does not assert a new clinical-runtime deployment.
 
@@ -563,9 +566,13 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   a protected-path change that goes through a human merge request, after
   which the queue has to mint the API pipeline that carries the variable and
   the !280 arm runs for the first time. Operator side: the queue adopts only
-  its own `api` proof on a train ref (loom-core). Until the repo half lands,
-  read a train's green here as "Helm lint passed"; main's pipeline after the
-  merge is the proof.
+  its own `api` proof on a train ref (loom-core). The repository half merged
+  as [MR !288](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/288) (`6c00720f1`, 2026-11-01). Still open: the loom-core
+  operator half, and the acceptance check — the next
+  `mills-mq/train-libs-fi-fhir-*` ref must carry an `api`-source pipeline
+  running the gating set, not a one-job push pipeline. Until that is
+  observed, read a train's green here as "Helm lint passed"; main's pipeline
+  after the merge is the proof.
 - [ ] **Wire `FI_FHIR_TELEMETRY_CORRELATION_KEY` into production** —
   [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) keys the correlation-header digest with HMAC-SHA256 when the key
   is set and keeps the unkeyed `sha256:` form otherwise, and no manifest sets
@@ -624,16 +631,16 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   2026-10-27: [MR !246](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/246) as `bab8e72b3`, [MR !253](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/253) as `ab70a5483` and
   [MR !279](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/279) as `d41f2f3a0`, each on a green pipeline (Delivered section
   above). No merge request is open.
-- [ ] **edilint pins** — `lint:edi` runs edilint v0.3.0 (`ci/lint-edi.yml`,
-  `Makefile` `EDILINT_VERSION`) and `lint:edi-fixtures` v0.1.0
-  (`ci/lint-edi-fixtures.yml`, `EDILINT_FIXTURES_VERSION`); edilint is at
-  v0.4.1, and v0.5.0 (synthetic `gen` fixtures with targeted defects, EDIFACT
-  trailer recounts) waits on a `fix` idempotence repair and the release merge
-  request (edilint ROADMAP, Now). A current edilint build lints the seven-file
-  `testdata/edi` corpus clean with both job command lines, so the bump is a
-  two-line, no-finding change: move both pins to v0.5.0 when it is tagged,
-  then use `edilint gen 837p` and `gen 835 --defect` to grow the corpus
-  (issue #15).
+- [x] **edilint pins** — closed 2026-11-01 by [MR !289](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/289): `lint:edi`
+  (`ci/lint-edi.yml`, `Makefile` `EDILINT_VERSION`) moved from edilint v0.3.0
+  and `lint:edi-fixtures` (`ci/lint-edi-fixtures.yml`,
+  `EDILINT_FIXTURES_VERSION`) from v0.1.0 to v0.5.0, tagged the same day
+  (GitHub release `crb2nu/edilint` v0.5.0, `ghcr.io/crb2nu/edilint:0.5.0`).
+  Both job command lines, run locally with the v0.5.0 binary, report the
+  seven-file `testdata/edi` corpus clean (stock rules: `7 files checked, no
+  findings`; committed `.edilint.yml`: JUnit `tests="7" failures="0"`), so the
+  bump changed no finding. Growing the corpus with `edilint gen 837p` and
+  `gen 835 --defect` stays with issue #15.
 - [ ] **Stale capabilities in an open tab** — a tab reads `/api/auth/status`
   once at load; after a rollback of the streaming flip, or after a bearer is
   entered, it keeps the capabilities it loaded with. Re-probe the status when
