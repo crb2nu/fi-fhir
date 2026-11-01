@@ -21,15 +21,16 @@
 # deliberate follow-up, not an oversight.
 #
 # Pinned, never @latest: a linter that changes its rule set under us turns an
-# unrelated merge request red. v0.1.0 is the version the item names; verified
-# green on this corpus with this config.
+# unrelated merge request red. v0.1.0 was the version the item named; v0.5.0
+# (2026-11-01) is verified green on this corpus with this config, as each
+# earlier pin was before it.
 #
 # `make lint-edi-fixtures` mirrors this job locally, at the same pin and with
 # the same --config. It is a separate target from `make lint-edi`, which
-# mirrors lint:edi (v0.3.0, stock rules), for the same reason the two jobs are
-# separate. --config is explicit in both because edilint discovers a config
-# only in the working directory, so a run from the repo root never finds
-# testdata/edi/.edilint.yml on its own.
+# mirrors lint:edi (the same pin, stock rules), for the same reason the two
+# jobs are separate. --config is explicit in both because edilint discovers a
+# config only in the working directory, so a run from the repo root never
+# finds testdata/edi/.edilint.yml on its own.
 lint:edi-fixtures:
   stage: lint
   extends:
@@ -37,7 +38,7 @@ lint:edi-fixtures:
     - .go-cache
     - .go-mr-rules
   variables:
-    EDILINT_VERSION: v0.1.0
+    EDILINT_VERSION: v0.5.0
   script:
     - go install github.com/crb2nu/edilint/cmd/edilint@${EDILINT_VERSION}
     # Two invocations on purpose. The first one's stdout *is* the report, so its
