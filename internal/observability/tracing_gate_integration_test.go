@@ -140,15 +140,25 @@ func assertDurableAdmissionSpans(t *testing.T, spans []*tracepb.Span) {
 }
 
 // telemetryCorrelationKey is the FI_FHIR_TELEMETRY_CORRELATION_KEY every proof
-// replica runs under, so the proof can compute the digest serve must render.
-const telemetryCorrelationKey = "observability-proof-correlation-key-0123456789abcdef"
+// replica runs under: the hex encoding of 32 bytes (the sha256 of the phrase
+// "observability-proof-correlation-key"), which is the format serve requires.
+// serve decodes the text before keying the HMAC (cmd/fi-fhir,
+// loadTelemetryCorrelationKey), so the proof keys its expectation with the same
+// decoded bytes, never the text. The passphrase this replaced decoded as
+// URL-safe base64 into other bytes, and the span and log digests stopped
+// joining.
+const telemetryCorrelationKey = "4ee77cddd55866c45d4efed49f49e77b1ca964a41282a125c1adf126e078b5b6"
 
 // keyedCorrelationDigest is serve's rendering of a caller X-Correlation-ID
 // under telemetryCorrelationKey: `hmac-sha256:` and the first 128 bits of the
 // HMAC (cmd/fi-fhir, spanCorrelationID). Spans and log lines both use it, so
 // the proof's span-side and log-side expectations join exactly as serve does.
 func keyedCorrelationDigest(header string) string {
-	mac := hmac.New(sha256.New, []byte(telemetryCorrelationKey))
+	key, err := hex.DecodeString(telemetryCorrelationKey)
+	if err != nil {
+		panic("telemetryCorrelationKey must be hex: " + err.Error())
+	}
+	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte(header))
 	return "hmac-sha256:" + hex.EncodeToString(mac.Sum(nil)[:16])
 }
