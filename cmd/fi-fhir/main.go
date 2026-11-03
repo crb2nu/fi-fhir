@@ -5737,8 +5737,9 @@ Optional deployed S3/SFTP batch environment:
 
 Optional telemetry environment:
   FI_FHIR_TELEMETRY_CORRELATION_KEY[_FILE]
-    Secret (hex/base64 of 32+ random bytes) keying the HMAC digest of
-    X-Correlation-ID on spans and logs; unset keeps an unkeyed sha256 digest and WARNs
+                                       Hex or base64 of 32+ random bytes keying the
+                                       HMAC digest of X-Correlation-ID on spans and
+                                       logs; unset keeps an unkeyed sha256 digest and WARNs
 
 Optional durable Kafka delivery environment:
   FI_FHIR_DELIVERY_WORKER_ENABLED      true enables the worker; unset disables

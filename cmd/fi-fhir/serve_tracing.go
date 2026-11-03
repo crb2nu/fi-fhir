@@ -47,7 +47,7 @@ func loadTelemetryCorrelationKey() ([]byte, error) {
 		}
 	}
 	if err != nil || len(key) < minTelemetryCorrelationKeyBytes {
-		return nil, fmt.Errorf("%s must be a hex or base64 encoding of at least %d random bytes, e.g. openssl rand -hex 32", envTelemetryCorrelationKey, minTelemetryCorrelationKeyBytes)
+		return nil, fmt.Errorf("%s[_FILE] must be a hex or base64 encoding of at least %d random bytes, e.g. openssl rand -hex 32", envTelemetryCorrelationKey, minTelemetryCorrelationKeyBytes)
 	}
 	return key, nil
 }
