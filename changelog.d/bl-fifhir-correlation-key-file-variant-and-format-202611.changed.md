@@ -1,0 +1,1 @@
+- Support FI_FHIR_TELEMETRY_CORRELATION_KEY_FILE via the shared serve secret loader and require hex or base64 encoding of at least 32 random bytes for telemetry correlation keys (cmd/fi-fhir/serve_tracing.go, cmd/fi-fhir/engine_runtime.go, cmd/fi-fhir/main.go, .env.example).
