@@ -322,42 +322,53 @@ structured-logging:
 
 # Negative control for the above. The structuredloggingleak tag restores the
 # pre-slice payload print in the `log` queue driver (queue_publish_leak.go), so
-# the PHI assertion must FAIL. This target therefore inverts: a zero exit status
-# means the sentinel scan has stopped measuring anything, which is exactly the
-# failure 4.2a's negative control caught.
+# the PHI assertion must FAIL. Require its sentinel failure text as well as a
+# non-zero exit, so build, infrastructure, or anti-vacuity failures cannot pass
+# the control. A zero exit means the sentinel scan stopped detecting the leak.
 #
 # The other control runs inside the proof itself
 # (negative_control_allowlist_scanner_detects_an_unlisted_key), because a field
 # the handler drops never reaches the stream and so cannot be planted from
 # outside.
 structured-logging-negative-control:
-	@if go test -tags "integration structuredloggingleak" -count=1 -timeout=600s \
-		-run '^TestStructuredLogging_CorrelatedAndPHIFree$$' ./internal/observability >/dev/null 2>&1; then \
+	@out=$$(mktemp) || exit 1; trap 'rm -f "$$out"' EXIT; \
+	if go test -v -tags "integration structuredloggingleak" -count=1 -timeout=600s \
+		-run '^TestStructuredLogging_CorrelatedAndPHIFree$$' ./internal/observability >"$$out" 2>&1; then \
 		echo "negative control FAILED: kill-test still passes with the payload print restored"; \
+		tail -n 40 "$$out"; \
 		exit 1; \
-	else \
+	elif grep -Fq "the log queue driver still prints" "$$out"; then \
 		echo "negative control OK: kill-test fails with the payload print restored"; \
+	else \
+		echo "negative control FAILED: tagged run failed for the wrong reason"; \
+		tail -n 40 "$$out"; \
+		exit 1; \
 	fi
 
 # Collector-side negative control for the serve half. The tracingleak tag
 # restores the raw caller X-Correlation-ID on the serve span
 # (cmd/fi-fhir/serve_tracing_correlation_leak.go); the proof submits its message
 # under a sentinel header, so the span PHI assertion must FAIL. Only the serve
-# subtest runs, and the raw header is the only thing the tag changes, so every
-# failure under it — the span scan, and the log line that shares the hashed
-# field — is the leak being caught. The target inverts: a zero exit means the
-# collector-side scan has stopped measuring anything. Requires
+# subtest runs. Require the span sentinel failure text as well as a non-zero
+# exit, so missing spans, failed joins, or infrastructure failures cannot pass
+# the control. A zero exit means the scan stopped detecting the leak. Requires
 # POSTGRES_TEST_URL — without it the subtest skips, passes, and would read as a
 # failed control, so the target refuses to run.
 tracing-negative-control:
 	@test -n "$$POSTGRES_TEST_URL" || { echo "tracing-negative-control requires POSTGRES_TEST_URL"; exit 1; }
-	@if go test -tags "integration tracingleak" -count=1 -timeout=600s \
+	@out=$$(mktemp) || exit 1; trap 'rm -f "$$out"' EXIT; \
+	if go test -v -tags "integration tracingleak" -count=1 -timeout=600s \
 		-run '^TestStructuredLogging_CorrelatedAndPHIFree$$/^serve_emits_structured_phi_free_lines$$' \
-		./internal/observability >/dev/null 2>&1; then \
+		./internal/observability >"$$out" 2>&1; then \
 		echo "negative control FAILED: the span PHI scan still passes with the raw correlation header restored"; \
+		tail -n 40 "$$out"; \
 		exit 1; \
-	else \
+	elif grep -Fq "the raw caller correlation header reached exported span" "$$out"; then \
 		echo "negative control OK: the span PHI scan fails with the raw correlation header restored"; \
+	else \
+		echo "negative control FAILED: tagged run failed for the wrong reason"; \
+		tail -n 40 "$$out"; \
+		exit 1; \
 	fi
 
 # Lane S4-E transport-gate kill-test: the real GraphQL handler with real 4.1a
