@@ -5738,6 +5738,10 @@ Optional deployed S3/SFTP batch environment:
 Optional telemetry environment:
   FI_FHIR_TELEMETRY_CORRELATION_KEY    Secret (32+ bytes) keying the HMAC digest of
     X-Correlation-ID on spans and logs; unset keeps an unkeyed sha256 digest and WARNs
+  FI_FHIR_TRACING_ENABLED              true enables OTLP/HTTP tracing; unset or false (default)
+    leaves tracing off and the two settings below unused
+  FI_FHIR_TRACING_ENDPOINT             OTLP HTTP(S) collector URL; required when enabled
+  FI_FHIR_TRACING_SAMPLER              Trace sampling ratio, 0.0-1.0 (default 0.1)
 
 Optional durable Kafka delivery environment:
   FI_FHIR_DELIVERY_WORKER_ENABLED      true enables the worker; unset disables
@@ -5753,6 +5757,9 @@ Optional durable Kafka delivery environment:
   FI_FHIR_DELIVERY_MAX_ATTEMPTS        Bounded attempts including first publish
   FI_FHIR_DELIVERY_RETRY_BASE_DELAY    Initial retry delay
   FI_FHIR_DELIVERY_RETRY_MAX_DELAY     Maximum retry delay
+  FI_FHIR_DELIVERY_LEASE_DURATION      Outbox lease held per claim, Go duration (default 30s)
+  FI_FHIR_DELIVERY_POLL_INTERVAL       Idle wait between outbox claims, Go duration (default 250ms)
+  FI_FHIR_DELIVERY_PUBLISH_TIMEOUT     One publish attempt bound, below the lease (default 10s)
   FI_FHIR_DELIVERY_IDENTITY_MODE       strict or compatibility; unset disables the
     destination identity decision, and any other identity setting is then refused
   FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH

@@ -370,3 +370,33 @@ func TestEngineRuntimeDescribesEveryMountedAdapter(t *testing.T) {
 		t.Fatal("control plane fact lost")
 	}
 }
+
+// TestServePropertiesTracingAndDeliveryDefaults pins how the tracing and
+// delivery-worker keys render when unset: plain values whose defaults are the
+// ones the config sources apply, so an unset replica reads as tracing off.
+func TestServePropertiesTracingAndDeliveryDefaults(t *testing.T) {
+	want := map[string]string{
+		"FI_FHIR_TRACING_ENABLED":          "false",
+		"FI_FHIR_TRACING_ENDPOINT":         "",
+		"FI_FHIR_TRACING_SAMPLER":          "0.1",
+		"FI_FHIR_DELIVERY_LEASE_DURATION":  "30s",
+		"FI_FHIR_DELIVERY_POLL_INTERVAL":   "250ms",
+		"FI_FHIR_DELIVERY_PUBLISH_TIMEOUT": "10s",
+	}
+	for _, property := range serveProperties() {
+		defaultValue, ok := want[property.key]
+		if !ok {
+			continue
+		}
+		delete(want, property.key)
+		if property.secret {
+			t.Errorf("%s is secret; it is a plain value", property.key)
+		}
+		if property.defaultValue != defaultValue {
+			t.Errorf("%s default = %q, want %q", property.key, property.defaultValue, defaultValue)
+		}
+	}
+	for key := range want {
+		t.Errorf("%s is not allowlisted", key)
+	}
+}
