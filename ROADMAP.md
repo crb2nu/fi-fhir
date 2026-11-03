@@ -621,12 +621,15 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   [MR !279](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/279) left no `.added` changelog fragment for the feature itself, and
   the `.fixed` fragment it did leave still says SHA-256. Owns those four docs
   and `changelog.d/`.
-- [ ] **Close issues #22, #23 and #24** — delivered by [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285), [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283)
-  and [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) on 2026-10-29/30 but still open, because none of the MRs
-  carried a `Closes` line. #23's close note should say the default-off proof
-  is an in-process composition test (`cmd/fi-fhir/serve_tracing_test.go`),
-  not a booted `serve`; the replica proof asserts nothing about `trace_id` or
-  collector traffic under defaults.
+- [x] **Close issues #22, #23 and #24** — delivered by [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285), [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283)
+  and [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) on 2026-10-29/30; #22 was already closed, and #23 and #24
+  were closed on 2026-11-03 with notes naming the merge request and the Mills
+  row that delivered each, and why they had stayed open (no `Closes` line).
+  #23's note says the default-off proof is an in-process composition test
+  (`cmd/fi-fhir/serve_tracing_test.go`), not a booted `serve`, and that the
+  replica proof asserts nothing about `trace_id` or collector traffic under
+  defaults; #24's says production still sets no correlation key (the Now item
+  above). No `mills-eligible` issue is open.
 - [x] **Land or close the three open merge requests** — all three merged on
   2026-10-27: [MR !246](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/246) as `bab8e72b3`, [MR !253](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/253) as `ab70a5483` and
   [MR !279](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/279) as `d41f2f3a0`, each on a green pipeline (Delivered section
