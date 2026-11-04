@@ -181,16 +181,15 @@ func TestDefectFixturesDiagnosticClass(t *testing.T) {
 			}
 			result, err := NewParser().Parse(string(raw))
 			got := "silent acceptance"
-			if err != nil {
+			switch {
+			case err != nil:
 				got = "error: " + err.Error()
-			} else {
-				if len(result.Warnings) > 0 {
-					codes := make([]string, 0, len(result.Warnings))
-					for _, warning := range result.Warnings {
-						codes = append(codes, warning.Code)
-					}
-					got = "warning: " + strings.Join(codes, ",")
+			case len(result.Warnings) > 0:
+				codes := make([]string, 0, len(result.Warnings))
+				for _, warning := range result.Warnings {
+					codes = append(codes, warning.Code)
 				}
+				got = "warning: " + strings.Join(codes, ",")
 			}
 			if got != tc.want {
 				t.Errorf("diagnostic class = %q, want %q", got, tc.want)
