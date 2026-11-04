@@ -76,6 +76,31 @@ Issues #22–#24 are closed; the Now list is the backlog.
 M-1, M-2, M-3, M-4 were posted at 16:57 UTC; M-1 and M-3 were implementing
 by 17:30. M-5..M-15 were posted between 18:10 and 18:40 UTC.
 
+### Outcomes (as of 2026-11-04 14:35 UTC)
+
+| Row | Merge request | Merge | Train | Note |
+|---|---|---|---|---|
+| M-1 | [MR !294](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/294) | `e52d39482` | 37464 | rescued: branch pushed, no MR after an `infra` escalation at `tests` |
+| M-2 | [MR !301](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/301) | `a5aaa5141` | 37559 | Mills end to end |
+| M-3 | [MR !292](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/292) | `1b812590c` | 37525 | rescued; evicted twice by infrastructure (`build:docker` go-mod flake, then the 120-minute clock) |
+| M-4 | — | — | — | queued; re-grounded after a scope blocker (the new `ci/lint-runtime-config.yml` was not in the slice) |
+| M-5 | [MR !295](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/295) | `d1e23bebf` | 37572 | rescued; the proof key in `tracing_gate_integration_test.go` had to become hex (see worklog 2026-11-04) |
+| M-6 | [MR !300](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/300) | `ecc842c35` | 37566 | spec-touching hold reviewed and released |
+| M-7 | [MR !299](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/299) | `252777436` | 37581 | Mills end to end; the first slice of issue #15 (the issue stays open), reports back to edilint's 834 decision |
+| M-8 | [MR !296](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/296) | `4f9c71e51` | 37577 | spec-touching hold reviewed and released; one infrastructure eviction |
+| M-9 | [MR !293](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/293) | `f9e3e1b9f` | 37418 | the kill-test row |
+| M-10 | — | — | — | queued; requeued after a devbox checkout fault at `tests` |
+| M-11 | [MR !297](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/297) | `2b57aa6bf` | 37547 | Mills end to end |
+| M-12 | [MR !302](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/302) | `8e999185a` | 37562 | Mills end to end |
+| M-13 | — | — | — | queued (P3) |
+| M-14 | — | — | — | queued (P3) |
+| M-15 | — | — | — | queued (P3) |
+
+Beside the rows: [MR !290](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/290) and [MR !291](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/291) (coordinator docs), [MR !298](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/298)
+(`1cc0769c4`, the Dockerfile `go mod download` retry loop, from a side
+session), gitops !1050 (`build:docker` on the queue's flake-retry list) and
+gitops !1051 (`await_pipeline_minutes` 120 → 180).
+
 ## Order, dependencies, budget
 
 - The lane dispatches by priority then age; the budget overlay is 3 USD per
@@ -117,7 +142,13 @@ gate. Then the UI rows (M-9..M-11, M-13..M-15) are held
 the overlay lowered) and done as a coordinated session in a worktree, as
 `.loom/42` was; the Go, docs and CI rows continue through the lane.
 
-**Status: open** (first UI row not yet merged as of this file's commit).
+**Status: PASSED 2026-11-04 01:48 UTC.** M-9
+(`bl-fifhir-stale-capabilities-reprobe-202611`) merged as [MR !293](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/293)
+(`f9e3e1b9f`) on train pipeline 37418 — 105 minutes under runner saturation —
+with no hand on the row or the merge request: the devbox ran vitest and
+`svelte-check`, the head pipeline and the train both passed `test:ui-e2e`.
+M-11 ([MR !297](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/297), train 37547) and M-12 ([MR !302](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/302), train 37562) followed the
+same way, so the UI rows stay on the lane.
 
 ## Decisions taken by the coordinator (2026-11-03)
 
@@ -128,8 +159,11 @@ the overlay lowered) and done as a coordinated session in a worktree, as
 - `ci/**` is protected; rows that need a CI include declare it and wait for
   review rather than route around it.
 - Documentation merge requests by the coordinator merge directly on a green
-  head pipeline (no train), to spare a 64-job proof for a docs-only tree;
-  every code row goes through the train.
+  head pipeline (no train) only when the lane is empty, to spare a 64-job
+  proof for a docs-only tree; when the lane is non-empty they ride the train
+  like any row, because a direct merge moves `main` under the head's train
+  and forces a rebuild (amended 2026-11-03 evening; !291 rode train 37372).
+  Every code row goes through the train.
 - Not in the push, with the owner: the production correlation secret
   (SOPS + `secretKeyRef`: Cody); budgets 2 and 3 (runner 8 window); Slice
   5.1c-γ official-validator findings (a mapper program, not a row); the

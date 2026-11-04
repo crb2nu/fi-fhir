@@ -572,10 +572,8 @@ kill-test, stream capture of real ADT feeds, E1-1, the session preview cost,
 and the definition authoring follow-ups (one row once the first UI rows
 have landed).
 
-- [ ] **Make the merge-train proof real: loom-core adopts only `api` proofs on
-  `mills-mq/train-*` refs (`pkg/mills/mergequeue/processor_train.go`)** — in
-  the loom-core lane as `bl-mills-mergequeue-train-proof-api-source-only-202611`
-  (dispatched 2026-11-03); the repository half and the acceptance check are
+- [x] **Make the merge-train proof real: loom-core adopts only `api` proofs on
+  `mills-mq/train-*` refs (`pkg/mills/mergequeue/processor_train.go`)** — closed 2026-11-04 by loom-core [MR !3350](https://gitlab.flexinfer.ai/services/loom-core/-/merge_requests/3350) (`0038b25d0`, row `bl-mills-mergequeue-train-proof-api-source-only-202611`): `TrainProofPipelineStatus` adopts only the queue's own `api` pipeline on a `mills-mq/train-*` ref and records `pipeline_source`. the repository half and the acceptance check are
   done (below). The lane flipped to `merge_ref`
   on 2026-10-27 and four rows merged through `mills-mq/train-libs-fi-fhir-*`
   refs on 2026-10-29/30, but every train pipeline (35918, 35921, 35971,
@@ -609,9 +607,11 @@ have landed).
 - [ ] **Wire `FI_FHIR_TELEMETRY_CORRELATION_KEY` into production (gitops SOPS
   secret + `secretKeyRef`, `deploy/helm/fi-fhir`, `deploy/kubernetes`)** —
   the code half (`_FILE` variant and the key-format check in
-  `cmd/fi-fhir/serve_tracing.go`) is in the lane as
-  `bl-fifhir-correlation-key-file-variant-and-format-202611`; the secret is
-  Cody's.
+  `cmd/fi-fhir/serve_tracing.go`) merged 2026-11-04 as [MR !295](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/295) (`d1e23bebf`, row
+  `bl-fifhir-correlation-key-file-variant-and-format-202611`, train pipeline 37572):
+  `FI_FHIR_TELEMETRY_CORRELATION_KEY_FILE` through the shared secret helper and a
+  format check that requires the hex or base64 encoding of at least 32 random
+  bytes (a raw passphrase is refused at startup); the secret is Cody's.
   [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) keys the correlation-header digest with HMAC-SHA256 when the key
   is set and keeps the unkeyed `sha256:` form otherwise, and no manifest sets
   it: not `deploy/helm/fi-fhir`, not `deploy/kubernetes`, not gitops
@@ -624,10 +624,8 @@ have landed).
   `cmd/fi-fhir/serve_tracing.go` to match every other serve secret, and
   tighten the loader's `len >= 32` check, which accepts a 32-character
   passphrase as if it were 32 random bytes.
-- [ ] **`make tracing-negative-control` and `structured-logging-negative-control`
-  assert the sentinel failure (`Makefile`, `ci/test-structured-logging.yml`)** —
-  in the lane as `bl-fifhir-tracing-negative-control-asserts-sentinel-202611`
-  (dispatched 2026-11-03).
+- [x] **`make tracing-negative-control` and `structured-logging-negative-control`
+  assert the sentinel failure (`Makefile`, `ci/test-structured-logging.yml`)** — closed 2026-11-04 by [MR !292](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/292) (`1b812590c`, row `bl-fifhir-tracing-negative-control-asserts-sentinel-202611`, train pipeline 37525 after two infrastructure evictions).
   `Makefile` inverts the tagged run's exit status and discards its output, on
   the premise that every failure under `tracingleak` is the leak being
   caught; since [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285) the same subtest also fails when the delivery span
@@ -645,10 +643,8 @@ have landed).
   `FI_FHIR_TRACING_ENABLED` to true under `deploy/` passes every pipeline
   today. Add it to `test:smoke` or as its own one-file job under `ci/` with a
   `ci/job-inventory.txt` line.
-- [ ] **Document the `FI_FHIR_TRACING_*` and `FI_FHIR_DELIVERY_*` keys in
-  `cmd/fi-fhir/main.go` so `serveProperties()` carries them to the Engine tab** —
-  in the lane as `bl-fifhir-engine-tab-tracing-delivery-keys-202611`
-  (dispatched 2026-11-03). `serve --help` documents
+- [x] **Document the `FI_FHIR_TRACING_*` and `FI_FHIR_DELIVERY_*` keys in
+  `cmd/fi-fhir/main.go` so `serveProperties()` carries them to the Engine tab** — closed 2026-11-04 by [MR !294](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/294) (`e52d39482`, row `bl-fifhir-engine-tab-tracing-delivery-keys-202611`, train pipeline 37464). `serve --help` documents
   only `FI_FHIR_TELEMETRY_CORRELATION_KEY` of the new keys, and
   `serveProperties()` is by contract exactly the keys `serve --help`
   documents (`cmd/fi-fhir/engine_runtime.go`,
@@ -659,9 +655,8 @@ have landed).
   apart in the IDE. Re-opens the ticked "engine properties" item below for
   these keys. Owns `cmd/fi-fhir/main.go` (help text),
   `cmd/fi-fhir/engine_runtime.go` and `docs/operations/CONNECTION-CATALOG.md`.
-- [ ] **Telemetry docs and changelog drift (`docs/operations/README.md`,
-  `docs/user-guide/cli-reference.md`, `docs/operations/SECURITY.md`)** — in the
-  lane as `bl-fifhir-telemetry-docs-drift-202611`. `docs/operations/README.md`
+- [x] **Telemetry docs and changelog drift (`docs/operations/README.md`,
+  `docs/user-guide/cli-reference.md`, `docs/operations/SECURITY.md`)** — closed 2026-11-04 by [MR !301](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/301) (`a5aaa5141`, row `bl-fifhir-telemetry-docs-drift-202611`, train pipeline 37559). `docs/operations/README.md`
   § Logging still says the processor logs a SHA-256 hash of the caller's
   correlation id (an HMAC when the key is set);
   `docs/user-guide/cli-reference.md` lacks the key;
@@ -692,9 +687,8 @@ have landed).
   findings`; committed `.edilint.yml`: JUnit `tests="7" failures="0"`), so the
   bump changed no finding. Growing the corpus with `edilint gen 837p` and
   `gen 835 --defect` stays with issue #15.
-- [ ] **Re-probe `/api/auth/status` after credential entry and on the
-  legacy-execution refusal (`ui/src/lib/graphql/accessCapabilities.ts`)** — in
-  the lane as `bl-fifhir-stale-capabilities-reprobe-202611`. a tab reads `/api/auth/status`
+- [x] **Re-probe `/api/auth/status` after credential entry and on the
+  legacy-execution refusal (`ui/src/lib/graphql/accessCapabilities.ts`)** — closed 2026-11-04 by [MR !293](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/293) (`f9e3e1b9f`, row `bl-fifhir-stale-capabilities-reprobe-202611`, train pipeline 37418; the lane's kill-test, no hand on the row). a tab reads `/api/auth/status`
   once at load; after a rollback of the streaming flip, or after a bearer is
   entered, it keeps the capabilities it loaded with. Re-probe the status when
   a session mutation is refused with "legacy integration execution is
@@ -738,7 +732,7 @@ have landed).
   split the 10 s stream-open budget from the 60 s run budget), both merged
   2026-10-27. Residue: `ui/e2e/operator-bundle.spec.ts` check 3 still carries
   its own inline stream wait instead of the helper (in the lane as
-  `bl-fifhir-operator-bundle-e2e-stream-helper-202611`), and the gitops
+  `bl-fifhir-operator-bundle-e2e-stream-helper-202611`, merged 2026-11-04 as [MR !302](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/302) `8e999185a`), and the gitops
   `test:ui-e2e` one-retry rule for Mills rows (2026-10-27) was justified by
   these two MRs being open, so it can be reconsidered.
 - [x] **Events browser reads the legacy store** — replaced by Verification
@@ -786,9 +780,8 @@ have landed).
   STATIC as `SOURCE_NOT_MOUNTED` and carries the draft on with SKIP. Proving
   the positive path needs a stack that mounts a compiled connection revision
   without breaking checks 8 and 9.
-- [ ] **Workflows: Run event stops calling the refused mutation
-  (`ui/src/lib/features/workflows/components/WorkflowList.svelte`)** — in the
-  lane as `bl-fifhir-workflows-run-event-refused-mutation-202611`. Inventory's **Run
+- [x] **Workflows: Run event stops calling the refused mutation
+  (`ui/src/lib/features/workflows/components/WorkflowList.svelte`)** — closed 2026-11-04 by [MR !297](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/297) (`2b57aa6bf`, row `bl-fifhir-workflows-run-event-refused-mutation-202611`, train pipeline 37547). Inventory's **Run
   event** still calls `triggerWorkflow` (`WorkflowList.svelte`, re-checked
   2026-10-27), which shipped builds refuse
   (`legacyUnsafeExecution`), so `workflowRuns` (and Open trace) is normally
@@ -812,9 +805,8 @@ have landed).
   `bl-fifhir-operator-deep-link-polish-202611`. a deep link is read
   once on mount, before the capability pre-flight has necessarily settled;
   the attempt inspector links the resubmit parent but not its children.
-- [ ] **`TestExecAction_RunsAllowedCommand` loses its wall-clock floor
-  (`internal/workflow/exec_action_test.go`)** — in the lane as
-  `bl-fifhir-exec-action-test-flake-202611`.
+- [x] **`TestExecAction_RunsAllowedCommand` loses its wall-clock floor
+  (`internal/workflow/exec_action_test.go`)** — closed 2026-11-04 by [MR !300](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/300) (`ecc842c35`, row `bl-fifhir-exec-action-test-flake-202611`, train pipeline 37566; reviewed under the spec-touching hold).
   `internal/workflow/exec_action_test.go` runs `/bin/sh` with a 2 s exec
   timeout under a 5 s context; it failed once under full-suite `go test ./...`
   in four IDE-unlock lanes' local runs and again in the pre-push hook on
@@ -836,9 +828,8 @@ have landed).
   sets stay "not found" warnings under `-tx n/a` by decision.
 - [ ] **Coverage.relationship for dependents** — stays `unknown` until
   `EligibilityResponseEvent` carries the X12 INS02 relationship code.
-- [ ] **Trace a successful publish through a webhook sink in the
-  structured-logging proof** — in the lane as
-  `bl-fifhir-trace-successful-publish-webhook-sink-202611`. the structured-logging delivery join
+- [x] **Trace a successful publish through a webhook sink in the
+  structured-logging proof** — closed 2026-11-04 by [MR !296](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/296) (`4f9c71e51`, row `bl-fifhir-trace-successful-publish-webhook-sink-202611`, train pipeline 37577; reviewed under the spec-touching hold). the structured-logging delivery join
   runs against an unreachable broker, so only the claim-and-retry path is
   exported in CI (`PRODUCTION-HARDENING.md` § Correlation); no proof exports
   a successful `integration.delivery.dispatch`. Needs a reachable sink in
@@ -1144,7 +1135,7 @@ list is the working backlog; these are the standing placeholders.
 | #10 | M2 flexinfer inference path with timeout/retry contracts | Partly delivered: the Copilot runs on the backend LLM through the in-cluster LiteLLM with a credential (2026-09-30). The timeout and retry envelope is still undocumented; keep open, re-scope. |
 | #11 | M3 mentatlab run orchestration | Not started; nothing has asked for it since July. Candidate to close. |
 | #12 | Additional FHIR IG support (USCDI v3, Bulk Data, SMART) | Open; it is Then 5.2 and 5.3. |
-| #15 | Organize test data and edge-case fixtures | Open; edilint's generator (`gen 837p`, `gen 835`, `--defect`) is the first concrete slice, in the lane as `bl-fifhir-edi-fixtures-from-edilint-gen-202611` (2026-11-03), whose merge request says `Closes #15`. |
+| #15 | Organize test data and edge-case fixtures | Open; edilint's generator (`gen 837p`, `gen 835`, `--defect`) is the first concrete slice, in the lane as `bl-fifhir-edi-fixtures-from-edilint-gen-202611` (2026-11-03), merged 2026-11-04 as [MR !299](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/299) (`252777436`: generated 837P/835 corpus, four envelope defects, table-driven parser tests); the issue stays open for the remaining formats. |
 | #16 | UI accessibility, keyboard shortcuts, bulk operations | Partly delivered (Cmd/Ctrl+K from inputs and editors, focus on tab close); the remaining E-4 review nits are in Now. |
 | #17 | Terminology approval workflow for autoroute suggestions | Open; speclet `.loom/27`. |
 | #18 | Expand storage provider integration tests | Open; speclet `.loom/26`. |

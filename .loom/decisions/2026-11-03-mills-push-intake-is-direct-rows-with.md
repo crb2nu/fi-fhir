@@ -16,9 +16,12 @@
     needs a CI include declares the touch and waits for a person; it does
     not route around it.
   - **Coordinator documentation merge requests merge directly** on a green
-    head pipeline; every code row rides the train. A 64-job train proof for
-    a docs-only tree re-proves nothing main's pipeline does not prove minutes
-    later.
+    head pipeline only when the lane is empty; every code row rides the
+    train. A 64-job train proof for a docs-only tree re-proves nothing
+    main's pipeline does not prove minutes later. Amended the same evening:
+    when the lane is non-empty a docs merge request rides the train too,
+    because a direct merge moves `main` under the head's train and the
+    queue rebuilds it (!291 rode train 37372 behind !290 for that reason).
   - **The lane's kill-test** is the first UI row landing through the devbox
     (vitest, `svelte-check`) and the blocking `test:ui-e2e` on the train
     without a hand. If it escalates on infrastructure, the UI rows move to a
