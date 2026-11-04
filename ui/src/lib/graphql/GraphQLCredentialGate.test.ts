@@ -4,13 +4,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 const mocks = vi.hoisted(() => ({
   setProvider: vi.fn(),
   setTrustedNetworkAccess: vi.fn(),
+  requireAuthorization: vi.fn(),
   disposeClient: vi.fn().mockResolvedValue(undefined),
   graphqlFetch: vi.fn().mockResolvedValue({ health: { status: 'healthy' } })
 }));
 
 vi.mock('./credentials', () => ({
   setGraphQLCredentialProvider: mocks.setProvider,
-  setGraphQLTrustedNetworkAccess: mocks.setTrustedNetworkAccess
+  setGraphQLTrustedNetworkAccess: mocks.setTrustedNetworkAccess,
+  requireGraphQLAuthorization: mocks.requireAuthorization
 }));
 
 vi.mock('./subscriptions', () => ({
@@ -37,6 +39,8 @@ beforeEach(() => {
   resetAccessCapabilities();
   mocks.setProvider.mockReset();
   mocks.setTrustedNetworkAccess.mockReset();
+  mocks.requireAuthorization.mockReset();
+  mocks.requireAuthorization.mockResolvedValue('Bearer transitional-token-with-24-characters');
   mocks.disposeClient.mockReset();
   mocks.disposeClient.mockResolvedValue(undefined);
   mocks.graphqlFetch.mockReset();
@@ -169,6 +173,40 @@ describe('GraphQLCredentialGate', () => {
     expect(provider()).toBe(token);
     expect(mocks.disposeClient).toHaveBeenCalledTimes(1);
     expect(mocks.graphqlFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-probes the status with the bearer so the session gets real capabilities', async () => {
+    render(GraphQLCredentialGate);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        authenticated: true,
+        authVia: 'bearer',
+        roles: ['integration.operator'],
+        capabilities: { operatorRead: true, integrationSessions: true }
+      })
+    } as Response);
+
+    await fireEvent.input(screen.getByLabelText('Deployment bearer credential'), {
+      target: { value: 'transitional-token-with-24-characters' }
+    });
+    await fireEvent.submit(screen.getByRole('form', { name: 'Install preview credential' }));
+
+    await waitFor(() => expect(get(accessCapabilities).state).toBe('known'));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls[1]).toEqual([
+      '/api/auth/status',
+      {
+        headers: {
+          Accept: 'application/json',
+          Authorization: 'Bearer transitional-token-with-24-characters'
+        },
+        cache: 'no-store'
+      }
+    ]);
+    const state = get(accessCapabilities);
+    expect(state.state === 'known' && state.capabilities.integrationSessions).toBe(true);
   });
 
   it('clears the provider and authenticated socket explicitly', async () => {

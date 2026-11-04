@@ -1,8 +1,11 @@
 /**
  * What this deployment lets the signed-in identity do.
  *
- * Populated once by the credential gate from `GET /api/auth/status` (the same
- * fetch that decides whether the gate steps aside — there is no second fetch).
+ * Populated by the credential gate from `GET /api/auth/status` (the same fetch
+ * that decides whether the gate steps aside), and re-probed with `refresh()`
+ * after a bearer is installed or `refreshSoon()` when the server refuses work
+ * the tab believed it could do — so a rollback or a new credential is picked up
+ * without reloading the tab.
  * The server derives every flag from the identity's roles and its own runtime
  * configuration, so a surface can explain what is missing instead of
  * discovering it by failing.
@@ -12,6 +15,7 @@
  * pre-capability behaviour (try, then render the failure inline).
  */
 import { derived, get, writable, type Readable } from 'svelte/store';
+import { requireGraphQLAuthorization } from './credentials';
 
 /** Capability flags the API reports (`capabilities.*`). */
 export interface AccessCapabilities {
@@ -127,14 +131,76 @@ export function parseAuthStatus(body: unknown): AccessCapabilityState {
   };
 }
 
+// Bumped by every write so a probe that resolves after the credential changed
+// (cleared, replaced) cannot publish the previous identity's capabilities.
+let generation = 0;
+
 /** Records the status body the credential gate fetched. */
 export function setAccessStatus(body: unknown): void {
+  generation += 1;
   store.set(parseAuthStatus(body));
 }
 
 /** Back to unknown (credential cleared, gate destroyed, tests). */
 export function resetAccessCapabilities(): void {
+  generation += 1;
+  lastProbeAt = Number.NEGATIVE_INFINITY;
+  pendingProbe = null;
   store.set(UNKNOWN);
+}
+
+/**
+ * The API's refusal while its Integration Session workspace is off
+ * (`ErrLegacyExecutionUnavailable`, internal/api/graphql/resolvers/resolver.go).
+ * A tab that still believes sessions are on hears it after a rollback.
+ */
+export const LEGACY_EXECUTION_UNAVAILABLE = 'legacy integration execution is unavailable';
+
+/** Calls to `refreshSoon` within this window share one probe. */
+export const REFRESH_COALESCE_MS = 2000;
+
+let lastProbeAt = Number.NEGATIVE_INFINITY;
+let pendingProbe: Promise<void> | null = null;
+
+/**
+ * Re-reads `/api/auth/status` with the current credential and publishes it.
+ * A failed probe (no credential, network error, non-2xx) keeps the current
+ * state: an outage is not evidence that a capability went away.
+ */
+export async function refresh(): Promise<void> {
+  const started = generation;
+  try {
+    const authorization = await requireGraphQLAuthorization();
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (authorization) headers.Authorization = authorization;
+    const response = await fetch('/api/auth/status', { headers, cache: 'no-store' });
+    if (!response.ok) return;
+    const body: unknown = await response.json();
+    if (generation !== started) return;
+    setAccessStatus(body);
+  } catch {
+    // Keep what the tab already knows.
+  }
+}
+
+/**
+ * `refresh()`, at most once per `REFRESH_COALESCE_MS`: a burst of refused
+ * mutations costs one probe. Calls inside the window share the probe already
+ * started.
+ */
+export function refreshSoon(): Promise<void> {
+  const now = Date.now();
+  if (pendingProbe && now - lastProbeAt < REFRESH_COALESCE_MS) return pendingProbe;
+  lastProbeAt = now;
+  pendingProbe = refresh();
+  return pendingProbe;
+}
+
+/** Re-probes (coalesced) when an error is the legacy-execution refusal. */
+export function refreshOnLegacyRefusal(message: string): void {
+  if (message.toLowerCase().includes(LEGACY_EXECUTION_UNAVAILABLE)) {
+    void refreshSoon();
+  }
 }
 
 /** Snapshot read for non-reactive callers (API helpers). */

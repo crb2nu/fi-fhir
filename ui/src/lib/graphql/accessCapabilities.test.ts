@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import {
   accessCapabilities,
@@ -12,11 +12,18 @@ import {
   operatorDeliveryCapability,
   operatorReadCapability,
   parseAuthStatus,
+  refresh,
+  refreshOnLegacyRefusal,
+  refreshSoon,
+  REFRESH_COALESCE_MS,
   resetAccessCapabilities,
   setAccessStatus,
   streamingCapability,
   subscriptionRoots
 } from './accessCapabilities';
+
+const credentialMocks = vi.hoisted(() => ({ requireAuthorization: vi.fn() }));
+vi.mock('./credentials', () => ({ requireGraphQLAuthorization: credentialMocks.requireAuthorization }));
 
 /** The R-A contract as documented in .loom/36 (transport grant, no service roles). */
 function contractStatus(overrides: Record<string, unknown> = {}) {
@@ -47,6 +54,9 @@ function contractStatus(overrides: Record<string, unknown> = {}) {
 
 afterEach(() => {
   resetAccessCapabilities();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+  credentialMocks.requireAuthorization.mockReset();
 });
 
 describe('parseAuthStatus', () => {
@@ -219,5 +229,111 @@ describe('accessCapabilities store selectors', () => {
     setAccessStatus(contractStatus());
     resetAccessCapabilities();
     expect(get(operatorReadCapability)).toBeNull();
+  });
+});
+
+function statusResponse(body: unknown, ok = true): Response {
+  return { ok, json: async () => body } as Response;
+}
+
+function sessionsStatus(sessionsOn: boolean) {
+  return contractStatus({
+    capabilities: { ...contractStatus().capabilities, integrationSessions: sessionsOn, streaming: sessionsOn }
+  });
+}
+
+describe('refresh', () => {
+  it('re-reads the status with the current credential and publishes it', async () => {
+    credentialMocks.requireAuthorization.mockResolvedValue('Bearer token');
+    const fetchMock = vi.fn().mockResolvedValue(statusResponse(sessionsStatus(false)));
+    vi.stubGlobal('fetch', fetchMock);
+    setAccessStatus(sessionsStatus(true));
+
+    await refresh();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/status', {
+      headers: { Accept: 'application/json', Authorization: 'Bearer token' },
+      cache: 'no-store'
+    });
+    expect(capabilityOf(get(accessCapabilities), 'integrationSessions')).toBe(false);
+  });
+
+  it('sends no Authorization header for headerless access', async () => {
+    credentialMocks.requireAuthorization.mockResolvedValue(null);
+    const fetchMock = vi.fn().mockResolvedValue(statusResponse(sessionsStatus(true)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await refresh();
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/status', {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store'
+    });
+    expect(capabilityOf(get(accessCapabilities), 'integrationSessions')).toBe(true);
+  });
+
+  it('keeps the current state when the probe fails', async () => {
+    credentialMocks.requireAuthorization.mockResolvedValue(null);
+    setAccessStatus(sessionsStatus(true));
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(statusResponse({}, false)));
+    await refresh();
+    expect(capabilityOf(get(accessCapabilities), 'integrationSessions')).toBe(true);
+
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
+    await refresh();
+    expect(capabilityOf(get(accessCapabilities), 'integrationSessions')).toBe(true);
+
+    credentialMocks.requireAuthorization.mockRejectedValue(new Error('no credential'));
+    await refresh();
+    expect(capabilityOf(get(accessCapabilities), 'integrationSessions')).toBe(true);
+  });
+
+  it('does not publish a probe that resolves after the credential was cleared', async () => {
+    credentialMocks.requireAuthorization.mockResolvedValue('Bearer token');
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise<Response>((resolve) => (answer = resolve))));
+
+    const probe = refresh();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    resetAccessCapabilities();
+    answer(statusResponse(sessionsStatus(true)));
+    await probe;
+
+    expect(get(accessCapabilities)).toEqual({ state: 'unknown' });
+  });
+});
+
+describe('refreshSoon', () => {
+  it('collapses a burst into one probe and probes again after the window', async () => {
+    vi.useFakeTimers();
+    credentialMocks.requireAuthorization.mockResolvedValue(null);
+    const fetchMock = vi.fn().mockResolvedValue(statusResponse(sessionsStatus(false)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await Promise.all([refreshSoon(), refreshSoon(), refreshSoon()]);
+    vi.advanceTimersByTime(REFRESH_COALESCE_MS - 1);
+    await refreshSoon();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1);
+    await refreshSoon();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-probes only for the legacy-execution refusal', async () => {
+    credentialMocks.requireAuthorization.mockResolvedValue(null);
+    const fetchMock = vi.fn().mockResolvedValue(statusResponse(sessionsStatus(false)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    refreshOnLegacyRefusal('connection not found');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    setAccessStatus(sessionsStatus(true));
+    refreshOnLegacyRefusal('Legacy integration execution is unavailable');
+    await vi.waitFor(() =>
+      expect(capabilityOf(get(accessCapabilities), 'integrationSessions')).toBe(false)
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

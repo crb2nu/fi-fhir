@@ -1,6 +1,7 @@
 import type { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { print } from 'graphql';
 import { toasts } from '$lib/ui/toastStore';
+import { refreshOnLegacyRefusal } from './accessCapabilities';
 import { requireGraphQLAuthorization } from './credentials';
 
 /** Tag errors that have already been shown as a toast so the catch block skips them. */
@@ -113,6 +114,9 @@ export async function graphqlFetch<TData, TVars>(
     if (json.errors?.length) {
       const msg = json.errors.map((e) => e.message ?? 'Unknown error').join('; ');
       const error = new GraphQLResponseError(msg, json.errors);
+      // A tab that loaded before a rollback still routes to the session engine;
+      // re-read the status so every surface re-derives without a reload.
+      refreshOnLegacyRefusal(msg);
       if (showErrorToast) {
         toasts.error(msg);
         markToasted(error);
