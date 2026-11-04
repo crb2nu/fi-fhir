@@ -14,6 +14,7 @@
  * about what to grant.
  */
 
+import { refreshOnLegacyRefusal } from '$lib/graphql/accessCapabilities';
 import { graphQLErrorEntries } from '$lib/graphql/client';
 
 /** The catalog refusal that carries `extensions.problems` (C-0 server.go). */
@@ -172,6 +173,9 @@ export function describeConnectionFailure(error: unknown): ConnectionFailure {
   if (!raw) {
     return FALLBACK;
   }
+  // The capability the page pre-flighted went away under it; the re-probe
+  // (coalesced) replaces this state once the new status arrives.
+  refreshOnLegacyRefusal(raw);
   const normalized = raw.toLowerCase();
   for (const [needle, failure] of CATALOG) {
     if (normalized.includes(needle)) {

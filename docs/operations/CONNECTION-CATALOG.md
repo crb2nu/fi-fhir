@@ -308,6 +308,12 @@ Keys added after the C-4 close-out (2026-09-27), with their `secret` flags:
 | `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE` | yes | the passphrase |
 | `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE` | yes | path to the passphrase, like `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_FILE` |
 | `FI_FHIR_CONNECTION_SECRET_*` | yes | the prefix rule above |
+| `FI_FHIR_TRACING_ENABLED` | no (default `false`) | a boolean; tracing is off unless it is `true`, so this row tells a tracing replica from one that is not |
+| `FI_FHIR_TRACING_ENDPOINT` | no (default `""`) | the OTLP HTTP(S) collector URL, reduced by `EndpointAdvisory` like any URL value |
+| `FI_FHIR_TRACING_SAMPLER` | no (default `0.1`) | a 0.0–1.0 sampling ratio |
+| `FI_FHIR_DELIVERY_LEASE_DURATION` | no (default `30s`) | a Go duration |
+| `FI_FHIR_DELIVERY_POLL_INTERVAL` | no (default `250ms`) | a Go duration |
+| `FI_FHIR_DELIVERY_PUBLISH_TIMEOUT` | no (default `10s`) | a Go duration, below the lease |
 
 The two credential paths are secret even though a path is not a credential:
 the repository's rule is that a path to a credential renders only as

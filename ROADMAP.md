@@ -103,6 +103,17 @@ the train ref, by a push pipeline that ran only `lint:helm`; the gating
 evidence for each is its own head pipeline plus main, and whether the next
 train ref carries the queue's own `api` pipeline is the open acceptance check
 (see Now). These are internal GitLab records.
+
+On 2026-11-03 that acceptance check passed: the first row since !288,
+[MR !290](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/290)
+(documentation), got no push pipeline on its train ref and the queue minted
+API pipeline 37258, 64 jobs across lint, test, security, build and scan,
+where the October trains ran one. Issues #22–#24 are closed. The same day
+fifteen `bl-fifhir-*` rows were posted to the Mills lane from the Now list
+(`.loom/43-mills-push-2026-11-execution-specs.md`), `ci/**` became a
+protected path (platform/gitops !1049), and the operator half of the proof
+fix became a loom-core row. Production runs `v0.1.36862`, the demo
+`v0.1.36738`.
 Production activation and release certification remain separate decisions;
 this documentation update does not assert a new clinical-runtime deployment.
 
@@ -545,7 +556,27 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
 
 ## Now
 
-- [ ] **Make the merge-train proof real** — the lane flipped to `merge_ref`
+### Mills push (2026-11-03)
+
+Fifteen rows from this list are in the Mills lane as `bl-fifhir-*` backlog
+items with declared files; `.loom/43-mills-push-2026-11-execution-specs.md`
+is the program view (order, dependencies, the lane's kill-test, what stays
+with a person). Items in the lane name their row id in the first line below,
+so a reader (or the roadmap carder, if it is ever turned on) sees at once
+which bullets are already owned. The overlay stays at 3 USD per run and 8
+runs per day, so the rows pace over three to four days. Not in the lane, with
+the owner: the production correlation secret (Cody), budgets 2 and 3 (runner
+window), Slice 5.1c-γ (a mapper program), the legacy event fields retirement
+(a session; it regenerates `generated.go`), the configuration-plane
+kill-test, stream capture of real ADT feeds, E1-1, the session preview cost,
+and the definition authoring follow-ups (one row once the first UI rows
+have landed).
+
+- [ ] **Make the merge-train proof real: loom-core adopts only `api` proofs on
+  `mills-mq/train-*` refs (`pkg/mills/mergequeue/processor_train.go`)** — in
+  the loom-core lane as `bl-mills-mergequeue-train-proof-api-source-only-202611`
+  (dispatched 2026-11-03); the repository half and the acceptance check are
+  done (below). The lane flipped to `merge_ref`
   on 2026-10-27 and four rows merged through `mills-mq/train-libs-fi-fhir-*`
   refs on 2026-10-29/30, but every train pipeline (35918, 35921, 35971,
   36007) was a push pipeline with no variables that ran exactly one job,
@@ -567,13 +598,20 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   which the queue has to mint the API pipeline that carries the variable and
   the !280 arm runs for the first time. Operator side: the queue adopts only
   its own `api` proof on a train ref (loom-core). The repository half merged
-  as [MR !288](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/288) (`6c00720f1`, 2026-11-01). Still open: the loom-core
-  operator half, and the acceptance check — the next
-  `mills-mq/train-libs-fi-fhir-*` ref must carry an `api`-source pipeline
-  running the gating set, not a one-job push pipeline. Until that is
-  observed, read a train's green here as "Helm lint passed"; main's pipeline
-  after the merge is the proof.
-- [ ] **Wire `FI_FHIR_TELEMETRY_CORRELATION_KEY` into production** —
+  as [MR !288](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/288) (`6c00720f1`, 2026-11-01). Acceptance observed
+  2026-11-03 on [MR !290](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/290): train ref
+  `mills-mq/train-libs-fi-fhir-290-1cd5e1c6` carried no push pipeline and one
+  `api`-source pipeline, 37258, with 64 jobs (lint 11, test 42, security 6,
+  build 3, scan 2), minted 30 seconds after enqueue; edilint's first train
+  row (!38, pipeline 37257) behaved the same. A train's green here is now
+  the gating set. Remaining: the loom-core half (row above), so that a
+  repository without the never-rule is also safe.
+- [ ] **Wire `FI_FHIR_TELEMETRY_CORRELATION_KEY` into production (gitops SOPS
+  secret + `secretKeyRef`, `deploy/helm/fi-fhir`, `deploy/kubernetes`)** —
+  the code half (`_FILE` variant and the key-format check in
+  `cmd/fi-fhir/serve_tracing.go`) is in the lane as
+  `bl-fifhir-correlation-key-file-variant-and-format-202611`; the secret is
+  Cody's.
   [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) keys the correlation-header digest with HMAC-SHA256 when the key
   is set and keeps the unkeyed `sha256:` form otherwise, and no manifest sets
   it: not `deploy/helm/fi-fhir`, not `deploy/kubernetes`, not gitops
@@ -586,7 +624,10 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   `cmd/fi-fhir/serve_tracing.go` to match every other serve secret, and
   tighten the loader's `len >= 32` check, which accepts a 32-character
   passphrase as if it were 32 random bytes.
-- [ ] **`make tracing-negative-control` can pass for the wrong reason** —
+- [ ] **`make tracing-negative-control` and `structured-logging-negative-control`
+  assert the sentinel failure (`Makefile`, `ci/test-structured-logging.yml`)** —
+  in the lane as `bl-fifhir-tracing-negative-control-asserts-sentinel-202611`
+  (dispatched 2026-11-03).
   `Makefile` inverts the tagged run's exit status and discards its output, on
   the premise that every failure under `tracingleak` is the leak being
   caught; since [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285) the same subtest also fails when the delivery span
@@ -595,14 +636,19 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   measured anything. Make the control assert the specific failure (the
   sentinel in captured output), as `structuredloggingleak` does. Owns
   `Makefile` and `ci/test-structured-logging.yml`.
-- [ ] **Run `scripts/check-runtime-config.sh` in CI** — [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283) put the
+- [ ] **Run `scripts/check-runtime-config.sh` in CI as `ci/lint-runtime-config.yml`
+  with its `ci/job-inventory.txt` row** — in the lane as
+  `bl-fifhir-check-runtime-config-ci-job-202611`. [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283) put the
   "tracing defaults stay opt-in" scan (`check_tracing_defaults`) into that
   script, and nothing in `.gitlab-ci.yml` or `ci/*.yml` calls it; only
   `make check-runtime-config` does. A manifest edit that flips
   `FI_FHIR_TRACING_ENABLED` to true under `deploy/` passes every pipeline
   today. Add it to `test:smoke` or as its own one-file job under `ci/` with a
   `ci/job-inventory.txt` line.
-- [ ] **Tracing is invisible on the Engine tab** — `serve --help` documents
+- [ ] **Document the `FI_FHIR_TRACING_*` and `FI_FHIR_DELIVERY_*` keys in
+  `cmd/fi-fhir/main.go` so `serveProperties()` carries them to the Engine tab** —
+  in the lane as `bl-fifhir-engine-tab-tracing-delivery-keys-202611`
+  (dispatched 2026-11-03). `serve --help` documents
   only `FI_FHIR_TELEMETRY_CORRELATION_KEY` of the new keys, and
   `serveProperties()` is by contract exactly the keys `serve --help`
   documents (`cmd/fi-fhir/engine_runtime.go`,
@@ -613,7 +659,9 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   apart in the IDE. Re-opens the ticked "engine properties" item below for
   these keys. Owns `cmd/fi-fhir/main.go` (help text),
   `cmd/fi-fhir/engine_runtime.go` and `docs/operations/CONNECTION-CATALOG.md`.
-- [ ] **Telemetry docs and changelog drift** — `docs/operations/README.md`
+- [ ] **Telemetry docs and changelog drift (`docs/operations/README.md`,
+  `docs/user-guide/cli-reference.md`, `docs/operations/SECURITY.md`)** — in the
+  lane as `bl-fifhir-telemetry-docs-drift-202611`. `docs/operations/README.md`
   § Logging still says the processor logs a SHA-256 hash of the caller's
   correlation id (an HMAC when the key is set);
   `docs/user-guide/cli-reference.md` lacks the key;
@@ -621,12 +669,15 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   [MR !279](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/279) left no `.added` changelog fragment for the feature itself, and
   the `.fixed` fragment it did leave still says SHA-256. Owns those four docs
   and `changelog.d/`.
-- [ ] **Close issues #22, #23 and #24** — delivered by [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285), [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283)
-  and [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) on 2026-10-29/30 but still open, because none of the MRs
-  carried a `Closes` line. #23's close note should say the default-off proof
-  is an in-process composition test (`cmd/fi-fhir/serve_tracing_test.go`),
-  not a booted `serve`; the replica proof asserts nothing about `trace_id` or
-  collector traffic under defaults.
+- [x] **Close issues #22, #23 and #24** — delivered by [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285), [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283)
+  and [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) on 2026-10-29/30; #22 was already closed, and #23 and #24
+  were closed on 2026-11-03 with notes naming the merge request and the Mills
+  row that delivered each, and why they had stayed open (no `Closes` line).
+  #23's note says the default-off proof is an in-process composition test
+  (`cmd/fi-fhir/serve_tracing_test.go`), not a booted `serve`, and that the
+  replica proof asserts nothing about `trace_id` or collector traffic under
+  defaults; #24's says production still sets no correlation key (the Now item
+  above). No `mills-eligible` issue is open.
 - [x] **Land or close the three open merge requests** — all three merged on
   2026-10-27: [MR !246](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/246) as `bab8e72b3`, [MR !253](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/253) as `ab70a5483` and
   [MR !279](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/279) as `d41f2f3a0`, each on a green pipeline (Delivered section
@@ -641,7 +692,9 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   findings`; committed `.edilint.yml`: JUnit `tests="7" failures="0"`), so the
   bump changed no finding. Growing the corpus with `edilint gen 837p` and
   `gen 835 --defect` stays with issue #15.
-- [ ] **Stale capabilities in an open tab** — a tab reads `/api/auth/status`
+- [ ] **Re-probe `/api/auth/status` after credential entry and on the
+  legacy-execution refusal (`ui/src/lib/graphql/accessCapabilities.ts`)** — in
+  the lane as `bl-fifhir-stale-capabilities-reprobe-202611`. a tab reads `/api/auth/status`
   once at load; after a rollback of the streaming flip, or after a bearer is
   entered, it keeps the capabilities it loaded with. Re-probe the status when
   a session mutation is refused with "legacy integration execution is
@@ -656,7 +709,10 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   calls; `fi-fhir-api` now carries `FI_FHIR_LLM_ENABLED=true` and an
   `LLM_API_KEY` from a secret, so the remaining check is `copilot-llm-state`
   = ready in the Copilot panel.
-- [ ] **Terminology-store availability as a capability** — terminology without
+- [ ] **Terminology-store availability as a capability
+  (`internal/api/graphql/capabilities.go`, `TerminologyPage.svelte`)** — in
+  the lane as `bl-fifhir-terminology-store-capability-202611` (first half
+  only). terminology without
   a mapping store shows only "GraphQL request failed" and an error toast,
   because the API's reason ("terminology mapping store not configured") does
   not reach the UI. Add it to the status contract and say so on the page; then
@@ -681,7 +737,8 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   (`previewOnSessionStream` and `expectPreviewComplete` in `ui/e2e/support.ts`
   split the 10 s stream-open budget from the 60 s run budget), both merged
   2026-10-27. Residue: `ui/e2e/operator-bundle.spec.ts` check 3 still carries
-  its own inline stream wait instead of the helper, and the gitops
+  its own inline stream wait instead of the helper (in the lane as
+  `bl-fifhir-operator-bundle-e2e-stream-helper-202611`), and the gitops
   `test:ui-e2e` one-retry rule for Mills rows (2026-10-27) was justified by
   these two MRs being open, so it can be reconsidered.
 - [x] **Events browser reads the legacy store** — replaced by Verification
@@ -700,7 +757,9 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   mismatch closed in
   [MR !238](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/238):
   UI and API builds now carry the Harbor tag Flux deploys.)
-- [ ] **Connection rows: per-connection replica counts** — the connection
+- [ ] **Connection rows select `observedReplicas` and `totalReplicas`
+  (`ui/src/lib/features/connections/ConnectionDetails.svelte`)** — in the
+  lane as `bl-fifhir-connection-rows-replica-counts-202611`. the connection
   catalog's rows do not select `ConnectionRuntimeState.observedReplicas` /
   `totalReplicas` (shipped in MR !261); only Operator's fleet views count
   replicas, client-side from `engineRuntime.observations` (`fleet.ts`).
@@ -727,7 +786,9 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   STATIC as `SOURCE_NOT_MOUNTED` and carries the draft on with SKIP. Proving
   the positive path needs a stack that mounts a compiled connection revision
   without breaking checks 8 and 9.
-- [ ] **Workflows: Run event calls a refused mutation** — Inventory's **Run
+- [ ] **Workflows: Run event stops calling the refused mutation
+  (`ui/src/lib/features/workflows/components/WorkflowList.svelte`)** — in the
+  lane as `bl-fifhir-workflows-run-event-refused-mutation-202611`. Inventory's **Run
   event** still calls `triggerWorkflow` (`WorkflowList.svelte`, re-checked
   2026-10-27), which shipped builds refuse
   (`legacyUnsafeExecution`), so `workflowRuns` (and Open trace) is normally
@@ -735,7 +796,9 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   `markWorkflowBuilderOpened` now has only test callers; retire or rename it.
   `EventLineagePanel` has no component test, and E5-1 does not assert the
   "Unsaved changes" state after an edit.
-- [ ] **Shell accessibility nits (E-4 review 7–11)** — the `Dialog` focus
+- [ ] **Shell accessibility nits (E-4 review 7–11;
+  `ui/src/lib/ui/primitives/Dialog.svelte`, `Tabs.svelte`)** — in the lane as
+  `bl-fifhir-shell-a11y-nits-e4-review-202611`. the `Dialog` focus
   fallback when nothing inside is focusable; Escape handled before focus
   enters the dialog; tab close buttons sit inside the `tablist`; the Copilot
   control dims without saying why. (The fifth nit, Cmd/Ctrl+K ignored while
@@ -744,10 +807,14 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   (`3fab67340`): journey evidence and the session lists use bounded metadata
   queries; `journeyState.ts` no longer calls `fetchRecentSessions` with
   `MAX_SAFE_INTEGER`.
-- [ ] **Operator deep-link polish (E-0 review N1, N6)** — a deep link is read
+- [ ] **Operator deep-link polish (E-0 review N1, N6;
+  `ui/src/lib/features/operator/OperatorPage.svelte`)** — in the lane as
+  `bl-fifhir-operator-deep-link-polish-202611`. a deep link is read
   once on mount, before the capability pre-flight has necessarily settled;
   the attempt inspector links the resubmit parent but not its children.
-- [ ] **`TestExecAction_RunsAllowedCommand` flakes under load** —
+- [ ] **`TestExecAction_RunsAllowedCommand` loses its wall-clock floor
+  (`internal/workflow/exec_action_test.go`)** — in the lane as
+  `bl-fifhir-exec-action-test-flake-202611`.
   `internal/workflow/exec_action_test.go` runs `/bin/sh` with a 2 s exec
   timeout under a 5 s context; it failed once under full-suite `go test ./...`
   in four IDE-unlock lanes' local runs and again in the pre-push hook on
@@ -769,7 +836,9 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
   sets stay "not found" warnings under `-tx n/a` by decision.
 - [ ] **Coverage.relationship for dependents** — stays `unknown` until
   `EligibilityResponseEvent` carries the X12 INS02 relationship code.
-- [ ] **Trace a successful publish** — the structured-logging delivery join
+- [ ] **Trace a successful publish through a webhook sink in the
+  structured-logging proof** — in the lane as
+  `bl-fifhir-trace-successful-publish-webhook-sink-202611`. the structured-logging delivery join
   runs against an unreachable broker, so only the claim-and-retry path is
   exported in CI (`PRODUCTION-HARDENING.md` § Correlation); no proof exports
   a successful `integration.delivery.dispatch`. Needs a reachable sink in
@@ -938,6 +1007,18 @@ the five Mills rows are `gl-19-22`, `gl-19-23`, `gl-19-24`,
 
 ## Mills posture (2026-10-31)
 
+**2026-11-03 update.** The never-rule from !288 was proven on !290 (train
+ref `mills-mq/train-libs-fi-fhir-290-1cd5e1c6`, no push pipeline, API
+pipeline 37258 with 64 jobs); protected paths are now sixteen with `ci/**`
+(platform/gitops !1049, checksum re-synced); issues #22–#24 are closed;
+fifteen `bl-fifhir-*` rows are in the lane (`.loom/43`), two implementing
+within a minute of posting. Intake for this push is the direct row with
+declared files, not the issue path. One trap for desktop-app sessions: the
+GitLab MCP merge tool there has no queue URL in its environment and merges
+directly, so a row is enqueued with
+`POST $MILLS_MERGE_QUEUE_URL/api/mills/merge-queue/enqueue`. The rest of
+this section is the 2026-10-31 reading and stays as the record.
+
 fi-fhir has been in the Mills cross-repo lane since 2026-09-01 (platform/gitops
 `k3s/mills/configmap-policy.yaml`; loom-core's HUD `SPAWN_PROJECTS`). Intake
 is an open GitLab issue on this project labelled `mills-eligible` (polled every
@@ -976,9 +1057,10 @@ from [MR !280](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/280) ha
 !282, !285 and !286 landed trees first proven by main's pipeline after the
 merge (49 to 74 minutes; all gating jobs green, 35973 failed only
 `mirror:github` on a DNS timeout). !284 merged on its own MR pipeline through
-the base-equals-tip path. Until the `workflow:` never-rule for push pipelines
-on `mills-mq/` refs lands here (Now) and the queue requires its own API proof,
-a train merge in this repository is proven by main, not by the train.
+the base-equals-tip path. The `workflow:` never-rule landed as !288 and was
+proven on 2026-11-03 (update above); until the queue itself requires an
+`api` proof (the loom-core row), a repository without the rule is still
+exposed.
 
 No row landed without a hand. gl-19-23 and gl-19-24 first stopped on
 undeclared scope (their files were declared on 2026-10-28); all three `gl`
@@ -992,7 +1074,8 @@ cross-repo lanes and was rebased by hand. Every row entered the queue from a
 workstation `merge_merge_request` (which routes every project through the
 queue) or the review release. The flake retry for
 `test:observability-replicas` and `test:ui-e2e` never fired; it could not,
-since neither job ran in any train proof. Issues #22–#24 are still open.
+since neither job ran in any train proof. Issues #22–#24 were closed on
+2026-11-03.
 
 Not changed, each a separate decision recorded on 2026-10-31
 (`.loom/decisions/`): the HUD merge-request watcher (`LOOM_MRWATCH_PROJECTS`
@@ -1045,23 +1128,23 @@ Full backlog: [P1 issues](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/?lab
 [P3](https://gitlab.flexinfer.ai/libs/fi-fhir/-/issues/?label_name[]=P3) ·
 [Milestones](https://gitlab.flexinfer.ai/libs/fi-fhir/-/milestones)
 
-Fourteen issues are open on 2026-10-31: the eleven triaged on 2026-10-27
+Eleven issues are open on 2026-11-03: the eleven triaged on 2026-10-27
 against the sections above (none touched since 2026-07-02 except the Renovate
-dashboard) and the three `mills-eligible` telemetry follow-ups filed from the
-!279 review on 2026-10-27, which Mills delivered and nobody closed. The Now
+dashboard); the three `mills-eligible` telemetry follow-ups filed from the
+!279 review on 2026-10-27, which Mills delivered, were closed on 2026-11-03. The Now
 list is the working backlog; these are the standing placeholders.
 
 | Issue | Title | Status on 2026-10-31 |
 |---|---|---|
-| #22 | Structured-logging proof: the asynchronous delivery trace joins admission | Delivered by [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285) on 2026-10-29; still open, close with the pointer. |
-| #23 | Prove the tracing default-off path at serve level | Delivered by [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283) on 2026-10-29 as an in-process composition proof; still open, close noting the replica proof asserts nothing about `trace_id` under defaults. |
-| #24 | Key the correlation-header digest with HMAC under a deployment secret | Delivered by [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) on 2026-10-30; still open; the production secret is not wired (Now). |
+| #22 | Structured-logging proof: the asynchronous delivery trace joins admission | Delivered by [MR !285](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/285) on 2026-10-29; closed. |
+| #23 | Prove the tracing default-off path at serve level | Delivered by [MR !283](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/283) on 2026-10-29 as an in-process composition proof; closed 2026-11-03 with that note. |
+| #24 | Key the correlation-header digest with HMAC under a deployment secret | Delivered by [MR !282](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/282) on 2026-10-30; closed 2026-11-03; the production secret is not wired (Now). |
 | #19 | Roadmap tracking — fi-fhir 2026-H2 | Open; this file is the plan store it points at. |
 | #9 | M1 backend↔frontend integration parity | Largely delivered by the IDE repair and unlock programs (the `/api/auth/status` contract; the 44 unreached root fields closed). Close with a pointer to `.loom/36` and `.loom/42`, or re-scope to the legacy event fields item in Then. |
 | #10 | M2 flexinfer inference path with timeout/retry contracts | Partly delivered: the Copilot runs on the backend LLM through the in-cluster LiteLLM with a credential (2026-09-30). The timeout and retry envelope is still undocumented; keep open, re-scope. |
 | #11 | M3 mentatlab run orchestration | Not started; nothing has asked for it since July. Candidate to close. |
 | #12 | Additional FHIR IG support (USCDI v3, Bulk Data, SMART) | Open; it is Then 5.2 and 5.3. |
-| #15 | Organize test data and edge-case fixtures | Open; edilint's generator (`gen 837p`, `gen 835`, `--defect`) is the first concrete slice (see the edilint ROADMAP). |
+| #15 | Organize test data and edge-case fixtures | Open; edilint's generator (`gen 837p`, `gen 835`, `--defect`) is the first concrete slice, in the lane as `bl-fifhir-edi-fixtures-from-edilint-gen-202611` (2026-11-03), whose merge request says `Closes #15`. |
 | #16 | UI accessibility, keyboard shortcuts, bulk operations | Partly delivered (Cmd/Ctrl+K from inputs and editors, focus on tab close); the remaining E-4 review nits are in Now. |
 | #17 | Terminology approval workflow for autoroute suggestions | Open; speclet `.loom/27`. |
 | #18 | Expand storage provider integration tests | Open; speclet `.loom/26`. |

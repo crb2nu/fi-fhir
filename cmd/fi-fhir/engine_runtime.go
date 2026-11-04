@@ -105,6 +105,7 @@ type serveProperty struct {
 // name says it carries a credential — or the path to one — is secret.
 func serveProperties() []serveProperty {
 	databaseDefaults := config.Default().Database
+	observabilityDefaults := config.Default().Observability
 	deliveryDefaults := integrationdelivery.DefaultConfig()
 	return []serveProperty{
 		{key: "FI_FHIR_DEPLOYMENT_TENANT_ID"},
@@ -193,6 +194,9 @@ func serveProperties() []serveProperty {
 
 		{key: envTelemetryCorrelationKey, secret: true},
 		{key: envTelemetryCorrelationKeyFile, secret: true},
+		{key: "FI_FHIR_TRACING_ENABLED", defaultValue: strconv.FormatBool(observabilityDefaults.TracingEnabled)},
+		{key: "FI_FHIR_TRACING_ENDPOINT", defaultValue: observabilityDefaults.TracingEndpoint},
+		{key: "FI_FHIR_TRACING_SAMPLER", defaultValue: strconv.FormatFloat(observabilityDefaults.TracingSampler, 'g', -1, 64)},
 
 		{key: "FI_FHIR_DELIVERY_WORKER_ENABLED", defaultValue: "false"},
 		{key: "FI_FHIR_DELIVERY_WORKER_ID"},
@@ -207,6 +211,9 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_DELIVERY_MAX_ATTEMPTS", defaultValue: strconv.Itoa(deliveryDefaults.MaxAttempts)},
 		{key: "FI_FHIR_DELIVERY_RETRY_BASE_DELAY", defaultValue: deliveryDefaults.RetryBaseDelay.String()},
 		{key: "FI_FHIR_DELIVERY_RETRY_MAX_DELAY", defaultValue: deliveryDefaults.RetryMaxDelay.String()},
+		{key: "FI_FHIR_DELIVERY_LEASE_DURATION", defaultValue: deliveryDefaults.LeaseDuration.String()},
+		{key: "FI_FHIR_DELIVERY_POLL_INTERVAL", defaultValue: deliveryDefaults.PollInterval.String()},
+		{key: "FI_FHIR_DELIVERY_PUBLISH_TIMEOUT", defaultValue: deliveryDefaults.PublishTimeout.String()},
 
 		{key: "FI_FHIR_DELIVERY_IDENTITY_MODE"},
 		{key: "FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH"},
