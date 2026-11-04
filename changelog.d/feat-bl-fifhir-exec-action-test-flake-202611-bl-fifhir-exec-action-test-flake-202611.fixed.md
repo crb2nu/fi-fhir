@@ -1,0 +1,1 @@
+- Reduce shared-runner flakes in `internal/workflow/exec_action_test.go` by giving the allowed-command test a 30-second exec timeout and 60-second context deadline while preserving its behavioral checks.

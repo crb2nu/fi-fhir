@@ -34,10 +34,11 @@ echo "ok:$input"
 		"allowlist":      scriptPath,
 		"stdin":          "template",
 		"stdin_template": `{"hello":"world"}`,
-		"timeout":        "2s",
+		"timeout":        "30s",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Allow shared-runner contention without turning this behavior test into a latency gate.
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	if err := execAction(ctx, map[string]any{"x": "y"}, cfg, []string{scriptPath}); err != nil {
