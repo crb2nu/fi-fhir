@@ -960,6 +960,7 @@ fi-fhir companion validate --guide bcbs-837p claim.x12
 | `FI_FHIR_TRACING_ENABLED` | Enable OTLP/HTTP tracing in serve (default: false) |
 | `FI_FHIR_TRACING_ENDPOINT` | HTTP(S) collector URL, required when tracing is enabled; default path `/v1/traces` |
 | `FI_FHIR_TRACING_SAMPLER` | Root trace sampling ratio, 0–1 (default: 0.1) |
+| `FI_FHIR_TELEMETRY_CORRELATION_KEY` | Secret (32+ bytes) keying the HMAC digest of `X-Correlation-ID` on spans and logs; unset keeps an unkeyed `sha256` digest and serve WARNs at startup; shorter than 32 bytes fails startup |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | **NOT IMPLEMENTED** — read by no code in this repository |
 | `LLM_BASE_URL` | LLM API endpoint (OpenAI-compatible) |
 | `LLM_API_KEY` | LLM API authentication key |
