@@ -203,10 +203,9 @@ back to the unkeyed `sha256:<hex>` digest and logs a startup WARN
 (`correlation_id is an unkeyed sha256 digest, reversible by dictionary for
 low-entropy headers`); a key that is set but shorter than 32 bytes stops serve
 from starting. The key is read from the environment only; there is no `_FILE`
-variant yet. Successful durable admission and
-claimed delivery logs carry receipt and ledger trace IDs. With tracing enabled,
-operation logs also carry OpenTelemetry trace/span IDs, including for unsampled
-operations; such IDs need not have exported spans. Aggregate batch polls and
+variant yet. Successful durable admission and claimed delivery logs carry
+receipt and ledger trace IDs. With tracing enabled, operation logs also carry
+OpenTelemetry trace/span IDs, including for unsampled operations; such IDs need not have exported spans. Aggregate batch polls and
 session fanout remain tenant-scoped.
 
 ### `FI_FHIR_OBSERVABILITY_MODE=legacy` — not a production configuration
