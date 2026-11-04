@@ -60,32 +60,32 @@
 //
 // A control that passes means the sentinel scan is vacuous, which is exactly the
 // failure 4.2a's negative control caught.
-// The serve proof also requires a claimed delivery on a separate OTel trace,
-// joined to admission and its ledger attempt through durable IDs.
+// The serve proof also requires two dispatches on a separate OTel trace — one
+// retried against an unreachable Kafka broker, one delivered to an in-test TLS
+// webhook — each joined to admission and its ledger attempt through durable IDs.
 package observability_test
 
 import (
 	"bytes"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"time"
-
-	"fmt"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
-	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
-	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
@@ -596,10 +596,4 @@ func hasDeliveryOutcome(spans []*tracepb.Span, outcome string) bool {
 		}
 	}
 	return false
-}
-
-func TestStructuredLogging_WebhookRegistry(t *testing.T) {
-	sink := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }))
-	t.Cleanup(sink.Close)
-	loggingWebhookRegistry(t, repoRoot(t), sink)
 }
