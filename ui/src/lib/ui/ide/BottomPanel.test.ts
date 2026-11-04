@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import BottomPanel from './BottomPanel.svelte';
-import {
-  markWorkflowBuilderOpened,
-  resetWorkflowBuilderOpened,
-  workflowDraft
-} from '$lib/features/workflows/workflowStore';
+import { workflowDraft } from '$lib/features/workflows/workflowStore';
 
 // The Problems-tab badge must track the same live signal the ProblemsPanel
 // renders (`workflowDiagnostics`), not the now-removed generic diagnosticsStore.
@@ -13,26 +9,17 @@ import {
 describe('BottomPanel problems badge', () => {
   beforeEach(() => {
     workflowDraft.reset();
-    resetWorkflowBuilderOpened();
   });
 
   afterEach(() => {
     workflowDraft.reset();
-    resetWorkflowBuilderOpened();
   });
 
-  it('shows no badge on a fresh session (never-opened builder, empty default draft)', () => {
+  it('shows no badge on a fresh session (empty default draft)', () => {
     render(BottomPanel);
 
     expect(screen.queryByTestId('problems-badge')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/problems$/)).not.toBeInTheDocument();
-  });
-
-  it('counts the empty draft once the builder has been opened', () => {
-    markWorkflowBuilderOpened();
-    render(BottomPanel);
-
-    expect(screen.getByTestId('problems-badge')).toHaveTextContent(/^\s*\d+\s*$/);
   });
 
   it('shows the problem count on the Problems tab when the workflow draft is invalid', () => {

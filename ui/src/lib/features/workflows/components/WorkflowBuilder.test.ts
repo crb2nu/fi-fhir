@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import WorkflowBuilder from './WorkflowBuilder.svelte';
-import { resetWorkflowBuilderOpened, workflowDraft } from '../workflowStore';
+import { workflowDraft } from '../workflowStore';
 import { workflowProblemCounts } from '$lib/ui/ide/panels/workflowProblemsStore';
 import { clearDraftState, hasDraftsToLose, isDirty, setDraftState } from '$lib/ui/ide/ideStore';
 
@@ -77,7 +77,6 @@ describe('WorkflowBuilder', { timeout: 20_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     workflowDraft.reset();
-    resetWorkflowBuilderOpened();
     mocks.fetchWorkflowVersions.mockResolvedValue({ workflowVersions: [VERSION] });
     mocks.fetchWorkflowVersionById.mockResolvedValue({ workflowVersion: VERSION });
     mocks.fetchWorkflowApprovalRequests.mockResolvedValue({ workflowApprovalRequests: [] });
