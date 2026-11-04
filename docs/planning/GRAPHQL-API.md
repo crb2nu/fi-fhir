@@ -266,6 +266,7 @@ trusted network:
     "llm": {"configured": true},
     "controlPlane": false,
     "connectionCatalog": false,
+    "terminologyStore": false,
     "phiExport": false,
     "definitionAuthoring": false
   },
@@ -297,6 +298,7 @@ the handler serves.
 | `capabilities.streaming` | The deployment serves the session SSE transport (`FI_FHIR_INTEGRATION_SESSION_ENABLED`) |
 | `capabilities.subscriptions` | The subscription roots the stream will accept for this caller; `[]` when streaming is off |
 | `capabilities.llm.configured` | `serve` built an LLM client at startup; whether it answers is `llmCapability`'s question |
+| `capabilities.terminologyStore` | `serve` composed the terminology mapping store (`FI_FHIR_TERMINOLOGY_DB_URL` reachable at startup). When it is `false` the mapping queries answer "terminology mapping store not configured", and the Terminology page says so instead of querying |
 | `capabilities.phiExport` | The caller may export a session bundle with raw sample payloads (`exportIntegrationBundle(includeRawPayload: true)`): it clears the export field's transport gate and holds `integration.phi.export`, which the session store re-checks. An export without raw payloads needs neither the grant nor this capability |
 | `capabilities.definitionAuthoring` | The deployment composed the definition editor: lifecycle catalog, connection catalog, static registry resolver (.loom/42 E-1). `missingRoles.definitionAuthoring` names the roles its writes need |
 

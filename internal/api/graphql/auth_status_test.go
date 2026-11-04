@@ -24,6 +24,7 @@ import (
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/lifecycle"
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/operator"
+	termdb "gitlab.flexinfer.ai/libs/fi-fhir/pkg/terminology/db"
 )
 
 const (
@@ -98,7 +99,7 @@ func TestAuthStatusTrustedNetworkShape(t *testing.T) {
 			"clinicalRead": true, "connectionsRead": false, "connectionsWrite": false,
 			"integrationSessions": false, "streaming": false,
 			"subscriptions": [], "llm": {"configured": true},
-			"controlPlane": false, "connectionCatalog": false,
+			"controlPlane": false, "connectionCatalog": false, "terminologyStore": false,
 			"phiExport": false, "definitionAuthoring": false
 		},
 		"missingRoles": {
@@ -117,6 +118,36 @@ func TestAuthStatusTrustedNetworkShape(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.Marshal(got)
 		t.Fatalf("status body = %s", gotJSON)
+	}
+}
+
+// TestAuthStatusTerminologyStoreFollowsTheResolver: terminologyStore is true
+// exactly when the resolver serve hands NewServer holds a mapping store, the
+// same field whose absence makes the mapping resolvers answer "terminology
+// mapping store not configured".
+func TestAuthStatusTerminologyStoreFollowsTheResolver(t *testing.T) {
+	tests := []struct {
+		name     string
+		resolver *resolvers.Resolver
+		want     bool
+	}{
+		{name: "no mapping store", resolver: resolvers.NewResolver(), want: false},
+		{name: "mapping store composed", resolver: resolvers.NewResolver(resolvers.WithMappingStore(termdb.NewMappingStore(nil))), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := secureServerConfig(testAuthenticator(t))
+			config.TrustedNetworkAuthenticator = trustedNetwork(t, productionGrant...)
+			server, err := graphqlapi.NewServer(tt.resolver, config)
+			if err != nil {
+				t.Fatalf("NewServer: %v", err)
+			}
+			got := getAuthStatus(t, server.Handler(), func(r *http.Request) { r.Header.Set("X-Real-IP", trustedClient) })
+			capabilities, _ := got["capabilities"].(map[string]any)
+			if capabilities["terminologyStore"] != tt.want {
+				t.Fatalf("terminologyStore = %v, want %v", capabilities["terminologyStore"], tt.want)
+			}
+		})
 	}
 }
 

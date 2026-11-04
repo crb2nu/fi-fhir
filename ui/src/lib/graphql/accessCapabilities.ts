@@ -53,6 +53,12 @@ export interface AccessCapabilities {
    * `missingRoles.definitionAuthoring`.
    */
   definitionAuthoring: boolean | null;
+  /**
+   * The terminology mapping store is composed on this deployment: a deployment
+   * fact, like `connectionCatalog`. `false` means the Terminology page has no
+   * backend, so it says so instead of querying; `null` when not reported.
+   */
+  terminologyStore: boolean | null;
 }
 
 export type CapabilityKey = keyof Omit<AccessCapabilities, 'subscriptions' | 'llmConfigured'>;
@@ -125,7 +131,8 @@ export function parseAuthStatus(body: unknown): AccessCapabilityState {
       controlPlane: reportedBoolean(caps.controlPlane),
       connectionCatalog: reportedBoolean(caps.connectionCatalog),
       phiExport: reportedBoolean(caps.phiExport),
-      definitionAuthoring: reportedBoolean(caps.definitionAuthoring)
+      definitionAuthoring: reportedBoolean(caps.definitionAuthoring),
+      terminologyStore: reportedBoolean(caps.terminologyStore)
     },
     missingRoles: missing
   };
@@ -239,6 +246,7 @@ export const connectionsWriteCapability = capabilityStore('connectionsWrite');
 export const controlPlaneCapability = capabilityStore('controlPlane');
 export const connectionCatalogCapability = capabilityStore('connectionCatalog');
 export const phiExportCapability = capabilityStore('phiExport');
+export const terminologyStoreCapability = capabilityStore('terminologyStore');
 
 /** Allowlisted subscription roots, or `null` when unknown / not reported. */
 export const subscriptionRoots: Readable<string[] | null> = derived(store, ($state) =>
