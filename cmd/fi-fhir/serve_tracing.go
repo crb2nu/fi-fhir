@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,23 +20,36 @@ import (
 // its digest under. It belongs with the other serve secrets, never beside the
 // collector or log archive whose contents it protects.
 const envTelemetryCorrelationKey = "FI_FHIR_TELEMETRY_CORRELATION_KEY"
+const envTelemetryCorrelationKeyFile = "FI_FHIR_TELEMETRY_CORRELATION_KEY_FILE"
 
 // minTelemetryCorrelationKeyBytes is the shortest key accepted: 256 bits of
 // input, the HMAC-SHA256 block's security level.
 const minTelemetryCorrelationKeyBytes = 32
 
-// loadTelemetryCorrelationKey reads the correlation-digest key. Unset returns a
-// nil key, which keeps the unkeyed digest; a key that is set but short is an
-// error, because a misconfigured key should stop serve rather than run weakly.
+// loadTelemetryCorrelationKey decodes the optional correlation-digest secret.
+// Hex takes precedence because hex strings can also be valid base64.
 func loadTelemetryCorrelationKey() ([]byte, error) {
-	value := strings.TrimSpace(os.Getenv(envTelemetryCorrelationKey))
-	if value == "" {
+	if strings.TrimSpace(os.Getenv(envTelemetryCorrelationKey)) == "" && os.Getenv(envTelemetryCorrelationKeyFile) == "" {
 		return nil, nil
 	}
-	if len(value) < minTelemetryCorrelationKeyBytes {
-		return nil, fmt.Errorf("%s must be at least %d bytes", envTelemetryCorrelationKey, minTelemetryCorrelationKeyBytes)
+	value, err := loadSingleLineSecret(envTelemetryCorrelationKey, envTelemetryCorrelationKeyFile, "telemetry correlation key")
+	if err != nil {
+		return nil, err
 	}
-	return []byte(value), nil
+	value = strings.TrimSpace(value)
+	key, err := hex.DecodeString(value)
+	if err != nil {
+		for _, encoding := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
+			key, err = encoding.DecodeString(value)
+			if err == nil {
+				break
+			}
+		}
+	}
+	if err != nil || len(key) < minTelemetryCorrelationKeyBytes {
+		return nil, fmt.Errorf("%s[_FILE] must be a hex or base64 encoding of at least %d random bytes, e.g. openssl rand -hex 32", envTelemetryCorrelationKey, minTelemetryCorrelationKeyBytes)
+	}
+	return key, nil
 }
 
 func processorObservation(logger *slog.Logger, tracing *observability.Tracing, correlationKey []byte) processor.Observer {

@@ -5736,8 +5736,10 @@ Optional deployed S3/SFTP batch environment:
   FI_FHIR_DATABASE_*                   Shared lifecycle/submission/checkpoint store
 
 Optional telemetry environment:
-  FI_FHIR_TELEMETRY_CORRELATION_KEY    Secret (32+ bytes) keying the HMAC digest of
-    X-Correlation-ID on spans and logs; unset keeps an unkeyed sha256 digest and WARNs
+  FI_FHIR_TELEMETRY_CORRELATION_KEY[_FILE]
+                                       Hex or base64 of 32+ random bytes keying the
+                                       HMAC digest of X-Correlation-ID on spans and
+                                       logs; unset keeps an unkeyed sha256 digest and WARNs
   FI_FHIR_TRACING_ENABLED              true enables OTLP/HTTP tracing; unset or false (default)
     leaves tracing off and the two settings below unused
   FI_FHIR_TRACING_ENDPOINT             OTLP HTTP(S) collector URL; required when enabled

@@ -193,6 +193,7 @@ func serveProperties() []serveProperty {
 		{key: "FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE_FILE", secret: true},
 
 		{key: envTelemetryCorrelationKey, secret: true},
+		{key: envTelemetryCorrelationKeyFile, secret: true},
 		{key: "FI_FHIR_TRACING_ENABLED", defaultValue: strconv.FormatBool(observabilityDefaults.TracingEnabled)},
 		{key: "FI_FHIR_TRACING_ENDPOINT", defaultValue: observabilityDefaults.TracingEndpoint},
 		{key: "FI_FHIR_TRACING_SAMPLER", defaultValue: strconv.FormatFloat(observabilityDefaults.TracingSampler, 'g', -1, 64)},

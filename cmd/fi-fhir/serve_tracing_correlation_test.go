@@ -3,6 +3,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/hex"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -60,40 +65,97 @@ func TestSpanCorrelationIDKeyedDigest(t *testing.T) {
 }
 
 func TestLoadTelemetryCorrelationKey(t *testing.T) {
+	raw := bytes.Repeat([]byte{0xfb, 0xff}, 16)
 	tests := []struct {
 		name    string
 		value   string
-		want    string
 		wantErr bool
 	}{
-		{name: "unset keeps the unkeyed digest", value: ""},
-		{name: "whitespace only is unset", value: "  \n"},
-		{name: "short key is refused", value: "too-short", wantErr: true},
-		{name: "31 bytes is refused", value: strings.Repeat("k", 31), wantErr: true},
-		{name: "32 bytes is accepted", value: strings.Repeat("k", 32), want: strings.Repeat("k", 32)},
-		{name: "surrounding whitespace is trimmed", value: " " + strings.Repeat("k", 64) + "\n", want: strings.Repeat("k", 64)},
+		{"hex", hex.EncodeToString(raw), false},
+		{"standard padded", base64.StdEncoding.EncodeToString(raw), false},
+		{"standard unpadded", base64.RawStdEncoding.EncodeToString(raw), false},
+		{"URL padded", base64.URLEncoding.EncodeToString(raw), false},
+		{"URL unpadded", base64.RawURLEncoding.EncodeToString(raw), false},
+		{"trim whitespace", "  " + hex.EncodeToString(raw) + "\n", false},
+		{"passphrase", strings.Repeat("k", 32), true},
+		{"invalid encoding", strings.Repeat("!", 32), true},
+		{"31 decoded bytes", hex.EncodeToString(raw[:31]), true},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(envTelemetryCorrelationKey, tt.value)
+		for _, file := range []bool{false, true} {
+			name := tt.name + "/env"
+			if file {
+				name = tt.name + "/file"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Setenv(envTelemetryCorrelationKey, "")
+				t.Setenv(envTelemetryCorrelationKeyFile, "")
+				if file {
+					path := filepath.Join(t.TempDir(), "key")
+					if err := os.WriteFile(path, []byte(strings.TrimRight(tt.value, "\r\n")+"\n"), 0600); err != nil {
+						t.Fatal(err)
+					}
+					t.Setenv(envTelemetryCorrelationKeyFile, path)
+				} else {
+					t.Setenv(envTelemetryCorrelationKey, tt.value)
+				}
+				key, err := loadTelemetryCorrelationKey()
+				if tt.wantErr {
+					if err == nil {
+						t.Fatal("expected an error")
+					}
+					if strings.Contains(err.Error(), tt.value) {
+						t.Fatal("error exposes key")
+					}
+					if !strings.Contains(err.Error(), "hex or base64 encoding of at least 32 random bytes") {
+						t.Fatalf("missing format guidance: %v", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(key, raw) {
+					t.Fatal("key does not match decoded bytes")
+				}
+			})
+		}
+	}
+	for _, value := range []string{"", "  \n"} {
+		t.Run("unset "+value, func(t *testing.T) {
+			t.Setenv(envTelemetryCorrelationKey, value)
+			t.Setenv(envTelemetryCorrelationKeyFile, "")
 			key, err := loadTelemetryCorrelationKey()
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected an error")
+			if err != nil || key != nil {
+				t.Fatalf("unset key = %v, %v", key, err)
+			}
+		})
+	}
+	t.Run("both sources", func(t *testing.T) {
+		value := hex.EncodeToString(raw)
+		path := filepath.Join(t.TempDir(), "secret-path")
+		t.Setenv(envTelemetryCorrelationKey, value)
+		t.Setenv(envTelemetryCorrelationKeyFile, path)
+		_, err := loadTelemetryCorrelationKey()
+		if err == nil || !strings.Contains(err.Error(), "configure exactly one") {
+			t.Fatalf("got %v", err)
+		}
+		if strings.Contains(err.Error(), value) || strings.Contains(err.Error(), path) {
+			t.Fatal("error exposes source values")
+		}
+	})
+	for _, content := range []string{"missing", "", "\n", "   \n"} {
+		t.Run("invalid file "+content, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "key")
+			if content != "missing" {
+				if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+					t.Fatal(err)
 				}
-				if strings.Contains(err.Error(), tt.value) {
-					t.Fatalf("error quotes the key: %v", err)
-				}
-				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(key) != tt.want {
-				t.Fatalf("key = %q, want %q", key, tt.want)
-			}
-			if tt.want == "" && key != nil {
-				t.Fatal("unset key must be nil so the unkeyed digest is kept")
+			t.Setenv(envTelemetryCorrelationKey, "")
+			t.Setenv(envTelemetryCorrelationKeyFile, path)
+			if _, err := loadTelemetryCorrelationKey(); err == nil {
+				t.Fatal("expected file error")
 			}
 		})
 	}

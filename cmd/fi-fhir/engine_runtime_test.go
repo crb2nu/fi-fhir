@@ -87,6 +87,19 @@ func TestServePropertiesAreExactlyTheDocumentedKeys(t *testing.T) {
 // TestServePropertiesMarkEveryCredentialSecret: a key whose name says it
 // carries a credential, or the path to one, can only ever render as set/unset.
 func TestServePropertiesMarkEveryCredentialSecret(t *testing.T) {
+	found := false
+	for _, property := range serveProperties() {
+		if property.key == envTelemetryCorrelationKeyFile {
+			found = true
+			if !property.secret {
+				t.Fatal("correlation key file must be secret")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("correlation key file property missing")
+	}
+
 	credential := regexp.MustCompile(`TOKEN|SECRET|PASSWORD|_KEY(_|$)`)
 	for _, property := range serveProperties() {
 		if credential.MatchString(property.key) && !property.secret {
