@@ -65,8 +65,20 @@
 package observability_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"encoding/pem"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"time"
+
 	"fmt"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/authorization"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/destination"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/processor"
+	"gitlab.flexinfer.ai/libs/fi-fhir/internal/integration/registry"
+	"gitlab.flexinfer.ai/libs/fi-fhir/pkg/integration"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,6 +86,7 @@ import (
 	"testing"
 
 	"gitlab.flexinfer.ai/libs/fi-fhir/internal/observability"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
 // queuePayloadSentinel is planted in the event handed to the queue driver. It is
@@ -113,10 +126,33 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		t.Setenv("FI_FHIR_LOG_LEVEL", "debug")
 
 		dsn := freshDatabase(t, baseDSN, "fi_fhir_logging_proof")
-		_ = buildRegistryFixture(t, root)
+		received := make(chan []byte, 1)
+		sink := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			payload, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+			if err != nil {
+				t.Error(err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if r.Method != http.MethodPost || r.Header.Get("Authorization") != "Bearer logging-proof-token" {
+				t.Error("webhook request lacks expected method or credential")
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			select {
+			case received <- payload:
+			default:
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		t.Cleanup(sink.Close)
+		registryPath, destinationsPath := loggingWebhookRegistry(t, root, sink)
 
 		r := startReplica(t, binary, root, dsnAddress(t, dsn), dsn, "current", "logging-proof",
 			"FI_FHIR_DELIVERY_WORKER_ENABLED=true",
+			"FI_FHIR_INTEGRATION_REGISTRY_PATH="+registryPath,
+			"FI_FHIR_DELIVERY_IDENTITY_MODE=strict",
+			"FI_FHIR_DELIVERY_IDENTITY_REGISTRY_PATH="+destinationsPath,
 			"FI_FHIR_QUEUE_DRIVER=kafka",
 			fmt.Sprintf("FI_FHIR_QUEUE_BROKERS=127.0.0.1:%d", freeTCPPort(t)),
 			"FI_FHIR_DELIVERY_WORKER_ID=logging-proof-delivery",
@@ -131,9 +167,45 @@ func TestStructuredLogging_CorrelatedAndPHIFree(t *testing.T) {
 		if err := r.submitHL7Correlated(t, correlationSentinel); err != nil {
 			t.Fatalf("submit HL7 through the durable ingress: %v", err)
 		}
+		var deliveredPayload struct {
+			TenantID  string `json:"tenant_id"`
+			ReceiptID string `json:"receipt_id"`
+			AttemptID string `json:"attempt_id"`
+			Action    string `json:"action"`
+		}
+		select {
+		case payload := <-received:
+			if len(payload) == 0 || json.Unmarshal(payload, &deliveredPayload) != nil {
+				t.Fatal("webhook received no valid JSON payload")
+			}
+		case <-time.After(45 * time.Second):
+			t.Fatal("timed out waiting for successful webhook delivery")
+		}
+		// A request can arrive before dispatch finishes or the exporter flushes.
+		// Keep collecting until both finished outcomes have reached OTLP.
+		deadline := time.Now().Add(45 * time.Second)
 		spans := awaitSpans()
+		for !hasDeliveryOutcome(spans, "delivered") || !hasDeliveryOutcome(spans, "retried") {
+			if time.Now().After(deadline) {
+				t.Fatal("timed out waiting for delivered and retried dispatch spans")
+			}
+			time.Sleep(100 * time.Millisecond)
+			spans = awaitSpans()
+		}
 		assertDurableAdmissionSpans(t, spans)
-		delivery := assertDeliveryJoinsAdmission(t, spans)
+		delivery := assertDeliveryJoinsAdmission(t, spans, "retried")
+		successful := assertDeliveryJoinsAdmission(t, spans, "delivered")
+		successAttempt := spanStringField(successful, "delivery_attempt_id")
+		if deliveredPayload.TenantID != documentedTenant || deliveredPayload.ReceiptID != spanStringField(successful, "receipt_id") || deliveredPayload.AttemptID != successAttempt || deliveredPayload.Action != "send-webhook" {
+			t.Error("webhook payload does not join the successful dispatch tenant, receipt, attempt and action")
+		}
+		successFound := false
+		for _, id := range deliveryAttemptIDs(t, dsn, spanStringField(successful, "receipt_id")) {
+			successFound = successFound || id == successAttempt
+		}
+		if !successFound {
+			t.Errorf("successful delivery attempt %q is absent from ledger", successAttempt)
+		}
 		attemptID := spanStringField(delivery, "delivery_attempt_id")
 		foundAttempt := false
 		for _, id := range deliveryAttemptIDs(t, dsn, spanStringField(delivery, "receipt_id")) {
@@ -419,4 +491,115 @@ func nonEmptyLines(blob string) []string {
 		out = append(out, trimmed)
 	}
 	return out
+}
+
+// loggingWebhookRegistry gives the proof its own content-addressed artifacts;
+// the Kafka destination remains present while HTTPS runs inside the same worker.
+func loggingWebhookRegistry(t *testing.T, root string, sink *httptest.Server) (string, string) {
+	t.Helper()
+	raw, err := os.ReadFile(buildRegistryFixture(t, root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		TenantID     string `json:"tenant_id"`
+		Integrations []struct {
+			IntegrationID string                                    `json:"integration_id"`
+			Definition    integration.IntegrationDefinitionRevision `json:"definition"`
+			Profile       json.RawMessage                           `json:"profile"`
+			Workflow      string                                    `json:"workflow"`
+		} `json:"integrations"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	identity := &destination.ClientIdentity{Subject: "logging-proof-client", Grants: []string{authorization.DestinationClientGrant}}
+	kafka, err := destination.NewRevision(destination.RevisionInput{
+		ArtifactID: "fhir-primary", RevisionID: "destination-1", DestinationID: "fhir-primary", Class: integration.DestinationClassProduction,
+		Transport: destination.TransportKafka, Kafka: &destination.KafkaPolicy{Topic: "integration.delivery.v1"}, Identity: identity,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	webhook, err := destination.NewRevision(destination.RevisionInput{
+		ArtifactID: "logging-webhook", RevisionID: "destination-1", DestinationID: "logging-webhook", Class: integration.DestinationClassProduction,
+		Transport: destination.TransportHTTPS, HTTPS: &destination.HTTPSPolicy{URL: sink.URL, Method: "POST", TokenBinding: "proof-token", CABundleBinding: "proof-ca"}, Identity: identity,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var active integration.ArtifactRevisionRef
+	for i := range document.Integrations {
+		entry := &document.Integrations[i]
+		entry.Workflow += "      - id: send-webhook\n        type: webhook\n        destination: logging-webhook\n"
+		workflow, err := processor.NewWorkflowRevisionReference("workflow-adt", "workflow-1", []byte(entry.Workflow))
+		if err != nil {
+			t.Fatal(err)
+		}
+		old := entry.Definition
+		revision, err := integration.NewIntegrationDefinitionRevision(integration.IntegrationDefinitionRevisionInput{
+			DefinitionID: old.DefinitionID, RevisionID: old.RevisionID, TenantID: old.TenantID, Source: old.Source, Format: old.Format,
+			Profile: old.Profile, Workflow: workflow, Destinations: []integration.DestinationRevisionRef{kafka.Reference(), webhook.Reference()}, Policy: old.Policy, Created: old.Created,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry.Definition = revision
+		if entry.IntegrationID == documentedIntegration {
+			active = revision.Reference()
+		}
+	}
+	t.Setenv("LOGGING_PROOF_TOKEN", "logging-proof-token")
+	t.Setenv("LOGGING_PROOF_CA", string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: sink.Certificate().Raw})))
+	bindings := []integration.SecretBinding{
+		{Name: "proof-token", Reference: integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: "LOGGING_PROOF_TOKEN"}},
+		{Name: "proof-ca", Reference: integration.SecretReference{Provider: integration.SecretProviderEnvironment, Key: "LOGGING_PROOF_CA"}},
+	}
+	dir := t.TempDir()
+	write := func(name string, value any) string {
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	registryPath := write("registry.json", document)
+	registryRaw, err := os.ReadFile(registryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.DecodeStaticRegistry(bytes.NewReader(registryRaw)); err != nil {
+		t.Fatalf("validate webhook integration registry: %v", err)
+	}
+	destinationsPath := write("destinations.json", map[string]any{
+		"schema": "fi-fhir/destination-registry/v1", "tenant_id": documentedTenant, "integration_revision": active,
+		"secret_bindings": bindings, "destinations": []destination.Revision{kafka, webhook},
+	})
+	destinationRaw, err := os.ReadFile(destinationsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := destination.LoadRegistry(bytes.NewReader(destinationRaw), destination.ModeStrict); err != nil {
+		t.Fatalf("validate webhook destination registry: %v", err)
+	}
+	return registryPath, destinationsPath
+}
+
+func hasDeliveryOutcome(spans []*tracepb.Span, outcome string) bool {
+	for _, span := range spans {
+		if span.Name == "integration.delivery.dispatch" && spanStringField(span, "outcome") == outcome {
+			return true
+		}
+	}
+	return false
+}
+
+func TestStructuredLogging_WebhookRegistry(t *testing.T) {
+	sink := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	t.Cleanup(sink.Close)
+	loggingWebhookRegistry(t, repoRoot(t), sink)
 }

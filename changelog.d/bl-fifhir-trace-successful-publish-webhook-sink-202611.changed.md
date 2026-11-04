@@ -1,0 +1,1 @@
+- Extend the structured logging proof to require successful TLS webhook delivery and retried Kafka dispatch spans, joined to admission and durable attempts, in `internal/observability/structured_logging_gate_integration_test.go` and `internal/observability/tracing_gate_integration_test.go`; describe both outcomes in `ci/test-structured-logging.yml`.
