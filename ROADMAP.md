@@ -1135,7 +1135,7 @@ list is the working backlog; these are the standing placeholders.
 | #10 | M2 flexinfer inference path with timeout/retry contracts | Partly delivered: the Copilot runs on the backend LLM through the in-cluster LiteLLM with a credential (2026-09-30). The timeout and retry envelope is still undocumented; keep open, re-scope. |
 | #11 | M3 mentatlab run orchestration | Not started; nothing has asked for it since July. Candidate to close. |
 | #12 | Additional FHIR IG support (USCDI v3, Bulk Data, SMART) | Open; it is Then 5.2 and 5.3. |
-| #15 | Organize test data and edge-case fixtures | Open; edilint's generator (`gen 837p`, `gen 835`, `--defect`) is the first concrete slice, in the lane as `bl-fifhir-edi-fixtures-from-edilint-gen-202611` (2026-11-03), whose merge request says `Closes #15`. |
+| #15 | Organize test data and edge-case fixtures | Open; edilint's generator (`gen 837p`, `gen 835`, `--defect`) is the first concrete slice, in the lane as `bl-fifhir-edi-fixtures-from-edilint-gen-202611` (2026-11-03), merged 2026-11-04 as [MR !299](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/299) (`252777436`: generated 837P/835 corpus, four envelope defects, table-driven parser tests); the issue stays open for the remaining formats. |
 | #16 | UI accessibility, keyboard shortcuts, bulk operations | Partly delivered (Cmd/Ctrl+K from inputs and editors, focus on tab close); the remaining E-4 review nits are in Now. |
 | #17 | Terminology approval workflow for autoroute suggestions | Open; speclet `.loom/27`. |
 | #18 | Expand storage provider integration tests | Open; speclet `.loom/26`. |

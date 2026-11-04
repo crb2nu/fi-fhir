@@ -86,7 +86,7 @@ by 17:30. M-5..M-15 were posted between 18:10 and 18:40 UTC.
 | M-4 | — | — | — | queued; re-grounded after a scope blocker (the new `ci/lint-runtime-config.yml` was not in the slice) |
 | M-5 | [MR !295](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/295) | `d1e23bebf` | 37572 | rescued; the proof key in `tracing_gate_integration_test.go` had to become hex (see worklog 2026-11-04) |
 | M-6 | [MR !300](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/300) | `ecc842c35` | 37566 | spec-touching hold reviewed and released |
-| M-7 | [MR !299](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/299) | `252777436` | 37581 | Mills end to end; `Closes #15`, reports back to edilint's 834 decision |
+| M-7 | [MR !299](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/299) | `252777436` | 37581 | Mills end to end; the first slice of issue #15 (the issue stays open), reports back to edilint's 834 decision |
 | M-8 | [MR !296](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/296) | `4f9c71e51` | 37577 | spec-touching hold reviewed and released; one infrastructure eviction |
 | M-9 | [MR !293](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/293) | `f9e3e1b9f` | 37418 | the kill-test row |
 | M-10 | — | — | — | queued; requeued after a devbox checkout fault at `tests` |
