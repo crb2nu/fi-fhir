@@ -12,7 +12,7 @@
 # testdata/edi/.edilint.yml disables EL3009 (duplicate interchange control
 # number): the fixtures are independent interchanges, and control-number
 # uniqueness across the corpus is not an invariant the test suite maintains.
-# The waiver is inert today — df45f683 renumbered ISA13 so all seven are
+# The waiver is inert today — df45f683 renumbered ISA13 so all nine are
 # distinct and EL3009 does not fire with or without it. Note what it does and
 # does not buy while lint:edi runs beside this job: a future fixture that reuses
 # a control number stays green *here*, but lint:edi checks the same corpus on
