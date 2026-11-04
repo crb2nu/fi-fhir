@@ -119,6 +119,22 @@ documented in `fi-fhir serve --help`. A malformed value fails startup.
 | `FI_FHIR_FHIR_SUBSCRIPTION_ALLOWED_HOSTS` | empty: every destination refused | Exact hosts or `*.suffix` subscription management may contact |
 | `FI_FHIR_FHIR_SUBSCRIPTION_MAX_CLIENTS` | `32` | Cached subscription clients |
 
+## Tracing and correlation
+
+- Tracing is opt-in: `FI_FHIR_TRACING_ENABLED` defaults to `false`, and every
+  shipped deployment (Helm `config.observability.tracingEnabled`, the
+  Kustomize base) leaves it off.
+- Spans carry only the keys in `observability.PermittedSpanAttributes()`
+  (`internal/observability/tracing.go`), a set narrower than the log
+  allowlist: no `source_message_id`, `error` or `reason`. Anything else is
+  refused and counted on the span as `dropped_attributes`.
+- The caller's `X-Correlation-ID` reaches spans and logs only as a digest:
+  `hmac-sha256:` under `FI_FHIR_TELEMETRY_CORRELATION_KEY` when it is set,
+  the unkeyed `sha256:` form (with a startup WARN) when it is not.
+- `make tracing-negative-control` builds serve with the `tracingleak` tag,
+  which restores the raw header, and requires the collector-side PHI scan in
+  the structured-logging proof to fail. It proves that scan is live.
+
 ## Known residual risks
 
 - `requestsecurity/trusted_network.go` accepts `0.0.0.0/0` as a trusted CIDR
@@ -127,3 +143,7 @@ documented in `fi-fhir serve --help`. A malformed value fails startup.
 - A command allowed by `FI_FHIR_WORKFLOW_EXEC_ALLOWLIST` inherits the full
   process environment, including any credential the pod holds. Keep the list
   to purpose-built wrappers.
+- Without `FI_FHIR_TELEMETRY_CORRELATION_KEY` the correlation digest is
+  unkeyed, so anyone holding the logs or the trace collector can recover a
+  low-entropy header by dictionary. Set the key in every deployment that
+  enables tracing or ships logs off the pod.

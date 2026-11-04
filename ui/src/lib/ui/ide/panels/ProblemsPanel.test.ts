@@ -1,15 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import ProblemsPanel from './ProblemsPanel.svelte';
-import {
-  resetWorkflowBuilderOpened,
-  workflowDraft
-} from '$lib/features/workflows/workflowStore';
+import { workflowDraft } from '$lib/features/workflows/workflowStore';
 
 describe('ProblemsPanel', () => {
   beforeEach(() => {
     workflowDraft.reset();
-    resetWorkflowBuilderOpened();
   });
 
   it('explains where problems come from on a fresh session instead of listing the empty draft', () => {

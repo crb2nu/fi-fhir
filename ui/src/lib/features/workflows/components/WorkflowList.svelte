@@ -18,7 +18,6 @@
     Select,
     Table,
     Td,
-    Textarea,
     Th,
     Tr
   } from '$lib/ui/primitives';
@@ -35,21 +34,17 @@
     updateWorkflowDefinition,
     fetchWorkflowVersions,
     publishWorkflowVersion,
-    rollbackWorkflowVersion,
-    triggerWorkflow
+    rollbackWorkflowVersion
   } from '../workflowApi';
-  import { validateEventPayload } from '../eventPayload';
   import type {
     GetWorkflowVersionsQuery,
-    ListWorkflowDefinitionsQuery,
-    TriggerWorkflowMutation
+    ListWorkflowDefinitionsQuery
   } from '$lib/gen/graphql';
   import { toasts } from '$lib/ui/toastStore';
   import { isErrorToasted } from '$lib/graphql/client';
 
   type WorkflowItem = ListWorkflowDefinitionsQuery['workflowDefinitions'][number];
   type WorkflowVersionItem = GetWorkflowVersionsQuery['workflowVersions'][number];
-  type TriggerResult = TriggerWorkflowMutation['triggerWorkflow'];
   type OpenBuilderPayload = {
     workflowId: string;
     name: string;
@@ -73,12 +68,7 @@
   let loading = true;
   let error: string | null = null;
 
-  let runningWorkflowName: string | null = null;
   let selectedWorkflowId: string | null = null;
-
-  let eventJsonByWorkflow: Record<string, string> = {};
-  let runResultByWorkflow: Record<string, TriggerResult | undefined> = {};
-  let runErrorByWorkflow: Record<string, string | undefined> = {};
 
   // Definition lifecycle (.loom/42 E-5): rename, re-describe, archive, restore.
   const STATUS_FILTER_OPTIONS: SelectOption[] = [
@@ -273,39 +263,8 @@
     await ensureWorkflowVersions(workflow);
   }
 
-  function getDefaultEventJson(workflowName: string): string {
-    const normalized = workflowName.toLowerCase();
-    let type = 'PATIENT_ADMIT';
-
-    if (normalized.includes('lab') || normalized.includes('oru')) {
-      type = 'LAB_RESULT';
-    } else if (normalized.includes('discharge')) {
-      type = 'PATIENT_DISCHARGE';
-    } else if (normalized.includes('appoint') || normalized.includes('siu')) {
-      type = 'APPOINTMENT_SCHEDULED';
-    }
-
-    return JSON.stringify(
-      {
-        type,
-        source: 'ui-manual',
-        id: `manual-${Date.now()}`,
-        timestamp: new Date().toISOString()
-      },
-      null,
-      2
-    );
-  }
-
   function selectWorkflow(workflow: WorkflowItem) {
     selectedWorkflowId = workflow.id;
-
-    if (!eventJsonByWorkflow[workflow.name]) {
-      eventJsonByWorkflow = {
-        ...eventJsonByWorkflow,
-        [workflow.name]: getDefaultEventJson(workflow.name)
-      };
-    }
 
     if (!selectedEnvByWorkflowId[workflow.id]) {
       selectedEnvByWorkflowId = {
@@ -315,13 +274,6 @@
     }
 
     void ensureWorkflowVersions(workflow);
-  }
-
-  function setSampleEvent(workflowName: string) {
-    eventJsonByWorkflow = {
-      ...eventJsonByWorkflow,
-      [workflowName]: getDefaultEventJson(workflowName)
-    };
   }
 
   function parsePublishedVersions(raw: unknown): Record<string, string> {
@@ -421,20 +373,6 @@
     ];
   }
 
-  function resultItems(result: TriggerResult): KeyValueItem[] {
-    const items: KeyValueItem[] = [
-      { key: 'Matched routes', value: result.routesMatched, mono: true },
-      { key: 'Executed actions', value: result.actionsExecuted, mono: true },
-      { key: 'Duration', value: `${result.duration.toFixed(2)} ms`, mono: true }
-    ];
-    if (result.runId) items.push({ key: 'Run id', value: result.runId, mono: true, truncate: true });
-    if (result.environment) items.push({ key: 'Environment', value: result.environment, mono: true });
-    if (result.versionId) {
-      items.push({ key: 'Version', value: result.versionId, mono: true, truncate: true });
-    }
-    return items;
-  }
-
   function emitOpenBuilder(workflow: WorkflowItem) {
     dispatch('openBuilder', {
       workflowId: workflow.id,
@@ -448,59 +386,6 @@
 
   function emitOpenMonitor(workflowName: string) {
     dispatch('openMonitor', { workflowName });
-  }
-
-  async function runWorkflow(workflowId: string, workflowName: string) {
-    if (runningWorkflowName) return;
-
-    // Persistent payload validation belongs inline at the field, not in a
-    // transient toast (.loom/22 B1/B4): show the message in runErrorByWorkflow,
-    // which renders as an inline `role="alert"` next to the Event JSON textarea.
-    const payload = validateEventPayload(eventJsonByWorkflow[workflowName] ?? '');
-    if (!payload.ok) {
-      runErrorByWorkflow = {
-        ...runErrorByWorkflow,
-        [workflowName]: payload.message
-      };
-      return;
-    }
-    const parsedEvent = payload.value;
-
-    runningWorkflowName = workflowName;
-    runErrorByWorkflow = { ...runErrorByWorkflow, [workflowName]: undefined };
-
-    try {
-      const data = await triggerWorkflow(workflowName, parsedEvent, {
-        environment: getSelectedEnvironment(workflowId)
-      });
-      runResultByWorkflow = {
-        ...runResultByWorkflow,
-        [workflowName]: data.triggerWorkflow
-      };
-
-      if (data.triggerWorkflow.errors.length > 0) {
-        toasts.error(
-          `Workflow ran with ${data.triggerWorkflow.errors.length} error${data.triggerWorkflow.errors.length === 1 ? '' : 's'}`
-        );
-      } else {
-        toasts.success(
-          `Workflow executed: ${data.triggerWorkflow.actionsExecuted} action${data.triggerWorkflow.actionsExecuted === 1 ? '' : 's'}`
-        );
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to trigger workflow';
-      runErrorByWorkflow = {
-        ...runErrorByWorkflow,
-        [workflowName]: msg
-      };
-      // Inline runErrorByWorkflow carries the field context; only toast if the
-      // global graphqlFetch net did not already (B4 dedupe).
-      if (!isErrorToasted(err)) {
-        toasts.error(msg);
-      }
-    } finally {
-      runningWorkflowName = null;
-    }
   }
 
   async function publishSelectedVersion(workflow: WorkflowItem) {
@@ -637,9 +522,6 @@
         {#if selected}
           {@const wf = selected}
           {@const state = workflowState(wf)}
-          {@const isRunning = runningWorkflowName === wf.name}
-          {@const runResult = runResultByWorkflow[wf.name]}
-          {@const runError = runErrorByWorkflow[wf.name]}
           {@const workflowVersions = versionsByWorkflowId[wf.id] ?? []}
           {@const loadingVersions = !!loadingVersionsByWorkflowId[wf.id]}
           {@const selectedEnv = resolveEnvironment(wf.id, selectedEnvByWorkflowId)}
@@ -808,53 +690,11 @@
               </p>
             {/if}
           </section>
-
-          <section class="details-section" aria-labelledby="inventory-run-title">
-            <h3 id="inventory-run-title" class="section-title">Run an event</h3>
-            <Field label="Event JSON" id={`event-${wf.name}`}>
-              <Textarea
-                mono
-                rows={7}
-                bind:value={eventJsonByWorkflow[wf.name]}
-                placeholder={'{"type":"PATIENT_ADMIT","source":"ui-manual"}'}
-                spellcheck="false"
-              />
-            </Field>
-
-            <div class="button-row">
-              <Button
-                loading={isRunning}
-                onclick={() => runWorkflow(wf.id, wf.name)}
-                disabled={!!runningWorkflowName && !isRunning}
-              >
-                {isRunning ? 'Running...' : 'Run event'}
-              </Button>
-              <Button variant="ghost" onclick={() => setSampleEvent(wf.name)}>Reset sample</Button>
-            </div>
-
-            {#if runError}
-              <p class="inline-error" role="alert">
-                <Icon icon={CircleAlert} />
-                <span>{runError}</span>
-              </p>
-            {/if}
-
-            {#if runResult}
-              <KeyValue items={resultItems(runResult)} />
-              {#if runResult.errors.length > 0}
-                <ul class="error-list" role="alert">
-                  {#each runResult.errors as err, idx (idx)}
-                    <li>{err}</li>
-                  {/each}
-                </ul>
-              {/if}
-            {/if}
-          </section>
         {:else}
           <EmptyState
             icon={MousePointerClick}
             align="start"
-            message="Select a workflow to publish a version or run an event."
+            message="Select a workflow to edit its details or publish a version."
           />
         {/if}
       </aside>
@@ -1003,19 +843,6 @@
 
   .inline-error :global(.ui-icon) {
     margin-top: 1px;
-  }
-
-  .error-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    margin: 0;
-    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
-    border: 1px solid var(--color-danger-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-danger-bg);
-    color: var(--color-danger-text);
-    font-size: var(--text-xs);
   }
 
   @media (max-width: 960px) {

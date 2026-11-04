@@ -280,24 +280,6 @@ function createWorkflowDraftStore() {
 
 export const workflowDraft = createWorkflowDraftStore();
 
-/**
- * An explicit request to treat the draft as live even while it is still the
- * empty default. The builder does not set it on mount (`.loom/42` E-5): the
- * untouched default is nobody's work, so it stays out of the Problems badge
- * until it differs from the default.
- */
-const builderOpenedStore = writable<boolean>(false);
-export const workflowBuilderOpened = { subscribe: builderOpenedStore.subscribe };
-
-export function markWorkflowBuilderOpened(): void {
-  builderOpenedStore.set(true);
-}
-
-/** Test/reset hook: back to a fresh session. */
-export function resetWorkflowBuilderOpened(): void {
-  builderOpenedStore.set(false);
-}
-
 /** A yamlOnly bag counts as content: a draft carrying one is someone's work. */
 function isEmptyBag(bag: Record<string, unknown> | undefined): boolean {
   return !bag || Object.keys(bag).length === 0;
