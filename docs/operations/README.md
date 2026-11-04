@@ -195,8 +195,15 @@ budget. These are operational diagnostics, not a durable audit trail.
 configured tenant and allowlisted fields. Successful per-message operations
 are debug-level; rejection and delivery retry/failure are warning/error-level.
 
-Processor logs include a SHA-256 hash of the caller's correlation ID, never the
-verbatim header or HL7 source-message ID. Successful durable admission and
+Processor logs carry a digest of the caller's `X-Correlation-ID`, never the
+verbatim header or HL7 source-message ID. With
+`FI_FHIR_TELEMETRY_CORRELATION_KEY` set (32 bytes or more) the digest is an
+HMAC-SHA256 under that key, rendered `hmac-sha256:<32 hex>`. Unset, serve falls
+back to the unkeyed `sha256:<hex>` digest and logs a startup WARN
+(`correlation_id is an unkeyed sha256 digest, reversible by dictionary for
+low-entropy headers`); a key that is set but shorter than 32 bytes stops serve
+from starting. The key is read from the environment only; there is no `_FILE`
+variant yet. Successful durable admission and
 claimed delivery logs carry receipt and ledger trace IDs. With tracing enabled,
 operation logs also carry OpenTelemetry trace/span IDs, including for unsampled
 operations; such IDs need not have exported spans. Aggregate batch polls and
