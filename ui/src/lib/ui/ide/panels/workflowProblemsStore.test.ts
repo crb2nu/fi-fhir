@@ -3,8 +3,6 @@ import { get } from 'svelte/store';
 import type { IntegrationSessionPreviewMeta } from '$lib/features/integration-session';
 import {
   isEmptyDefaultDraft,
-  markWorkflowBuilderOpened,
-  resetWorkflowBuilderOpened,
   workflowDraft
 } from '$lib/features/workflows/workflowStore';
 import {
@@ -55,13 +53,11 @@ afterEach(() => {
   setSessionDiagnostics(null);
   problemNavigation.set(null);
   workflowDraft.reset();
-  resetWorkflowBuilderOpened();
 });
 
 describe('draft liveness', () => {
   beforeEach(() => {
     workflowDraft.reset();
-    resetWorkflowBuilderOpened();
   });
 
   it('a fresh session with the empty default draft contributes no problems', () => {
@@ -72,13 +68,6 @@ describe('draft liveness', () => {
     expect(get(problemsDiagnostics).isValid).toBe(true);
     // The draft is still invalid — it just is not anyone's work yet.
     expect(get(workflowDiagnostics).isValid).toBe(false);
-  });
-
-  it('counts the draft once the builder has been opened this session', () => {
-    markWorkflowBuilderOpened();
-    expect(get(workflowDraftLive)).toBe(true);
-    expect(get(workflowProblemCounts).total).toBe(get(workflowDiagnostics).issues.length);
-    expect(get(workflowProblemCounts).total).toBeGreaterThan(0);
   });
 
   it('counts a draft that differs from the empty default (e.g. restored from storage)', () => {
