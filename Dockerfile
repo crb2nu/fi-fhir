@@ -9,7 +9,27 @@ WORKDIR /app
 
 # Copy go mod files first for better layer caching
 COPY go.mod go.sum ./
-RUN go mod download
+
+# proxy.golang.org occasionally resets an HTTP/2 stream part-way through a
+# module zip ("stream error: stream ID N; INTERNAL_ERROR; received from peer");
+# one reset used to fail the whole image build (build:docker, 2026-11-03,
+# pipelines 37258/37313/37378). Retry a bounded number of times with a short
+# backoff. Modules that finished before the reset stay in the module cache, so
+# each retry only fetches what was cut off. The attempt counter is printed so a
+# job trace shows whether the retry path fired.
+RUN set -eu; \
+    attempt=1; max_attempts=3; \
+    until go mod download; do \
+      if [ "$attempt" -ge "$max_attempts" ]; then \
+        echo "go mod download: attempt ${attempt}/${max_attempts} failed; giving up" >&2; \
+        exit 1; \
+      fi; \
+      delay=$((attempt * 5)); \
+      echo "go mod download: attempt ${attempt}/${max_attempts} failed; retrying in ${delay}s" >&2; \
+      sleep "$delay"; \
+      attempt=$((attempt + 1)); \
+    done; \
+    echo "go mod download: succeeded on attempt ${attempt}/${max_attempts}"
 
 # Copy source code
 COPY . .
