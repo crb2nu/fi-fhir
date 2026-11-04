@@ -23,7 +23,9 @@
 # `log` queue driver and asserts it records sizes rather than the message key
 # and payload.
 #
-# This job runs the proof AND its three negative controls. The day-1 gate
+# This job runs the proof AND its three negative controls. The Makefile
+# controls require the sentinel failure text and a non-zero tagged exit; other
+# failures fail the control and print the captured tail. The day-1 gate
 # (TestStructuredLogging_ServeEmitsNoStructuredLogAndTheQueueDriverPrintsPayloads)
 # PASSED on pre-slice `main` asserting the opposite of both halves; the two
 # cannot both pass, which is what makes this proof falsifiable.
@@ -47,22 +49,17 @@ test:structured-logging:
       ./internal/observability
       | rg -x 'TestStructuredLogging_CorrelatedAndPHIFree'
       | awk 'END { if (NR != 1) exit 1 }'
-    # Second existence guard, for the negative control's build tag. A tag that
-    # stops compiling — queue_publish_leak.go deleted, renamed, or excluded —
-    # would make `make structured-logging-negative-control` "fail", which that
-    # target reads as success, because it inverts. Proving the tagged package
-    # still builds and still contains the test is what keeps the control from
-    # passing for the wrong reason.
+    # Second existence guard, for the negative control's build tag. Check the
+    # tagged package builds and contains the test before running the control,
+    # which separately requires the payload sentinel assertion to fail.
     - >-
       go test -tags="integration structuredloggingleak"
       -list '^TestStructuredLogging_CorrelatedAndPHIFree$'
       ./internal/observability
       | rg -x 'TestStructuredLogging_CorrelatedAndPHIFree'
       | awk 'END { if (NR != 1) exit 1 }'
-    # Third existence guard, for the collector-side control's build tag, for the
-    # same reason as the second: `make tracing-negative-control` inverts, so a
-    # `tracingleak` build that stopped compiling would read as a passing
-    # control.
+    # Third existence guard, for the collector-side control's build tag.
+    # The control separately requires the span sentinel assertion to fail.
     - >-
       go test -tags="integration tracingleak"
       -list '^TestStructuredLogging_CorrelatedAndPHIFree$'
@@ -72,13 +69,13 @@ test:structured-logging:
     - make structured-logging
     # The PHI assertion is only proven if restoring the payload print breaks it.
     # The `structuredloggingleak` tag restores it (internal/workflow/
-    # queue_publish_leak.go) and the target inverts the exit status: a zero exit
-    # from the tagged run means the sentinel scan has stopped measuring
+    # queue_publish_leak.go) and the target requires the payload sentinel failure.
+    # A zero exit from the tagged run means the sentinel scan stopped measuring
     # anything, which is exactly the failure 4.2a's negative control caught.
     - make structured-logging-negative-control
     # The collector-side PHI assertion is only proven if restoring the raw
     # caller correlation header on the span breaks it. The `tracingleak` tag
     # restores it (cmd/fi-fhir/serve_tracing_correlation_leak.go) in the serve
-    # process under test, and the target inverts the serve subtest's exit
-    # status.
+    # process under test. The target requires the span sentinel failure and a
+    # non-zero exit from the serve subtest.
     - make tracing-negative-control
