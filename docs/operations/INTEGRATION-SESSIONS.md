@@ -139,7 +139,9 @@ curl -sS -N --max-time 5 -o /dev/null \
 
 The SSE probe names a session that does not exist. It passes the transport and
 the allowlist, the resolver's read-only lookup answers not-found as an event,
-and the stream completes without creating anything. In the IDE, reload the page. HL7
+and the stream completes without creating anything. An IDE tab opened before the
+flip re-reads `/api/auth/status` after a bearer credential is entered; otherwise
+reload it once to pick up the flip. HL7
 intake's **Preview** now shows the Integration Session run progress in place of
 the "not available" note, and Workflow Builder's Dry Run offers the **Session**
 source. HL7 intake's Live events tab, Workflow Monitor, Debug and Runtime Output still
@@ -153,10 +155,14 @@ letting Flux roll the Deployment
 same UI image falls back to the stateless preview path because the capability
 went false. HL7 intake previews through `previewIntegrationMessage`, the Dry
 Run **Session** source disappears, and the session surfaces show the honest
-state. No UI rebuild or image change is needed. Reload any IDE tab that was
-open during the rollback. A tab reads its capabilities once, when it loads.
-Until it reloads, it keeps choosing the session engine, and its **Preview**
-fails with `legacy integration execution is unavailable`.
+state. No UI rebuild or image change is needed, and a tab that was open during
+the rollback does not need a reload. Its first session call after the rollback
+is refused with `legacy integration execution is unavailable`. That refusal
+makes the tab re-read `/api/auth/status`, and a burst of refusals produces at
+most one re-read every 2 seconds. The surfaces then show the stateless path and
+the honest state, as above. Retry **Preview** once the status has been re-read.
+The tab also re-reads the status after a bearer credential is entered in the
+access gate.
 
 Signed publication is separately disabled unless all three key settings are
 present:

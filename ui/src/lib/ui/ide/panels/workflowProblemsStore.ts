@@ -1,9 +1,5 @@
 import { derived, writable } from 'svelte/store';
-import {
-  isEmptyDefaultDraft,
-  workflowBuilderOpened,
-  workflowDraft
-} from '$lib/features/workflows/workflowStore';
+import { isEmptyDefaultDraft, workflowDraft } from '$lib/features/workflows/workflowStore';
 import { validateWorkflowDraft, type WorkflowDraft } from '$lib/features/workflows/workflowTypes';
 import type { IntegrationSessionPreviewMeta } from '$lib/features/integration-session';
 
@@ -82,17 +78,12 @@ export const workflowDiagnostics = derived(workflowDraft, ($draft): WorkflowDiag
 
 /**
  * The workflow draft is "live" once it differs from the empty default (edited
- * in the builder, loaded from a version or restored from storage), or when
- * something explicitly asked for its validation (`markWorkflowBuilderOpened`,
- * which the builder no longer calls on mount: `/workflows` opens on Design, so
- * merely visiting it put the untouched draft's three errors in the Problems
- * badge, `.loom/42` E-5). Only a live draft's validation reaches the Problems
- * badge and panel.
+ * in the builder, loaded from a version or restored from storage). The
+ * untouched default is nobody's work: `/workflows` opens on Design, so merely
+ * visiting it must not put its three errors in the Problems badge (`.loom/42`
+ * E-5). Only a live draft's validation reaches the Problems badge and panel.
  */
-export const workflowDraftLive = derived(
-  [workflowDraft, workflowBuilderOpened],
-  ([$draft, $opened]) => $opened || !isEmptyDefaultDraft($draft)
-);
+export const workflowDraftLive = derived(workflowDraft, ($draft) => !isEmptyDefaultDraft($draft));
 
 const sessionProblems = writable<WorkflowProblem[]>([]);
 

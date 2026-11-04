@@ -44,7 +44,7 @@
   import { onDestroy, onMount } from 'svelte';
   import { HealthDocument } from '$lib/gen/graphql';
   import { Button, Field, Input } from '$lib/ui/primitives';
-  import { resetAccessCapabilities, setAccessStatus } from './accessCapabilities';
+  import { refresh, resetAccessCapabilities, setAccessStatus } from './accessCapabilities';
   import { graphqlFetch } from './client';
   import {
     setGraphQLCredentialProvider,
@@ -118,8 +118,8 @@
 
     busy = true;
     error = null;
-    // The status probe ran before a token existed, so a bearer session's
-    // capabilities are unknown and every surface keeps its try-then-explain path.
+    // The status probe ran before a token existed; until it is re-read with
+    // the bearer, every surface keeps its try-then-explain path.
     resetAccessCapabilities();
     try {
       await disposeClient();
@@ -130,6 +130,7 @@
       accessToken = '';
       access = { via: 'bearer', principal: '' };
       authenticated = true;
+      void refresh();
     } catch {
       accessToken = '';
       memoryToken = '';

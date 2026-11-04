@@ -13,10 +13,9 @@ import {
   expectPreviewComplete,
   fetchAuthStatus,
   graphqlData,
-  hl7PreviewButton,
-  isStreamRequest,
   openHL7Samples,
   openIDE,
+  previewOnSessionStream,
   selects,
   watchPage
 } from './support';
@@ -85,18 +84,9 @@ test('3. an Integration Session stream opens; Verification says admissions are n
   await openIDE(page, '/hl7');
   await enterHL7Message(page, SYNTHETIC_ADT_A01);
 
-  // Preview is what opens the stream, so the wait is armed with the click:
-  // its 10 s budget is the stream's alone, not the page load's or the paste's.
-  const [response] = await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        isStreamRequest(response.request()) && selects(response.request(), 'integrationSessionEvents'),
-      { timeout: 10_000 }
-    ),
-    hl7PreviewButton(page).click()
-  ]);
-  expect(response.status(), 'SSE POST /graphql for integrationSessionEvents').toBe(200);
-  expect(response.headers()['content-type'] ?? '').toMatch(/^text\/event-stream/);
+  // previewOnSessionStream arms the stream-open wait with the Preview click,
+  // giving it its own budget after the page load and paste.
+  await previewOnSessionStream(page);
 
   // Listening, then done: runStreamingSessionPreview issues the run only after
   // the stream's onOpen, and reports `complete` only when the stream raised no
