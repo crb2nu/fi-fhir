@@ -13,7 +13,9 @@
 #
 # The same serve process exports to an in-test OTLP/HTTP collector. The proof
 # requires a durably accepted admission span, its planning child, tenant and
-# receipt lineage shared with the logs, no PHI, no attribute outside
+# receipt lineage shared with the logs, retried dispatch to an unreachable
+# Kafka broker, and delivered dispatch to a reachable TLS webhook. It requires
+# no PHI and no attribute outside
 # `observability.PermittedSpanAttributes()` (narrower than the log allowlist:
 # no source_message_id, error or reason), no `dropped_attributes` report, and
 # the caller's X-Correlation-ID — submitted carrying its own sentinel — present

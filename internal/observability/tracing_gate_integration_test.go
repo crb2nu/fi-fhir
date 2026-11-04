@@ -191,7 +191,7 @@ func assertCallerCorrelationHashed(t *testing.T, spans []*tracepb.Span, sentinel
 
 // assertDeliveryJoinsAdmission proves that asynchronous work retains durable
 // lineage without inheriting the request's OTel trace.
-func assertDeliveryJoinsAdmission(t *testing.T, spans []*tracepb.Span) *tracepb.Span {
+func assertDeliveryJoinsAdmission(t *testing.T, spans []*tracepb.Span, outcome string) *tracepb.Span {
 	t.Helper()
 	var admission, delivery *tracepb.Span
 	for _, span := range spans {
@@ -199,13 +199,15 @@ func assertDeliveryJoinsAdmission(t *testing.T, spans []*tracepb.Span) *tracepb.
 		case "integration.admission":
 			admission = span
 		case "integration.delivery.dispatch":
-			delivery = span
+			if spanStringField(span, "outcome") == outcome {
+				delivery = span
+			}
 		}
 	}
 	if admission == nil || delivery == nil {
-		t.Fatal("missing admission/delivery spans")
+		t.Fatalf("missing admission/delivery spans for outcome %q", outcome)
 	}
-	for _, key := range []string{"receipt_id", "lineage_trace_id"} {
+	for _, key := range []string{"tenant_id", "receipt_id", "lineage_trace_id"} {
 		want := spanStringField(admission, key)
 		if got := spanStringField(delivery, key); want == "" || got != want {
 			t.Errorf("delivery %s = %q, admission = %q", key, got, want)
