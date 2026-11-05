@@ -117,10 +117,14 @@ const CAPTURES: Capture[] = [
     reach: async (page) => {
       await openIDE(page, '/terminology');
       const view = page.getByRole('tabpanel', { name: 'Browse' });
+      // The operator-bundle stack composes no terminology mapping store yet, so
+      // /api/auth/status reports terminologyStore false and the page renders its
+      // honest "not configured on this deployment" state instead of Browse.
       await expectOneOf(
         view.getByText(/^No mappings (yet|match)/),
         view.getByRole('table', { name: 'Mappings', exact: true }),
-        view.getByText(/^Mappings could not be loaded/)
+        view.getByText(/^Mappings could not be loaded/),
+        page.locator('[data-testid="terminology-preflight"][data-reason="not-configured"]')
       );
     }
   },
