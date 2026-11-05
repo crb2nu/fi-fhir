@@ -321,6 +321,18 @@ describe('AttemptInspector', () => {
     expect(within(screen.getByTestId('attempt-parent')).getByRole('button', { name: 'attempt-a' })).toBeInTheDocument();
   });
 
+  it('does not claim "Not resubmitted" when the trace is at its attempt cap', async () => {
+    api.fetchAttempt.mockResolvedValue(attempt('attempt-0'));
+    api.fetchMessageTrace.mockResolvedValue({
+      ...messageTrace('receipt-a'),
+      attempts: Array.from({ length: 100 }, (_, index) => attempt(`attempt-${index}`))
+    });
+    render(AttemptInspector, { attemptId: 'attempt-0', ...props() });
+    await waitFor(() =>
+      expect(screen.getByTestId('attempt-children')).toHaveTextContent("None in this receipt's first 100 attempts")
+    );
+  });
+
   it('renders the honest absent state for an attempt outside the tenant', async () => {
     api.fetchAttempt.mockResolvedValue(null);
     render(AttemptInspector, { attemptId: 'attempt-elsewhere', ...props() });

@@ -83,10 +83,15 @@
   let children = $state<string[]>([]);
   let childrenLoading = $state(false);
   let childrenError = $state<string | null>(null);
+  // The trace holds a receipt's first TRACE_ATTEMPT_CAP attempts, oldest
+  // first (operator.MaxPageSize); past that, "no children" is not knowable.
+  let childrenTruncated = $state(false);
 
   let seq = 0;
   let auditSeq = 0;
   let childrenSeq = 0;
+
+  const TRACE_ATTEMPT_CAP = 100;
 
   const recoveryActions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
   const actionIcons: Record<DeliveryAction, IconComponent> = {
@@ -123,9 +128,11 @@
       const trace = await fetchMessageTrace(receiptId);
       if (current !== childrenSeq) return;
       children = trace ? childAttempts(trace.attempts, id) : [];
+      childrenTruncated = (trace?.attempts.length ?? 0) >= TRACE_ATTEMPT_CAP;
     } catch (err) {
       if (current !== childrenSeq) return;
       children = [];
+      childrenTruncated = false;
       childrenError = describeOperatorFailure(err).message;
     } finally {
       if (current === childrenSeq) childrenLoading = false;
@@ -164,6 +171,7 @@
     attempt = null;
     children = [];
     childrenError = null;
+    childrenTruncated = false;
     audit = [];
     auditCursor = null;
     auditHasNext = false;
@@ -241,7 +249,9 @@
                 type="button"
                 class="link"
                 onclick={() => oninspect(child)}>{child}</button
-              >{/each}
+              >{/each}{#if childrenTruncated}<span class="none">, and possibly more past this receipt's first {TRACE_ATTEMPT_CAP} attempts</span>{/if}
+          {:else if childrenTruncated}
+            <span class="none">None in this receipt's first {TRACE_ATTEMPT_CAP} attempts</span>
           {:else}
             <span class="none">Not resubmitted</span>
           {/if}
