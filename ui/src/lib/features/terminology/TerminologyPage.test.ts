@@ -55,7 +55,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.clearAllMocks();
-  toasts.clear?.();
+  toasts.dismissAll();
   resetAccessCapabilities();
 });
 
