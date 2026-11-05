@@ -73,6 +73,8 @@ fragment ConnectionFields on Connection {
     detail
     revisionId
     digest
+    observedReplicas
+    totalReplicas
   }
   createdBy {
     ...ConnectionPrincipalFields

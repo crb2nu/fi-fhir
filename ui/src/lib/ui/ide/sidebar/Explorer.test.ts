@@ -21,7 +21,7 @@ function connection(id: string, direction: ConnectionRow['direction'] = 'SOURCE'
   return {
     id, name, direction, kind: direction === 'SOURCE' ? 'MLLP' : 'HTTPS', description: '',
     spec: {}, secretBindings: [], version: 1, archived: false, latestRevision: null, references: [],
-    runtime: { mounted: false, role: null, detail: null, revisionId: null, digest: null },
+    runtime: { mounted: false, role: null, detail: null, revisionId: null, digest: null, observedReplicas: 0, totalReplicas: 0 },
     createdBy: { id: 'operator', kind: 'service' }, createdAt: '2026-10-03T10:00:00Z',
     updatedBy: { id: 'operator', kind: 'service' }, updatedAt: '2026-10-03T10:00:00Z', updatedReason: 'Test connection',
   };

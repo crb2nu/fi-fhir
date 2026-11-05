@@ -4,6 +4,8 @@
   its lease, the destination provenance ledger (the single-attempt read's 25
   rows), and its own append-only audit trail paged by the server
   (`operatorAttemptAudit`), each record with the detail document it carries.
+  The attempt type names only its parent, so its children come from the
+  receipt's trace, which holds every attempt of that receipt.
 -->
 <script lang="ts">
   import CircleAlert from '@lucide/svelte/icons/circle-alert';
@@ -45,17 +47,19 @@
   import {
     fetchAttempt,
     fetchAttemptAudit,
+    fetchMessageTrace,
     type OperatorAttempt,
     type OperatorAuditRecord
   } from './operatorApi';
   import { describeOperatorFailure } from './operatorErrors';
   import { connectionHref } from './operatorLinks';
+  import { childAttempts } from './resubmitChain';
 
   interface Props {
     attemptId: string;
     /** Open the message trace of the attempt's receipt. */
     ontrace: (receiptId: string) => void;
-    /** Inspect another attempt (the resubmit parent). */
+    /** Inspect another attempt (the resubmit parent or a child). */
     oninspect: (attemptId: string) => void;
     oncontrol: (action: DeliveryAction, attemptId: string) => void;
     onclose: () => void;
@@ -76,8 +80,18 @@
   let auditCursor = $state<string | null>(null);
   let auditCursors = $state<string[]>([]);
   let auditHasNext = $state(false);
+  let children = $state<string[]>([]);
+  let childrenLoading = $state(false);
+  let childrenError = $state<string | null>(null);
+  // The trace holds a receipt's first TRACE_ATTEMPT_CAP attempts, oldest
+  // first (operator.MaxPageSize); past that, "no children" is not knowable.
+  let childrenTruncated = $state(false);
+
   let seq = 0;
   let auditSeq = 0;
+  let childrenSeq = 0;
+
+  const TRACE_ATTEMPT_CAP = 100;
 
   const recoveryActions: DeliveryAction[] = ['replay', 'resubmit', 'discard'];
   const actionIcons: Record<DeliveryAction, IconComponent> = {
@@ -96,12 +110,32 @@
       if (current !== seq) return;
       attempt = answer ?? null;
       missing = !answer;
+      if (answer) void loadChildren(answer.attemptId, answer.receiptId);
     } catch (err) {
       if (current !== seq) return;
       attempt = null;
       error = describeOperatorFailure(err).message;
     } finally {
       if (current === seq) loading = false;
+    }
+  }
+
+  async function loadChildren(id: string, receiptId: string): Promise<void> {
+    const current = ++childrenSeq;
+    childrenLoading = true;
+    childrenError = null;
+    try {
+      const trace = await fetchMessageTrace(receiptId);
+      if (current !== childrenSeq) return;
+      children = trace ? childAttempts(trace.attempts, id) : [];
+      childrenTruncated = (trace?.attempts.length ?? 0) >= TRACE_ATTEMPT_CAP;
+    } catch (err) {
+      if (current !== childrenSeq) return;
+      children = [];
+      childrenTruncated = false;
+      childrenError = describeOperatorFailure(err).message;
+    } finally {
+      if (current === childrenSeq) childrenLoading = false;
     }
   }
 
@@ -135,13 +169,16 @@
   $effect(() => {
     const id = attemptId;
     attempt = null;
+    children = [];
+    childrenError = null;
+    childrenTruncated = false;
     audit = [];
     auditCursor = null;
     auditHasNext = false;
     auditCursors = [];
     void loadAttempt(id);
     void loadAudit(id, null);
-    return () => { seq += 1; auditSeq += 1; };
+    return () => { seq += 1; auditSeq += 1; childrenSeq += 1; };
   });
 
   function nextAuditPage(): void {
@@ -199,6 +236,24 @@
             <button type="button" class="link" onclick={() => oninspect(parent)}>{parent}</button>
           {:else}
             <span class="none">An original attempt, not a resubmit</span>
+          {/if}
+        </dd>
+        <dt>Resubmitted as</dt>
+        <dd data-testid="attempt-children">
+          {#if childrenError}
+            <span class="none" role="alert">Children unavailable: {childrenError}</span>
+          {:else if childrenLoading && children.length === 0}
+            <span class="none">Loading</span>
+          {:else if children.length > 0}
+            {#each children as child, index (child)}{#if index > 0}<span class="none">, </span>{/if}<button
+                type="button"
+                class="link"
+                onclick={() => oninspect(child)}>{child}</button
+              >{/each}{#if childrenTruncated}<span class="none">, and possibly more past this receipt's first {TRACE_ATTEMPT_CAP} attempts</span>{/if}
+          {:else if childrenTruncated}
+            <span class="none">None in this receipt's first {TRACE_ATTEMPT_CAP} attempts</span>
+          {:else}
+            <span class="none">Not resubmitted</span>
           {/if}
         </dd>
         <dt>Destination</dt>

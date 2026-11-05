@@ -11,6 +11,7 @@ lint:fmt	lint	false
 lint:go	lint	false
 lint:gqlgen	lint	false
 lint:helm	lint	false
+lint:runtime-config	lint	false
 lint:sdk-typescript	lint	false
 lint:ui	lint	false
 lint:vet	lint	false

@@ -21,6 +21,7 @@ include:
   - local: ci/test-destination-transport.yml
   - local: ci/lint-edi.yml
   - local: ci/lint-edi-fixtures.yml
+  - local: ci/lint-runtime-config.yml
   - local: ci/test-mllp-rate-quota.yml
   - local: ci/test-structured-logging.yml
   - local: ci/s5b-chaos-dr.yml
