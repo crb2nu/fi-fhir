@@ -136,3 +136,24 @@ export function connectionStatus(input: ConnectionStatusInput): ConnectionStatus
 export function connectionStatusText(tokens: readonly ConnectionStatusToken[]): string {
   return tokens.map((token) => token.label).join(' · ');
 }
+
+/** The runtime's fleet counts; absent from servers before they were fields. */
+export interface ReplicaCountsInput {
+  observedReplicas?: number | null | undefined;
+  totalReplicas?: number | null | undefined;
+}
+
+/**
+ * "mounted on n of m": n replicas with a fresh heartbeat report a revision of
+ * this connection mounted, of m replicas with any fresh heartbeat — the
+ * server's counts, the same ones Operator's fleet view derives from
+ * engineRuntime.observations. Null when the runtime state is absent or no
+ * replica reports a fresh heartbeat: "0 of 0" would read as a fleet that
+ * answered, and none did.
+ */
+export function replicaCountText(runtime: ReplicaCountsInput | null | undefined): string | null {
+  const observed = runtime?.observedReplicas;
+  const total = runtime?.totalReplicas;
+  if (observed === null || observed === undefined || !total) return null;
+  return `mounted on ${observed} of ${total}`;
+}

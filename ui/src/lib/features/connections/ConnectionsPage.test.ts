@@ -100,7 +100,7 @@ function mllpRow(overrides: Partial<ConnectionRow> = {}): ConnectionRow {
     archived: false,
     latestRevision: null,
     references: [],
-    runtime: { mounted: false, role: null, detail: null, revisionId: null, digest: null },
+    runtime: { mounted: false, role: null, detail: null, revisionId: null, digest: null, observedReplicas: 0, totalReplicas: 0 },
     createdBy: { id: 'e2e-ide-operator', kind: 'service' },
     createdAt: '2026-09-26T10:00:00Z',
     updatedBy: { id: 'e2e-ide-operator', kind: 'service' },
@@ -478,7 +478,9 @@ describe('Connections — the catalog table and details', () => {
           role: 'mllp-listener',
           detail: 'revision 1: MLLP listener on 0.0.0.0:22575 for definition adt-to-fhir',
           revisionId: '1',
-          digest: DIGEST
+          digest: DIGEST,
+          observedReplicas: 2,
+          totalReplicas: 3
         }
       })
     ]);
@@ -490,7 +492,34 @@ describe('Connections — the catalog table and details', () => {
     const cells = within(row).getAllByRole('cell').map((cell) => cell.textContent?.trim());
     expect(cells.slice(0, 5)).toEqual(['ADT east', 'MLLP', 'adt-east-mllp', '0.0.0.0:22575', 'r1 abababab…']);
     expect(within(row).getAllByRole('cell')[4]).toHaveAttribute('title', DIGEST);
-    expect(cells[6]).toBe('2026-09-26 10:05');
+    expect(cells[6]).toBe('mounted on 2 of 3');
+    expect(cells[7]).toBe('2026-09-26 10:05');
+  });
+
+  // The fleet's counts on the row and in the Usage tab; never "0 of 0".
+  it.each([
+    ['the replicas report', { observedReplicas: 2, totalReplicas: 3 }, 'mounted on 2 of 3'],
+    ['no replica reports a fresh heartbeat', { observedReplicas: 0, totalReplicas: 0 }, '—'],
+    ['the runtime state carries no counts', { observedReplicas: undefined, totalReplicas: undefined }, '—']
+  ] as const)('renders replica counts when %s', async (_name, counts, expected) => {
+    setAccessStatus(status());
+    const base = mllpRow();
+    api.fetchConnections.mockResolvedValue([
+      { ...base, runtime: { ...base.runtime, ...counts } as ConnectionRow['runtime'] }
+    ]);
+    render(ConnectionsPage);
+
+    const table = await screen.findByTestId('connections-table');
+    const row = table.querySelector<HTMLElement>('[data-row="adt-east-mllp"]') as HTMLElement;
+    const cell = within(row).getAllByRole('cell')[6] as HTMLElement;
+    expect(cell.textContent?.trim()).toBe(expected);
+    expect(row.textContent).not.toContain('0 of 0');
+
+    await selectRow('ADT east');
+    await fireEvent.click(await screen.findByRole('tab', { name: 'Usage' }));
+    const usage = await screen.findByTestId('connection-usage');
+    const fleet = within(usage).getByText('Fleet');
+    expect(fleet.nextElementSibling?.textContent?.trim()).toBe(expected);
   });
 
   it('checks a selected draft with validateConnectionSpec and lands its problems on their fields', async () => {
