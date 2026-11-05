@@ -53,7 +53,6 @@
   // Tab refs for arrow-key focus. Reactive state so `bind:this` into it is a
   // tracked binding (a plain object triggers binding_property_non_reactive).
   const buttons: Record<string, HTMLButtonElement | null> = $state({});
-  // svelte/elements does not type aria-description yet, so tabs spread it.
 
   export function focusedTabId(): string | null {
     if (typeof document === 'undefined') return null;
@@ -128,6 +127,7 @@
   aria-orientation="horizontal"
 >
   {#each items as item (item.id)}
+    <!-- svelte/elements does not type aria-description yet, so the tab spreads it. -->
     {#snippet tab()}
       <button
         bind:this={buttons[item.id]}
