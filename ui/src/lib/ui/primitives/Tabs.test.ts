@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import Tabs from './Tabs.svelte';
 import type { TabItem } from './types';
 
@@ -156,15 +156,42 @@ describe('Tabs', () => {
     const onclose = vi.fn();
     render(Tabs, { props: { items, value: 'browse', onclose } });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Close Statistics' }));
+    await fireEvent.click(screen.getByLabelText('Close Statistics'));
     expect(onclose).toHaveBeenCalledWith('stats');
 
     await fireEvent.keyDown(screen.getByRole('tab', { name: 'Browse' }), { key: 'Delete' });
     expect(onclose).toHaveBeenLastCalledWith('browse');
   });
 
+  it('with onclose: the tablist exposes only tabs, which advertise Delete', async () => {
+    const onclose = vi.fn();
+    render(Tabs, { props: { items, value: 'browse', onclose } });
+
+    const tablist = screen.getByRole('tablist');
+    expect(within(tablist).queryAllByRole('button')).toHaveLength(0);
+    expect(within(tablist).getAllByRole('tab')).toHaveLength(items.length);
+    for (const close of within(tablist).getAllByLabelText(/^Close /)) {
+      expect(close).toHaveAttribute('aria-hidden', 'true');
+      expect(close).toHaveAttribute('tabindex', '-1');
+    }
+    for (const tab of within(tablist).getAllByRole('tab')) {
+      expect(tab).toHaveAttribute('aria-keyshortcuts', 'Delete');
+    }
+
+    // Keyboard navigation between tabs is unchanged.
+    const browse = screen.getByRole('tab', { name: 'Browse' });
+    browse.focus();
+    await fireEvent.keyDown(browse, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: /^Live Stream/ })).toHaveFocus();
+    await fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    expect(screen.getByRole('tab', { name: 'Statistics' })).toHaveFocus();
+    await fireEvent.keyDown(document.activeElement!, { key: 'Delete' });
+    expect(onclose).toHaveBeenLastCalledWith('stats');
+  });
+
   it('without onclose, Delete does nothing and no close buttons render', async () => {
     render(Tabs, { props: { items, value: 'browse' } });
-    expect(screen.queryByRole('button', { name: /^Close / })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Close /)).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Browse' })).not.toHaveAttribute('aria-keyshortcuts');
   });
 });

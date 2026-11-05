@@ -6,10 +6,13 @@
   The active tab gets the accent underline; that is the accent's only use here.
 
   A tab may carry a toned `badge` (the Problems count), a `dirty` dot, and a
-  `title`. With `onclose` every tab gets a close button beside it (outside the
-  tab, tabindex -1) and Delete closes the focused tab. `onselect` reports every
-  activation, including a click on the tab that is already selected (the
-  bottom panel reopens on it); `onchange` reports changes only.
+  `title`. With `onclose` every tab gets a close button beside it and Delete
+  closes the focused tab. The button is a pointer affordance only (tabindex -1,
+  aria-hidden): inside the tablist assistive tech would announce it among the
+  tabs, so the tab instead advertises Delete through aria-keyshortcuts.
+  `onselect` reports every activation, including a click on the tab that is
+  already selected (the bottom panel reopens on it); `onchange` reports
+  changes only.
 -->
 <script lang="ts">
   import type { HTMLAttributes } from 'svelte/elements';
@@ -136,6 +139,7 @@
         tabindex={item.id === tabStop ? 0 : -1}
         disabled={item.disabled}
         title={item.title}
+        aria-keyshortcuts={onclose ? 'Delete' : undefined}
         data-testid={item.testid}
         onclick={() => select(item.id)}
         onkeydown={(event) => onKeydown(event, item.id)}
@@ -171,6 +175,7 @@
           aria-label="Close {item.label}"
           title="Close"
           tabindex="-1"
+          aria-hidden="true"
           onclick={() => onclose(item.id)}
         >
           <Icon icon={X} size={14} />
