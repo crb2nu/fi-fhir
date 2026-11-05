@@ -1,0 +1,38 @@
+# .loom/climb.yaml — libs/fi-fhir (Climbs, .loom/208 §5)
+version: 1
+problem:
+  text: >-
+    Healthcare integration engines are closed, expensive and hard to observe. fi-fhir is an open,
+    Kubernetes-native engine with profile-driven parsing, canonical events, durable ingestion and
+    delivery, and a Mapping Studio. It is pre-1.0: its capabilities and tests do not yet certify
+    every supported deployment profile or vendor feed, and the climb is toward a 1.0 whose
+    supported matrix they do.
+  source: ROADMAP.md#current-status
+  since: 2026-06-01
+summit:
+  - id: gates
+    label: Roadmap gates met (Now list)
+    metric: { kind: roadmap-gates }
+    target: 1
+    direction: up
+    unit: ratio
+  - id: ci-green
+    label: Main pipeline success ratio (30d)
+    metric: { kind: gitlab, expr: pipeline_success_ratio }
+    target: 0.95
+    direction: up
+    unit: ratio
+  - id: lead-time
+    label: Slice-to-merge p50 on the Mills lane
+    metric: { kind: kpi, key: slice_to_merge_p50_seconds, repo: libs/fi-fhir }
+    target: 7200
+    direction: down
+    unit: seconds
+composite:
+  weights: { gates: 0.6, ci-green: 0.2, lead-time: 0.2 }
+constraints:
+  - ROADMAP.md#program-gates
+  - ROADMAP.md#10-standards-and-release-scope
+  - .loom/20-product-spec-integration-engine-ide-completion.md#non-goals
+route: ROADMAP.md
+camps: { tags: 'v*' }
