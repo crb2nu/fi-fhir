@@ -1,6 +1,9 @@
-# Required runtime configuration proof: deployment tracing stays opt-in
-# (MR !283), and environment, Compose, and proxy settings remain consistent.
-# Required check failures block the pipeline; advisory warnings remain visible.
+# Lane: runtime config. scripts/check-runtime-config.sh holds the "tracing
+# defaults stay opt-in" scan (MR !283) plus the .env.example, Compose and proxy
+# checks, but only `make check-runtime-config` ran it, so a deploy/ manifest that
+# flipped FI_FHIR_TRACING_ENABLED on passed every pipeline. Required checks fail
+# the job; warn-only checks stay advisory. The alpine image has neither bash nor
+# the python3 the tracing scan uses, and the script needs no Go, so no .go-cache.
 lint:runtime-config:
   stage: lint
   extends:
