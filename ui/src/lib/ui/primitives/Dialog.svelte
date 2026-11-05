@@ -2,10 +2,13 @@
   Dialog — a modal surface: a 40 px header (title, close), a padded body and
   an optional footer of md buttons, on the overlay colour with the one
   elevation dialogs are allowed. Labelled by its title, described by
-  `description` when given. While open, Tab and Shift+Tab stay inside; Escape
-  and a click on the backdrop close it (unless `dismissible` is false, e.g.
-  while a write is in flight); closing returns focus to the element that had
-  it before the dialog opened.
+  `description` when given. On open, focus goes to `initialFocus`, else the
+  first tabbable element, else the surface itself (tabindex -1). While open,
+  Tab and Shift+Tab stay inside; Escape and a click on the backdrop close it
+  (unless `dismissible` is false, e.g. while a write is in flight); closing
+  returns focus to the element that had it before the dialog opened. An
+  Escape pressed before focus has entered (during the open transition) is
+  swallowed: it neither closes the dialog nor reaches the page.
 
   Controlled: with `onclose` the owner decides what closing means; without
   it the dialog sets `open` to false (bind:open).
@@ -73,19 +76,34 @@
 
   let dialogEl: HTMLDivElement | undefined = $state();
   let focus: DialogFocusController | null = null;
+  let focusEntered = false;
+
+  // Until focus has entered, keys still land on the opener, outside the
+  // overlay's handler; catch Escape first so it cannot reach the page.
+  function holdEscape(event: KeyboardEvent): void {
+    if (focusEntered || event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   $effect(() => {
     if (!open) return;
     // Remember the opener now, before anything inside takes focus.
     const opener = typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+    focusEntered = false;
+    window.addEventListener('keydown', holdEscape, true);
     void tick().then(() => {
       if (!dialogEl) return;
       const target = initialFocus ? dialogEl.querySelector<HTMLElement>(initialFocus) : null;
       focus = createDialogFocusController(dialogEl, { initialFocus: target });
       focus.focusInitial();
+      if (!dialogEl.contains(document.activeElement)) dialogEl.focus();
+      focusEntered = true;
     });
     return () => {
+      window.removeEventListener('keydown', holdEscape, true);
       focus = null;
+      focusEntered = false;
       if (opener && opener.isConnected) opener.focus();
     };
   });
@@ -101,7 +119,7 @@
       // defaultPrevented) leave their own state alone.
       event.preventDefault();
       event.stopPropagation();
-      if (dismissible) close();
+      if (dismissible && focusEntered) close();
       return;
     }
     if (event.key === 'Tab') focus?.onKeydown(event);

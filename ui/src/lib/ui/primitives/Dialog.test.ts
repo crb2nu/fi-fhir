@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { tick } from 'svelte';
+import { flushSync, tick } from 'svelte';
+import Dialog from './Dialog.svelte';
 import DialogFixture from './__fixtures__/DialogFixture.svelte';
 
 async function openFromTrigger(): Promise<HTMLElement> {
@@ -64,6 +65,60 @@ describe('Dialog', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(opener).toHaveFocus();
       expect(pageHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', pageHandler);
+    }
+  });
+
+  it('focuses the dialog surface when nothing inside is focusable', async () => {
+    render(Dialog, { props: { open: true, title: 'Nothing to focus', layout: 'bare' } });
+    const dialog = screen.getByRole('dialog', { name: 'Nothing to focus' });
+    await waitFor(() => expect(dialog).toHaveFocus());
+    expect(dialog).toHaveClass('ui-dialog');
+  });
+
+  it('swallows an Escape pressed before focus has entered, then closes on the next', async () => {
+    render(DialogFixture);
+    const opener = screen.getByTestId('opener');
+    const pageHandler = vi.fn();
+    window.addEventListener('keydown', pageHandler);
+    try {
+      opener.focus();
+      // Open synchronously and press Escape before the post-tick initial focus runs.
+      flushSync(() => opener.click());
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(opener).toHaveFocus();
+      const early = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      opener.dispatchEvent(early);
+      expect(early.defaultPrevented).toBe(true);
+      expect(pageHandler).not.toHaveBeenCalled();
+
+      await tick();
+      await tick();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId('second')).toHaveFocus());
+
+      await fireEvent.keyDown(screen.getByTestId('second'), { key: 'Escape' });
+      await tick();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(opener).toHaveFocus();
+      expect(pageHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', pageHandler);
+    }
+  });
+
+  it('stops holding Escape once closed, so the page gets it again', async () => {
+    render(DialogFixture);
+    const opener = await openFromTrigger();
+    await fireEvent.keyDown(screen.getByTestId('second'), { key: 'Escape' });
+    await tick();
+
+    const pageHandler = vi.fn();
+    window.addEventListener('keydown', pageHandler);
+    try {
+      await fireEvent.keyDown(opener, { key: 'Escape' });
+      expect(pageHandler).toHaveBeenCalledTimes(1);
     } finally {
       window.removeEventListener('keydown', pageHandler);
     }
