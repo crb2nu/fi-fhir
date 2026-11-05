@@ -13,7 +13,8 @@ import MessageBrowser from './MessageBrowser.svelte';
 import MessageTrace from './MessageTrace.svelte';
 import OperatorPage from './OperatorPage.svelte';
 import { VALIDATION_REQUIRED_REASON } from './attemptPresentation';
-import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
+import { refresh, resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
+import { setGraphQLCredentialProvider } from '$lib/graphql/credentials';
 
 const navigation = vi.hoisted(() => ({
   callback: null as ((navigation: { to: { url: URL } }) => void) | null,
@@ -156,6 +157,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
+  setGraphQLCredentialProvider(null);
   resetAccessCapabilities();
   window.history.replaceState(null, '', '/');
 });
@@ -276,6 +279,46 @@ describe('AttemptInspector', () => {
     await waitFor(() => expect(within(trail).getByTestId('audit-page')).toHaveTextContent('Audit page 2'));
     expect(api.fetchAttemptAudit).toHaveBeenLastCalledWith('attempt-child', { first: 5, after: 'a-2' });
     expect(within(trail).getAllByTestId('audit-row')).toHaveLength(1);
+  });
+
+  it('links each resubmitted child from the receipt trace, beside the parent', async () => {
+    api.fetchAttempt.mockResolvedValue(attempt('attempt-mid', { parentAttemptId: 'attempt-a' }));
+    api.fetchMessageTrace.mockResolvedValue({
+      ...messageTrace('receipt-a'),
+      attempts: [
+        attempt('attempt-a'),
+        attempt('attempt-mid', { parentAttemptId: 'attempt-a' }),
+        attempt('attempt-c1', { parentAttemptId: 'attempt-mid' }),
+        attempt('attempt-c2', { parentAttemptId: 'attempt-mid' })
+      ]
+    });
+    const handlers = props();
+    render(AttemptInspector, { attemptId: 'attempt-mid', ...handlers });
+
+    const children = await screen.findByTestId('attempt-children');
+    await waitFor(() => expect(within(children).getAllByRole('button')).toHaveLength(2));
+    expect(api.fetchMessageTrace).toHaveBeenCalledWith('receipt-a');
+    await fireEvent.click(within(children).getByRole('button', { name: 'attempt-c2' }));
+    expect(handlers.oninspect).toHaveBeenCalledWith('attempt-c2');
+    await fireEvent.click(within(screen.getByTestId('attempt-parent')).getByRole('button', { name: 'attempt-a' }));
+    expect(handlers.oninspect).toHaveBeenLastCalledWith('attempt-a');
+  });
+
+  it('says "Not resubmitted" for a leaf, and keeps the parent link when the trace read fails', async () => {
+    api.fetchAttempt.mockResolvedValue(attempt('attempt-leaf', { parentAttemptId: 'attempt-a' }));
+    api.fetchMessageTrace.mockResolvedValueOnce({
+      ...messageTrace('receipt-a'),
+      attempts: [attempt('attempt-a'), attempt('attempt-leaf', { parentAttemptId: 'attempt-a' })]
+    });
+    const { unmount } = render(AttemptInspector, { attemptId: 'attempt-leaf', ...props() });
+    await waitFor(() => expect(screen.getByTestId('attempt-children')).toHaveTextContent('Not resubmitted'));
+    unmount();
+
+    api.fetchMessageTrace.mockRejectedValueOnce(new Error('trace refused'));
+    render(AttemptInspector, { attemptId: 'attempt-leaf', ...props() });
+    const children = await screen.findByTestId('attempt-children');
+    await waitFor(() => expect(within(children).getByRole('alert')).toHaveTextContent('Children unavailable'));
+    expect(within(screen.getByTestId('attempt-parent')).getByRole('button', { name: 'attempt-a' })).toBeInTheDocument();
   });
 
   it('renders the honest absent state for an attempt outside the tenant', async () => {
@@ -486,8 +529,10 @@ describe('OperatorPage deep links and pre-flight', () => {
       { replaceState: true, noScroll: true, keepFocus: true }
     );
     await screen.findByTestId('trace-events-link');
+    // The inspector read the same trace for its child links; count the page's reads from here.
+    const traceReads = api.fetchMessageTrace.mock.calls.length;
     await navigate('/operator?receipt=receipt-a');
-    expect(api.fetchMessageTrace).toHaveBeenCalledTimes(1);
+    expect(api.fetchMessageTrace).toHaveBeenCalledTimes(traceReads);
     await fireEvent.click(screen.getByRole('tab', { name: 'Deployments' }));
     expect(window.location.search).toBe('');
     await fireEvent.click(await screen.findByRole('button', { name: 'Show lifecycle history' }));
@@ -513,6 +558,62 @@ describe('OperatorPage deep links and pre-flight', () => {
     render(OperatorPage);
     await waitFor(() => expect(api.fetchMessageTrace).toHaveBeenCalledWith('receipt-q'));
     expect(await screen.findByText('This receipt is not available in your tenant.')).toBeInTheDocument();
+  });
+
+  function probeInFlight() {
+    const answer = deferred<Response>();
+    vi.stubGlobal('fetch', vi.fn(() => answer.promise));
+    setGraphQLCredentialProvider(() => 'test-bearer-token');
+    const probe = refresh();
+    return {
+      async settle(body: unknown) {
+        answer.resolve(new Response(JSON.stringify(body), { status: 200 }));
+        await probe;
+        await tick();
+      }
+    };
+  }
+
+  it('holds ?attempt= until the status probe answers, then selects exactly once', async () => {
+    api.fetchAttempt.mockResolvedValue(attempt('attempt-z'));
+    const probe = probeInFlight();
+    window.history.replaceState(null, '', '/operator?attempt=attempt-z');
+    render(OperatorPage);
+    navigation.callback?.({ to: { url: new URL(window.location.href) } });
+    await tick();
+    expect(api.fetchAttempt).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('attempt-inspector')).toBeNull();
+
+    await probe.settle(status({ controlPlane: true }));
+    expect(await screen.findByTestId('attempt-inspector')).toHaveAttribute('data-attempt-id', 'attempt-z');
+    expect(api.fetchAttempt).toHaveBeenCalledTimes(1);
+
+    await navigate('/operator?attempt=attempt-y');
+    await waitFor(() => expect(screen.getByTestId('attempt-inspector')).toHaveAttribute('data-attempt-id', 'attempt-y'));
+  });
+
+  it('holds ?receipt= until the probe answers, and applies it on an older server that stays unknown', async () => {
+    api.fetchMessageTrace.mockResolvedValue(messageTrace('receipt-q'));
+    const probe = probeInFlight();
+    window.history.replaceState(null, '', '/operator?receipt=receipt-q');
+    render(OperatorPage);
+    await tick();
+    expect(api.fetchMessageTrace).not.toHaveBeenCalled();
+
+    await probe.settle({ authenticated: true, authVia: 'bearer' });
+    expect(await screen.findByTestId('trace-events-link')).toHaveAttribute('href', '/events?receipt=receipt-q');
+    expect(api.fetchMessageTrace).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the forbidden pre-flight and selects nothing when the settled identity cannot read', async () => {
+    const probe = probeInFlight();
+    window.history.replaceState(null, '', '/operator?receipt=receipt-q');
+    render(OperatorPage);
+    await probe.settle(status({ operatorRead: false, controlPlane: true }, ['graphql:operator']));
+    const preflight = await screen.findByTestId('operator-preflight');
+    expect(preflight).toHaveAttribute('data-reason', 'missing-role');
+    expect(api.fetchMessageTrace).not.toHaveBeenCalled();
+    expect(api.fetchAttempt).not.toHaveBeenCalled();
   });
 
   it('says "not configured" before the missing role and queries nothing', async () => {
