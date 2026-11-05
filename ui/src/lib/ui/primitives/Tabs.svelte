@@ -53,6 +53,7 @@
   // Tab refs for arrow-key focus. Reactive state so `bind:this` into it is a
   // tracked binding (a plain object triggers binding_property_non_reactive).
   const buttons: Record<string, HTMLButtonElement | null> = $state({});
+  // svelte/elements does not type aria-description yet, so tabs spread it.
 
   export function focusedTabId(): string | null {
     if (typeof document === 'undefined') return null;
@@ -139,6 +140,7 @@
         tabindex={item.id === tabStop ? 0 : -1}
         disabled={item.disabled}
         title={item.title}
+        {...item.description ? { 'aria-description': item.description } : {}}
         aria-keyshortcuts={onclose ? 'Delete' : undefined}
         data-testid={item.testid}
         onclick={() => select(item.id)}
