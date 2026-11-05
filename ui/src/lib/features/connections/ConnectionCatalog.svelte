@@ -396,7 +396,7 @@
             </Td>
             <Td
               muted={!replicas}
-              title={replicas ? `${replicas} replicas with a fresh heartbeat` : 'No replica reports a fresh heartbeat'}
+              title={replicas ? `${replicas} replicas with a fresh heartbeat` : 'Replica counts unavailable: none reported, or no replica has a fresh heartbeat'}
               value={replicas ?? '—'}
             />
             <Td mono muted title={row.updatedAt} value={formatMinute(row.updatedAt)} />
