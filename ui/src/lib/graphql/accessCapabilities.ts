@@ -169,6 +169,16 @@ export const REFRESH_COALESCE_MS = 2000;
 let lastProbeAt = Number.NEGATIVE_INFINITY;
 let pendingProbe: Promise<void> | null = null;
 
+const probesInFlight = writable(0);
+
+/**
+ * True while a `refresh()` status probe has not answered. A bearer session
+ * mounts the IDE before its first probe returns, so `unknown` alone does not
+ * say whether capabilities are still coming (wait) or never will be (an older
+ * server: proceed). `unknown` with no probe in flight is settled.
+ */
+export const accessProbePending: Readable<boolean> = derived(probesInFlight, (count) => count > 0);
+
 /**
  * Re-reads `/api/auth/status` with the current credential and publishes it.
  * A failed probe (no credential, network error, non-2xx) keeps the current
@@ -176,6 +186,7 @@ let pendingProbe: Promise<void> | null = null;
  */
 export async function refresh(): Promise<void> {
   const started = generation;
+  probesInFlight.update((count) => count + 1);
   try {
     const authorization = await requireGraphQLAuthorization();
     const headers: Record<string, string> = { Accept: 'application/json' };
@@ -187,6 +198,8 @@ export async function refresh(): Promise<void> {
     setAccessStatus(body);
   } catch {
     // Keep what the tab already knows.
+  } finally {
+    probesInFlight.update((count) => count - 1);
   }
 }
 

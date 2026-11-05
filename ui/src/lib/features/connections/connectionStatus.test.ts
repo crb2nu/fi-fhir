@@ -3,6 +3,7 @@ import {
   connectionStatus,
   connectionStatusText,
   mountedRevisionId,
+  replicaCountText,
   runtimeRevisionId,
   type ConnectionStatusInput
 } from './connectionStatus';
@@ -112,5 +113,18 @@ describe('runtimeRevisionId — the structured field first, the detail parse onl
     expect(connectionStatusText(connectionStatus(input({ version: 5, latestRevision: r3, runtime })))).toBe(
       'Draft (r3 mounted)'
     );
+  });
+});
+
+describe('replicaCountText', () => {
+  it.each([
+    ['some replicas mount it', { observedReplicas: 2, totalReplicas: 3 }, 'mounted on 2 of 3'],
+    ['no replica mounts it', { observedReplicas: 0, totalReplicas: 3 }, 'mounted on 0 of 3'],
+    ['every replica mounts it', { observedReplicas: 1, totalReplicas: 1 }, 'mounted on 1 of 1'],
+    ['no replica reports a fresh heartbeat', { observedReplicas: 0, totalReplicas: 0 }, null],
+    ['an older server sends neither count', {}, null],
+    ['the runtime state is absent', null, null]
+  ] as const)('%s', (_name, runtime, expected) => {
+    expect(replicaCountText(runtime)).toBe(expected);
   });
 });

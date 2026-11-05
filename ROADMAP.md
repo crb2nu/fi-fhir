@@ -117,6 +117,11 @@ fix became a loom-core row. Production runs `v0.1.36862`, the demo
 Production activation and release certification remain separate decisions;
 this documentation update does not assert a new clinical-runtime deployment.
 
+On 2026-11-05 the repository declared its climb in `.loom/climb.yaml`
+(problem, summit metrics, constraints and route for the Climbs page, loom-core
+`.loom/208` §5), and each Mills push bullet keeps naming its `bl-` row id,
+the written-intent key `libs/STANDARDS.md` now requires.
+
 ## Delivered — Sprint 6 and clinical delivery (2026-09-20)
 
 - [x] **S6-0 merge surface** — CI includes, proof targets, and lane boundaries

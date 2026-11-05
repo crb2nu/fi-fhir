@@ -14,6 +14,10 @@
    *
    * Deep links (.loom/42): `?receipt=` opens a trace, `?attempt=` an attempt
    * inspector on Delivery, `?definition=&revision=` a deployment's history.
+   * A link is held until the capability pre-flight has settled (the status
+   * probe answered, or the store is known) and the pre-flight lets the page
+   * query, then applied once — so a fresh tab never selects a record the page
+   * is about to replace with its forbidden state.
    */
 
   import { onDestroy, onMount } from 'svelte';
@@ -21,7 +25,7 @@
   import MousePointerClick from '@lucide/svelte/icons/mouse-pointer-click';
   import ServerOff from '@lucide/svelte/icons/server-off';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
-  import { accessCapabilities } from '$lib/graphql/accessCapabilities';
+  import { accessCapabilities, accessProbePending } from '$lib/graphql/accessCapabilities';
   import { EmptyState, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
   import AttemptInspector from './AttemptInspector.svelte';
   import AttemptSearch from './AttemptSearch.svelte';
@@ -53,6 +57,9 @@
   } from './operatorAccess';
 
   $: preflight = operatorPreflight($accessCapabilities);
+  // Unknown with no probe in flight is an older server (or no gate): it never
+  // blocks, so the link applies as before.
+  $: capabilitiesSettled = $accessCapabilities.state === 'known' || !$accessProbePending;
 
   // Separators rendered between inline <code> items (a literal space at a
   // block edge would be trimmed by the compiler).
@@ -113,8 +120,21 @@
     void loadTrace(receiptId);
   }
 
+  /** A deep link read before the pre-flight could say whether to apply it. */
+  let heldLink: URL | null = null;
+
+  function requestSelector(url: URL): void {
+    if (!capabilitiesSettled || preflight) {
+      heldLink = url;
+      return;
+    }
+    heldLink = null;
+    syncSelector(url);
+  }
+
+  $: if (heldLink && capabilitiesSettled && !preflight) requestSelector(heldLink);
+
   function syncSelector(url: URL): void {
-    if (preflight) return;
     const link = parseOperatorDeepLink(url.search);
     const key = JSON.stringify(link);
     if (key === selectorKey) return;
@@ -154,9 +174,9 @@
   }
 
   afterNavigate(({ to }) => {
-    if (to) syncSelector(to.url);
+    if (to) requestSelector(to.url);
   });
-  onMount(() => syncSelector(new URL(window.location.href)));
+  onMount(() => requestSelector(new URL(window.location.href)));
   onDestroy(() => { traceRequest += 1; });
 
   type PendingDelivery = { kind: 'delivery'; action: DeliveryAction; attemptId: string };
