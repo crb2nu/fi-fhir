@@ -245,7 +245,7 @@ describe('IDEShell workspace', () => {
     await fireEvent.keyDown(original, { key: 'Delete' });
     await fireEvent.click(await screen.findByRole('button', { name: 'Keep open' }));
     await waitFor(() => expect(original).toHaveFocus());
-    const closeButton = screen.getByRole('button', { name: 'Close Operator' });
+    const closeButton = screen.getByLabelText('Close Operator');
     closeButton.focus();
     await fireEvent.click(closeButton);
     await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));

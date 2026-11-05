@@ -60,11 +60,11 @@ test('D2. cancelling close retains the active draft; accepting closes it after o
   await openIDE(page, '/hl7');
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await newSourceDraft(page, 'Draft before closing');
-  await page.getByRole('button', { name: 'Close Connections' }).click();
+  await page.getByRole('button', { name: 'Close Connections', includeHidden: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Close Connections?' });
   await dialog.getByRole('button', { name: 'Keep open' }).click();
   await expect(sourceName(page)).toHaveValue('Draft before closing');
-  await page.getByRole('button', { name: 'Close Connections' }).click();
+  await page.getByRole('button', { name: 'Close Connections', includeHidden: true }).click();
   await dialog.getByRole('button', { name: 'Close tab' }).click();
   await expect(page).toHaveURL(/\/hl7$/);
   await expect(page.getByRole('tab', { name: /^Connections/ })).toHaveCount(0);

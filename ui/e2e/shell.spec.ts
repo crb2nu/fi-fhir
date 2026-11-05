@@ -219,7 +219,7 @@ test('E4-4. switching views and closing a tab returns to the linked receipt', as
       await page.getByRole('button', { name: 'Open commands' }).click();
       await page.getByRole('option', { name: /Go to Operator/ }).click();
     } else {
-      await page.getByRole('button', { name: 'Close Connections', exact: true }).click();
+      await page.getByRole('button', { name: 'Close Connections', exact: true, includeHidden: true }).click();
     }
     await expect(page).toHaveURL((url) => url.pathname === '/operator' && url.searchParams.get('receipt') === receipt);
     await expect(page.locator('.receipt-id')).toHaveText(receipt!);

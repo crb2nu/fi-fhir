@@ -43,6 +43,8 @@ export interface TabItem {
   icon?: IconComponent | undefined;
   /** Tooltip of the tab. */
   title?: string | undefined;
+  /** Accessible description (aria-description), e.g. why the tab is dimmed. */
+  description?: string | undefined;
   /** Extra class on the tab button. */
   class?: string | undefined;
   /** id of the tabpanel this tab controls (sets aria-controls). */

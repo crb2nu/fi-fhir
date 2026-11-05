@@ -107,7 +107,7 @@ describe('EditorTabs', () => {
       expect(screen.getByRole('tab', { name: 'Event Log' })).toHaveFocus();
       expect(screen.getByRole('tab', { name: 'HL7 Message' })).toHaveAttribute('aria-selected', 'true');
       expect(selectFn).not.toHaveBeenCalled();
-      screen.getByRole('button', { name: 'Close Event Log' }).focus();
+      screen.getByLabelText('Close Event Log').focus();
       expect(view.component.focusedTabId()).toBeNull();
       await view.rerender({ tabs: [] });
       expect(view.component.focusedTabId()).toBeNull();

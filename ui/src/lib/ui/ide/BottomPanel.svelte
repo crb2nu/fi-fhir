@@ -5,8 +5,8 @@
   import { IconButton, Tabs, type TabItem } from '$lib/ui/primitives';
   import type { PanelTab } from './types';
   import { workflowProblemCounts } from './panels/workflowProblemsStore';
-  import { isAvailable } from '$lib/features/copilot';
-  import { CopilotPanel } from '$lib/features/copilot';
+  import { CopilotPanel, llmCapabilityState, type LlmCapabilityState } from '$lib/features/copilot';
+  import { accessCapabilities, llmConfiguredReported } from '$lib/graphql/accessCapabilities';
 
   /**
    * Collapsible bottom panel: a 28 px `Tabs` strip (Output, Problems, Debug,
@@ -14,6 +14,8 @@
    * selecting a tab — including the selected one — opens it. The Problems tab
    * carries the honest `problems-badge` (a toned `TabItem.badge` with the
    * "N problems" label), present only while a live draft has problems.
+   * The Copilot tab dims when the deployment's LLM definitively cannot serve,
+   * and its title and aria-description say why.
    */
 
   export let open: boolean = false;
@@ -34,6 +36,17 @@
     { key: 'copilot', label: 'Copilot' },
   ];
 
+  const NO_LLM = 'No LLM is configured for this deployment';
+
+  // Null while the Copilot can (or may) serve; an unprobed state fails open.
+  function copilotDimReason(llm: LlmCapabilityState, reportedConfigured: boolean | null): string | null {
+    if (reportedConfigured === false) return NO_LLM;
+    const cap = llm.capability;
+    if (llm.status === 'disabled' || (cap && (!cap.enabled || !cap.configured))) return NO_LLM;
+    if (llm.status === 'unavailable') return cap?.warnings[0] ?? "The deployment's LLM is not responding";
+    return null;
+  }
+
   function onSelect(key: string): void {
     dispatch('tabchange', key as PanelTab);
   }
@@ -48,10 +61,14 @@
       ? 'warning'
       : 'info') as 'danger' | 'warning' | 'info';
 
+  $: copilotDimmed = copilotDimReason($llmCapabilityState, llmConfiguredReported($accessCapabilities));
+
   $: tabItems = panelTabs.map((tab): TabItem => ({
     id: tab.key,
     label: tab.label,
-    class: tab.key === 'copilot' && !$isAvailable ? 'dimmed' : undefined,
+    class: tab.key === 'copilot' && copilotDimmed ? 'dimmed' : undefined,
+    title: tab.key === 'copilot' ? (copilotDimmed ?? undefined) : undefined,
+    description: tab.key === 'copilot' ? (copilotDimmed ?? undefined) : undefined,
     badge:
       tab.key === 'problems' && $workflowProblemCounts.total > 0
         ? {

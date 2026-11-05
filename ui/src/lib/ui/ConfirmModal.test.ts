@@ -90,6 +90,9 @@ describe('ConfirmModal', () => {
       const onCancel = vi.fn();
       render(ConfirmModal, { props: { open: true }, events: { cancel: onCancel } });
 
+      // Escape is held during opening; exercise cancellation after focus enters.
+      const dialog = screen.getByRole('dialog');
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
       await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
 
       expect(onCancel).toHaveBeenCalledTimes(1);
@@ -99,6 +102,8 @@ describe('ConfirmModal', () => {
     it('ignores Escape while loading', async () => {
       render(ConfirmModal, { props: { open: true, loading: true } });
 
+      const dialog = screen.getByRole('dialog');
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
       await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
 
       expect(screen.getByRole('dialog')).toBeInTheDocument();

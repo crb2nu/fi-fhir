@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import BottomPanel from './BottomPanel.svelte';
 import { workflowDraft } from '$lib/features/workflows/workflowStore';
+import {
+  llmCapabilityState,
+  resetLlmCapability,
+  type LlmCapabilitySnapshot
+} from '$lib/features/copilot/llmCapabilityStore';
+import { resetAccessCapabilities, setAccessStatus } from '$lib/graphql/accessCapabilities';
 
 // The Problems-tab badge must track the same live signal the ProblemsPanel
 // renders (`workflowDiagnostics`), not the now-removed generic diagnosticsStore.
@@ -115,5 +121,93 @@ describe('BottomPanel tabs', () => {
     expect(document.activeElement).toBe(tabs[2]);
     await fireEvent.keyDown(tabs[2]!, { key: 'End' });
     expect(document.activeElement).toBe(tabs[4]);
+  });
+});
+
+// A dimmed Copilot tab must say why, from the same capability stores the
+// Copilot panel reads: the status endpoint's `llm.configured` and the probe.
+describe('BottomPanel Copilot dim reason', () => {
+  function capability(overrides: Partial<LlmCapabilitySnapshot> = {}): LlmCapabilitySnapshot {
+    return {
+      enabled: true,
+      configured: true,
+      providerBaseURLHost: 'litellm.ai.svc.cluster.local:8000',
+      defaultModel: 'gemma4-e4b-radeonvii',
+      qualityModel: null,
+      status: 'available',
+      warnings: [],
+      features: [],
+      ...overrides
+    };
+  }
+
+  function copilotTab(): HTMLElement {
+    return screen.getByRole('tab', { name: 'Copilot' });
+  }
+
+  beforeEach(() => {
+    resetLlmCapability();
+    resetAccessCapabilities();
+  });
+
+  afterEach(() => {
+    resetLlmCapability();
+    resetAccessCapabilities();
+  });
+
+  it('carries no reason while the LLM is available or unprobed', () => {
+    render(BottomPanel);
+    expect(copilotTab()).not.toHaveClass('dimmed');
+    expect(copilotTab()).not.toHaveAttribute('title');
+    expect(copilotTab()).not.toHaveAttribute('aria-description');
+
+    llmCapabilityState.set({ status: 'available', capability: capability() });
+    expect(copilotTab()).not.toHaveAttribute('title');
+  });
+
+  it('says no LLM is configured when the status endpoint reports none', async () => {
+    setAccessStatus({
+      authenticated: true,
+      authVia: 'bearer',
+      capabilities: { operatorRead: true, llm: { configured: false } }
+    });
+    render(BottomPanel);
+    expect(copilotTab()).toHaveClass('dimmed');
+    expect(copilotTab()).toHaveAttribute('title', 'No LLM is configured for this deployment');
+    expect(copilotTab()).toHaveAttribute('aria-description', 'No LLM is configured for this deployment');
+  });
+
+  it('says no LLM is configured when the probe reports LLM features disabled', () => {
+    llmCapabilityState.set({
+      status: 'disabled',
+      capability: capability({
+        enabled: false,
+        status: 'disabled',
+        warnings: ['LLM features disabled; set FI_FHIR_LLM_ENABLED=true to enable']
+      })
+    });
+    render(BottomPanel);
+    expect(copilotTab()).toHaveClass('dimmed');
+    expect(copilotTab()).toHaveAttribute('title', 'No LLM is configured for this deployment');
+  });
+
+  it('gives the capability warning (permission or provider) when the LLM is unavailable', () => {
+    llmCapabilityState.set({
+      status: 'unavailable',
+      capability: capability({
+        status: 'unavailable',
+        warnings: ['Your roles do not include graphql:operator']
+      })
+    });
+    render(BottomPanel);
+    expect(copilotTab()).toHaveClass('dimmed');
+    expect(copilotTab()).toHaveAttribute('title', 'Your roles do not include graphql:operator');
+    expect(copilotTab()).toHaveAttribute('aria-description', 'Your roles do not include graphql:operator');
+  });
+
+  it('falls back to "not responding" when the unavailable LLM gives no warning', () => {
+    llmCapabilityState.set({ status: 'unavailable', capability: capability({ status: 'unavailable' }) });
+    render(BottomPanel);
+    expect(copilotTab()).toHaveAttribute('title', "The deployment's LLM is not responding");
   });
 });
