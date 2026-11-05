@@ -123,7 +123,7 @@ const VIEW_CASES: Array<{
     name: 'both: the catalog connection joins the adapter it names; a batch connection is a peek row',
     input: input({
       runtime: ok(runtime([MLLP_MOUNTED])),
-      catalog: ok([connection({ runtime: { mounted: true, role: 'mllp-listener', detail: 'revision 1: listener', revisionId: '1', digest: DIGEST } }), batchConnection()])
+      catalog: ok([connection({ runtime: { mounted: true, role: 'mllp-listener', detail: 'revision 1: listener', revisionId: '1', digest: DIGEST, observedReplicas: 1, totalReplicas: 1 } }), batchConnection()])
     }),
     kind: 'sources',
     check: (view) => {

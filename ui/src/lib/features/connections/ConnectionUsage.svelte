@@ -7,6 +7,7 @@
   import Link from '@lucide/svelte/icons/link';
   import { EmptyState, KeyValue, Panel, Table, Td, Th, Tr } from '$lib/ui/primitives';
   import type { ConnectionRevisionRow, ConnectionRow } from './connectionsApi';
+  import { replicaCountText } from './connectionStatus';
   import { shortHash } from './presentation';
 
   interface Props {
@@ -65,6 +66,8 @@
     <KeyValue
       items={[
         { key: 'Mounted here', value: row.runtime.mounted ? 'Yes' : 'No' },
+        // Every replica's fresh heartbeat, not only this one's; — when none reports.
+        { key: 'Fleet', value: replicaCountText(row.runtime) },
         { key: 'Role', value: row.runtime.role, mono: true },
         { key: 'Revision', value: row.runtime.revisionId, mono: true }
       ]}

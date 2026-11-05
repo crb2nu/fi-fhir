@@ -29,7 +29,7 @@
   import { fetchConnections, type ConnectionRow } from './connectionsApi';
   import { writeBlockedReason } from './connectionsAccess';
   import { describeConnectionFailure } from './connectionsErrors';
-  import { connectionStatus, connectionStatusText } from './connectionStatus';
+  import { connectionStatus, connectionStatusText, replicaCountText } from './connectionStatus';
   import {
     bufferFromConnection,
     isDirty,
@@ -352,6 +352,7 @@
             <Th>Endpoint</Th>
             <Th width="112px">Revision</Th>
             <Th width="168px">Status</Th>
+            <Th width="136px">Replicas</Th>
             <Th width="140px">Updated</Th>
           </tr>
         {/snippet}
@@ -364,12 +365,14 @@
             <Td mono truncate muted value={endpointOf(creating.kind, specOf(creating)) || '—'} />
             <Td mono muted value="—" />
             <Td><Badge tone="warning">Not created</Badge></Td>
+            <Td muted value="—" />
             <Td mono muted value="—" />
           </Tr>
         {/if}
         {#each visibleRows as row (row.id)}
           {@const tokens = connectionStatus(row)}
           {@const endpoint = endpointOf(row.kind, row.spec)}
+          {@const replicas = replicaCountText(row.runtime)}
           <Tr
             selectable
             selected={row.id === selectedKey}
@@ -391,6 +394,11 @@
                 {/each}
               </span>
             </Td>
+            <Td
+              muted={!replicas}
+              title={replicas ? `${replicas} replicas with a fresh heartbeat` : 'No replica reports a fresh heartbeat'}
+              value={replicas ?? '—'}
+            />
             <Td mono muted title={row.updatedAt} value={formatMinute(row.updatedAt)} />
           </Tr>
         {/each}
