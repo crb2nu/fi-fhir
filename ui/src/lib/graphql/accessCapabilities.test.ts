@@ -19,7 +19,8 @@ import {
   resetAccessCapabilities,
   setAccessStatus,
   streamingCapability,
-  subscriptionRoots
+  subscriptionRoots,
+  terminologyStoreCapability
 } from './accessCapabilities';
 
 const credentialMocks = vi.hoisted(() => ({ requireAuthorization: vi.fn() }));
@@ -104,7 +105,9 @@ describe('parseAuthStatus', () => {
       connectionCatalog: null,
       // Nor does it know phiExport (.loom/42 E-3) or definitionAuthoring (E-1).
       phiExport: null,
-      definitionAuthoring: null
+      definitionAuthoring: null,
+      // Nor terminologyStore: unknown, so the Terminology page still queries.
+      terminologyStore: null
     });
     expect(missingRolesFor(state, 'operatorRead')).toEqual(['integration.operator']);
     expect(missingRolesFor(state, 'clinicalRead')).toEqual([]);
@@ -161,6 +164,18 @@ describe('parseAuthStatus', () => {
     );
     expect(capabilityOf(state, 'definitionAuthoring')).toBe(false);
     expect(missingRolesFor(state, 'definitionAuthoring')).toEqual(['integration.deployment.operator']);
+  });
+
+  it('reads terminologyStore as a deployment fact, unknown when absent', () => {
+    const configured = parseAuthStatus(
+      contractStatus({ capabilities: { ...contractStatus().capabilities, terminologyStore: true } })
+    );
+    expect(capabilityOf(configured, 'terminologyStore')).toBe(true);
+    const absent = parseAuthStatus(
+      contractStatus({ capabilities: { ...contractStatus().capabilities, terminologyStore: false } })
+    );
+    expect(capabilityOf(absent, 'terminologyStore')).toBe(false);
+    expect(capabilityOf(parseAuthStatus(contractStatus()), 'terminologyStore')).toBeNull();
   });
 
   it('keeps a connection capability unknown when its value is not a boolean', () => {
@@ -223,6 +238,14 @@ describe('accessCapabilities store selectors', () => {
     expect(get(connectionsWriteCapability)).toBe(false);
     expect(get(controlPlaneCapability)).toBe(false);
     expect(get(connectionCatalogCapability)).toBe(false);
+  });
+
+  it('exposes the terminology store capability: null until reported', () => {
+    expect(get(terminologyStoreCapability)).toBeNull();
+    setAccessStatus(contractStatus());
+    expect(get(terminologyStoreCapability)).toBeNull();
+    setAccessStatus(contractStatus({ capabilities: { ...contractStatus().capabilities, terminologyStore: false } }));
+    expect(get(terminologyStoreCapability)).toBe(false);
   });
 
   it('goes back to unknown on reset', () => {

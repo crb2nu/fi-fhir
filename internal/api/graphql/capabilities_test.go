@@ -187,6 +187,25 @@ func TestAuthCapabilities(t *testing.T) {
 			missing: allRolesHeld,
 		},
 		{
+			// The terminology mapping store is a deployment fact like the
+			// connection catalog: it follows the configuration, not the caller.
+			name:     "terminology store configured",
+			security: securityFor("network", "fi-fhir-ide-operator", productionRoles...),
+			config:   ServerConfig{TerminologyStoreConfigured: true},
+			capabilities: accessCapabilities{
+				ClinicalRead: true, Subscriptions: none, TerminologyStore: true,
+			},
+			missing: missingRoles{
+				OperatorRead:        []string{operator.ReadRole},
+				OperatorDelivery:    []string{operator.ReadRole, delivery.OperatorRole},
+				OperatorDeployment:  []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				ClinicalRead:        none,
+				ConnectionsRead:     []string{operator.ReadRole},
+				ConnectionsWrite:    []string{operator.ReadRole, operator.DeploymentOperatorRole},
+				DefinitionAuthoring: []string{operator.ReadRole, operator.DeploymentOperatorRole},
+			},
+		},
+		{
 			// .loom/42 E-1: definitionAuthoring is the deployment fact; the
 			// roles its writes need are in missingRoles.definitionAuthoring.
 			name:     "definition authoring configured",
