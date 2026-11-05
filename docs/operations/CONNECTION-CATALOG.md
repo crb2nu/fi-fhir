@@ -175,6 +175,7 @@ carries both.
 | `controlPlane` | deployment | `serve` built the operator control plane, i.e. the durable database is open (above) |
 | `connectionCatalog` | deployment | `serve` built the connection catalog service; same condition today |
 | `integrationSessions` | deployment | the session workspace is on; with `connectionCatalog`, this is what enables sample intake |
+| `terminologyStore` | deployment | `serve` composed the terminology mapping store (the resolver holds one); when `false` the Terminology page renders "not configured on this deployment" and issues no query |
 
 The deployment capabilities are how the IDE says "not configured on this
 deployment" instead of "forbidden": at the GraphQL layer an unconfigured

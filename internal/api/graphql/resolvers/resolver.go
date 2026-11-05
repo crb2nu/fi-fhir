@@ -441,6 +441,14 @@ func optionalString(value string) *string {
 	return &value
 }
 
+// TerminologyStoreConfigured reports whether a terminology mapping store was
+// composed. The mapping resolvers refuse with "terminology mapping store not
+// configured" exactly when it is false; graphql.NewServer reads it so
+// /api/auth/status can report terminologyStore.
+func (r *Resolver) TerminologyStoreConfigured() bool {
+	return r != nil && r.MappingStore != nil
+}
+
 // WithMappingStore sets the terminology mapping store.
 func WithMappingStore(s *termdb.MappingStore) ResolverOption {
 	return func(r *Resolver) {

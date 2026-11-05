@@ -1,7 +1,18 @@
+<!--
+  Terminology: browse, upload, review, and resolve code mappings.
+
+  Honest states (the connections page's pattern, .loom/38):
+    - terminologyStore false → the page says the mapping store is not
+      configured on this deployment and names FI_FHIR_TERMINOLOGY_DB_URL; it
+      issues no query, so no "GraphQL request failed" toast fires;
+    - terminologyStore true or unknown (a server that predates the flag) →
+      the views query and render any failure as they always have.
+-->
 <script lang="ts">
-  import { onMount } from 'svelte';
   import CircleHelp from '@lucide/svelte/icons/circle-help';
-  import { IconButton, Popover, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
+  import ServerOff from '@lucide/svelte/icons/server-off';
+  import { terminologyStoreCapability } from '$lib/graphql/accessCapabilities';
+  import { EmptyState, IconButton, Popover, Tabs, Toolbar, type TabItem } from '$lib/ui/primitives';
   import AutorouteResolver from '$lib/features/terminology/AutorouteResolver.svelte';
   import MappingBrowser from '$lib/features/terminology/MappingBrowser.svelte';
   import MappingUploader from '$lib/features/terminology/MappingUploader.svelte';
@@ -38,10 +49,15 @@
     }
   }
 
-  // Load pending review count for the tab
-  onMount(() => {
+  // Only false blocks: unknown keeps the pre-capability behaviour.
+  $: storeConfigured = $terminologyStoreCapability !== false;
+
+  // Load the pending review count once the page may query.
+  let reviewCountRequested = false;
+  $: if (storeConfigured && !reviewCountRequested) {
+    reviewCountRequested = true;
     void loadReviewCount();
-  });
+  }
 
   // Trigger refresh when a mapping is approved or uploaded
   let browserKey = 0;
@@ -75,16 +91,17 @@
   }
 </script>
 
+{#snippet terminologyTabs()}
+  <Tabs
+    label="Terminology views"
+    items={tabItems}
+    value={activeTab}
+    onchange={(id) => (activeTab = id)}
+  />
+{/snippet}
+
 <div class="terminology-page">
-  <Toolbar title="Terminology">
-    {#snippet tabs()}
-      <Tabs
-        label="Terminology views"
-        items={tabItems}
-        value={activeTab}
-        onchange={(id) => (activeTab = id)}
-      />
-    {/snippet}
+  <Toolbar title="Terminology" tabs={storeConfigured ? terminologyTabs : undefined}>
     {#snippet actions()}
       <Popover label="About terminology" placement="bottom-end">
         {#snippet trigger(props)}
@@ -96,25 +113,39 @@
     {/snippet}
   </Toolbar>
 
-  <div class="terminology-body" id={PANEL_ID} role="tabpanel" aria-label={activeLabel}>
-    {#if activeTab === 'browse'}
-      {#key browserKey}
-        <MappingBrowser on:refresh={refreshBrowser} on:edit={handleEditMapping} />
-      {/key}
-    {:else if activeTab === 'upload'}
-      <MappingUploader on:uploadComplete={refreshBrowser} />
-    {:else if activeTab === 'review'}
-      <PendingReviewList on:approve={handleReviewChange} on:refresh={handleReviewChange} />
-    {:else if activeTab === 'resolve'}
-      <AutorouteResolver on:approved={refreshBrowser} />
-    {:else if activeTab === 'workflows'}
-      <TemporalWorkflowList workflowType="TerminologyReviewWorkflow" />
-    {/if}
-  </div>
+  {#if !storeConfigured}
+    <div class="terminology-body">
+      <EmptyState
+        icon={ServerOff}
+        align="start"
+        data-testid="terminology-preflight"
+        data-reason="not-configured"
+      >
+        The terminology mapping store is not configured on this deployment. It needs the terminology
+        database (<code>FI_FHIR_TERMINOLOGY_DB_URL</code>).
+      </EmptyState>
+    </div>
+  {:else}
+    <div class="terminology-body" id={PANEL_ID} role="tabpanel" aria-label={activeLabel}>
+      {#if activeTab === 'browse'}
+        {#key browserKey}
+          <MappingBrowser on:refresh={refreshBrowser} on:edit={handleEditMapping} />
+        {/key}
+      {:else if activeTab === 'upload'}
+        <MappingUploader on:uploadComplete={refreshBrowser} />
+      {:else if activeTab === 'review'}
+        <PendingReviewList on:approve={handleReviewChange} on:refresh={handleReviewChange} />
+      {:else if activeTab === 'resolve'}
+        <AutorouteResolver on:approved={refreshBrowser} />
+      {:else if activeTab === 'workflows'}
+        <TemporalWorkflowList workflowType="TerminologyReviewWorkflow" />
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <!-- Mapping Editor Modal -->
-{#if editingMapping}
+{#if storeConfigured && editingMapping}
   <MappingEditor
     mapping={editingMapping}
     bind:open={showEditor}

@@ -35,15 +35,15 @@ type authStatus struct {
 }
 
 // accessCapabilities has two halves. The six role capabilities describe the
-// caller. integrationSessions, streaming, subscriptions, llm, controlPlane, and
-// connectionCatalog describe the deployment: they are the same for every
+// caller. integrationSessions, streaming, subscriptions, llm, controlPlane,
+// connectionCatalog, and terminologyStore describe the deployment: they are the same for every
 // caller except that subscriptions is filtered by what this caller's roles
 // clear at the transport gate.
 //
-// controlPlane and connectionCatalog exist so a surface can say "not
-// configured on this deployment" instead of "forbidden" (.loom/38 Decision
-// 4): an unconfigured control plane and a missing role both fail closed at
-// the GraphQL layer, and this is where they are told apart.
+// controlPlane, connectionCatalog, and terminologyStore exist so a surface can
+// say "not configured on this deployment" instead of "forbidden" or a generic
+// failure (.loom/38 Decision 4): an unconfigured backend and a missing role
+// both fail closed at the GraphQL layer, and this is where they are told apart.
 type accessCapabilities struct {
 	OperatorRead        bool     `json:"operatorRead"`
 	OperatorDelivery    bool     `json:"operatorDelivery"`
@@ -57,6 +57,7 @@ type accessCapabilities struct {
 	LLM                 llmState `json:"llm"`
 	ControlPlane        bool     `json:"controlPlane"`
 	ConnectionCatalog   bool     `json:"connectionCatalog"`
+	TerminologyStore    bool     `json:"terminologyStore"`
 	PhiExport           bool     `json:"phiExport"`
 	// DefinitionAuthoring (.loom/42 E-1) is a deployment fact: serve composed
 	// the definition editor (lifecycle catalog, connection catalog, static
@@ -178,6 +179,7 @@ func deriveAuthStatus(security integration.SecurityContext, config *ServerConfig
 	status.Capabilities.LLM.Configured = config.LLMConfigured
 	status.Capabilities.ControlPlane = config.OperatorControlPlaneConfigured
 	status.Capabilities.ConnectionCatalog = config.ConnectionCatalogConfigured
+	status.Capabilities.TerminologyStore = config.TerminologyStoreConfigured
 	// A deployment fact, like controlPlane; the roles its writes need are in
 	// missingRoles.definitionAuthoring.
 	status.Capabilities.DefinitionAuthoring = config.DefinitionAuthoringConfigured

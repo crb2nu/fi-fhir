@@ -413,7 +413,7 @@ the operator-bundle stack (`e2e/visual.spec.ts`, Playwright project `visual`):
    | `hl7-preview.png` | `/hl7` after Preview completed on the session engine |
    | `workflows-inventory.png`, `workflows-design.png` | `/workflows`, Inventory and Design tabs |
    | `profiles-default.png` | `/profiles` |
-   | `terminology-browse.png` | `/terminology`, Browse |
+   | `terminology-browse.png` | `/terminology`, Browse, or the honest "not configured on this deployment" state when `/api/auth/status` reports `terminologyStore: false` (the e2e stack today: it composes no mapping store) |
    | `events-browse.png` | `/events`, Browse |
    | `operator-messages.png` | `/operator`, Messages |
    | `home-panel-problems.png` | `/` with the bottom panel open on Problems |

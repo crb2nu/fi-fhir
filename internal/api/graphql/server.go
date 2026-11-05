@@ -90,6 +90,13 @@ type ServerConfig struct {
 	// definition editor's service (.loom/42 E-1): a lifecycle catalog, a
 	// connection catalog, and the static registry resolver it proves refs with.
 	DefinitionAuthoringConfigured bool
+	// TerminologyStoreConfigured reports that serve composed the terminology
+	// mapping store. NewServer sets it when the resolver reports one
+	// (TerminologyStoreConfigured on resolvers.Resolver), so the flag follows
+	// the same field whose absence makes the mapping resolvers answer
+	// "terminology mapping store not configured". /api/auth/status reports it
+	// as terminologyStore.
+	TerminologyStoreConfigured bool
 	// Authenticator establishes the deployment-owned tenant/principal context.
 	Authenticator requestsecurity.Authenticator
 	// TrustedNetworkAuthenticator optionally establishes the same deployment-
@@ -156,6 +163,12 @@ type Server struct {
 	startedAt time.Time
 }
 
+// terminologyStoreComposer is implemented by a resolver that knows whether a
+// terminology mapping store was composed into it.
+type terminologyStoreComposer interface {
+	TerminologyStoreConfigured() bool
+}
+
 // NewServer creates a new GraphQL server.
 // resolver must implement the ResolverRoot interface defined in generated.go.
 func NewServer(resolver ResolverRoot, config *ServerConfig) (*Server, error) {
@@ -167,6 +180,9 @@ func NewServer(resolver ResolverRoot, config *ServerConfig) (*Server, error) {
 	}
 	if err := validateServerConfig(config); err != nil {
 		return nil, err
+	}
+	if composer, ok := resolver.(terminologyStoreComposer); ok && composer.TerminologyStoreConfigured() {
+		config.TerminologyStoreConfigured = true
 	}
 
 	// Create the GraphQL schema
