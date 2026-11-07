@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Documentation** — `docs/user-guide/demo-end-to-end.md`: the operator's script for the LAN demo environment (`platform/gitops/k3s/fi-fhir/demo/`: SFTP drop, S3 bucket, single-node Kafka, HAPI "St. Elsewhere" hospital), with a synthetic ADT^A01 batch, the drop recipes, the Connections-page values that reproduce the mounted source digests, and the honest state of ingestion: the deployed API polls as definition `sftp-test-demo`, which nothing outside tests can create yet. Records the two ways to close that (a `lifecycle seed` command mirroring `deployBatchRevision` in the batch proof, or the definition editor).
 
+### Security
+
+- **JavaScript tooling security** — update the SDK to Vitest 4.1.11, refresh
+  vulnerable UI/SDK transitive dependencies, and pin patched GraphQL utilities for
+  local schema code generation without changing generated API types.
+- **Go security baseline** — require Go 1.26.9 in the module, CI, and Docker
+  builds and update `golang.org/x/net` to v0.60.0 to address the October 8
+  standard-library and HTTP/2 advisories found by the blocking vulnerability gate.
+
+### Added
+
+- `fi-fhir lifecycle seed` (`cmd/fi-fhir/lifecycle_seed.go`): the supported way to create a batch integration definition in the PostgreSQL lifecycle catalog outside tests. It builds the revision from the mounted batch source revision (`--source`), the profile and workflow refs of one static-registry entry (`--integration`; the batch runner loads those bytes from the static registry, so the seed resolves them with the runtime's own `processor.RevisionResolver` first), and destination revisions (`--destination`), then runs CreateDraft → ValidateConnection → Approve → Publish (`--through deployed` adds Deploy) at the expected snapshot version under `--principal` and `--reason`. `--validate real` lists one object of the input location through the provider `serve` builds from `FI_FHIR_BATCH_*` (codes `SOURCE_REACHABLE`, `HOST_KEY_VERIFIED`, `AUTH_OK`, `INPUT_LISTED`, or `SOURCE_CONNECT_FAILED`/`INPUT_LIST_FAILED`); `--validate skip` records `VALIDATION_SKIPPED`. Re-runs resume from the stored state and refresh stale evidence; different content under the same revision ID is refused, never overwritten; a workflow that delivers to a destination the definition lacks is refused. `--dry-run` prints the revision and refs without a database; `--destination-registry-out` emits the delivery worker's `fi-fhir/destination-registry/v1` document for the definition. Blocking CI proof `test:lifecycle-seed` (`ci/test-lifecycle-seed.yml`, `make lifecycle-seed`): seeded through published, resumed to deployed, and ingested by the batch runtime `serve` builds, against PostgreSQL 16 and an in-process SFTP server. `batch.SourceRevision.SecretBindingNames` is now exported.
+
+## [0.1.0] - 2026-09-28
+
 ### IDE design uplift — a calm, dense, precise Mapping Studio (2026-09-26)
 
 - **Evidence and direction (spec `.loom/37`, MR !232)** — 1440×900 screenshots of every production route showed four navigation layers above the content (the credential strip, a five-stage journey band with a "NEXT UP" card, an H1 hero with subtitle, and numbered stepper pills), marketing copy ("Build the interface from source to destination", "Mission control", "Recommended move"), simulated alerts labelled "Demo data" on the home page, and gradients, glows, pill badges and large cards where records belonged. The direction: neutral dark greys and one accent, 13 px UI type, 28 px controls, 36 px toolbars, tables for records, a page is a toolbar and its content, no simulated data.
@@ -47,28 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Honor workflow resource selection and resolve transaction references; unsupported JSON events now fail instead of silently producing only a Patient (issue #20).
 - Preserve medication substitution `allowedBoolean: false` in JSON and require live HAPI FHIR read-back in the legacy E2E CI gate.
 
-### Security
-
-- **JavaScript tooling security** — update the SDK to Vitest 4.1.11, refresh
-  vulnerable UI/SDK transitive dependencies, and pin patched GraphQL utilities for
-  local schema code generation without changing generated API types.
-
-- **Go security baseline** — require Go 1.26.9 in the module, CI, and Docker
-  builds and update `golang.org/x/net` to v0.60.0 to address the October 8
-  standard-library and HTTP/2 advisories found by the blocking vulnerability gate.
-
-- Add the `clinical:read` GraphQL transport role for the ten PHI-reading event, patient, and projection queries while preserving the `graphql:operator` compatibility grant.
-
 ### Added
 
-- `fi-fhir lifecycle seed` (`cmd/fi-fhir/lifecycle_seed.go`): the supported way to create a batch integration definition in the PostgreSQL lifecycle catalog outside tests. It builds the revision from the mounted batch source revision (`--source`), the profile and workflow refs of one static-registry entry (`--integration`; the batch runner loads those bytes from the static registry, so the seed resolves them with the runtime's own `processor.RevisionResolver` first), and destination revisions (`--destination`), then runs CreateDraft → ValidateConnection → Approve → Publish (`--through deployed` adds Deploy) at the expected snapshot version under `--principal` and `--reason`. `--validate real` lists one object of the input location through the provider `serve` builds from `FI_FHIR_BATCH_*` (codes `SOURCE_REACHABLE`, `HOST_KEY_VERIFIED`, `AUTH_OK`, `INPUT_LISTED`, or `SOURCE_CONNECT_FAILED`/`INPUT_LIST_FAILED`); `--validate skip` records `VALIDATION_SKIPPED`. Re-runs resume from the stored state and refresh stale evidence; different content under the same revision ID is refused, never overwritten; a workflow that delivers to a destination the definition lacks is refused. `--dry-run` prints the revision and refs without a database; `--destination-registry-out` emits the delivery worker's `fi-fhir/destination-registry/v1` document for the definition. Blocking CI proof `test:lifecycle-seed` (`ci/test-lifecycle-seed.yml`, `make lifecycle-seed`): seeded through published, resumed to deployed, and ingested by the batch runtime `serve` builds, against PostgreSQL 16 and an in-process SFTP server. `batch.SourceRevision.SecretBindingNames` is now exported.
-
 - CI job `lint:edi-fixtures` (`ci/lint-edi-fixtures.yml`) runs edilint, pinned to `v0.1.0`, over `testdata/edi/*.edi` against the committed `testdata/edi/.edilint.yml` on every merge request, and publishes `edilint-report.xml` as a JUnit report so envelope defects show up in the MR test panel. It runs beside the existing `lint:edi`, which is unchanged and still checks the same corpus on edilint's stock rules with no config file. `testdata/edi/.edilint.yml` waives EL3009 (duplicate interchange control number): the fixtures are independent interchanges and control-number uniqueness across the corpus is not an invariant the suite maintains. `TestFixtureTrailerCountsMatchTheirTransactionSets` pins every fixture's SE01 against the segments it actually contains in `go test ./internal/parser/edi/...`, without needing the network — the three miscounts edilint originally found were already repaired on `main` in `df45f683`, and nothing until now kept them repaired. `make lint-edi-fixtures` mirrors the job locally at the same pin and config, beside `make lint-edi`, which still mirrors `lint:edi`.
-
 - Kafka, Redis Streams, and Google Cloud Pub/Sub event backends with acknowledgment-aware consumers, workflow queue drivers, `workflow consume`, shared handlers, and an event-sourcing outbox adapter.
-
 - GraphQL callers can be authenticated by the identity Cloudflare Access verified at the edge: with `FI_FHIR_GRAPHQL_ACCESS_TEAM_DOMAIN`, `_AUDIENCE`, and `_PRINCIPALS` set, the runtime verifies the `Cf-Access-Jwt-Assertion` token (or the `CF_Authorization` cookie) against the team domain's keys and exact application audience, and grants each listed email exactly the roles the deployment maps to it. Works beside either bearer mode; an `Authorization` header keeps precedence. `/api/auth/status` reports `authVia: "cloudflare-access"` with the principal, and the IDE's credential gate steps aside for it, so a Google sign-in through Access carries straight into the IDE without a pasted token.
-
 #### Integration Runtime Foundation
 - Public `pkg/integration` contracts for content-addressed integration revisions, tenant/actor identity, typed secret references, PHI/raw-retention policy, production/preview requests, and stable processing results
 - Golden Path 001 revision fixture with strict decoding, deterministic semantic digest validation, non-serializable raw payload bytes, and preview side-effect invariants
@@ -233,11 +231,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fhir.ParseValidationMode`, `fhir.ValidationModes`, `fhir.ProfileCanonical`,
   and `fhir.USCoreDiagnosticReportLabProfile`
 
+- Add the [Connections guide](docs/user-guide/connections.md) and [Connection catalog operations](docs/operations/CONNECTION-CATALOG.md).
+  - Add the [Connections guide](docs/user-guide/connections.md) — define, validate, compile, export or reference, mount in GitOps, see it mounted, sample from a connection, and what is and is not live-reloaded.
+  - [Connection catalog operations](docs/operations/CONNECTION-CATALOG.md) — the seventh ledger, tables and their immutability rules, roles and capabilities, error strings, the capture audit, the `engineRuntime` allowlist, the peek secret allow-list, metrics, and CI proofs.
+
+- Add truthful, unauthenticated FHIR R4 `GET /metadata` capability discovery derived from the US Core mapper surface in `pkg/fhir` and `internal/api/graphql`.
+
+- CI job `lint:edi-fixtures` runs edilint pinned to `v0.1.0` over `testdata/edi/*.edi` against the committed `testdata/edi/.edilint.yml` on every merge request.
+  - Publishes `edilint-report.xml` as a JUnit report so X12 envelope defects show up in the MR test panel.
+  - Where: `ci/lint-edi-fixtures.yml`, wired from `.gitlab-ci.yml` and `ci/job-inventory.txt`.
+  - It is added beside the existing `lint:edi` job, which is left exactly as it was and still checks the same corpus on edilint's stock rules with no config file.
+  - `testdata/edi/.edilint.yml` waives EL3009 (duplicate interchange control number), because the fixtures are independent interchanges and control-number uniqueness across the corpus is not an invariant the suite maintains.
+  - `internal/parser/edi/fixtures_test.go` pins every fixture's SE01 against the segments it actually contains, so `go test ./internal/parser/edi/...` catches a miscounted trailer without needing the network; the three miscounts edilint originally found were repaired on `main` in `df45f683`, and this is the first thing that keeps them repaired.
+  - `make lint-edi-fixtures` mirrors the job locally at the same pin and config, beside `make lint-edi`, which still mirrors `lint:edi`.
+
+- Add the connection catalog.
+  - Editable source and destination connection drafts that compile, with the existing MLLP, batch, and destination constructors and a new content-addressed HTTP source document, into immutable revisions whose exact bytes `serve` mounts, exposed over GraphQL beside a read-only `engineRuntime` description of what the replica composed, with `/api/auth/status` reporting `connectionsRead`, `connectionsWrite`, `controlPlane`, and `connectionCatalog`.
+  - Exposed over GraphQL — `connections`, `connection`, `connectionRevisions`, `connectionRevision`, `createConnection`, `updateConnection`, `archiveConnection`, `compileConnection`, `validateConnectionSpec`.
+  - Where: `internal/integration/connection`, the seventh forward-only ledger.
+
+- Add the `/connections` page to the Mapping Studio.
+  - Sources and Destinations tables with each connection's honest status, a settings form generated from the kind's spec with server-checked problems on their fields, secret bindings that never show a value, reason-required save, compile and archive, revisions whose Download is the exact `revisionJson`, and an Engine tab that shows what the replica composed at startup with the environment variable behind each property.
+  - Each connection's honest status — Draft, Compiled rN, Referenced, Deployed, Mounted here.
+
+- Add sample intake from connections.
+  - `peekBatchConnection` lists a compiled batch connection's source and reads the first messages of one object into an Integration Session with no lease, checkpoint, archive, or delete, and `startConnectionCapture` / `cancelConnectionCapture` / `connectionCaptures` arm an admission-time tap on the MLLP listener and HTTP ingress that copies a source's next frames into a session without changing any result, ACK, or receipt — every sample masked by the new capture redactor, every peek and capture an audited row, and both counted by `fi_fhir_connection_capture_messages_total{mode}` and `fi_fhir_connection_capture_tap_errors_total{reason}`.
+  - Where: `session.RedactCapturedHL7v2`, the Safe Harbor field table in `docs/operations/PHI-RETENTION.md`.
+
+- Add **From connection…** to the HL7 intake Samples panel (session engine on).
+  - A dialog lists this replica's mounted MLLP, HTTP and batch sources and the catalog's source connections with their honest state, arms a stream capture (messages, expiry, reason) whose row polls `connectionCaptures` every 2.5 s while armed and stops when none is, or browses a compiled batch connection's objects and reads one with an audited peek; captured and peeked samples join the tab-memory inbox with their session sample id and provenance, open in the editor from `redactedPayload`, and Preview runs an unchanged one by `sampleId` instead of adding it again.
+  - 2.5 s while armed — "2 / 5 captured · expires in 4:12 · Cancel"
+  - The entry is absent without the session engine and disabled when the catalog is not configured.
+
+- Add the browser kernel `cmd/fi-fhir-wasm`.
+  - The production Source Profile compiler, HL7v2 parser, and conditional FHIR transaction Bundle projection compiled to WebAssembly (2.24 MB gzip), exposed as `fiFhirVersion`, `fiFhirProfiles`, `fiFhirSamples`, `fiFhirPreview`, and `fiFhirValidateProfile` with no filesystem or network access.
+  - `internal/integration/processor/workflow_plan.go` is now `!js` so the compile path links without the workflow planner; `TestWASMKernelMatchesSessionRunner` holds the kernel's events and diagnostics byte-identical to the Integration Session runner on the IDE's six demo samples; `make wasm` / `make wasm-smoke` build and smoke-test it; `test:wasm` gates the dependency closure, the 2.5 MiB gzip budget, and the contract; and `.github/workflows/wasm-release.yml` publishes `fi_fhir_<version>_wasm.tar.gz` with `checksums.txt` on `v*` tags of the GitHub mirror.
+  - Contract: `cmd/fi-fhir-wasm/README.md`.
+
+- Add the `preview-only` browser e2e stack — the hosted demo's identity — and a spec that walks every IDE route.
+  - HL7 Preview of the built-in sample works, and every other route shows its honest state.
+  - Hosted demo's identity — `integration:preview` only, principal `fi-fhir-demo-visitor`, no database, no control plane, no sessions, no LLM.
+  - Events, Profiles, Terminology, Workflows, HL7's Profile draft and Process now pre-flight the role they need (`clinical:read` or `graphql:operator`) and issue nothing, instead of an error toast and "GraphQL operation forbidden"; the Copilot reads `llm.configured` from `/api/auth/status` instead of probing.
+  - Every e2e stack now runs `serve --no-introspection`, as production does.
+
+- `FI_FHIR_GRAPHQL_TRUSTED_CIDRS` refuses a prefix of length 0 at startup unless `FI_FHIR_GRAPHQL_TRUSTED_CIDRS_ALLOW_ANY=true`.
+  - Logs a WARN naming the principal and the roles every caller receives; the opt-in is reported by the Engine tab and rejected in OIDC mode.
+  - Where: `0.0.0.0/0`, `::/0`.
+
+#### Core Functionality
+- HL7v2 message parsing (ADT A01-A04, A08, ORU R01, SIU S12-S15, S26)
+- CSV/flatfile parsing with schema inference
+- EDI X12 parsing (837P claims, 835 remittance, 270/271 eligibility, 276/277 status)
+- Canonical semantic event model (`pkg/events/`)
+- Source Profile system for per-interface configuration
+#### Workflow Engine
+- YAML-based workflow DSL for event routing
+- CEL (Common Expression Language) filter conditions
+- Transform pipeline (set_field, map_terminology, redact)
+- Action types: log, webhook, fhir, database, queue
+- Dry-run mode for testing workflows
+#### FHIR Integration
+- FHIR R4 resource generation (Patient, Encounter, Observation, DiagnosticReport)
+- US Core profile mapper
+- OAuth2 client credentials flow with token caching
+- Automatic 401 retry with token refresh
+#### Reliability Features
+- Retry with exponential backoff for HTTP actions
+- Circuit breaker pattern for failing external services
+- Dead letter queue (DLQ) for failed events
+- Rate limiting for high-volume event streams
+- Event replay from DLQ or recordings
+#### Observability
+- Prometheus metrics (`workflow_events_processed_total`, etc.)
+- OpenTelemetry distributed tracing
+- Structured JSON logging with trace correlation
+- Grafana dashboard templates
+- Prometheus alerting rules
+#### CLI
+- `parse` - Parse messages (HL7v2, CSV, EDI)
+- `workflow run` - Process events through workflow
+- `workflow validate` - Validate workflow configuration
+- `config show/validate/env/init` - Configuration management
+- `version` - Version information
+#### Deployment
+- Multi-stage Dockerfile with distroless base
+- Docker Compose for local development
+- Kubernetes manifests with Kustomize overlays
+- Helm chart with full templating
+- GitLab CI/CD pipeline (lint, test, security, build, release)
+#### SDK
+- TypeScript SDK with CLI wrapper
+- Type definitions for events and workflow
+#### Validation
+- NPI (National Provider Identifier) validation with Luhn check
+- MBI (Medicare Beneficiary Identifier) validation
+- SSN format validation
+- DEA number validation
+
 ### Changed
+
 - The decision journal is one file per entry under `.loom/decisions/` (`make decisions-new TITLE=...`, `make decisions`), and `.loom/40-decisions.md` is a pointer page, mirroring the August worklog split. `scripts/decisions.sh check` runs in `lint:docs` and rejects a dated entry appended to the pointer page or a second heading in an entry file. The single append-only journal had re-conflicted every open Sprint 5 merge request on each sibling merge.
 - `build:docker` and `build:docker-ui` pass `--network=host` to `docker build`. Inside the Docker-in-Docker service the default per-build bridge network intermittently blackholed Alpine package fetches (`RUN apk ...` hung until the one-hour job timeout four times on 2026-09-02, while image pulls through the daemon and the same build on another runner slot succeeded); host networking routes RUN steps through the daemon's own egress.
 - `test:benchmark` is non-blocking on merge-request pipelines (`allow_failure: true` on the manual rule). It stays manual so it can be played for performance-sensitive changes, and stays blocking on tags and the default branch. Previously the unplayed manual job held every Go-touching MR pipeline at status `manual`, so merge-when-pipeline-succeeds never fired and MRs could not merge without a human playing the job.
-
 - Batch receipt provenance no longer trusts remote object modification time. The
   authoritative `received_at` is now the server-owned custody timestamp recorded
   when an exact object version is first durably admitted, stable across lease
@@ -279,7 +374,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reason instead of failing after the click, and optimistic-concurrency
   conflicts reload the durable record and ask the operator to re-decide rather
   than retrying silently
-
 #### Format Adapters
 - CDA/CCDA clinical document parser with namespace-aware XML handling (`internal/parser/cda/`)
 - CDA section handlers for structured data extraction (`internal/parser/cda/sections/`)
@@ -294,7 +388,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - EDI companion guide framework with built-in payer guides (`internal/parser/edi/companion/`)
 - Built-in companion guides: Medicare, BlueCross, United Healthcare (`companion/builtin/`)
 - Companion guide validator and path-based field resolution
-
 #### Event Sourcing / CQRS
 - Event store interface with append-only semantics (`pkg/eventsourcing/store.go`)
 - In-memory event store for testing (`pkg/eventsourcing/memory_store.go`)
@@ -309,7 +402,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Saga orchestration for multi-step transactions with compensation (`pkg/eventsourcing/saga.go`)
 - Outbox pattern for reliable event publishing (`pkg/eventsourcing/outbox.go`)
 - CLI commands: `eventstore init|stats|streams|read|append`, `projection list|status|run|rebuild`
-
 #### FHIR Resources
 - US Core Patient, Encounter, Observation, DiagnosticReport (enhanced)
 - US Core Condition, Procedure, Immunization, MedicationRequest
@@ -323,7 +415,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FHIR Coverage resource (US Core)
 - FHIR resource validation with configurable failure policy (warn vs error per profile)
 - FHIR validation golden fixtures for high-volume resources
-
 #### GraphQL API
 - GraphQL schema with queries, mutations, and subscriptions (`internal/api/graphql/schema.graphql`)
 - GraphQL schema retains legacy query, mutation, and subscription types; the
@@ -334,7 +425,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DataLoaders for N+1 query prevention (`internal/api/graphql/dataloaders/`)
 - Projection resolvers wired to event sourcing service layer
 - GraphQL codegen with gqlgen and CI validation (`lint:gqlgen`)
-
 #### Terminology System
 - LOINC file loader with panel expansion (`pkg/terminology/loinc.go`)
 - ICD-10-CM loader with ETL pipeline integration (`pkg/terminology/db/icd10.go`)
@@ -350,7 +440,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mapping file upload pipeline (`pkg/terminology/upload/`)
 - Automatic terminology routing engine (`internal/terminology/autoroute/`)
 - Temporal workflow activities for terminology operations (`internal/terminology/workflow/`)
-
 #### LLM Features
 - Multi-provider LLM client with retry and rate limiting (`pkg/llm/`)
 - Embedding generation for semantic search (`pkg/llm/embeddings.go`)
@@ -359,14 +448,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Data quality analysis with scoring (`internal/llm/quality/`)
 - CEL-based copilot actions (`pkg/llm/copilot/`)
 - LLM-integrated workflow actions (`internal/workflow/actions_llm.go`)
-
 #### Patient Matching
 - Deterministic matching rules: SSN, MBI, MRN exact match (`pkg/matching/deterministic.go`)
 - Probabilistic scoring: Jaro-Winkler, Soundex, Levenshtein (`pkg/matching/similarity.go`)
 - Combined matcher with configurable thresholds (`pkg/matching/matcher.go`)
 - Master Patient Index (MPI) interface with in-memory implementation (`pkg/matching/mpi.go`)
 - Batch matching with blocking keys for performance
-
 #### UI / Mapping Studio
 - SvelteKit 5 frontend with feature-based architecture (`ui/src/`)
 - HL7 Inspector with segment/field viewer (`ui/src/lib/features/hl7/`)
@@ -384,14 +471,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Authenticated GraphQL HTTP preview client; subscription consumers fail locally
   while production WebSocket transport is disabled
 - OpenAPI-generated type-safe API client
-
 #### Source Profiles
 - `fi-fhir profile infer` — generate profile skeleton from sample messages
 - `fi-fhir profile lint` — schema validation + opinionated warnings
 - Vendor profile templates: Epic, Cerner, Meditech, Allscripts
 - Template selection guide and feed-specific fork workflow
 - Inference fixtures and golden outputs
-
 #### Workflow Engine
 - Email action (SMTP/SES; templated subject/body; retries + circuit breaker)
 - File action (templated paths; atomic writes; rotation/retention)
@@ -400,12 +485,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Event replay and simulation tooling (`internal/workflow/replay.go`, `simulation.go`)
 - Performance benchmarking (`internal/workflow/benchmark_test.go`)
 - Load testing utilities (`internal/workflow/loadtest.go`)
-
 #### ETL Pipeline
 - Source/sink framework with provider abstraction (`pkg/etl/source/`, `pkg/etl/sink/`)
 - CLI commands: `etl fetch`, `etl load`, `etl validate`
 - Storage provider abstraction (file, S3, MinIO) (`pkg/storage/`)
-
 #### Observability
 - Prometheus metrics adapter (`internal/workflow/metrics_prometheus.go`)
 - OpenTelemetry distributed tracing adapter (`internal/workflow/tracing_otel.go`)
@@ -414,14 +497,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prometheus alerting rules: standalone + Kubernetes PrometheusRule CRD (`dashboards/alerting/`)
 - Health check endpoints: /health, /ready (`internal/workflow/health.go`)
 - Log correlation with trace IDs (`internal/workflow/logging.go`)
-
 #### Reliability
 - Retry with exponential backoff for HTTP actions (`internal/workflow/retry.go`)
 - Circuit breaker pattern for failing external services (`internal/workflow/circuit_breaker.go`)
 - Dead letter queue for failed events (`internal/workflow/dlq.go`)
 - Rate limiting (token bucket) for high-volume streams (`internal/workflow/ratelimit.go`)
 - Configuration validation (`internal/workflow/validate.go`)
-
 #### Testing
 - End-to-end test framework with Docker Compose integration (`test/e2e/`)
 - PostgreSQL integration tests with testcontainers
@@ -429,7 +510,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance benchmarks for workflow engine
 - Load testing runner with event generators
 - FHIR validation golden fixtures
-
 #### Deployment
 - Multi-stage Dockerfile with distroless base (enhanced)
 - Kubernetes manifests with Kustomize overlays
@@ -443,13 +523,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PHI-leakage probes before a reviewed automation resume
 - Cross-platform release binaries (linux/darwin/windows × amd64/arm64)
 - Helm OCI + npm registry publishing on tags
-
 #### SDK
 - TypeScript SDK with CLI wrapper (`sdk/typescript/`)
 - Type definitions for events, workflow, and profiles
 - Platform-specific optional dependency packaging (darwin/linux/windows)
 - npm publish pipeline in CI
-
 #### Documentation
 - OpenAPI 3.1 specification for REST API (`api/openapi.yaml`)
 - Production hardening guide for HIPAA compliance (`docs/operations/PRODUCTION-HARDENING.md`)
@@ -460,9 +538,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Planning documents for all major features (14 design docs)
 - Component status matrix (`docs/STATUS.md`)
 - Documentation conventions (`docs/DOCUMENTATION-CONVENTIONS.md`)
-
-### Changed
-
 - CI `test:integration` promoted from `allow_failure: true` to a blocking merge
   gate (24/24 green on `main`, pipelines 18521..22333). It now protects the
   terminology DB store and the Lane C1 autoroute expiry-sweep kill-test on every
@@ -482,11 +557,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads and never compares it with the declared SE01, so nothing caught the
   drift; `TestFixtureTrailerCountsMatchTheirTransactionSets` and the
   `lint:edi-fixtures` CI job now both do.
-
 - `workflow validate`, `workflow run`, and `workflow dry-run` reject invalid CEL,
   transform, and built-in action configuration before reading events. Validation
   diagnostics include severity, code, and path; warnings remain non-blocking (#21).
-
 - FHIR validation no longer fails open on the mode string. `ValidationOptions.Mode`
   was compared byte-exactly against `us-core`, so any other value — including
   `US-Core`, `uscore`, and `""` — silently disabled both the required-element and
@@ -537,19 +610,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Tracing section).
 - Mermaid diagram sources regenerated to reflect the integration engine,
   deployment lifecycle, and IDE journey added in phases 1 through 3.
-
 - Concurrent durable receipt insertion now arbitrates both the deterministic
   receipt primary key and tenant/idempotency key before the authoritative stored-
   result lookup and request-fingerprint validation, preventing valid duplicate
   callers from surfacing a primary-key error.
-
 - Runtime verification CI now requires the fi-fhir binary for UI, TypeScript
   SDK, and smoke consumers; waits for the configured server port; runs the
   complete SvelteKit/Vitest suite; aggregates every smoke assertion safely
   under strict shell mode; and proves the production handler rejects GraphQL
   WebSocket upgrades and legacy routes. npm 10.9.3 is the canonical UI package
   manager and the stale pnpm lock has been removed.
-
 - Workflow benchmarks now replace terminal log actions with a benchmark-only
   no-op handler, parse `events/sec`, and fail when a thresholded result is
   missing; benchmark test failures now propagate through the artifact-capture
@@ -557,7 +627,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evidence so the gate measures engine performance instead of console I/O or
   silently skipped records. The calibrated benchmark job is now blocking.
 
+- Prevent admitted MLLP messages from exhausting their processing timeout while queued, and report the ERR-3 diagnostic in concurrent duplicate ACK failures.
+  - Where: `internal/integration/mllp/service.go`, `internal/integration/mllp/service_test.go`, `internal/integration/mllp/server_integration_test.go`.
+
 ### Security
+
+- Add the `clinical:read` GraphQL transport role for the ten PHI-reading event, patient, and projection queries while preserving the `graphql:operator` compatibility grant.
 - UI image runs `apk upgrade` in the nginx stage so libssl3/libcrypto3 carry the fix for CVE-2026-14456 (HIGH, `security:trivy-ui-image`). `npm audit fix` in `ui/` moved browserslist past GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g and postcss-selector-parser past GHSA-w9m9-85wc-3x92 (`security:npm-audit-ui` high gate); three low-severity `cookie` advisories remain behind the SvelteKit major and are below the gate.
 - golang.org/x/crypto bumped v0.53.0 → v0.55.0 for CVE-2026-56854 (x/crypto/ssh authentication bypass via unenforced source-address restrictions; used by the SFTP batch provider). Pulled x/mod, x/net, x/sync, x/sys, x/text and x/tools forward one minor each via `go mod tidy`. Surfaced by `security:trivy` on the first MR pipeline after the advisory published.
 - golang.org/x/crypto bumped v0.53.0 → v0.55.0 for CVE-2026-56854 (x/crypto/ssh authentication bypass via unenforced source-address restrictions; used by the SFTP batch provider). Pulled x/mod, x/net, x/sync, x/sys, x/text and x/tools forward one minor each via `go mod tidy`. Surfaced by `security:trivy` on the first MR pipeline after the advisory published. Same MR: google.golang.org/grpc v1.82.1 → v1.83.1 for CVE-2026-84304 (HIGH), surfaced by `security:trivy-image` on the built binary.
@@ -629,69 +704,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Required npm audits for UI and TypeScript SDK dependencies
 - Required pinned license compliance checking (go-licenses)
 
-## [0.1.0] - 2024-01-15
+- Close SEC-2026-09-27-1: the workflow debugger (`startDebugSession`) no longer executes actions from caller-supplied YAML.
+  - Every action is a recording no-op unless named in `FI_FHIR_WORKFLOW_DEBUG_ACTIONS`, and `exec` never runs there; each paused action step carries `action.stubbed` and redacted, bounded `action.inputs`.
+  - Debug sessions are bounded per process (`FI_FHIR_WORKFLOW_DEBUG_MAX_SESSIONS`, default 8; `FI_FHIR_WORKFLOW_DEBUG_SESSION_TTL`, default 15m) with `fi_fhir_workflow_debug_sessions` and `fi_fhir_workflow_debug_sessions_total{outcome}`.
 
-### Added
+- **Behaviour change:** the `exec` action now also requires the command in the deployment-owned `FI_FHIR_WORKFLOW_EXEC_ALLOWLIST`.
+  - The workflow YAML `allowlist` can only narrow it.
+  - Deployment-owned `FI_FHIR_WORKFLOW_EXEC_ALLOWLIST` — empty by default, which refuses every command.
 
-#### Core Functionality
-- HL7v2 message parsing (ADT A01-A04, A08, ORU R01, SIU S12-S15, S26)
-- CSV/flatfile parsing with schema inference
-- EDI X12 parsing (837P claims, 835 remittance, 270/271 eligibility, 276/277 status)
-- Canonical semantic event model (`pkg/events/`)
-- Source Profile system for per-interface configuration
+- Close SEC-2026-09-27-2: `createFhirSubscription` and the other subscription mutations contact only https hosts listed.
+  - In `FI_FHIR_FHIR_SUBSCRIPTION_ALLOWED_HOSTS`, re-check every redirect, and keep at most `FI_FHIR_FHIR_SUBSCRIPTION_MAX_CLIENTS` (default 32) clients in an LRU.
+  - Hosts listed in `FI_FHIR_FHIR_SUBSCRIPTION_ALLOWED_HOSTS` — exact or `*.suffix`; empty by default refuses all with "FHIR subscription destination not allowed"
+  - See `docs/operations/SECURITY.md`.
 
-#### Workflow Engine
-- YAML-based workflow DSL for event routing
-- CEL (Common Expression Language) filter conditions
-- Transform pipeline (set_field, map_terminology, redact)
-- Action types: log, webhook, fhir, database, queue
-- Dry-run mode for testing workflows
+- Add the `clinical:read` GraphQL transport role for the ten PHI-reading event, patient, and projection queries in `internal/api/graphql`.
+  - Policy documentation in `docs/planning/GRAPHQL-API.md`.
 
-#### FHIR Integration
-- FHIR R4 resource generation (Patient, Encounter, Observation, DiagnosticReport)
-- US Core profile mapper
-- OAuth2 client credentials flow with token caching
-- Automatic 401 retry with token refresh
-
-#### Reliability Features
-- Retry with exponential backoff for HTTP actions
-- Circuit breaker pattern for failing external services
-- Dead letter queue (DLQ) for failed events
-- Rate limiting for high-volume event streams
-- Event replay from DLQ or recordings
-
-#### Observability
-- Prometheus metrics (`workflow_events_processed_total`, etc.)
-- OpenTelemetry distributed tracing
-- Structured JSON logging with trace correlation
-- Grafana dashboard templates
-- Prometheus alerting rules
-
-#### CLI
-- `parse` - Parse messages (HL7v2, CSV, EDI)
-- `workflow run` - Process events through workflow
-- `workflow validate` - Validate workflow configuration
-- `config show/validate/env/init` - Configuration management
-- `version` - Version information
-
-#### Deployment
-- Multi-stage Dockerfile with distroless base
-- Docker Compose for local development
-- Kubernetes manifests with Kustomize overlays
-- Helm chart with full templating
-- GitLab CI/CD pipeline (lint, test, security, build, release)
-
-#### SDK
-- TypeScript SDK with CLI wrapper
-- Type definitions for events and workflow
-
-#### Validation
-- NPI (National Provider Identifier) validation with Luhn check
-- MBI (Medicare Beneficiary Identifier) validation
-- SSN format validation
-- DEA number validation
-
-### Security
 - Non-root container execution
 - Read-only root filesystem
 - Secret provider interface (env, file, Vault, AWS SSM, K8s secrets)
