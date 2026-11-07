@@ -7,9 +7,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### End-to-end demo guide (2026-09-28)
 
 - **Documentation** — `docs/user-guide/demo-end-to-end.md`: the operator's script for the LAN demo environment (`platform/gitops/k3s/fi-fhir/demo/`: SFTP drop, S3 bucket, single-node Kafka, HAPI "St. Elsewhere" hospital), with a synthetic ADT^A01 batch, the drop recipes, the Connections-page values that reproduce the mounted source digests, and the honest state of ingestion: the deployed API polls as definition `sftp-test-demo`, which nothing outside tests can create yet. Records the two ways to close that (a `lifecycle seed` command mirroring `deployBatchRevision` in the batch proof, or the definition editor).
+
+### Changed
+
+- `fi-fhir serve` reads the telemetry correlation key from `FI_FHIR_TELEMETRY_CORRELATION_KEY` or `FI_FHIR_TELEMETRY_CORRELATION_KEY_FILE` and now requires it.
+  - To be the hex or base64 (standard or URL alphabet, padded or not) encoding of at least 32 random bytes.
+  - `FI_FHIR_TELEMETRY_CORRELATION_KEY` or `FI_FHIR_TELEMETRY_CORRELATION_KEY_FILE` — exactly one, through the shared serve secret loader.
+  - A raw 32-character passphrase is refused at startup with an error that names the format and never echoes the value (`cmd/fi-fhir/serve_tracing.go`, `cmd/fi-fhir/engine_runtime.go`, `cmd/fi-fhir/main.go`, `.env.example`).
+
+- Extend the structured logging proof to require successful TLS webhook delivery and retried Kafka dispatch spans, joined to admission and durable attempts.
+  - In `internal/observability/structured_logging_gate_integration_test.go` and `internal/observability/tracing_gate_integration_test.go`; describe both outcomes in `ci/test-structured-logging.yml`.
+
+- CI: `lint:edi` moves from edilint v0.3.0 to v0.5.0 and `lint:edi-fixtures` from v0.1.0 to v0.5.0, the release tagged 2026-11-01.
+  - Where: `ci/lint-edi.yml`, `Makefile` `EDILINT_VERSION`; `ci/lint-edi-fixtures.yml`, `Makefile` `EDILINT_FIXTURES_VERSION`.
+  - Both jobs' command lines, run locally with the v0.5.0 binary, report the seven-file `testdata/edi` corpus clean (stock rules: `7 files checked, no findings`; the committed `testdata/edi/.edilint.yml`: JUnit `tests="7" failures="0"`), so no finding changes.
+  - No job is added, renamed or re-ruled.
+
+- Updated `ui/e2e/operator-bundle.spec.ts` check 3 to use `previewOnSessionStream` alongside `expectPreviewComplete` from `ui/e2e/support.ts`.
+  - Preserving stream assertions and timing budgets.
+
+### Removed
+
+- Workflows Inventory no longer offers **Run event**.
+  - It called `triggerWorkflow`, which shipped builds refuse (`legacyUnsafeExecution`), so the action could only fail on `serve`.
+  - Where: `ui/src/lib/features/workflows/components/WorkflowList.svelte`; `.loom/42` E-5.
+  - The Event JSON field, its run result and toasts go with it; "View runs" still opens the monitor.
+  - The Problems store's draft liveness (`ui/src/lib/ui/ide/panels/workflowProblemsStore.ts`) no longer reads the never-set "builder opened" flag; the flag, `markWorkflowBuilderOpened`, and its reset hook are retired from `ui/src/lib/features/workflows/workflowStore.ts`, and the `markWorkflowBuilderOpened` tests in `workflowProblemsStore.test.ts` and `BottomPanel.test.ts` are gone.
+  - `EventLineagePanel.svelte` gains a component test (`EventLineagePanel.test.ts`: lineage rows, empty state, no network).
+
+- IDE dead affordances: the split-workspace placeholder pane and its Cmd+\ shortcut; the status bar's `activeProfile` / `parserStatus` items, which nothing fed.
+  - The `/hl7` Cmd+K re-dispatch to a second palette; the legacy `$lib/ui/{Button,Badge,EmptyState,IconButton,Input,Panel,Select,Tabs,TextArea,Tooltip,FilterChip,ConfidenceBadge,JsonViewer,StatusPill,Skeleton}.svelte` and `$lib/ui/types.ts`; the unmounted `features/collaboration/**` module and `lib/platform/fileClaimsManager.ts`; `features/observability/{LogViewer,MetricsPanel}.svelte`.
+  - Its Cmd+\ shortcut — `toggleWorkspaceSplit`, `setWorkspaceSplit`, `splitDocument`, `setSecondaryDocument`.
+  - Skeleton}.svelte` and `$lib/ui/types.ts` — no product imports; `ConfirmModal` now renders on `Dialog`.
+  - MetricsPanel}.svelte` — the alert source `observabilityStore` and `AlertBadge` stay: the status bar and Home › Alerts use them.
+  - Where: `.loom/42` E-4.
+
+### Fixed
+
+- Keep the HL7 editor and results readable as the explorer and session panels change the available space.
+  - The split preserves its preferred width, stacks on narrow screens, and opens compact session details in a drawer.
+  - The current session name remains visible with both side panels closed, and resizing preserves open export/archive forms.
+
+- Operator deep links (`?receipt=`, `?attempt=`, `?definition=&revision=`) now wait for the capability pre-flight before they apply.
+  - A link opened in a fresh bearer tab is held until the `/api/auth/status` probe answers (new `accessProbePending` in `ui/src/lib/graphql/accessCapabilities.ts`).
+  - It is then applied once, or it gives way to the forbidden / not-configured pre-flight; it no longer selects a record the page cannot show.
+  - An older server that stays `unknown` still applies the link once its probe has answered (`OperatorPage.svelte`).
+  - The attempt inspector now links a resubmitted attempt's children ("Resubmitted as") as well as its parent.
+  - The attempt type exposes only `parentAttemptId`, so the inspector reads the children from the receipt's trace (`AttemptInspector.svelte`, `resubmitChain.childAttempts`); on a receipt whose trace is at its 100-attempt cap it says so instead of "Not resubmitted".
+
+- Fix shared-runner flakes in `internal/workflow/benchmark_util_test.go` by checking QuickBenchmark's positive finite rate, duration.
+  - Event processing while leaving throughput floors to the calibrated benchmark job.
+
+- IDE shell accessibility nits from the E-4 review.
+  - `Dialog.svelte` moves focus to its own surface when nothing inside can take it.
+  - It also swallows an Escape pressed before focus has entered, so a keypress during the open transition no longer closes the dialog or reaches the page.
+  - The close buttons in `Tabs.svelte` are aria-hidden pointer affordances, so the tablist exposes only tabs; closable tabs advertise Delete through `aria-keyshortcuts`.
+  - A new `TabItem.description` sets `aria-description`.
+  - In `BottomPanel.svelte`, a dimmed Copilot tab gives the reason in its `title` and `aria-description`: "No LLM is configured for this deployment", or the LLM capability warning when the provider is unavailable.
+
+- IDE tabs no longer keep stale capabilities until they are reloaded.
+  - `accessCapabilities.ts` gains `refresh()`, which re-reads `/api/auth/status` with the current credential, and `refreshSoon()`, which runs at most one re-read per 2 s.
+  - The credential gate (`GraphQLCredentialGate.svelte`) calls `refresh()` once a bearer validates.
+  - `graphqlFetch` (`client.ts`) and `describeConnectionFailure` (`connectionsErrors.ts`, which also handles intake refusals) call `refreshSoon()` on a `legacy integration execution is unavailable` refusal.
+  - After a rollback of the session flip, intake, connections and Copilot re-derive from the new status.
+  - `docs/operations/INTEGRATION-SESSIONS.md` no longer tells operators to reload the tab.
+
+- Telemetry docs now describe the keyed correlation digest.
+  - `docs/operations/README.md` § Logging explains the HMAC-SHA256 under `FI_FHIR_TELEMETRY_CORRELATION_KEY`, the unkeyed `sha256:` fallback and its startup WARN, `docs/user-guide/cli-reference.md` lists the key, and `docs/operations/SECURITY.md` gains a "Tracing and correlation" section and a residual-risk entry for the unkeyed digest.
+
+- Require the specific leak assertion in both negative controls in `Makefile`, report captured output for unexpected results.
+  - Clarify the sentinel checks in `ci/test-structured-logging.yml`.
+
+- Build: the image build retries `go mod download` up to three times with a 5 s then 10 s backoff instead of failing the whole build.
+  - On one transient proxy.golang.org HTTP/2 stream reset, which cost two Mills merge trains and one merge-request pipeline on 2026-11-03.
+  - Image build — `Dockerfile`, `build:docker`.
+  - Proxy.golang.org HTTP/2 stream reset — `stream error: stream ID N; INTERNAL_ERROR; received from peer`.
+  - Modules that finished before the reset stay in the module cache, so a retry only fetches what was cut off; the trace prints the attempt counter so the retry path is visible when it fires.
+
+- CI: `.gitlab-ci.yml` gains a `workflow:` block whose first rule refuses push pipelines on queue-owned `mills-mq/` refs and whose last rule is `when: always`.
+  - So every other source behaves as before.
+  - Queue-owned `mills-mq/` refs — `$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^mills-mq\//`, `when: never`, the rule loom-core carries.
+  - The Mills merged-result train adopts any green pipeline on a row's `mills-mq/train-*` ref; on 2026-10-29/30 the first four train rows (!283, !285, !286, !282) were "proven" by push pipelines 35918, 35921, 35971 and 36007 that each ran only `lint:helm`, because that job's last rule is a bare `changes:` and a push that creates a branch makes every `changes:` true, so the `$MILLS_MERGE_QUEUE == "1"` arm from !280 never executed.
+  - With the push pipeline refused, the queue's own API pipeline (which carries the variable and runs the gating set) is the only one it can adopt.
+  - No job is added, renamed or re-ruled.
+
+- Closing an editor with Delete keeps keyboard focus on the neighboring tab without changing an unrelated active page.
+  - Cancelling a draft warning or a failed navigation retains the original tab; closing the final editor returns focus to Home.
+
+- Restore saved editor tabs and record links before writing workspace preferences, including reloads outside Home.
+  - Opening the explorer focuses its filter and highlights the current session.
+  - Switching intake sessions now loads the selected session's runs and results without replacing edited message text; late responses from the previous session cannot overwrite the new context.
+  - Home avoids duplicate entries for sessions already open in a tab.
+
+- Reduce shared-runner flakes in `internal/workflow/exec_action_test.go` by giving the allowed-command test a 30-second exec timeout.
+  - And 60-second context deadline while preserving its behavioral checks.
+
+- Prove asynchronous delivery joins admission by durable receipt, lineage.
+  - Ledger attempt IDs on a separate OTel trace with matching logs in `internal/observability/{tracing_gate,structured_logging_gate,replicas}_integration_test.go`; document the retry proof in `docs/operations/PRODUCTION-HARDENING.md`.
+
+- Prove default-off serve tracing exports nothing while retaining PHI-safe lineage logs in cmd/fi-fhir/serve_tracing_test.go.
+  - Share serve tracing configuration through cmd/fi-fhir/serve_tracing.go and main.go, and reject tracing-enabled deployment defaults in scripts/check-runtime-config.sh.
+
+- The workflow builder no longer turns nested action config into `"[object Object]"` when it loads a version (`yamlToDraft`).
+  - Its unsaved-change baseline no longer hides that loss.
+  - Opening `/workflows` no longer puts the untouched default draft's errors in the Problems badge.
+  - HL7 paths in dash notation with a field repetition (`PID-3[0].1`, used by the event lineage panel) now resolve.
+  - The debug panel's mock-data scaffold is gone, and its breakpoint and Play preconditions are disabled controls with reasons instead of toasts.
+
+- Serve spans carry a closed attribute set narrower than the log allowlist — no `source_message_id`, `error` or `reason`.
+  - And report anything refused as `dropped_attributes`.
+  - The structured-logging proof submits its message under a sentinel `X-Correlation-ID`, requires only its digest (keyed `hmac-sha256:` under `FI_FHIR_TELEMETRY_CORRELATION_KEY`, unkeyed `sha256:` when the key is unset) on the admission span and log line, and `make tracing-negative-control` proves the collector-side scan fails when a `tracingleak` build restores the raw header (2026-10-27 review of !279, W1 and W2).
+
+- Upgrade the OpenTelemetry SDK and core API modules from v1.44.0 to v1.45.0 to address GO-2026-6505.
+  - Concerns exporter configuration appearing in verbose internal diagnostic logs.
+
+- Updated Busboy and DOMPurify to patched releases, constrained SvelteKit's cookie dependency to 0.7.2.
+  - Backported the proposed braces nesting-depth fix into a documented private fork.
+  - The dependency audit passes without suppressing findings; regression tests verify the installed fork and cookie validation.
+
+- Mapping Studio remembers linked sessions and records when returning through editor tabs, the activity bar, or navigation commands.
+  - Cmd/Ctrl+K works while typing in inputs and editors, preserves editor content, and returns focus on Escape.
+  - Phone-width stage navigation keeps the Commands and Theme controls visible.
+
+- Protect connection forms, profile YAML and managed workflow edits across workspace navigation.
+  - Cancelled or failed navigation keeps the active tab and draft; closing asks once before leaving.
+  - Track independent editors without clearing other unsaved work, preserve Workflow Design across its internal views, and resume Back/Forward without replacing history.
+
+- The Explorer now opens real source and destination records.
+  - Connection, definition, receipt and attempt links stay aligned with the visible record during same-page navigation and browser history.
+  - Connection edits and unfinished definition forms survive record browsing; archived and unavailable targets have explicit states.
 
 ### Security
 
@@ -20,9 +151,155 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   builds and update `golang.org/x/net` to v0.60.0 to address the October 8
   standard-library and HTTP/2 advisories found by the blocking vulnerability gate.
 
+- Bump `github.com/go-jose/go-jose/v4` from v4.1.4 to v4.1.6 to fix CVE-2026-116587.
+  - Was failing the `security:trivy-image` job on every merge request pipeline.
+  - V4.1.4 to v4.1.6 — `go.mod`, `go.sum`.
+  - V4.1.6 to fix CVE-2026-116587 — HIGH, DoS when parsing JWKs containing RSA keys.
+
+- Serve now renders the caller `X-Correlation-ID` on spans and log lines as a keyed `hmac-sha256:<32 hex>` digest under the new…
+  - Serve now renders the caller `X-Correlation-ID` on spans and log lines as a keyed `hmac-sha256:<32 hex>` digest under the new `FI_FHIR_TELEMETRY_CORRELATION_KEY` serve secret, instead of a dictionary-reversible unkeyed SHA-256.
+  - Unset keeps the `sha256:` digest with a startup WARN; a key under 32 bytes refuses to start.
+  - `fi-fhir` runtime property output reports the key only as set or unset (`cmd/fi-fhir/engine_runtime.go`, `cmd/fi-fhir/serve_tracing_correlation.go`, `cmd/fi-fhir/serve_tracing.go`, `cmd/fi-fhir/main.go`, `.env.example`, `docs/operations/PRODUCTION-HARDENING.md`, `docs/operations/PHI-RETENTION.md`).
+
+- Go 1.26.10 in the module, CI and the container build, and DOMPurify 3.4.17 in the UI lockfile (a transitive dependency).
+  - On 2026-10-27 govulncheck refused Go 1.26.9 with GO-2026-6809 and trivy flagged DOMPurify 3.4.16 with GHSA-cg2g-xh64-v4q7.
+  - DOMPurify 3.4.16 with GHSA-cg2g-xh64-v4q7 — `SAFE_FOR_TEMPLATES` bypass, critical.
+  - Where: `crypto/x509` distrusts compromised intermediate certificates; fixed in 1.26.10.
+  - Both scans run on every merge request against a moving database, so no merge request could go green without this; it rides the merge-train CI change.
+
+- UI and TypeScript SDK lockfiles.
+  - Vite moves to 7.3.7 (UI) and, through Vitest's current 4.x, to the patched 8.x line (SDK) for the launch-editor advisories npm audit started failing on 2026-10-27 and Vite's own GHSA-9jrq-w75r-8gcw and GHSA-rq7h-c2jc-7f22; `security:npm-audit-ui` and `security:npm-audit-sdk` gate on high severity.
+  - Started failing on 2026-10-27 — GHSA-r825-w8mm-5pxw arbitrary command execution, GHSA-698v-4r3x-3vcv, GHSA-587h-7wmj-h5pm.
+  - Lockfile-only updates (`npm install --package-lock-only`); the remaining low and moderate findings are below the gate.
+
 ### Added
 
 - `fi-fhir lifecycle seed` (`cmd/fi-fhir/lifecycle_seed.go`): the supported way to create a batch integration definition in the PostgreSQL lifecycle catalog outside tests. It builds the revision from the mounted batch source revision (`--source`), the profile and workflow refs of one static-registry entry (`--integration`; the batch runner loads those bytes from the static registry, so the seed resolves them with the runtime's own `processor.RevisionResolver` first), and destination revisions (`--destination`), then runs CreateDraft → ValidateConnection → Approve → Publish (`--through deployed` adds Deploy) at the expected snapshot version under `--principal` and `--reason`. `--validate real` lists one object of the input location through the provider `serve` builds from `FI_FHIR_BATCH_*` (codes `SOURCE_REACHABLE`, `HOST_KEY_VERIFIED`, `AUTH_OK`, `INPUT_LISTED`, or `SOURCE_CONNECT_FAILED`/`INPUT_LIST_FAILED`); `--validate skip` records `VALIDATION_SKIPPED`. Re-runs resume from the stored state and refresh stale evidence; different content under the same revision ID is refused, never overwritten; a workflow that delivers to a destination the definition lacks is refused. `--dry-run` prints the revision and refs without a database; `--destination-registry-out` emits the delivery worker's `fi-fhir/destination-registry/v1` document for the definition. Blocking CI proof `test:lifecycle-seed` (`ci/test-lifecycle-seed.yml`, `make lifecycle-seed`): seeded through published, resumed to deployed, and ingested by the batch runtime `serve` builds, against PostgreSQL 16 and an in-process SFTP server. `batch.SourceRevision.SecretBindingNames` is now exported.
+
+- Add blocking runtime configuration checks with `ci/lint-runtime-config.yml`, wired through `.gitlab-ci.yml` and recorded in `ci/job-inventory.txt`.
+  - To keep deployment tracing opt-in.
+
+- Add the per-replica runtime heartbeat table in `internal/integration/connection/migrations/0003_runtime_observations.sql`.
+  - Storing mounted document digests and heartbeat times for connection catalog observations.
+
+- Per-replica observed runtime status (.loom/39 "Convergence" step 1).
+  - Connection ledger migration `0003_runtime_observations.sql` adds `integration_runtime_observations`, an upsert-only heartbeat table keyed by `(tenant_id, replica_id, adapter)`, and raises the connection `SchemaVersion` to 3 (`internal/integration/connection/postgres.go`).
+  - Every `serve` replica with the durable database writes one row per adapter and per delivery-registry destination, keyed by `hostname-pid`, on the one-minute health-report timer (`cmd/fi-fhir/serve_observability.go`).
+  - GraphQL gains `EngineRuntime.observations` (`stale` once a heartbeat is older than three report intervals) and `ConnectionRuntimeState.observedReplicas` / `totalReplicas` (`internal/api/graphql/schema.graphql`, `ui/src/lib/gen/graphql.ts`).
+  - Documented in `docs/operations/CONNECTION-CATALOG.md` § Runtime observations.
+
+- Connection catalog rows and the details pane's Usage tab now say "mounted on n of m" from `ConnectionRuntimeState.observedReplicas` / `totalReplicas`.
+  - The connection fragment now selects.
+  - Where: `ui/src/lib/graphql/connections.graphql`, regenerated `ui/src/lib/gen/graphql.ts`.
+  - `replicaCountText` in `ui/src/lib/features/connections/connectionStatus.ts` builds the wording for both `ConnectionCatalog.svelte` and `ConnectionUsage.svelte`.
+  - When the counts are absent or no replica reports a fresh heartbeat, both show "—" instead of "0 of 0".
+
+- GraphQL `ConnectionRuntimeState` gains nullable `revisionId` and `digest`, filled for the MLLP listener.
+  - Batch runner and delivery registry and null for the HTTP ingress, which is bound by definition id.
+  - Where: `internal/integration/connection/runtime.go`, `internal/api/graphql/schema.graphql`.
+  - The `/connections` status reads `revisionId` and falls back to parsing `detail` only when it is null; the Usage tab shows the mounted revision and truncated digest (`ui/src/lib/features/connections/`).
+  - The C-2 sample-intake schema comment now points at `docs/operations/PHI-RETENTION.md` instead of listing a partial set of redacted segments.
+
+- Add deterministic edilint v0.5.0 clean 837P and 835 fixtures and envelope defect fixtures in `testdata/edi/`.
+  - Corpus and diagnostic tests in `internal/parser/edi/fixtures_test.go`; update the corpus count comment in `ci/lint-edi-fixtures.yml`.
+
+- `serve --help` now documents `FI_FHIR_TRACING_ENABLED`, `FI_FHIR_TRACING_ENDPOINT`, `FI_FHIR_TRACING_SAMPLER`, `FI_FHIR_DELIVERY_LEASE_DURATION`.
+  - `FI_FHIR_DELIVERY_POLL_INTERVAL` and `FI_FHIR_DELIVERY_PUBLISH_TIMEOUT`, and the Engine tab allowlist (`serveProperties()`) reports them as plain values with defaults taken from `config.Default().Observability` and `delivery.DefaultConfig()`, so a replica's tracing state is visible.
+  - Where: `cmd/fi-fhir/main.go`, `cmd/fi-fhir/engine_runtime.go`, `docs/operations/CONNECTION-CATALOG.md`.
+
+- `FI_FHIR_FHIR_SERVER_URL` is now read as a deprecated alias of `FI_FHIR_FHIR_BASE_URL` when the canonical key is unset.
+  - Canonical key is unset — the production manifest sets the alias, which was previously ignored.
+  - `serve` logs one WARN naming the canonical key while the alias is set, and refuses to start when both are set to different values; `Config.Validate` reports the same conflict.
+  - `serve --help`, `config env` and the Engine tab list the alias.
+  - (`pkg/config/config.go`, `cmd/fi-fhir/main.go`, `cmd/fi-fhir/engine_runtime.go`)
+
+- `/api/auth/status` reports `capabilities.terminologyStore`, true when `serve` composed the terminology mapping store.
+  - Where: `internal/api/graphql/capabilities.go`, `server.go`, `resolvers/resolver.go`.
+  - The Terminology page reads it through `terminologyStoreCapability` (`ui/src/lib/graphql/accessCapabilities.ts`) and, when it is false, renders "not configured on this deployment" before any GraphQL query instead of a "GraphQL request failed" toast (`ui/src/lib/features/terminology/TerminologyPage.svelte`).
+  - Documented in `docs/planning/GRAPHQL-API.md` and `docs/operations/CONNECTION-CATALOG.md`.
+
+- CI: every job that runs on a merge-request pipeline also runs when the Mills merge queue mints a proof pipeline (`$MILLS_MERGE_QUEUE == "1"`).
+  - On a queue-owned `mills-mq/train-*` ref, so the queue's merged-result merge train can prove the exact tree that lands on `main` without rebasing or writing to the source branch.
+  - Where: loom-core `docs/MILLS_MERGE_TRAIN_DESIGN.md`.
+  - The arm sits first in `.go-mr-rules` and before every automatic merge-request arm in `.gitlab-ci.yml`, `ci/s5b-chaos-dr.yml`, `ci/test-e2e-legacy.yml`, `ci/test-ui-e2e.yml` and `ci/test-wasm.yml`; the three manual jobs (`test:benchmark`, `test:performance-profile`, `test:performance-report`) are deliberately left out, and jobs that run only on `main` or a tag (image build, deploy, release, mirror) are unchanged.
+  - No job is added or renamed.
+
+- Add the [Browser Playground](docs/user-guide/playground.md) guide and the [Mapping Studio (IDE)](docs/user-guide/ide.md) guide.
+  - Replaces the January `ui/docs/USER-GUIDE.md` (now a pointer) so the docs site publishes it.
+  - [Browser Playground](docs/user-guide/playground.md) guide — what the WebAssembly kernel runs in the tab, the built-in synthetic samples and profiles with their outcomes, the six-global JSON contract and its limits, what needs the IDE instead, and the hosted demo.
+  - [Mapping Studio (IDE)](docs/user-guide/ide.md) guide — sign-in, the shell, every route with what it needs and the honest state it shows without it, Copilot.
+  - The root README and the user-guide index list Connections, engine properties, sample intake, the playground, and the hosted demo.
+
+- `serve --help` and the `engineRuntime` property allowlist (Engine tab) now cover `FI_FHIR_INTEGRATION_SESSION_ENABLED`.
+  - `FI_FHIR_INTEGRATION_SESSION_RETENTION_KEY_FILE`, `FI_FHIR_DELIVERY_IDENTITY_{MODE,REGISTRY_PATH,COMPATIBILITY_SUBJECT,SECRET_DIR}`, `FI_FHIR_BATCH_SFTP_PRIVATE_KEY_PASSPHRASE[_FILE]`, and the `FI_FHIR_CONNECTION_SECRET_*` family.
+  - The family is the allowlist's one prefix rule: one row per set member, and each value renders only as `set`/`unset`.
+  - The credential paths are secret.
+  - (`cmd/fi-fhir/main.go`, `cmd/fi-fhir/engine_runtime.go`, `docs/operations/CONNECTION-CATALOG.md`)
+
+- Deepen the Operator page over data the engine already keeps.
+  - Per-deployment lifecycle history with release ids and a Validation badge that shows current or expired evidence and its expiry; a Delivery › Attempts search across receipts with an attempt inspector that pages its own audit trail and renders each record's detail; a trace that shows the resubmit chain, schedule and completion, the outbox lease, the full destination-ledger row and retention tombstones; a received-at window on Messages; opt-in 15 s auto-refresh on Messages and Delivery; a control-plane pre-flight that says "not configured" before a missing role on Operator and Home; per-replica fleet heartbeats on Connections › Engine and Home › Health; and deep links in and out.
+  - Evidence and its expiry — new server-evaluated `OperatorDeployment.validationCurrent`; Deploy and Resume say why they are disabled when it is not current, and the lifecycle's "validation required" and "active deployment" refusals now arrive as named errors.
+  - Attempts search across receipts — status, destination, receipt, route, recorded-at window, paged.
+  - Row and retention tombstones — new `OperatorEvent.purgeAfter`/`purgedAt`.
+  - Deep links in — `/operator?receipt=`, `?attempt=`, `?definition=&revision=`.
+  - Links in and out — `/connections?connection=`, `/events?receipt=`.
+
+- The browser gate's operator-bundle stack now starts with durable data written by the real admission path.
+  - A deployed lifecycle definition, one admission dead-lettered by the delivery worker, and two queued.
+  - Where: `ui/e2e/fixture.sh`.
+
+- Definition editor and lifecycle authoring (`.loom/42` E-1).
+  - New package `internal/integration/lifecycle/authoring` builds, checks and validates integration definition revisions for both `fi-fhir lifecycle seed` (refactored onto it) and the API; a kill-test proves a definition assembled from compiled connection documents has the same digest and canonical JSON as the seed's for the same inputs.
+  - GraphQL gains `integrationDefinitions`, `integrationDefinition`, `integrationRegistryArtifacts`, `validateIntegrationDefinitionDraft`, `createIntegrationDefinitionDraft`, `validateIntegrationDefinition` (REAL for the batch source the replica mounts, STATIC with code `VALIDATION_STATIC`, SKIP with a 16-byte reason), `approveIntegrationDefinition` and `publishIntegrationDefinition`, plus `ConnectionRevision.sourceId`, `destinationClass` and `secretBindingNames`; Secret references are checked with the connection catalog's rules (no key material, no whitespace, bounded count) before an append-only revision is written, and creating an identical revision is idempotent.
+  - `/api/auth/status` gains the deployment fact `capabilities.definitionAuthoring` and `missingRoles.definitionAuthoring`; `serve` hosts the validators on its lifecycle catalog and reads `FI_FHIR_LIFECYCLE_VALIDATION_MAX_AGE` (default 300 s).
+  - The Studio's `/connections` page gains a Definitions tab (table, Overview/Validation/Release/History, New definition, Validate/Approve/Publish through the reason dialog, a link to Operator to deploy, `?definition=&revision=` deep links).
+  - New CI proof `test:definition-authoring`.
+  - Documented in `docs/user-guide/connections.md` § Definitions and `docs/operations/CONNECTION-CATALOG.md` § Definition authoring.
+
+- Verification now reads the durable admissions instead of the legacy event store, which `serve` never writes.
+  - **Admissions** browses canonical events joined to their receipts, filters by event type, definition, receipt, MSH-10, correlation and recorded-at window, pages by cursor, and links each row to its Operator trace and to Connections; **Statistics** counts receipts, events and delivery attempts over a last-hour / 24-hour / 7-day / custom window with a per-bucket bar series and a "delivered" ratio from attempts; **Retention** shows tombstoned and scheduled events and whether the purge runs.
+  - Joined to their receipts — event type, MSH-10, receipt and status, definition and source revisions, retention marks, payload structure but never a value.
+  - Where: `/events`, journey stage 5.
+  - New GraphQL reads `operatorCanonicalEvents` and `operatorAdmissionStatistics` (role `integration.operator`), processor migration `0006_verification_reads` (two canonical-event indexes; submission ledger version 6), and the PostgreSQL proof `test:verification-reads`.
+  - The page pre-flights the control plane and the read role before any query; `/events?receipt=<id>` opens filtered to that receipt.
+  - The Live Stream and Patient Timeline tabs are gone, and the page says why.
+
+- Integration Sessions are resumable work in HL7 intake (.loom/42 E-3).
+  - `/hl7?session=<id>` reopens a session and shows its newest run, and the page writes that address as soon as it has a session; Home › Recent session rows open it.
+  - A session sidebar reads the session back: runs (`sessionRuns`) with each run's diagnostics (`sessionDiagnostics`), **Show in results** (`sessionRun`), the per-run stream (`sessionRunEvents`) while a run is live, publications, simulations, samples and drafts.
+  - **Accept fix** records `acceptDiagnosticFix` from the sidebar and from each Warnings row that came from a session diagnostic (WarningList's `onAcceptFix`; session runs now carry `diagnosticId`/`fixAccepted` on their warnings).
+  - **Export…** downloads `exportIntegrationBundle` as `fi-fhir-session-<id>-<UTC time>.json` after a required reason, which the API records with the caller on the append-only export row; the file carries no raw sample text and no parsed patient fields (runs keep status, stages, diagnostics, lineage and event envelopes), and raw sample payloads are offered only when the new `capabilities.phiExport` is reported true (`integration.phi.export`), otherwise the dialog names the missing role or says the grant was not reported.
+  - **Archive…** takes a session off Recent and asks for no reason, because the mutation records none.
+
+- `/api/auth/status` reports `capabilities.phiExport` and `missingRoles.phiExport`.
+  - `integrationSession(id)` answers `null` (instead of "GraphQL request failed") for an id the tenant's store does not hold.
+
+- IDE shell honesty (`.loom/42` E-4).
+  - **Journey from evidence**: `ui/src/lib/ui/ide/journeyState.ts` reads each stage's evidence once per shell mount and on every route change — Source Intake = an integration session with a run, Normalization = a published profile, Translation = a mapping or an approved autoroute, Delivery = a workflow with a published version, Verification = an accepted receipt — pre-flighting each read from `/api/auth/status` (not configured, then missing role) so a stage the identity cannot read is `unknown` with the reason in its title and issues no query; a stage is never complete by position.
+  - The header stage control, the status bar's `Next:` (the earliest stage whose evidence is missing) and the sidebar's `n/5` badge read it; background reads never toast.
+  - **One command palette**: `commandRegistry.ts` (sources with priority, groups, shortcut labels, `when` predicates) behind one `Dialog`-based palette opened by Cmd/Ctrl+K and the header button on every route, including `/hl7`, whose editor commands register into the same registry (the interim `<CommandPalette>` shim was deleted when HL7 intake registered directly, `.loom/42` E-3).
+  - **Primitives**: a `Dialog` primitive (focus trap, Escape, labelled and described, focus returned, `dismissible`); `TabItem.badge`, `dirty` and `title`, and `Tabs` `onselect`/`onclose`; `BottomPanel` and `EditorTabs` are `Tabs`.
+  - **Unsaved changes**: `ideStore.markDirty(tabId)` / `clearDirty(tabId)` put a dot on the tab and closing it asks first; the source-profile draft marks Profiles.
+  - Document titles for `/hl7`, `/profiles` and `/workflows`.
+  - e2e checks E4-1..E4-3 in `ui/e2e/shell.spec.ts`.
+
+- Workflow authoring honesty in the IDE (`.loom/42` E-5).
+  - The builder validates the draft beside each field with one summary line, and every precondition that used to be a toast after a click (17 of the 33 builder toasts, `.loom/22` B1/B2) is now a disabled Save, Publish, Create or Compare with its reason written next to it; a dialog replaces `window.confirm` for publish and for discarding unsaved changes.
+  - Loaded versions keep every key the YAML carried: nested action config and keys the form has no control for are listed as "YAML-only fields" and saved as written, and unsaved-change detection sees them.
+  - The inventory renames, re-describes, archives (behind a confirmation) and restores workflow definitions (`updateWorkflowDefinition`, `archiveWorkflowDefinition`) with an Active/Archived/All filter.
+  - Verification opens a run's recorded trace (`workflowRunTrace`) in the Trace panel, which names the run and explains a run with no spans.
+  - `WarningList` is rebuilt on the primitives and takes an optional `onAcceptFix(diagnosticId)` callback that shows "Accept fix" beside a fix suggestion.
+  - The `test:ui-e2e` operator-bundle project gains checks E5-1..E5-3 (`ui/e2e/operator-bundle.workflows.spec.ts`).
+
+- `fi-fhir serve` can export OpenTelemetry spans over OTLP/HTTP.
+  - Tracing is opt-in and off by default: `FI_FHIR_TRACING_ENABLED` turns it on, `FI_FHIR_TRACING_ENDPOINT` names the HTTP(S) collector (required when enabled) and `FI_FHIR_TRACING_SAMPLER` sets the root sampling ratio (default `0.1`).
+  - Admission, workflow-plan and delivery operations become spans whose attributes are limited to `PermittedSpanAttributes()`, and operation logs carry the trace/span IDs (MR !279; `internal/observability/tracing.go`, `cmd/fi-fhir/serve_tracing.go`, `docs/user-guide/cli-reference.md`).
+
+- Home and the Explorer can search and page through saved sessions, including archived work.
+  - Session lists and journey evidence now use bounded metadata queries instead of expanding every session and its runs.
+
+- The IDE has a collapsible left explorer with Build and Operate navigation, filtering, and recent intake sessions.
+  - Its desktop and section choices persist; narrow screens use a keyboard-accessible drawer that closes after navigation.
 
 ## [0.1.0] - 2026-09-28
 

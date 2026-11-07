@@ -1,1 +1,0 @@
-- Updated `ui/e2e/operator-bundle.spec.ts` check 3 to use `previewOnSessionStream` alongside `expectPreviewComplete` from `ui/e2e/support.ts`, preserving stream assertions and timing budgets.

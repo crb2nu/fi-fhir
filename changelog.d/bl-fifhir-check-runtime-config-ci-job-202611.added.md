@@ -1,1 +1,0 @@
-- Add blocking runtime configuration checks with `ci/lint-runtime-config.yml`, wired through `.gitlab-ci.yml` and recorded in `ci/job-inventory.txt`, to keep deployment tracing opt-in.

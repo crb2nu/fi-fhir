@@ -1,1 +1,0 @@
-The IDE has a collapsible left explorer with Build and Operate navigation, filtering, and recent intake sessions. Its desktop and section choices persist; narrow screens use a keyboard-accessible drawer that closes after navigation.

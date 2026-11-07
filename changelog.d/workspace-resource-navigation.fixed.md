@@ -1,1 +1,0 @@
-The Explorer now opens real source and destination records. Connection, definition, receipt and attempt links stay aligned with the visible record during same-page navigation and browser history. Connection edits and unfinished definition forms survive record browsing; archived and unavailable targets have explicit states.

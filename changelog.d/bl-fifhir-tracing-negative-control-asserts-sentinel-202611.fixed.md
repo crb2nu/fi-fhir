@@ -1,1 +1,0 @@
-- Require the specific leak assertion in both negative controls in `Makefile`, report captured output for unexpected results, and clarify the sentinel checks in `ci/test-structured-logging.yml`.

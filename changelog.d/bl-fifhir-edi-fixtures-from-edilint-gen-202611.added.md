@@ -1,1 +1,0 @@
-- Add deterministic edilint v0.5.0 clean 837P and 835 fixtures and envelope defect fixtures in `testdata/edi/`, with corpus and diagnostic tests in `internal/parser/edi/fixtures_test.go`; update the corpus count comment in `ci/lint-edi-fixtures.yml`.
