@@ -23,12 +23,15 @@ summit:
     target: 0.95
     direction: up
     unit: ratio
+  # The operator's kpi_snapshots key has no per-repo map, so the kpi kind
+  # read "no readings in the window" (loom-core .loom/209 A2.9). The walk
+  # kind reads fi-fhir's own press entries: enqueue to merge, p50, in hours.
   - id: lead-time
-    label: Slice-to-merge p50 on the Mills lane
-    metric: { kind: kpi, key: slice_to_merge_p50_seconds, repo: libs/fi-fhir }
-    target: 7200
+    label: Enqueue-to-merge p50 (press entries)
+    metric: { kind: walk, expr: lead_time_p50_hours }
+    target: 2
     direction: down
-    unit: seconds
+    unit: hours
 composite:
   weights: { gates: 0.6, ci-green: 0.2, lead-time: 0.2 }
 constraints:
