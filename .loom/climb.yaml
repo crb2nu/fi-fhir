@@ -1,5 +1,6 @@
 # .loom/climb.yaml — libs/fi-fhir (Climbs, .loom/208 §5)
 version: 1
+tier: 1
 problem:
   text: >-
     Healthcare integration engines are closed, expensive and hard to observe. fi-fhir is an open,
