@@ -1,1 +1,0 @@
-- Add the `clinical:read` GraphQL transport role for the ten PHI-reading event, patient, and projection queries in `internal/api/graphql`, with policy documentation in `docs/planning/GRAPHQL-API.md`.
