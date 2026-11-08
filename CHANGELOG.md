@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-08
+
+### Fixed
+
+- The tag pipeline's `release:gitlab` job attaches the binaries, the checksums and the Helm chart to the GitLab Release.
+  - That `loom release cut` already created instead of creating a second one, which release-cli refuses.
+  - A tag pushed without a cut still gets a Release named after the tag.
+  - Each asset link is added on its own and a link the Release already has counts as attached, so a retried job passes; the image is pinned to `release-cli:v0.24.0`.
+
+### Security
+
+- Bump `github.com/klauspost/compress` to v1.20.2 and `golang.org/x/net` to v0.62.0.
+  - The two findings that failed the v0.2.0 tag pipeline's `security:govulncheck` and `security:trivy-image` gates and left its six release jobs skipped.
+  - Bump `github.com/klauspost/compress` to v1.20.2 — GO-2026-6865, a panic on two-block frames reached from the Kafka backend through `kgo.NewClient`.
+  - Where: CVE-2026-78661, a denial of service in `x/net/html`.
+
 ## [0.2.0] - 2026-11-07
 
 ### End-to-end demo guide (2026-09-28)
