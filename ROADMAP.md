@@ -7,7 +7,7 @@
 > Execution plan: `.loom/30-implementation-plan-integration-engine-ide-completion.md`
 > Plan store: this file's Now list, fed to Mills through GitLab issues labelled `mills-eligible` (see Mills posture). The July program plan `plan-complete-fi-fhir-as-a-production-integration-engine-and-ide-341d98` has been parked since 2026-10-11 and feeds nothing; close it as superseded.
 
-- **Latest release**: v0.2.1 (2026-11-08)
+- **Latest release**: v0.2.2 (2026-11-08)
 
 ## Current Status
 

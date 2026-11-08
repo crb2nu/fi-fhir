@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-08
+
+### Fixed
+
+- Main-branch images are tagged `v<released major.minor>.<pipeline id>` on Harbor (`v0.2.38400`) instead of a fixed `v0.1.<pipeline id>`.
+  - Read from the newest `## [x.y.z]` heading in `CHANGELOG.md`.
+  - Release tags now land in the same repository and the same Flux semver range, and a `v0.2.2` above every `v0.1.N` would have pinned the cluster to that release until the next one; with the minor tracked, the next main build outranks it again.
+
+- The tag pipeline's release jobs publish where the cluster and the SDK look.
+  - `release:docker` and `release:docker-ui` push the scanned images to Harbor as `library/fi-fhir:<tag>` and `library/fi-fhir-ui:<tag>` with crane (they logged in to a GitLab container registry this instance does not have, so every tag pipeline from v0.1.0 to v0.2.1 was red); `release:helm` pushes the chart to `oci://registry.harbor.lan/library/charts` instead of swallowing a failed push to an empty registry URL; `release:binaries` checksums its own binaries (test:wasm's `dist/wasm/` directory broke `sha256sum *`); `release:npm` creates the gitignored `bin/` directories and stamps every package with the tag's version instead of asserting one the cut never bumps.
+
 ## [0.2.1] - 2026-11-08
 
 ### Fixed
