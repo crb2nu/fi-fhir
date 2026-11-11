@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Go 1.26.11 in the module, CI and the container build, and `github.com/moby/go-archive` 0.3.0.
+  - govulncheck reports GO-2026-6859 as reachable under Go 1.26.10: an HTTP/1 server crash from a `MaxBytesReader` header race in `net/http`; fixed in 1.26.11.
+  - trivy flagged `github.com/moby/go-archive` 0.1.0 with CVE-2026-17106 (high); 0.3.0 carries the fix. It is an indirect, test-only dependency of testcontainers-go, as are the `moby/patternmatcher`, `moby/sys` and `logrus` patch moves that follow it.
+  - `github.com/docker/docker` v28.5.1 (CVE-2026-41567, CVE-2026-42306) stays: that module path has no fixed release, and it is reached only from the testcontainers integration tests.
+
 ## [0.2.2] - 2026-11-08
 
 ### Fixed
