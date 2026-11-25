@@ -72,13 +72,16 @@ describe('braces security backport (CVE-2026-93687)', () => {
   });
 });
 
-describe('SvelteKit cookie security override', () => {
+// Kit 3 depends on cookie ^2, which already carries the injection fix the
+// old `overrides."@sveltejs/kit".cookie` pin backported, so the pin is gone.
+describe('SvelteKit cookie dependency', () => {
   it('round-trips ordinary cookies while rejecting injected names, paths and domains', () => {
-    const value = cookie.serialize('session', 'abc 123', { path: '/', httpOnly: true, sameSite: 'lax' });
+    const value = cookie.stringifySetCookie({ name: 'session', value: 'abc 123', path: '/', httpOnly: true, sameSite: 'lax' });
     expect(value).toBe('session=abc%20123; Path=/; HttpOnly; SameSite=Lax');
-    expect(cookie.parse(value).session).toBe('abc 123');
-    expect(() => cookie.serialize('user; injected', 'value')).toThrow();
-    expect(() => cookie.serialize('user', 'value', { path: '/; injected' })).toThrow();
-    expect(() => cookie.serialize('user', 'value', { domain: 'example.com; injected' })).toThrow();
+    expect(cookie.parseSetCookie(value).value).toBe('abc 123');
+    expect(cookie.parseCookie('session=abc%20123').session).toBe('abc 123');
+    expect(() => cookie.stringifySetCookie({ name: 'user; injected', value: 'value' })).toThrow();
+    expect(() => cookie.stringifySetCookie({ name: 'user', value: 'value', path: '/; injected' })).toThrow();
+    expect(() => cookie.stringifySetCookie({ name: 'user', value: 'value', domain: 'example.com; injected' })).toThrow();
   });
 });
