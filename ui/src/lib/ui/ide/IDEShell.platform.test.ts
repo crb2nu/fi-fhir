@@ -5,10 +5,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { writable } from 'svelte/store';
 import { resetIDEState } from './ideStore';
+// `$app` resolves to src/test/mocks/app (vitest.config.ts); this is that module.
+import { page } from '../../../test/mocks/app/state';
 
-const pageStore = writable({ url: new URL('http://localhost/') });
+page.url = new URL('http://localhost/');
 
 const platform = vi.hoisted(() => ({
   config: { endpoint: '', token: '', agentId: 'mapping-studio', enabled: false },
@@ -16,7 +17,6 @@ const platform = vi.hoisted(() => ({
   teardownPlatform: vi.fn(async () => {})
 }));
 
-vi.mock('$app/stores', () => ({ page: pageStore }));
 vi.mock('$app/navigation', () => ({ goto: vi.fn(), beforeNavigate: vi.fn(), afterNavigate: vi.fn() }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 vi.mock('$lib/platform', async () => {

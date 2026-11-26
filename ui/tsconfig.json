@@ -1,5 +1,7 @@
 {
-  "extends": "./.svelte-kit/tsconfig.json",
+  "extends": "$app/tsconfig",
+  "include": ["src", "test", "*"],
+  "exclude": ["src/service-worker"],
   "compilerOptions": {
     "strict": true,
     // Third-party .d.ts are not ours to fix: mermaid's types import a
@@ -11,7 +13,7 @@
     "noImplicitOverride": true,
     "useUnknownInCatchVariables": true,
     "verbatimModuleSyntax": true,
-    "types": []
+    "types": ["$app/types"]
   }
 }
 

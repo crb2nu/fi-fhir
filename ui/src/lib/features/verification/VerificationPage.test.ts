@@ -232,7 +232,7 @@ describe('VerificationPage admissions', () => {
     expect(window.location.search).toBe('?receipt=receipt-applied');
     expect(navigation.goto).toHaveBeenLastCalledWith(
       new URL('/events?receipt=receipt-applied', window.location.origin),
-      { replaceState: true, noScroll: true, keepFocus: true }
+      { replaceState: true, reset: false }
     );
     await waitFor(() => expect(api.fetchAdmissions).toHaveBeenCalledTimes(2));
     await navigate('/events?receipt=receipt-applied');

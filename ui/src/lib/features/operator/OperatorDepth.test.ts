@@ -538,7 +538,7 @@ describe('OperatorPage deep links and pre-flight', () => {
     expect(window.location.search).toBe('?receipt=receipt-a');
     expect(navigation.goto).toHaveBeenLastCalledWith(
       new URL('/operator?receipt=receipt-a', window.location.origin),
-      { replaceState: true, noScroll: true, keepFocus: true }
+      { replaceState: true, reset: false }
     );
     await screen.findByTestId('trace-events-link');
     // The inspector read the same trace for its child links; count the page's reads from here.

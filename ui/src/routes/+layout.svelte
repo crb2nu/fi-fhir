@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
+  import { toStore } from 'svelte/store';
   import ToastContainer from '$lib/ui/ToastContainer.svelte';
   import { initTheme } from '$lib/theme/theme';
   import { IDEShell, getWorkspaceTabTitle } from '$lib/ui/ide';
@@ -14,6 +15,9 @@
   import '$lib/styles/tokens.css';
   import '$lib/styles/base.css';
 
+  // `$app/state` is runes-only; `$:` blocks read it through a store.
+  const pageUrl = toStore(() => page.url);
+
   /**
    * Document titles for the routes whose page sets none (the others, and
    * OperatorPage, own a `<svelte:head>`); same words as the editor tab. Drop a route from this
@@ -26,7 +30,7 @@
     return route ? `${getWorkspaceTabTitle(route)} | fi-fhir` : null;
   }
 
-  $: headTitle = layoutTitle($page.url.pathname);
+  $: headTitle = layoutTitle($pageUrl.pathname);
 
   let credentialReady = false;
   let access: AccessSession | null = null;
@@ -38,7 +42,7 @@
 
   // Dev-only primitives gallery renders bare (no credential gate, no shell) so
   // it can be screenshotted; in production builds this is constant-false.
-  $: bareDesignRoute = import.meta.env.DEV && $page.url.pathname === '/design';
+  $: bareDesignRoute = import.meta.env.DEV && $pageUrl.pathname === '/design';
   let mounted = false;
   let connectionStarted = false;
 

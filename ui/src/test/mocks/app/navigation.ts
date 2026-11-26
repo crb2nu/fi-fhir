@@ -7,7 +7,7 @@ import { writable } from 'svelte/store';
 export const navigating = writable(null);
 export const updated = { check: async () => false, subscribe: writable(false).subscribe };
 
-export async function goto(_url: string, _opts?: { replaceState?: boolean; noScroll?: boolean }) {
+export async function goto(_url: string, _opts?: { replaceState?: boolean; reset?: boolean }) {
   // No-op in tests
 }
 

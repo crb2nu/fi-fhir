@@ -105,7 +105,7 @@
     }
     // Complete a Kit navigation so the shell remembers this record's URL.
     // eslint-disable-next-line svelte/no-navigation-without-resolve -- only changes selectors on the already-resolved current URL
-    void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+    void goto(url, { replaceState: true, reset: false });
   }
 
   function inspectAttempt(attemptId: string) {

@@ -4,7 +4,7 @@
  * of recent events. Falls back to simulated events when SSE is unavailable.
  */
 import { writable, get } from 'svelte/store';
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { PLATFORM_CONFIG } from './config';
 import { platformState } from './platformStore';
 

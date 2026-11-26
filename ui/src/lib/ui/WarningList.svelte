@@ -9,7 +9,7 @@
    * it with that id. The page owns the mutation (`acceptDiagnosticFix`).
    */
   import type { WarningGroup, WarningLike } from '$lib/domain/warnings';
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import { createEventDispatcher } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { Badge, Button, Input } from '$lib/ui/primitives';

@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
   import { resolve } from '$app/paths';
-  import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
-  import type { AfterNavigate, BeforeNavigate } from '@sveltejs/kit';
+  import { afterNavigate, beforeNavigate, goto, type AfterNavigate, type BeforeNavigate } from '$app/navigation';
   import { toasts } from '$lib/ui/toastStore';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
+  import { toStore } from 'svelte/store';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import Search from '@lucide/svelte/icons/search';
   import PanelLeft from '@lucide/svelte/icons/panel-left';
@@ -80,6 +80,9 @@
   /** Ends a bearer session (GraphQLCredentialGate.clearCredential). */
   export let onClearAccess: (() => void) | undefined = undefined;
 
+  // `$app/state` is runes-only; `$:` blocks read it through a store.
+  const pageUrl = toStore(() => page.url);
+
   let cleanupShortcuts: (() => void) | null = null;
   let cleanupCommands: (() => void) | null = null;
   type PendingNavigation = {
@@ -116,13 +119,14 @@
 
   function permitNavigation(to: string, type: BeforeNavigate['type'], delta?: number): void {
     clearNavigationPermit();
-    navigationPermit = { from: $page.url.href, to, type, delta };
+    navigationPermit = { from: $pageUrl.href, to, type, delta };
     // A history traversal can be ignored by the browser. Never leave approval
     // armed for an unrelated future attempt, even when no hook fires.
     permitTimer = setTimeout(clearNavigationPermit, 3000);
   }
 
   beforeNavigate((navigation) => {
+    const delta = navigation.type === 'popstate' ? navigation.delta : undefined;
     if (navigation.type === 'leave') {
       if (hasDraftsToLose(currentWorkspaceTab.id, true)) navigation.cancel();
       return;
@@ -132,7 +136,7 @@
       && navigationPermit.from === navigation.from?.url.href
       && navigationPermit.to === navigation.to.url.href
       && navigationPermit.type === navigation.type
-      && navigationPermit.delta === navigation.delta;
+      && navigationPermit.delta === delta;
     clearNavigationPermit();
     if (approved) return;
     if (pendingAction) {
@@ -145,9 +149,9 @@
     navigation.cancel();
     pendingAction = {
       kind: 'navigate', title: currentWorkspaceTab.title,
-      from: navigation.from?.url.href ?? $page.url.href,
+      from: navigation.from?.url.href ?? $pageUrl.href,
       to: navigation.to.url.href, type: navigation.type,
-      delta: navigation.delta, willUnload: navigation.willUnload,
+      delta, willUnload: navigation.willUnload,
       connectionsIntent: navigationRequest?.from === navigation.from?.url.href && navigationRequest?.to === navigation.to.url.href
         ? navigationRequest.intent : undefined,
     };
@@ -228,14 +232,14 @@
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- paths are validated workspace routes with optional selectors
       const destination = (resolve as any)(path) as string;
-      const target = new URL(destination, $page.url);
-      request = intent ? { from: $page.url.href, to: target.href, intent } : null;
+      const target = new URL(destination, $pageUrl.href);
+      request = intent ? { from: $pageUrl.href, to: target.href, intent } : null;
       navigationRequest = request;
       // eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved above
       await goto(destination);
       await tick();
       // SvelteKit resolves goto after a cancelled transition too.
-      const arrived = sequence === navigationSequence && $page.url.href === target.href;
+      const arrived = sequence === navigationSequence && $pageUrl.href === target.href;
       if (arrived && intent) requestConnectionsView(intent);
       return arrived;
     } catch {
@@ -296,9 +300,9 @@
     navigateTo(doc?.path ?? getWorkspaceTabRoute(view));
   }
 
-  $: currentPath = normalizeRoute($page.url.pathname);
+  $: currentPath = normalizeRoute($pageUrl.pathname);
   $: currentView = detectViewFromPath(currentPath);
-  $: currentWorkspaceTab = createWorkspaceTab(currentPath, currentView, $page.url.search);
+  $: currentWorkspaceTab = createWorkspaceTab(currentPath, currentView, $pageUrl.search);
   $: setActiveView(currentView);
   $: openTabAction(currentWorkspaceTab);
 
@@ -371,7 +375,7 @@
       await closeTabById(target.id, true, target.restoreTabFocus);
       return;
     }
-    if ($page.url.href !== target.from) return;
+    if ($pageUrl.href !== target.from) return;
     if (target.type === 'popstate' && target.delta !== undefined) {
       // SvelteKit first rolls the cancelled traversal back. Resume the same
       // history delta, preserving Forward and existing entry state.
@@ -401,7 +405,7 @@
     const documents = $ideState.documents;
     const index = documents.findIndex((doc) => doc.id === closingTabId);
     if (index < 0) return;
-    const sourceLocation = $page.url.href;
+    const sourceLocation = $pageUrl.href;
     const sourceArrival = navigationArrival;
     // Focus follows the removed tab's neighbor; closing an inactive tab must
     // leave the active route alone, even when that is a different survivor.
@@ -412,7 +416,7 @@
         const nextTabId = resolveNextWorkspaceTabId(documents, $ideState.activeDocumentId, closingTabId);
         const nextDoc = documents.find((doc) => doc.id === nextTabId);
         const destination = nextDoc?.path ?? nextDoc?.route ?? '/';
-        if (approved) permitNavigation(new URL(destination, $page.url).href, 'goto');
+        if (approved) permitNavigation(new URL(destination, $pageUrl.href).href, 'goto');
         const navigation = navigateTo(destination);
         const closeNavigation = navigationSequence;
         const opened = await navigation;
@@ -422,13 +426,13 @@
           && navigationArrival === sourceArrival + 1
           && lastNavigation?.type === 'goto'
           && lastNavigation.from?.url.href === sourceLocation
-          && lastNavigation.to?.url.href === $page.url.href;
+          && lastNavigation.to?.url.href === $pageUrl.href;
         if (!opened || !ownsArrival) {
           if (restoreTabFocus) {
             await tick();
             // A newer navigation can supersede this close while goto waits.
             // Its page and focus now belong to that later user action.
-            if (navigationSequence === closeNavigation && navigationArrival === sourceArrival && $ideState.activeDocumentId === closingTabId && $page.url.href === sourceLocation) {
+            if (navigationSequence === closeNavigation && navigationArrival === sourceArrival && $ideState.activeDocumentId === closingTabId && $pageUrl.href === sourceLocation) {
               editorTabs?.focusTab(closingTabId);
             }
           }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import { createHL7PreviewStore } from '$lib/features/hl7/hl7PreviewStore';
   import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';
@@ -116,11 +116,11 @@
 
   // Detect if profile has changed since last parse
   $: profileChanged =
-    $state.result &&
+    $previewState.result &&
     $selectedProfile &&
     (lastUsedProfileId !== $selectedProfile.id ||
       lastUsedProfileVersion !== $selectedProfile.version);
-  const { state, warningsByPhase, events, sessionDiagnostics, hl7, updateWarningExplanation } = store;
+  const { state: previewState, warningsByPhase, events, sessionDiagnostics, hl7, updateWarningExplanation } = store;
   const samplesStore = createHL7SampleStore();
 
   // The page's Integration Session: created by the first Preview, or by sample
@@ -286,7 +286,7 @@
     creatingSession = null;
     linkedSession = null;
     shownRunId = null;
-    state.update((s) => ({ ...s, loading: false, error: null, result: null, session: null }));
+    previewState.update((s) => ({ ...s, loading: false, error: null, result: null, session: null }));
     setSessionDiagnostics(null);
     selectedPath = null;
     selectedLocation = null;
@@ -341,20 +341,20 @@
     const generation = sessionGeneration;
     const results = ++resultsGeneration;
     const isCurrent = () => generation === sessionGeneration && results === resultsGeneration;
-    if ($state.loading) {
-      state.update((s) => ({ ...s, loading: false, result: null, session: null }));
+    if ($previewState.loading) {
+      previewState.update((s) => ({ ...s, loading: false, result: null, session: null }));
       setSessionDiagnostics(null);
     }
     try {
       const run = await workspace.runDetail(runId);
       if (!isCurrent()) return;
       if (!run || run.sessionId !== sessionId) {
-        state.update((s) => ({ ...s, loading: false, error: `Run ${runId} is no longer in this session.` }));
+        previewState.update((s) => ({ ...s, loading: false, error: `Run ${runId} is no longer in this session.` }));
         return;
       }
       const streamState = run.status === 'completed' ? 'complete' : run.status === 'failed' ? 'error' : 'running';
       const session = projectSessionMeta(sessionId, run.sampleId ?? '', run, streamState, null);
-      state.update((s) => ({
+      previewState.update((s) => ({
         ...s,
         loading: false,
         error: null,
@@ -373,7 +373,7 @@
     } catch (error) {
       if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : String(error);
-      state.update((s) => ({ ...s, loading: false, error: `Run ${runId} could not be read: ${message}` }));
+      previewState.update((s) => ({ ...s, loading: false, error: `Run ${runId} could not be read: ${message}` }));
     }
   }
 
@@ -382,7 +382,7 @@
    * diagnostics and the warning that carries the diagnostic's id.
    */
   function markDiagnosticAccepted(accepted: { id: string; sessionId: string; runId: string | null; acceptedAt: string | null }): void {
-    state.update((s) => {
+    previewState.update((s) => {
       if (!s.session || s.session.id !== accepted.sessionId || (accepted.runId && s.session.runId !== accepted.runId)) return s;
       return {
         ...s,
@@ -411,7 +411,7 @@
 
   /** WarningList's "Accept fix": `acceptDiagnosticFix` on the run's session, recorded with the caller. */
   async function acceptFix(diagnosticId: string): Promise<void> {
-    const sessionId = pageSessionId ?? ($state.session?.mode === 'session' ? $state.session.id : null);
+    const sessionId = pageSessionId ?? ($previewState.session?.mode === 'session' ? $previewState.session.id : null);
     if (!sessionId) return;
     acceptFixError = null;
     const generation = sessionGeneration;
@@ -501,7 +501,7 @@
    */
   async function onExplainAll() {
     const results = resultsGeneration;
-    const warnings = $state.result?.parsePreview.warnings ?? [];
+    const warnings = $previewState.result?.parsePreview.warnings ?? [];
     const unexplained = warnings.filter((w) => !w.explanation);
 
     if (unexplained.length === 0) return;
@@ -556,7 +556,7 @@
   let warningCount = 0;
   let eventCount = 0;
 
-  $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $state.data);
+  $: activeSampleModified = Boolean($activeSample && $activeSample.raw !== $previewState.data);
   $: selectedValue = selectedLocation ? getHL7Value($hl7, selectedLocation) : null;
 
 
@@ -602,19 +602,19 @@
   }
 
   async function previewFromPalette(): Promise<void> {
-    if ($state.loading) return;
-    if (!$state.data.trim()) return;
+    if ($previewState.loading) return;
+    if (!$previewState.data.trim()) return;
     await run();
   }
 
   async function processFromPalette(): Promise<void> {
-    if ($state.loading || processBlocked) return;
-    if (!$state.data.trim()) return;
+    if ($previewState.loading || processBlocked) return;
+    if (!$previewState.data.trim()) return;
     await processMessage();
   }
 
   function loadFileFromPalette(): void {
-    if ($state.loading) return;
+    if ($previewState.loading) return;
     fileInputEl?.click();
   }
 
@@ -625,7 +625,7 @@
   }
 
   function selectWarningRelative(delta: number): void {
-    const warnings = $state.result?.parsePreview.warnings ?? [];
+    const warnings = $previewState.result?.parsePreview.warnings ?? [];
     const withPath = warnings.filter((w) => Boolean(w.path));
     if (!withPath.length) return;
     const current = selectedPath ? withPath.findIndex((w) => w.path === selectedPath) : -1;
@@ -664,8 +664,8 @@
   }
 
   async function processMessage(): Promise<void> {
-    if ($state.loading || processBlocked) return;
-    if (!($state.data ?? '').trim()) return;
+    if ($previewState.loading || processBlocked) return;
+    if (!($previewState.data ?? '').trim()) return;
 
     const generation = sessionGeneration;
     const snapshot = getSnapshot();
@@ -703,7 +703,7 @@
     const isCurrent = () => generation === sessionGeneration && results === resultsGeneration;
     // Mark the request before waiting, so opening the linked session cannot
     // replace it with an older stored run in the meantime.
-    state.update((s) => ({ ...s, loading: true, error: null, result: null, session: null }));
+    previewState.update((s) => ({ ...s, loading: true, error: null, result: null, session: null }));
     setSessionDiagnostics(null);
     selectedPath = null;
     selectedLocation = null;
@@ -729,7 +729,7 @@
         onSessionUpdate: (session) => {
           if (!isCurrent()) return;
           if (session.mode === 'session' && session.id) pageSessionId ??= session.id;
-          state.update((current) => ({ ...current, session }));
+          previewState.update((current) => ({ ...current, session }));
           setSessionDiagnostics(session);
         }
       });
@@ -737,12 +737,12 @@
       lastUsedProfileId = profileId;
       lastUsedProfileVersion = profile?.version ?? null;
       lastRunRedactionMode = redaction;
-      state.update((s) => ({ ...s, loading: false, result, session: result.session ?? null }));
+      previewState.update((s) => ({ ...s, loading: false, result, session: result.session ?? null }));
       shownRunId = result.session?.runId ?? null;
     } catch (e) {
       if (!isCurrent()) return;
       const msg = e instanceof Error ? e.message : String(e);
-      state.update((s) => ({ ...s, loading: false, error: msg }));
+      previewState.update((s) => ({ ...s, loading: false, error: msg }));
     }
     if (isCurrent() && pageSessionId) void adoptSession(pageSessionId);
   }
@@ -777,7 +777,7 @@
 
   function getSnapshot() {
     let snapshot: { source: string; data: string } | null = null;
-    state.subscribe((s) => (snapshot = { source: s.source, data: s.data }))();
+    previewState.subscribe((s) => (snapshot = { source: s.source, data: s.data }))();
     if (!snapshot) {
       return { source: 'ui', data: '' };
     }
@@ -789,7 +789,7 @@
   }
 
   function loadSample(sample: HL7Sample) {
-    state.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
+    previewState.update((s) => ({ ...s, source: sample.source, data: sample.raw }));
     rememberSource(sample.source);
   }
 
@@ -804,7 +804,7 @@
       const inferred = baseName(f.name);
       inputs.push({
         name: inferred,
-        source: inferred || ($state.source || 'ui_preview'),
+        source: inferred || ($previewState.source || 'ui_preview'),
         raw
       });
     }
@@ -845,7 +845,7 @@
       const file = files[0]!;
       const text = await file.text();
       const inferredSource = baseName(file.name);
-      state.update((s) => ({
+      previewState.update((s) => ({
         ...s,
         data: text,
         source: s.source && s.source !== 'ui_preview' ? s.source : inferredSource
@@ -859,7 +859,7 @@
   }
 
   function onDragEnter(e: DragEvent) {
-    if ($state.loading) return;
+    if ($previewState.loading) return;
     if (!e.dataTransfer?.types?.includes('Files')) return;
     dragDepth += 1;
     isDragging = true;
@@ -871,7 +871,7 @@
   }
 
   async function onDropFiles(e: DragEvent) {
-    if ($state.loading) return;
+    if ($previewState.loading) return;
     const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
     if (!files.length) return;
     e.preventDefault();
@@ -881,17 +881,17 @@
   }
 
   function applyRedactionToEditor(): void {
-    if ($state.loading) return;
+    if ($previewState.loading) return;
     if (editorRedactionMode === 'none') return;
-    if (!$state.data.trim()) return;
-    const redacted = redactHL7($state.data, editorRedactionMode);
-    state.update((s) => ({ ...s, data: redacted }));
+    if (!$previewState.data.trim()) return;
+    const redacted = redactHL7($previewState.data, editorRedactionMode);
+    previewState.update((s) => ({ ...s, data: redacted }));
   }
 
   function normalizeEditorNewlines(): void {
-    if ($state.loading) return;
-    if (!$state.data.trim()) return;
-    state.update((s) => ({ ...s, data: normalizeHL7Newlines(s.data) }));
+    if ($previewState.loading) return;
+    if (!$previewState.data.trim()) return;
+    previewState.update((s) => ({ ...s, data: normalizeHL7Newlines(s.data) }));
   }
 
   function inspectPath(path: string): void {
@@ -921,11 +921,11 @@
     return 'LAB_RESULT';
   }
   $: inferredEventType = inferEventType(msh9);
-  $: warningCount = $state.result?.parsePreview.warnings.length ?? 0;
+  $: warningCount = $previewState.result?.parsePreview.warnings.length ?? 0;
   $: eventCount = $events.length;
 
   // Generate fixes based on warnings and current profile
-  $: fixes = suggestFixes($state.result?.parsePreview.warnings ?? [], $selectedProfile);
+  $: fixes = suggestFixes($previewState.result?.parsePreview.warnings ?? [], $selectedProfile);
 
   // ── Pipeline chips: what the last preview/process actually used ──────────
   // Values come from the stateless preview's artifact revisions and planned
@@ -934,8 +934,8 @@
     return Array.from(new Set(values.filter(Boolean)));
   }
 
-  $: preview = $state.result?.preview ?? null;
-  $: parseOk = $state.result ? $state.result.parsePreview.success : null;
+  $: preview = $previewState.result?.preview ?? null;
+  $: parseOk = $previewState.result ? $previewState.result.parsePreview.success : null;
   $: matchedRoutes = preview?.routes.filter((route) => route.matched) ?? [];
   $: plannedDestinations = unique(
     preview?.deliveries.map((delivery) => delivery.destination.artifactId) ?? []
@@ -955,8 +955,8 @@
     {
       id: 'source',
       label: 'Source',
-      value: $state.source || 'ui_preview',
-      state: $state.error ? 'error' : parseOk === null ? 'idle' : parseOk ? 'ok' : 'error',
+      value: $previewState.source || 'ui_preview',
+      state: $previewState.error ? 'error' : parseOk === null ? 'idle' : parseOk ? 'ok' : 'error',
       title: 'Source name sent with the message. Opens Samples.'
     },
     {
@@ -995,8 +995,8 @@
 
   $: tabItems = [
     { id: 'samples', label: 'Samples', count: $samples.length || undefined },
-    { id: 'warnings', label: 'Warnings', count: $state.result ? warningCount : undefined },
-    { id: 'events', label: 'Events', count: $state.result ? eventCount : undefined },
+    { id: 'warnings', label: 'Warnings', count: $previewState.result ? warningCount : undefined },
+    { id: 'events', label: 'Events', count: $previewState.result ? eventCount : undefined },
     { id: 'extraction', label: 'Extraction' },
     { id: 'inspector', label: 'Inspector' },
     { id: 'profile', label: 'Profile draft' },
@@ -1006,22 +1006,22 @@
 
   // The stateless status line (the session engine renders SessionRunProgress).
   let runTone: BadgeTone = 'neutral';
-  $: runTone = $state.loading
+  $: runTone = $previewState.loading
     ? 'info'
-    : $state.error
+    : $previewState.error
       ? 'danger'
-      : !$state.result
+      : !$previewState.result
         ? 'neutral'
-        : $state.result.parsePreview.success
+        : $previewState.result.parsePreview.success
           ? 'success'
           : 'danger';
-  $: runLabel = $state.loading
+  $: runLabel = $previewState.loading
     ? 'Previewing'
-    : $state.error
+    : $previewState.error
       ? 'Preview failed'
-      : !$state.result
+      : !$previewState.result
         ? 'Not previewed'
-        : $state.result.parsePreview.success
+        : $previewState.result.parsePreview.success
           ? 'Parsed'
           : 'Parse failed';
 
@@ -1029,10 +1029,10 @@
   $: hasContext =
     processState.state !== 'idle' ||
     lastProcessRedactionMode !== 'none' ||
-    (Boolean($state.result) &&
+    (Boolean($previewState.result) &&
       (Boolean(lastUsedProfileId) ||
         lastRunRedactionMode !== 'none' ||
-        (sessionEngineEnabled && Boolean($state.session))));
+        (sessionEngineEnabled && Boolean($previewState.session))));
 
   let processTone: BadgeTone = 'info';
   $: processTone =
@@ -1241,7 +1241,7 @@
       }
     ];
 
-    const raw = ($state.data ?? '').trim();
+    const raw = ($previewState.data ?? '').trim();
     if (raw) {
       cmds.unshift({
         id: 'copy-raw',
@@ -1343,15 +1343,15 @@
       const mod = e.metaKey || e.ctrlKey;
       const shift = e.shiftKey;
       if (mod && e.key === 'Enter') {
-        if ($state.loading) return;
-        if (!$state.data.trim()) return;
+        if ($previewState.loading) return;
+        if (!$previewState.data.trim()) return;
         e.preventDefault();
         void run();
         return;
       }
 
       if (mod && (e.key === 'o' || e.key === 'O')) {
-        if ($state.loading) return;
+        if ($previewState.loading) return;
         e.preventDefault();
         fileInputEl?.click();
         return;
@@ -1419,7 +1419,7 @@
           title="Redaction mode for the editor, preview and process. Best-effort: free-text fields may still contain PHI."
           value={editorRedactionMode}
           options={redactionOptions}
-          disabled={$state.loading}
+          disabled={$previewState.loading}
           onchange={(e: Event) => {
             editorRedactionMode = (e.currentTarget as HTMLSelectElement).value as HL7RedactionMode;
           }}
@@ -1432,7 +1432,7 @@
         accept=".hl7,.txt,.msg,.dat,text/plain"
         bind:this={fileInputEl}
         on:change={loadFromFile}
-        disabled={$state.loading}
+        disabled={$previewState.loading}
       />
       {#if sessionEngineEnabled || $workspaceState.status.kind !== 'idle'}
         <Button
@@ -1451,7 +1451,7 @@
         variant="ghost"
         icon={FolderOpen}
         title="Load an HL7 file into the editor (⌘/Ctrl+O). Several files go to Samples."
-        disabled={$state.loading}
+        disabled={$previewState.loading}
         onclick={() => fileInputEl?.click()}
       >
         Load file
@@ -1460,8 +1460,8 @@
         variant="primary"
         icon={Play}
         title="Parse the editor contents (⌘/Ctrl+Enter). Esc returns to Warnings; ⌘/Ctrl+K opens HL7 commands."
-        loading={$state.loading}
-        disabled={!$state.data.trim()}
+        loading={$previewState.loading}
+        disabled={!$previewState.data.trim()}
         onclick={run}
       >
         Preview
@@ -1470,7 +1470,7 @@
         icon={Send}
         title={processBlocked ?? 'Submit the message to the pipeline'}
         loading={processState.state === 'running'}
-        disabled={$state.loading || !$state.data.trim() || !!processBlocked}
+        disabled={$previewState.loading || !$previewState.data.trim() || !!processBlocked}
         onclick={processMessage}
       >
         Process
@@ -1525,13 +1525,13 @@
             <span class="source-input">
               <Input
                 mono
-                value={$state.source}
+                value={$previewState.source}
                 placeholder="epic_adt_hosp_a"
                 list="hl7-recent-sources"
-                disabled={$state.loading}
+                disabled={$previewState.loading}
                 oninput={(e: Event) => {
                   const value = (e.currentTarget as HTMLInputElement).value;
-                  state.update((s) => ({ ...s, source: value }));
+                  previewState.update((s) => ({ ...s, source: value }));
                 }}
               />
             </span>
@@ -1547,7 +1547,7 @@
               class="sample-link"
               type="button"
               title="Active sample — open Samples"
-              disabled={$state.loading}
+              disabled={$previewState.loading}
               on:click={() => (activeTab = 'samples')}
             >
               <Icon icon={FileText} size={14} />
@@ -1560,24 +1560,24 @@
 
           <div class="editor-bar-end">
             <label class="check" title="Apply the redaction mode to the preview payload">
-              <input type="checkbox" bind:checked={useRedactionForPreview} disabled={$state.loading} />
+              <input type="checkbox" bind:checked={useRedactionForPreview} disabled={$previewState.loading} />
               Redact preview
             </label>
             <label class="check" title="Apply the redaction mode to the process payload">
-              <input type="checkbox" bind:checked={useRedactionForProcess} disabled={$state.loading} />
+              <input type="checkbox" bind:checked={useRedactionForProcess} disabled={$previewState.loading} />
               Redact process
             </label>
             <IconButton
               icon={Eraser}
               label="Apply redaction to editor"
-              disabled={$state.loading || editorRedactionMode === 'none' || !$state.data.trim()}
+              disabled={$previewState.loading || editorRedactionMode === 'none' || !$previewState.data.trim()}
               onclick={applyRedactionToEditor}
             />
             <IconButton
               icon={WrapText}
               label="Normalize newlines"
               title="Normalize newlines (CR segment terminators)"
-              disabled={$state.loading || !$state.data.trim()}
+              disabled={$previewState.loading || !$previewState.data.trim()}
               onclick={normalizeEditorNewlines}
             />
           </div>
@@ -1586,9 +1586,9 @@
         <div class="editor-body">
           <CodeEditor
             language="hl7v2"
-            value={$state.data}
-            on:change={(e) => { $state.data = e.detail; }}
-            readOnly={$state.loading}
+            value={$previewState.data}
+            on:change={(e) => { $previewState.data = e.detail; }}
+            readOnly={$previewState.loading}
           />
           {#if isDragging}
             <div class="drop-hint">Drop files to import into Samples</div>
@@ -1603,25 +1603,25 @@
         </div>
       </div>
 
-      <div slot="secondary" class="results-pane" aria-label="Results" role="region" data-session-id={$state.session?.id ?? undefined} data-run-id={$state.session?.runId ?? undefined}>
+      <div slot="secondary" class="results-pane" aria-label="Results" role="region" data-session-id={$previewState.session?.id ?? undefined} data-run-id={$previewState.session?.runId ?? undefined}>
         <div class="status-line">
-          {#if sessionEngineEnabled && $state.session}
+          {#if sessionEngineEnabled && $previewState.session}
             <div class="session-status">
-              <SessionRunProgress session={$state.session} />
-              {#if $state.error}
-                <p class="run-error" role="alert" title={$state.error}>{$state.error}</p>
+              <SessionRunProgress session={$previewState.session} />
+              {#if $previewState.error}
+                <p class="run-error" role="alert" title={$previewState.error}>{$previewState.error}</p>
               {/if}
             </div>
           {:else}
             <span class="run-state">
               <Badge tone={runTone} dot data-testid="hl7-run-status">{runLabel}</Badge>
               <span class="status-text" aria-live="polite">
-                {#if $state.loading}
+                {#if $previewState.loading}
                   Parsing the message…
-                {:else if $state.error}
-                  {$state.error}
-                {:else if !$state.result}
-                  {#if !$state.data.trim()}
+                {:else if $previewState.error}
+                  {$previewState.error}
+                {:else if !$previewState.result}
+                  {#if !$previewState.data.trim()}
                     Paste an HL7v2 message to enable preview.
                   {:else}
                     Press Preview (⌘/Ctrl+Enter) to see warnings and extracted events.
@@ -1633,7 +1633,7 @@
             </span>
           {/if}
           {#if profileChanged}
-            <Button variant="ghost" icon={RotateCcw} disabled={$state.loading} onclick={run}>
+            <Button variant="ghost" icon={RotateCcw} disabled={$previewState.loading} onclick={run}>
               Profile changed — re-run
             </Button>
           {/if}
@@ -1643,23 +1643,23 @@
 
         {#if hasContext}
           <div class="context-row">
-            {#if $state.result}
+            {#if $previewState.result}
               {#if lastUsedProfileId}
                 <span class="ctx" title="Source profile selected when this run started">
                   <span class="ctx-key">Draft profile</span>
                   <span class="mono">{lastUsedProfileId}</span>
                 </span>
               {/if}
-              {#if sessionEngineEnabled && $state.session}
-                {#if $state.session.mode === 'session'}
+              {#if sessionEngineEnabled && $previewState.session}
+                {#if $previewState.session.mode === 'session'}
                   <span class="ctx">
                     <span class="ctx-key">Session</span>
-                    <span class="mono ctx-id" title={$state.session.id ?? ''}>{$state.session.id}</span>
+                    <span class="mono ctx-id" title={$previewState.session.id ?? ''}>{$previewState.session.id}</span>
                   </span>
-                  {#if $state.session.runId}
+                  {#if $previewState.session.runId}
                     <span class="ctx">
                       <span class="ctx-key">Run</span>
-                      <span class="mono ctx-id" title={$state.session.runId}>{$state.session.runId}</span>
+                      <span class="mono ctx-id" title={$previewState.session.runId}>{$previewState.session.runId}</span>
                     </span>
                   {/if}
                 {:else}
@@ -1685,9 +1685,9 @@
           </div>
         {/if}
 
-        {#if $state.result?.parsePreview.errors.length}
+        {#if $previewState.result?.parsePreview.errors.length}
           <ul class="issue-list" aria-label="Parse errors">
-            {#each $state.result.parsePreview.errors as err (err)}
+            {#each $previewState.result.parsePreview.errors as err (err)}
               <li>{err}</li>
             {/each}
           </ul>
@@ -1707,7 +1707,7 @@
                     class="path-link mono"
                     type="button"
                     on:click={() => inspectPath(diagnostic.path ?? '')}
-                    disabled={$state.loading}
+                    disabled={$previewState.loading}
                   >
                     {diagnostic.path}
                   </button>
@@ -1731,16 +1731,16 @@
             <SampleInbox
               samples={$samples}
               activeId={$activeId}
-              disabled={$state.loading}
-              currentRaw={$state.data}
+              disabled={$previewState.loading}
+              currentRaw={$previewState.data}
               intake={sessionEngineEnabled && intakeEntryState.visible ? intake : null}
               intakeDisabledReason={intakeEntryState.visible ? intakeEntryState.disabledReason : null}
               on:importFiles={async (e) => importFiles(e.detail.files, 'first', e.detail)}
               on:saveCurrent={(e) => {
                 const n = e.detail.name;
-                const source = e.detail.source?.trim() || $state.source;
+                const source = e.detail.source?.trim() || $previewState.source;
                 const redactionMode = e.detail.redactionMode ?? 'none';
-                const raw = redactionMode !== 'none' ? redactHL7($state.data, redactionMode) : $state.data;
+                const raw = redactionMode !== 'none' ? redactHL7($previewState.data, redactionMode) : $previewState.data;
                 const input: NewHL7Sample = {
                   ...(n ? { name: n } : {}),
                   source,
@@ -1762,7 +1762,7 @@
                 };
                 samplesStore.updateMeta(e.detail.id, changes);
                 if (before && before.id === e.detail.id && !activeSampleModified) {
-                  state.update((s) => ({
+                  previewState.update((s) => ({
                     ...s,
                     source: s.source === before.source ? e.detail.source : s.source
                   }));
@@ -1784,7 +1784,7 @@
               on:loadExamples={() => samplesStore.loadDemoSamples()}
             />
           {:else if activeTab === 'warnings'}
-            {#if !$state.result}
+            {#if !$previewState.result}
               <EmptyState align="start" message="Preview the message to list parse warnings by phase." />
             {:else}
               {#if acceptFixError}
@@ -1803,24 +1803,24 @@
               />
             {/if}
           {:else if activeTab === 'events'}
-            {#if !$state.result}
+            {#if !$previewState.result}
               <EmptyState align="start" message="Preview the message to see the extracted semantic events." />
             {:else}
               <EventLineagePanel
                 events={$events}
                 message={$hl7}
-                lineage={$state.session?.lineage ?? []}
+                lineage={$previewState.session?.lineage ?? []}
                 on:inspectPath={(e) => inspectPath(e.detail.path)}
               />
               <div class="quality">
                 <QualityBadge
-                  event={$events[0] ?? { raw: $state.data, source: $state.source }}
+                  event={$events[0] ?? { raw: $previewState.data, source: $previewState.source }}
                   eventType={inferredEventType}
                 />
               </div>
             {/if}
           {:else if activeTab === 'extraction'}
-            <ExtractionPanel text={$state.data} />
+            <ExtractionPanel text={$previewState.data} />
           {:else if activeTab === 'inspector'}
             <HL7Inspector
               message={$hl7}
@@ -1857,7 +1857,7 @@
                   <Badge tone={processState.result.success ? 'success' : 'danger'} dot>
                     {processState.result.success ? 'Submitted' : 'Submission failed'}
                   </Badge>
-                  <Button variant="ghost" disabled={$state.loading} onclick={() => (activeTab = 'live')}>
+                  <Button variant="ghost" disabled={$previewState.loading} onclick={() => (activeTab = 'live')}>
                     View live events
                   </Button>
                 </div>
@@ -1907,7 +1907,7 @@
             {/if}
           {:else if activeTab === 'live'}
             <EventStreamPanel
-              initialSource={lastProcessedSource ?? $state.source}
+              initialSource={lastProcessedSource ?? $previewState.source}
               initialCorrelationId={
                 processState.state === 'running' || processState.state === 'error' || processState.state === 'done'
                   ? processState.correlationId

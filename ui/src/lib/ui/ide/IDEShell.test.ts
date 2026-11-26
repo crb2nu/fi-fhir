@@ -4,20 +4,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import type { AfterNavigate, BeforeNavigate } from '@sveltejs/kit';
-import { get, writable } from 'svelte/store';
+import type { AfterNavigate, BeforeNavigate } from '$app/navigation';
+import { get } from 'svelte/store';
 import { ideState, markDirty, setDraftState, resetIDEState, setSidebarOpen, closeTab } from './ideStore';
 import { registerCommands, resetCommandRegistry } from './commandRegistry';
 import { takeConnectionsIntent } from '$lib/features/connections/connectionsIntent';
+// `$app` resolves to src/test/mocks/app (vitest.config.ts); this is that module.
+import { page } from '../../../test/mocks/app/state';
 
-const pageStore = writable({ url: new URL('http://localhost/hl7') });
+page.url = new URL('http://localhost/hl7');
 
 let navigationHook: ((navigation: BeforeNavigate) => void) | undefined;
 let arrivalHook: ((navigation: AfterNavigate) => void) | undefined;
 
 function attemptNavigation(href: string, type: BeforeNavigate['type'] = 'goto', delta?: number): boolean {
   const url = new URL(href, 'http://localhost');
-  const from = get(pageStore).url;
+  const from = page.url;
   let cancelled = false;
   navigationHook?.({
     type, delta, from: { url: from }, to: { url },
@@ -25,7 +27,7 @@ function attemptNavigation(href: string, type: BeforeNavigate['type'] = 'goto', 
     cancel: () => { cancelled = true; },
   } as BeforeNavigate);
   if (!cancelled && type !== 'leave') {
-    pageStore.set({ url });
+    page.url = url;
     arrivalHook?.({ from: { url: from }, to: { url }, type, delta } as AfterNavigate);
   }
   return !cancelled;
@@ -33,7 +35,6 @@ function attemptNavigation(href: string, type: BeforeNavigate['type'] = 'goto', 
 
 const gotoMock = vi.fn(async (href: string) => { attemptNavigation(href); });
 
-vi.mock('$app/stores', () => ({ page: pageStore }));
 vi.mock('$app/navigation', () => ({
   goto: gotoMock,
   beforeNavigate: (callback: (navigation: BeforeNavigate) => void) => { navigationHook = callback; },
@@ -62,7 +63,7 @@ describe('IDEShell workspace', () => {
     resetIDEState();
     resetCommandRegistry();
     takeConnectionsIntent();
-    pageStore.set({ url: new URL('http://localhost/hl7') });
+    page.url = new URL('http://localhost/hl7');
   });
 
   it('offers a visible explorer toggle and restores the compact navigation on collapse', async () => {
@@ -102,7 +103,7 @@ describe('IDEShell workspace', () => {
     expect(screen.getByRole('link', { current: 'step' })).toHaveTextContent('Source Intake');
     expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toHaveAttribute('aria-selected', 'true');
 
-    pageStore.set({ url: new URL('http://localhost/workflows') });
+    page.url = new URL('http://localhost/workflows');
     await tick();
 
     expect(screen.getByRole('tab', { name: 'HL7 / Intake' })).toBeInTheDocument();
@@ -117,7 +118,7 @@ describe('IDEShell workspace', () => {
     render(IDEShell);
     await tick();
 
-    pageStore.set({ url: new URL('http://localhost/workflows') });
+    page.url = new URL('http://localhost/workflows');
     await tick();
 
     await fireEvent.click(screen.getByLabelText('Close Workflows'));
@@ -131,7 +132,7 @@ describe('IDEShell workspace', () => {
   it.each([false, true])('focuses the adjacent editor after active Delete navigation completes (dirty=%s)', async (dirty) => {
     render(IDEShell);
     for (const path of ['/operator', '/events', '/operator']) {
-      pageStore.set({ url: new URL(`http://localhost${path}`) });
+      page.url = new URL(`http://localhost${path}`);
       await tick();
     }
     markDirty('/operator', dirty);
@@ -166,7 +167,7 @@ describe('IDEShell workspace', () => {
   ])('moves focus from inactive %s to %s without activating it', async (closing, neighbor, key) => {
     render(IDEShell);
     for (const path of ['/operator', '/events', '/hl7']) {
-      pageStore.set({ url: new URL(`http://localhost${path}`) });
+      page.url = new URL(`http://localhost${path}`);
       await tick();
     }
     const active = screen.getByRole('tab', { name: 'HL7 / Intake' });
@@ -179,25 +180,25 @@ describe('IDEShell workspace', () => {
     expect(original).not.toBeInTheDocument();
     expect(active).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: neighbor })).toHaveAttribute('aria-selected', 'false');
-    expect(get(pageStore).url.pathname).toBe('/hl7');
+    expect(page.url.pathname).toBe('/hl7');
     expect(gotoMock).not.toHaveBeenCalled();
   });
 
   it.each(['/hl7', '/'])('focuses Home when deleting the sole editor at %s', async (path) => {
-    pageStore.set({ url: new URL(`http://localhost${path}`) });
+    page.url = new URL(`http://localhost${path}`);
     render(IDEShell);
     await tick();
     const original = within(screen.getByRole('tablist', { name: 'Open editors' })).getByRole('tab');
     original.focus();
     await fireEvent.keyDown(original, { key: 'Delete' });
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Home' })).toHaveFocus());
-    expect(get(pageStore).url.pathname).toBe('/');
+    expect(page.url.pathname).toBe('/');
     expect(get(ideState).documents.map((doc) => doc.id)).toEqual(['/']);
   });
 
   it.each(['Keep open', 'Escape'])('returns focus after dirty-close %s and permits a fresh keyboard retry', async (cancel) => {
     render(IDEShell);
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     markDirty('/operator');
     await tick();
     const original = screen.getByRole('tab', { name: /^Operator/ });
@@ -207,7 +208,7 @@ describe('IDEShell workspace', () => {
     if (cancel === 'Escape') await fireEvent.keyDown(dialog, { key: 'Escape' });
     else await fireEvent.click(within(dialog).getByRole('button', { name: 'Keep open' }));
     await waitFor(() => expect(original).toHaveFocus());
-    expect(get(pageStore).url.pathname).toBe('/operator');
+    expect(page.url.pathname).toBe('/operator');
     expect(gotoMock).not.toHaveBeenCalled();
     await fireEvent.keyDown(original, { key: 'Delete' });
     await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
@@ -217,7 +218,7 @@ describe('IDEShell workspace', () => {
 
   it.each(['reject', 'cancel'])('restores the original focused tab when close navigation ends with %s', async (outcome) => {
     render(IDEShell);
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     markDirty('/operator');
     await tick();
     const original = screen.getByRole('tab', { name: /^Operator/ });
@@ -230,14 +231,14 @@ describe('IDEShell workspace', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'Close tab' }));
     await waitFor(() => expect(original).toHaveFocus());
     expect(original).toHaveAttribute('aria-selected', 'true');
-    expect(get(pageStore).url.pathname).toBe('/operator');
+    expect(page.url.pathname).toBe('/operator');
     await fireEvent.keyDown(original, { key: 'Delete' });
     expect(await screen.findByRole('dialog', { name: 'Close Operator?' })).toBeInTheDocument();
   });
 
   it('does not reuse canceled keyboard focus for a later close-button request', async () => {
     render(IDEShell);
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     markDirty('/operator');
     await tick();
     const original = screen.getByRole('tab', { name: /^Operator/ });
@@ -267,7 +268,7 @@ describe('IDEShell workspace', () => {
   ] as const)('leaves newer page focus alone after a superseded close ends at %s by %s (via HL7=%s)', async (finalPath, navigationType, viaHL7) => {
     render(IDEShell);
     for (const path of ['/operator', '/events', '/operator']) {
-      pageStore.set({ url: new URL(`http://localhost${path}`) });
+      page.url = new URL(`http://localhost${path}`);
       await tick();
     }
     const original = screen.getByRole('tab', { name: 'Operator' });
@@ -284,7 +285,7 @@ describe('IDEShell workspace', () => {
         attemptNavigation(path, navigationType, navigationType === 'popstate' ? -1 : undefined);
         await tick();
       }
-      expect(get(pageStore).url.pathname).toBe(path);
+      expect(page.url.pathname).toBe(path);
     }
     if (viaHL7) await navigate('/hl7');
     await navigate(finalPath);
@@ -307,7 +308,7 @@ describe('IDEShell workspace', () => {
 
   it('does not navigate or hand off focus when a confirmed tab has already disappeared', async () => {
     render(IDEShell);
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     markDirty('/operator');
     await tick();
     const original = screen.getByRole('tab', { name: /^Operator/ });
@@ -323,14 +324,14 @@ describe('IDEShell workspace', () => {
   });
 
   it('returns to the latest session from editor tabs, the activity bar and commands', async () => {
-    pageStore.set({ url: new URL('http://localhost/hl7?session=first') });
+    page.url = new URL('http://localhost/hl7?session=first');
     render(IDEShell);
     await tick();
-    pageStore.set({ url: new URL('http://localhost/hl7?session=second') });
+    page.url = new URL('http://localhost/hl7?session=second');
     await tick();
 
     for (const method of ['tab', 'activity', 'command']) {
-      pageStore.set({ url: new URL('http://localhost/operator?receipt=receipt-1') });
+      page.url = new URL('http://localhost/operator?receipt=receipt-1');
       await tick();
       gotoMock.mockClear();
       if (method === 'tab') {
@@ -351,12 +352,12 @@ describe('IDEShell workspace', () => {
   });
 
   it('clears the remembered selection on an explicit navigation to the base route', async () => {
-    pageStore.set({ url: new URL('http://localhost/hl7?session=first') });
+    page.url = new URL('http://localhost/hl7?session=first');
     render(IDEShell);
     await tick();
-    pageStore.set({ url: new URL('http://localhost/hl7') });
+    page.url = new URL('http://localhost/hl7');
     await tick();
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     await tick();
     await fireEvent.click(screen.getByRole('tab', { name: 'HL7 / Intake' }));
     expect(gotoMock).toHaveBeenCalledWith('/hl7');
@@ -390,20 +391,20 @@ describe('IDEShell workspace', () => {
     await tick();
     expect(refreshJourneyEvidence).toHaveBeenCalledTimes(1);
 
-    pageStore.set({ url: new URL('http://localhost/profiles') });
+    page.url = new URL('http://localhost/profiles');
     await tick();
     expect(refreshJourneyEvidence).toHaveBeenCalledTimes(2);
 
     // Same route, new search params: no extra read.
-    pageStore.set({ url: new URL('http://localhost/profiles?tab=yaml') });
+    page.url = new URL('http://localhost/profiles?tab=yaml');
     await tick();
     expect(refreshJourneyEvidence).toHaveBeenCalledTimes(2);
 
     // Leaving the journey reads again; moving between routes outside it does not.
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     await tick();
     expect(refreshJourneyEvidence).toHaveBeenCalledTimes(3);
-    pageStore.set({ url: new URL('http://localhost/connections') });
+    page.url = new URL('http://localhost/connections');
     await tick();
     expect(refreshJourneyEvidence).toHaveBeenCalledTimes(3);
   });
@@ -411,7 +412,7 @@ describe('IDEShell workspace', () => {
   it('asks before closing a tab with unsaved changes', async () => {
     render(IDEShell);
     await tick();
-    pageStore.set({ url: new URL('http://localhost/workflows') });
+    page.url = new URL('http://localhost/workflows');
     await tick();
     markDirty('/workflows');
     await tick();
@@ -439,7 +440,7 @@ describe('IDEShell workspace', () => {
   it.each(['tab', 'activity', 'explorer', 'command', 'link'])(
     'keeps the current URL, tab and inventory when %s navigation is cancelled', async (method) => {
       render(IDEShell);
-      pageStore.set({ url: new URL('http://localhost/connections') });
+      page.url = new URL('http://localhost/connections');
       await tick();
       setDraftState('/connections', 'catalog', true);
       const before = get(ideState).documents.map((doc) => doc.id);
@@ -459,7 +460,7 @@ describe('IDEShell workspace', () => {
         expect(attemptNavigation('/hl7', 'link')).toBe(false);
       }
       const dialog = await screen.findByRole('dialog', { name: 'Leave Connections?' });
-      expect(get(pageStore).url.pathname).toBe('/connections');
+      expect(page.url.pathname).toBe('/connections');
       expect(connectionsTab).toHaveAttribute('aria-selected', 'true');
       expect(intakeTab).toHaveAttribute('aria-selected', 'false');
       await fireEvent.click(within(dialog).getByRole('button', { name: 'Stay here' }));
@@ -469,29 +470,29 @@ describe('IDEShell workspace', () => {
   );
 
   it('permits only the confirmed transition and asks again after a failed navigation', async () => {
-    pageStore.set({ url: new URL('http://localhost/connections') });
+    page.url = new URL('http://localhost/connections');
     render(IDEShell);
     setDraftState('/connections', 'catalog', true);
     expect(attemptNavigation('/hl7', 'link')).toBe(false);
     await fireEvent.click(await screen.findByRole('button', { name: 'Leave view' }));
     await tick();
-    expect(get(pageStore).url.pathname).toBe('/hl7');
+    expect(page.url.pathname).toBe('/hl7');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    pageStore.set({ url: new URL('http://localhost/connections') });
+    page.url = new URL('http://localhost/connections');
     await tick();
     expect(attemptNavigation('/hl7')).toBe(false);
     gotoMock.mockRejectedValueOnce(new Error('network unavailable'));
     await fireEvent.click(await screen.findByRole('button', { name: 'Leave view' }));
     await tick();
-    expect(get(pageStore).url.pathname).toBe('/connections');
+    expect(page.url.pathname).toBe('/connections');
     expect(attemptNavigation('/hl7')).toBe(false);
     expect(await screen.findByRole('dialog', { name: 'Leave Connections?' })).toBeInTheDocument();
   });
 
   it('keeps an active dirty tab until confirmed navigation completes, without a second prompt', async () => {
     render(IDEShell);
-    pageStore.set({ url: new URL('http://localhost/connections') });
+    page.url = new URL('http://localhost/connections');
     await tick();
     setDraftState('/connections', 'catalog', true);
     let finish: (() => void) | undefined;
@@ -512,7 +513,7 @@ describe('IDEShell workspace', () => {
 
   it('keeps a tab after failed close navigation and asks before the next attempt', async () => {
     render(IDEShell);
-    pageStore.set({ url: new URL('http://localhost/connections') });
+    page.url = new URL('http://localhost/connections');
     await tick();
     setDraftState('/connections', 'catalog', true);
     await fireEvent.click(screen.getByLabelText('Close Connections'));
@@ -526,7 +527,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('allows retained same-route buffers and shared drafts, but protects native unload', async () => {
-    pageStore.set({ url: new URL('http://localhost/connections') });
+    page.url = new URL('http://localhost/connections');
     render(IDEShell);
     setDraftState('/connections', 'catalog', true);
     expect(attemptNavigation('/connections?connection=another')).toBe(true);
@@ -545,7 +546,7 @@ describe('IDEShell workspace', () => {
 
   it('resumes Back with its original history delta rather than pushing a new entry', async () => {
     window.history.replaceState({}, '', '/connections');
-    pageStore.set({ url: new URL(window.location.href) });
+    page.url = new URL(window.location.href);
     render(IDEShell);
     await tick();
     setDraftState('/connections', 'catalog', true);
@@ -646,7 +647,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('shows the stage breadcrumb for the current document', async () => {
-    pageStore.set({ url: new URL('http://localhost/profiles') });
+    page.url = new URL('http://localhost/profiles');
     render(IDEShell);
     await tick();
 
@@ -656,7 +657,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('lists the layout shortcuts in the palette Workspace category', async () => {
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     render(IDEShell);
     await tick();
 
@@ -673,7 +674,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('offers the Connections commands and hands the page what to open', async () => {
-    pageStore.set({ url: new URL('http://localhost/operator') });
+    page.url = new URL('http://localhost/operator');
     render(IDEShell);
     await tick();
 
@@ -690,7 +691,7 @@ describe('IDEShell workspace', () => {
   });
 
   it.each(['cancel', 'failure', 'accept'])('publishes a Connections command only after accepted arrival: %s', async (outcome) => {
-    pageStore.set({ url: new URL('http://localhost/profiles') });
+    page.url = new URL('http://localhost/profiles');
     render(IDEShell);
     setDraftState('/profiles', 'yaml-test', true);
     await fireEvent.click(screen.getByRole('button', { name: 'Open commands' }));
@@ -706,7 +707,7 @@ describe('IDEShell workspace', () => {
       await tick();
     }
     if (outcome === 'accept') {
-      expect(get(pageStore).url.pathname).toBe('/connections');
+      expect(page.url.pathname).toBe('/connections');
       expect(takeConnectionsIntent()).toEqual({ view: 'engine' });
     } else {
       setDraftState('/profiles', 'yaml-test', false);
@@ -716,7 +717,7 @@ describe('IDEShell workspace', () => {
   });
 
   it('opens a Connections tab titled Connections, outside the five stages', async () => {
-    pageStore.set({ url: new URL('http://localhost/connections') });
+    page.url = new URL('http://localhost/connections');
     render(IDEShell);
     await tick();
 
