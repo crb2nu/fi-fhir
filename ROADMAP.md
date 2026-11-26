@@ -833,8 +833,12 @@ have landed).
   in-Bundle reference matching, and two DiagnosticReport slices. Cardinality
   errors are zero. Closing these is the next mapper slice; VSAC-bound value
   sets stay "not found" warnings under `-tx n/a` by decision.
-- [ ] **Coverage.relationship for dependents** — stays `unknown` until
-  `EligibilityResponseEvent` carries the X12 INS02 relationship code.
+- [x] **Coverage.relationship for dependents** — closed 2026-11-26 (row
+  `bl-fifhir-coverage-relationship-dependent-ins02-202611`).
+  `EligibilityResponseEvent.DependentRelationshipCode` carries the 2100D
+  INS02, and `mapCoverageRelationship` maps `01`/`19`/`G8` to
+  `spouse`/`child`/`other`; any other or missing code stays data-absent
+  `unknown`.
 - [x] **Trace a successful publish through a webhook sink in the
   structured-logging proof** — closed 2026-11-04 by [MR !296](https://gitlab.flexinfer.ai/libs/fi-fhir/-/merge_requests/296) (`4f9c71e51`, row `bl-fifhir-trace-successful-publish-webhook-sink-202611`, train pipeline 37577; reviewed under the spec-touching hold). the structured-logging delivery join
   runs against an unreachable broker, so only the claim-and-retry path is

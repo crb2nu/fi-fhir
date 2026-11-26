@@ -234,7 +234,7 @@ func TestUSCoreMapper_CoverageRelationshipIsReadOffTheEvent(t *testing.T) {
 		}
 	})
 
-	t.Run("a dependent: the relationship is unknown, not guessed", func(t *testing.T) {
+	t.Run("a dependent without INS02: the relationship is unknown, not guessed", func(t *testing.T) {
 		event := base
 		event.Dependent = &events.Patient{MRN: "DEP456"}
 		coverage := mapper.MapCoverage(&event, "")
@@ -248,6 +248,31 @@ func TestUSCoreMapper_CoverageRelationshipIsReadOffTheEvent(t *testing.T) {
 			t.Errorf("structural errors:\n%s", indentAll(errs))
 		}
 	})
+
+	for _, tc := range []struct {
+		ins02, want string
+	}{
+		{"01", SystemSubscriberRelation + "|spouse"},
+		{"19", SystemSubscriberRelation + "|child"},
+		{"G8", SystemSubscriberRelation + "|other"},
+		{"53", SystemDataAbsentReason + "|unknown"},
+	} {
+		t.Run("a dependent with INS02 "+tc.ins02, func(t *testing.T) {
+			event := base
+			event.Dependent = &events.Patient{MRN: "DEP456"}
+			event.DependentRelationshipCode = tc.ins02
+			coverage := mapper.MapCoverage(&event, "")
+			if coverage.Relationship == nil {
+				t.Fatal("relationship is absent")
+			}
+			if got := codingKeys(*coverage.Relationship); strings.Join(got, ",") != tc.want {
+				t.Fatalf("relationship = %v, want %s", got, tc.want)
+			}
+			if errs := structuralErrorsFor(t, coverage); len(errs) != 0 {
+				t.Errorf("structural errors:\n%s", indentAll(errs))
+			}
+		})
+	}
 }
 
 func TestUSCoreMapper_CareTeamNeedsSomebodyOnIt(t *testing.T) {

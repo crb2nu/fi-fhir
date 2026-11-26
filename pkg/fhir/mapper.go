@@ -1151,6 +1151,17 @@ func (m *USCoreMapper) MapCoverage(event *events.EligibilityResponseEvent, benef
 	return coverage
 }
 
+// coverageRelationshipFromINS02 maps X12 005010X279A1 271 2100D INS02
+// (Individual Relationship Code) to HL7 subscriber-relationship
+// (http://terminology.hl7.org/CodeSystem/subscriber-relationship). Only codes
+// with an unambiguous counterpart are listed; G8 "Other Relationship" is the
+// X12 code that itself asserts a relationship outside the named ones.
+var coverageRelationshipFromINS02 = map[string]Coding{
+	"01": {System: SystemSubscriberRelation, Code: "spouse", Display: "Spouse"},
+	"19": {System: SystemSubscriberRelation, Code: "child", Display: "Child"},
+	"G8": {System: SystemSubscriberRelation, Code: "other", Display: "Other"},
+}
+
 // mapCoverageRelationship is Coverage.relationship, 1..1 in us-core-coverage:
 // the beneficiary's relationship to the subscriber, bound (extensible) to
 // subscriber-relationship.
@@ -1162,20 +1173,25 @@ func (m *USCoreMapper) MapCoverage(event *events.EligibilityResponseEvent, benef
 // same person, so `self` is read off the event's structure rather than
 // inferred.
 //
-// With a Dependent the true answer is in that loop's INS02, which the 271
-// parser reads but the canonical event does not carry. Guessing `child` or
-// `spouse` — or `other`, which asserts a relationship outside the listed ones —
-// would be invented data, so it is `unknown` from DataAbsentReason, as US
-// Core's Missing Data rule prescribes when the value set has no unknown concept.
+// With a Dependent the answer is that loop's INS02, carried on the event as
+// DependentRelationshipCode and translated by coverageRelationshipFromINS02.
+// When the payer sent no INS02, or a code the table does not list, guessing a
+// relationship would be invented data, so it is `unknown` from
+// DataAbsentReason, as US Core's Missing Data rule prescribes when the value
+// set has no unknown concept.
 func (m *USCoreMapper) mapCoverageRelationship(event *events.EligibilityResponseEvent) *CodeableConcept {
-	if event.Dependent != nil {
+	if event.Dependent == nil {
+		return &CodeableConcept{
+			Coding: []Coding{{System: SystemSubscriberRelation, Code: "self", Display: "Self"}},
+			Text:   "Self",
+		}
+	}
+	coding, ok := coverageRelationshipFromINS02[event.DependentRelationshipCode]
+	if !ok {
 		unknown := dataAbsentUnknown()
 		return &unknown
 	}
-	return &CodeableConcept{
-		Coding: []Coding{{System: SystemSubscriberRelation, Code: "self", Display: "Self"}},
-		Text:   "Self",
-	}
+	return &CodeableConcept{Coding: []Coding{coding}, Text: coding.Display}
 }
 
 // Helper methods for Condition mapping

@@ -333,6 +333,11 @@ func TestMap271ToEvents(t *testing.T) {
 
 	resp := responses[0]
 
+	if resp.Dependent != nil || resp.DependentRelationshipCode != "" {
+		t.Errorf("subscriber-is-patient response: dependent = %v, relationship code = %q, want neither",
+			resp.Dependent, resp.DependentRelationshipCode)
+	}
+
 	// Verify event metadata
 	if resp.Type != events.EventEligibilityResponse {
 		t.Errorf("event type = %s, want eligibility_response", resp.Type)
@@ -422,6 +427,49 @@ func TestMap271ToEvents(t *testing.T) {
 	// Verify no errors
 	if len(resp.Errors) != 0 {
 		t.Errorf("expected no errors, got %d", len(resp.Errors))
+	}
+}
+
+func TestMap271ToEvents_DependentRelationshipCode(t *testing.T) {
+	edi271 := `ISA*00*          *00*          *ZZ*RECEIVER       *ZZ*SENDER         *240115*0900*^*00501*000000003*0*P*:~
+GS*HB*RECEIVERID*SENDERID*20240115*0900*3*X*005010X279A1~
+ST*271*0003*005010X279A1~
+BHT*0022*11*TN123457*20240115*0900~
+HL*1**20*1~
+NM1*PR*2*ACME HEALTH INSURANCE*****PI*12345~
+HL*2*1*21*1~
+NM1*1P*2*SMITH MEDICAL CLINIC*****XX*1234567890~
+HL*3*2*22*1~
+NM1*IL*1*DOE*JOHN*M***MI*ABC123456789~
+HL*4*3*23*0~
+TRN*2*TRACE654321*9RECEIVER~
+NM1*03*1*DOE*JANE~
+INS*N*19~
+DMG*D8*20100301*F~
+EB*1**30**PPO GOLD PLAN~
+SE*14*0003~
+GE*1*3~
+IEA*1*000000003~`
+
+	result, err := NewParser().Parse(edi271)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	tx := result.Interchange.FunctionalGroups[0].Transactions[0]
+	responses, err := Map271ToEvents(tx, "test_source")
+	if err != nil {
+		t.Fatalf("Map271ToEvents failed: %v", err)
+	}
+	if len(responses) != 1 {
+		t.Fatalf("expected 1 response event, got %d", len(responses))
+	}
+
+	resp := responses[0]
+	if resp.Dependent == nil {
+		t.Fatal("expected a dependent on the 2100D response")
+	}
+	if resp.DependentRelationshipCode != "19" {
+		t.Errorf("dependent relationship code = %q, want %q", resp.DependentRelationshipCode, "19")
 	}
 }
 

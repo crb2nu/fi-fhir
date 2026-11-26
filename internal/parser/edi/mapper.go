@@ -725,22 +725,29 @@ func Map271ToEvents(tx *Transaction, source string) ([]*events.EligibilityRespon
 							depPlanEnd = planEnd
 						}
 
+						// INS02 is the dependent's relationship to the subscriber
+						var depRelationship string
+						if dep.DependentInfo != nil && dep.DependentInfo.INS != nil {
+							depRelationship = dep.DependentInfo.INS.GetElement(2)
+						}
+
 						event := &events.EligibilityResponseEvent{
 							EventMeta: events.NewEventMeta(
 								events.EventEligibilityResponse,
 								source,
 								events.FormatEDI271,
 							),
-							InformationSource:   payer,
-							InformationReceiver: provider,
-							Subscriber:          subscriber,
-							Dependent:           &dependent,
-							Status:              depStatus,
-							Benefits:            depBenefits,
-							Errors:              depErrors,
-							TraceNumber:         depTrace,
-							PlanBeginDate:       depPlanBegin,
-							PlanEndDate:         depPlanEnd,
+							InformationSource:         payer,
+							InformationReceiver:       provider,
+							Subscriber:                subscriber,
+							Dependent:                 &dependent,
+							DependentRelationshipCode: depRelationship,
+							Status:                    depStatus,
+							Benefits:                  depBenefits,
+							Errors:                    depErrors,
+							TraceNumber:               depTrace,
+							PlanBeginDate:             depPlanBegin,
+							PlanEndDate:               depPlanEnd,
 						}
 						event.SourceMessageID = tx.ControlNumber
 						results = append(results, event)

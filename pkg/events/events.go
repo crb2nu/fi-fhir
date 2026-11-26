@@ -1054,6 +1054,11 @@ type EligibilityResponseEvent struct {
 	// Dependent is the patient if different from subscriber
 	Dependent *Patient `json:"dependent,omitempty"`
 
+	// DependentRelationshipCode is the raw X12 INS02 (individual relationship
+	// code) from the 2100D dependent loop, e.g. "01" spouse, "19" child. Empty
+	// when there is no Dependent or the payer sent no INS segment.
+	DependentRelationshipCode string `json:"dependent_relationship_code,omitempty"`
+
 	// Status is the overall eligibility status
 	Status EligibilityStatus `json:"status"`
 
