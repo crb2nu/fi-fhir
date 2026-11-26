@@ -203,8 +203,9 @@ done
 
 # --- Fixture: durable data on the operator-bundle stack (.loom/42 E-0) -------
 # One deployed definition (lifecycle seed), two synthetic terminology mappings,
-# and admissions through the real HTTP ingress in side processes: two
-# dead-lettered by the delivery worker, two left queued. See e2e/fixture.sh and e2e/README.md.
+# and four admissions through the real HTTP ingress in side processes: two
+# dead-lettered by the delivery worker, two left queued. See e2e/fixture.sh
+# and e2e/README.md.
 E2E_API_BIN=$E2E_API_BIN E2E_REGISTRY_PATH=$E2E_REGISTRY_PATH E2E_RESULTS_DIR=$E2E_RESULTS_DIR \
 E2E_PG_HOST=$E2E_PG_HOST E2E_PG_PORT=$E2E_PG_PORT E2E_PG_USER=$E2E_PG_USER E2E_PG_PASSWORD=$E2E_PG_PASSWORD \
 FIXTURE_DATABASE=fi_fhir_e2e_bundle FIXTURE_TERMINOLOGY_DB_URL=$BUNDLE_TERMINOLOGY_DB_URL \

@@ -119,7 +119,7 @@ const CAPTURES: Capture[] = [
       const view = page.getByRole('tabpanel', { name: 'Browse' });
       // The operator-bundle stack composes a terminology mapping store (run.sh)
       // seeded with two synthetic mappings (fixture.sh), so the page must reach
-      // Browse; the "not configured" preflight is V20's capture, not this one.
+      // Browse and the "not configured" preflight is no longer an outcome here.
       await expectOneOf(
         view.getByText(/^No mappings (yet|match)/),
         view.getByRole('table', { name: 'Mappings', exact: true }),
