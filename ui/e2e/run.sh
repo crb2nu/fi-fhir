@@ -22,7 +22,11 @@
 # Each database-backed stack gets its own database, so no stack sees another's
 # migrations. The operator-bundle database then gets the E-0 fixture
 # (e2e/fixture.sh): a deployed definition and three real admissions; the other
-# stacks' Messages lists stay empty by construction. The
+# stacks' Messages lists stay empty by construction. Only the operator-bundle
+# stack also composes a terminology mapping store (FI_FHIR_TERMINOLOGY_DB_URL,
+# the `terminology` schema in its own database, seeded with synthetic mappings
+# by fixture.sh), so its Terminology page reaches Browse while every other
+# stack reports terminologyStore false. The
 # preview-only stack sets no FI_FHIR_DATABASE_* at all, exactly as the demo
 # Deployment (platform/gitops k3s/fi-fhir-demo/) does.
 #
@@ -132,6 +136,15 @@ for stack in "${STACKS[@]}"; do
 done
 log "databases ready on $E2E_PG_HOST:$E2E_PG_PORT"
 
+# --- Terminology: the operator-bundle stack's mapping store ------------------
+# `serve` only opens and pings FI_FHIR_TERMINOLOGY_DB_URL; it never creates the
+# schema, so `terminology init` does that first. The password is in the URL
+# because start_api hands it to serve, which does not read PGPASSWORD.
+BUNDLE_TERMINOLOGY_DB_URL="postgres://$E2E_PG_USER:$E2E_PG_PASSWORD@$E2E_PG_HOST:$E2E_PG_PORT/fi_fhir_e2e_bundle?sslmode=disable"
+"$E2E_API_BIN" terminology init --db "$BUNDLE_TERMINOLOGY_DB_URL" >"$E2E_RESULTS_DIR/logs/terminology-init.log" 2>&1 \
+  || { cat "$E2E_RESULTS_DIR/logs/terminology-init.log" >&2; die "terminology init on fi_fhir_e2e_bundle"; }
+log "terminology schema ready on fi_fhir_e2e_bundle"
+
 # --- API: one fi-fhir serve per stack ---------------------------------------
 start_api() {
   local name=$1 api_port=$2 database=$3 roles=$4 sessions=$5 ui_port=$6 principal=$7
@@ -164,6 +177,11 @@ start_api() {
       export FI_FHIR_DATABASE_PASSWORD=$E2E_PG_PASSWORD
       export FI_FHIR_DATABASE_SSL_MODE=disable
     fi
+    if [ "$name" = operator-bundle ]; then
+      # The only stack with a mapping store; every other stack must keep
+      # reporting terminologyStore false.
+      export FI_FHIR_TERMINOLOGY_DB_URL=$BUNDLE_TERMINOLOGY_DB_URL
+    fi
     # Four processes share one host: a shared default metrics port would
     # make the second one fail to bind. Metrics are not what this proves.
     export FI_FHIR_METRICS_ENABLED=false
@@ -184,12 +202,13 @@ for stack in "${STACKS[@]}"; do
 done
 
 # --- Fixture: durable data on the operator-bundle stack (.loom/42 E-0) -------
-# One deployed definition (lifecycle seed) and three admissions through the
-# real HTTP ingress in side processes: one dead-lettered by the delivery
-# worker, two left queued. See e2e/fixture.sh and e2e/README.md.
+# One deployed definition (lifecycle seed), two synthetic terminology mappings,
+# and four admissions through the real HTTP ingress in side processes: two
+# dead-lettered by the delivery worker, two left queued. See e2e/fixture.sh
+# and e2e/README.md.
 E2E_API_BIN=$E2E_API_BIN E2E_REGISTRY_PATH=$E2E_REGISTRY_PATH E2E_RESULTS_DIR=$E2E_RESULTS_DIR \
 E2E_PG_HOST=$E2E_PG_HOST E2E_PG_PORT=$E2E_PG_PORT E2E_PG_USER=$E2E_PG_USER E2E_PG_PASSWORD=$E2E_PG_PASSWORD \
-FIXTURE_DATABASE=fi_fhir_e2e_bundle \
+FIXTURE_DATABASE=fi_fhir_e2e_bundle FIXTURE_TERMINOLOGY_DB_URL=$BUNDLE_TERMINOLOGY_DB_URL \
   bash "$UI_DIR/e2e/fixture.sh" || die "the operator-bundle fixture could not be written"
 
 # --- nginx: the production template, once per stack --------------------------

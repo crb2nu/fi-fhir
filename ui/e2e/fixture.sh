@@ -9,7 +9,10 @@
 #   1. `fi-fhir lifecycle seed --validate skip --through deployed` puts the
 #      batch definition e2e-batch-adt/v1 through create_draft -> validate ->
 #      approve -> publish -> deploy (VALIDATION_SKIPPED, 24 h max age).
-#   2. Admission process A: a short-lived `fi-fhir serve` with the durable HTTP
+#   2. `fi-fhir terminology mapping upload` puts two synthetic local codes
+#      (source system e2e_synthetic_labs) into the stack's terminology mapping
+#      store, so the Terminology page's Browse tab renders a table.
+#   3. Admission process A: a short-lived `fi-fhir serve` with the durable HTTP
 #      ingress (/v1/hl7v2, bearer) and the delivery worker pointed at a Kafka
 #      broker that is not there (127.0.0.1:9). Messages E2E-FIXTURE-001
 #      (correlation e2e-fixture-dead-letter, read-only for the checks) and
@@ -17,7 +20,7 @@
 #      resubmits) are admitted; the worker claims each three times and
 #      dead-letters it (KAFKA_PUBLISH_FAILED): six audit rows and one open dead
 #      letter each.
-#   3. Admission process B: the ingress alone. E2E-FIXTURE-002 and -003 are
+#   4. Admission process B: the ingress alone. E2E-FIXTURE-002 and -003 are
 #      admitted and their attempts stay `queued` (no worker, no broker).
 #
 # The ingress runs in these side processes, never on the bundle API (:18081),
@@ -30,7 +33,8 @@
 # request with an Origin header, so curl posts without one.
 #
 # Inputs (from run.sh): E2E_API_BIN, E2E_REGISTRY_PATH, E2E_RESULTS_DIR,
-# E2E_PG_HOST/PORT/USER/PASSWORD, FIXTURE_DATABASE. Writes
+# E2E_PG_HOST/PORT/USER/PASSWORD, FIXTURE_DATABASE, FIXTURE_TERMINOLOGY_DB_URL
+# (the schema already initialised by run.sh). Writes
 # $E2E_RESULTS_DIR/fixture.json (the seed summary and the admission receipts).
 set -euo pipefail
 
@@ -38,6 +42,7 @@ E2E_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 FIXTURES=$E2E_DIR/fixtures
 : "${E2E_API_BIN:?}" "${E2E_REGISTRY_PATH:?}" "${E2E_RESULTS_DIR:?}" "${FIXTURE_DATABASE:?}"
 : "${E2E_PG_HOST:?}" "${E2E_PG_PORT:?}" "${E2E_PG_USER:?}" "${E2E_PG_PASSWORD:?}"
+: "${FIXTURE_TERMINOLOGY_DB_URL:?}"
 FIXTURE_PORT_A=${FIXTURE_PORT_A:-18095}
 FIXTURE_PORT_B=${FIXTURE_PORT_B:-18096}
 INGRESS_BEARER=e2e-fixture-ingress-not-a-secret-01
@@ -87,7 +92,20 @@ seed_args=(
   || { cat "$LOG_DIR/fixture-seed.json" >&2; fdie "lifecycle seed"; }
 flog "seeded e2e-batch-adt/v1 through deployed"
 
-# --- 2./3. admission processes -------------------------------------------------
+# --- 2. terminology mappings ------------------------------------------------------
+# Synthetic local codes only; the targets are public LOINC codes.
+mappings_csv=$LOG_DIR/fixture-terminology-mappings.csv
+cat >"$mappings_csv" <<'EOF'
+source_system,source_code,source_display,target_system,target_code,target_display,equivalence,comment
+e2e_synthetic_labs,E2E-GLU,Synthetic glucose,http://loinc.org,2345-7,Glucose [Mass/volume] in Serum or Plasma,equivalent,e2e fixture
+e2e_synthetic_labs,E2E-HGB,Synthetic hemoglobin,http://loinc.org,718-7,Hemoglobin [Mass/volume] in Blood,equivalent,e2e fixture
+EOF
+( fixture_env; "$E2E_API_BIN" terminology mapping upload "$mappings_csv" --db "$FIXTURE_TERMINOLOGY_DB_URL" ) \
+  >"$LOG_DIR/fixture-terminology-upload.log" 2>&1 \
+  || { cat "$LOG_DIR/fixture-terminology-upload.log" >&2; fdie "terminology mapping upload"; }
+flog "seeded 2 synthetic terminology mappings (e2e_synthetic_labs)"
+
+# --- 3./4. admission processes -------------------------------------------------
 ADMISSION_PID=""
 stop_admission() {
   if [ -n "$ADMISSION_PID" ]; then
@@ -173,8 +191,9 @@ accepted=$(sql "SELECT count(*) FROM integration_receipts WHERE status = 'accept
 queued=$(sql "SELECT count(*) FROM integration_delivery_attempts WHERE status = 'queued'")
 dead=$(sql "SELECT count(*) FROM integration_delivery_dlq WHERE active")
 deployed=$(sql "SELECT count(*) FROM integration_lifecycle_snapshots WHERE state = 'deployed'")
-[ "$accepted" -ge 4 ] && [ "$queued" -ge 2 ] && [ "$dead" -ge 2 ] && [ "$deployed" -ge 1 ] \
-  || fdie "fixture incomplete: accepted=$accepted queued=$queued dead_letters=$dead deployed=$deployed"
-printf '{"accepted":%s,"queued":%s,"deadLetters":%s,"deployed":%s,"definition":"e2e-batch-adt","revision":"v1"}\n' \
-  "$accepted" "$queued" "$dead" "$deployed" >"$E2E_RESULTS_DIR/fixture.json"
-flog "ready: $accepted accepted receipts, $queued queued attempts, $dead open dead letters, $deployed deployed definition"
+mappings=$(sql "SELECT count(*) FROM terminology.custom_mappings WHERE source_system = 'e2e_synthetic_labs'")
+[ "$accepted" -ge 4 ] && [ "$queued" -ge 2 ] && [ "$dead" -ge 2 ] && [ "$deployed" -ge 1 ] && [ "$mappings" -ge 2 ] \
+  || fdie "fixture incomplete: accepted=$accepted queued=$queued dead_letters=$dead deployed=$deployed mappings=$mappings"
+printf '{"accepted":%s,"queued":%s,"deadLetters":%s,"deployed":%s,"terminologyMappings":%s,"definition":"e2e-batch-adt","revision":"v1"}\n' \
+  "$accepted" "$queued" "$dead" "$deployed" "$mappings" >"$E2E_RESULTS_DIR/fixture.json"
+flog "ready: $accepted accepted receipts, $queued queued attempts, $dead open dead letters, $deployed deployed definition, $mappings terminology mappings"
