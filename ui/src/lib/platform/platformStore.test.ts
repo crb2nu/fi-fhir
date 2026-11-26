@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 
 // Must mock before importing the module
-vi.mock('$app/environment', () => ({ browser: true }));
+vi.mock('$app/env', () => ({ browser: true }));
 vi.mock('./config', () => ({
   PLATFORM_CONFIG: {
     endpoint: 'http://localhost:8080/mcp',

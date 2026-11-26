@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import { createHL7PreviewStore } from '$lib/features/hl7/hl7PreviewStore';
   import { parseHL7Preview } from '$lib/features/hl7/hl7Preview';
   import CodeEditor from '$lib/ui/editor/CodeEditor.svelte';

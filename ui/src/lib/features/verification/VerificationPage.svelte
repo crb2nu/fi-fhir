@@ -57,7 +57,7 @@
     else url.searchParams.delete('receipt');
     // Complete a Kit navigation so the shell remembers this receipt's URL.
     // eslint-disable-next-line svelte/no-navigation-without-resolve -- only changes the receipt on the already-resolved current URL
-    void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+    void goto(url, { replaceState: true, reset: false });
   }
 
   onMount(() => {

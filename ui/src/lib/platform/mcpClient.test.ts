@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMcpClient } from './mcpClient';
 import type { PlatformConfig } from './config';
 
-// Mock $app/environment
-vi.mock('$app/environment', () => ({ browser: true }));
+// Mock $app/env
+vi.mock('$app/env', () => ({ browser: true }));
 
 const mockConfig: PlatformConfig = {
   endpoint: 'http://localhost:8080/mcp',

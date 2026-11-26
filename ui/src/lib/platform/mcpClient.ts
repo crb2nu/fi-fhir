@@ -4,7 +4,7 @@
  * Communicates with loom-core's MCP proxy endpoint using fetch().
  * Includes automatic reconnection with exponential backoff.
  */
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import type { PlatformConfig } from './config';
 
 export interface McpClient {

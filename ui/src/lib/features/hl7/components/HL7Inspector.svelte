@@ -2,7 +2,7 @@
   import type { HL7Message, HL7Segment } from '$lib/domain/hl7v2';
   import type { HL7PathLocation } from '$lib/domain/hl7Path';
   import { getHL7Value } from '$lib/domain/hl7Access';
-  import { browser } from '$app/environment';
+  import { browser } from '$app/env';
   import { afterUpdate, createEventDispatcher } from 'svelte';
   import { Badge, Button, Icon, Input } from '$lib/ui/primitives';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';

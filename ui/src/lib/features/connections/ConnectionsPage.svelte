@@ -173,7 +173,7 @@
     const search = new URL(path, window.location.origin).search;
     selectorSearch = search;
     if (window.location.search === search) return;
-    void goto(resolve(path as IDEAppRoute), { replaceState: replace, noScroll: true, keepFocus: true });
+    void goto(resolve(path as IDEAppRoute), { replaceState: replace, reset: false });
   }
 
   function selected(next: ConnectionsView, path: string, replace = false): void {
