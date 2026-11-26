@@ -1,0 +1,1 @@
+- `test:ui-e2e` capture V7 (`terminology-browse.png`) now requires the Mappings table with the seeded `E2E-GLU` row instead of accepting "No mappings" or "Mappings could not be loaded", so an empty or unreachable terminology store fails the job (`ui/e2e/visual.spec.ts`).
