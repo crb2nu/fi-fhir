@@ -118,13 +118,13 @@ const CAPTURES: Capture[] = [
       await openIDE(page, '/terminology');
       const view = page.getByRole('tabpanel', { name: 'Browse' });
       // The operator-bundle stack composes a terminology mapping store (run.sh)
-      // seeded with two synthetic mappings (fixture.sh), so the page must reach
-      // Browse and the "not configured" preflight is no longer an outcome here.
-      await expectOneOf(
-        view.getByText(/^No mappings (yet|match)/),
-        view.getByRole('table', { name: 'Mappings', exact: true }),
-        view.getByText(/^Mappings could not be loaded/)
-      );
+      // and fixture.sh fails unless both synthetic mappings are seeded, so the
+      // only correct outcome is the Mappings table with a seeded row. "No
+      // mappings" means the store is empty and "could not be loaded" means the
+      // API cannot reach it; accepting either would hide a broken store.
+      const table = view.getByRole('table', { name: 'Mappings', exact: true });
+      await expect(table).toBeVisible();
+      await expect(table.getByRole('row').filter({ hasText: 'E2E-GLU' })).toBeVisible();
     }
   },
   {
