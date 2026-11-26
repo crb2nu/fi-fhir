@@ -87,7 +87,7 @@ test('R3. browsing an existing definition retains the unfinished definition form
   await expect(page.getByTestId('definitions-new')).toHaveText('Continue draft');
   await page.getByTestId('definitions-new').click();
   await expect(form.getByTestId('definition-new-id')).toHaveValue('unfinished-navigation-definition');
-  expect(new URL(page.url()).searchParams.has('definition')).toBe(false);
+  await expect(page).not.toHaveURL(/[?&]definition=/);
 });
 
 
